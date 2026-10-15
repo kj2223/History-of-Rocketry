@@ -1,0 +1,24 @@
+:root{--bg:#0b100b;--pn:#121a12;--ln:#2f4a2f;--ink:#b8ffb8;--dim:#6f9a6f;--ac:#33ff66;--wn:#ffb000;--bd:#ff4a3a;--ft:'Courier New',monospace;--rad:3px;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root[data-era="1"]{--bg:#0a1a2f;--pn:#0d2340;--ln:#2d5f99;--ink:#d6e8ff;--dim:#7fa6d6;--ac:#5ec8ff;--wn:#ffd24a;--bd:#ff6b5e}
+:root[data-era="2"]{--bg:#ece6d6;--pn:#f7f3e8;--ln:#8a8573;--ink:#1c2430;--dim:#5b6270;--ac:#0b3d91;--wn:#b45f06;--bd:#b3261e;--ft:'Helvetica Neue',Arial,sans-serif;--rad:0}
+@media(prefers-color-scheme:dark){:root[data-era="2"]:not([data-theme="light"]){--bg:#1b1e24;--pn:#242830;--ln:#4a505c;--ink:#ece6d6;--dim:#a3a8b3;--ac:#7fb0ff;--wn:#f0a64a;--bd:#ff7b6e}}
+:root[data-theme="dark"][data-era="2"]{--bg:#1b1e24;--pn:#242830;--ln:#4a505c;--ink:#ece6d6;--dim:#a3a8b3;--ac:#7fb0ff;--wn:#f0a64a;--bd:#ff7b6e}
+body{background:var(--bg);color:var(--ink);font:13px var(--ft);margin:0;padding:12px;transition:background 1.4s,color 1.4s}
+:root[data-era="0"] body::after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.2) 0 1px,transparent 1px 3px)}
+:root[data-era="1"] body{background-image:linear-gradient(rgba(94,200,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(94,200,255,.1) 1px,transparent 1px);background-size:28px 28px}
+:root[data-era="2"] h1,:root[data-era="2"] h2{font-family:Georgia,serif}
+.w{max-width:1300px;margin:auto}header{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:2px dashed var(--ln);padding-bottom:8px;margin-bottom:12px}
+h1{margin:0;font-size:1.6rem;color:var(--ac);letter-spacing:.05em}h2{margin:0 0 8px;font-size:.95rem;color:var(--wn);border-bottom:1px solid var(--ln);padding-bottom:4px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:860px){.g{grid-template-columns:1fr}}
+.p{background:var(--pn);border:1px solid var(--ln);border-radius:var(--rad);padding:12px;margin-bottom:12px;transition:background 1.4s,border-color 1.4s}
+:root[data-era="2"] .p{border-top:4px solid var(--ac)}
+.r{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}.d{color:var(--dim)}.m{font-size:.75rem;color:var(--dim);margin:3px 0}.c{border:1px solid var(--ln);padding:7px;margin:6px 0;border-radius:var(--rad)}
+.t{color:var(--wn);font-weight:bold}.ok{color:var(--ac)}.bad{color:var(--bd)}.wn{color:var(--wn)}.nar{font-style:italic;border-left:2px solid var(--wn);padding-left:6px}.hd{font-weight:bold;border:1px dashed var(--ac);padding:2px 4px}
+button,select{font:inherit;width:100%;margin-top:5px;padding:6px;background:transparent;color:var(--ac);border:1px solid var(--ac);border-radius:var(--rad);cursor:pointer}select{color:var(--ink);border-color:var(--ln);background:var(--pn)}
+button:disabled{color:var(--dim);border-color:var(--ln);cursor:not-allowed}button:hover:not(:disabled){background:var(--ac);color:var(--bg)}
+.gg{display:flex;gap:6px;margin:8px 0}.ga{flex:1;border:2px solid var(--ac);border-radius:50%;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:.72rem}.ga b{font-size:.85rem}.ga i{font-size:.55rem;color:var(--dim);font-style:normal}
+canvas{width:100%;height:80px;border:1px solid var(--ln);display:block}#lg{height:170px;overflow:auto;background:var(--bg);border:1px solid var(--ln);padding:6px;font-size:.78rem}
+#bn{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:var(--bg);z-index:9;text-align:center;padding:20px}#bn h1{font-size:2.2rem}#bn.s{display:flex;animation:f 4.5s forwards}@keyframes f{0%,75%{opacity:1}100%{opacity:0;visibility:hidden}}
+
+.tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:2px solid var(--ln)}.tabs button{flex:1;width:auto;margin:0;border-radius:var(--rad) var(--rad) 0 0;border-color:var(--ln);color:var(--dim)}.tabs button.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+:root[data-era="1"] .tabs button{border-style:dashed}:root[data-era="2"] .tabs button{letter-spacing:.06em;font-weight:bold}[hidden]{display:none!important}
