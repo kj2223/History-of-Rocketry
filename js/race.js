@@ -19,3 +19,6 @@ export function intel(){const nx=RIVAL.find(r=>!S.rvd[r[0]]);if(!nx)return null;
 // NASA: offered once you reach orbit, or from October 1958 whatever your progress. Establishing it closes Phase One.
 export const nasaReady=()=>!S.nasa&&(S.fs.f_orbit=='us'||S.fs.f_orbit=='second'||S.day>=NASA_DAY);
 export function formNASA(){if(!nasaReady())return;S.nasa=S.day;note('NASA established');lg('[WASHINGTON] The National Aeronautics and Space Act is signed. Your programme becomes the core of NASA.','hd')}
+
+// Intelligence estimate of Soviet progress toward a satellite, as a range.
+export function sovietProgress(){if(S.rvd.r_sat)return{lo:1,hi:1,done:true};const r=S.day/S.rv.r_sat;return{lo:Math.min(1,r/1.08),hi:Math.min(1,r/.92),done:false}}

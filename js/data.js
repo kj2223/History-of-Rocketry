@@ -10,7 +10,7 @@ export const ERAS=[['SOUNDING ROCKET ERA','Radar plots, a radio beacon and slide
 // Research time is scaled to 75% of the listed figure.
 export const R=(id,a,n,c,t,e,x={})=>({id,a,n,c,t:Math.round(t*.75),e,...x});
 export const PK=[R('inj','p','Injector pattern trials',3000,80,{t:.05,r:.01}),R('mix','p','Mixture-ratio tests',3500,100,{t:.06}),R('noz','p','Nozzle contour refinement',4500,120,{t:.08,d:1}),R('seal','p','Pump bearing and seal work',5000,150,{t:.04,r:.025}),R('cool','p','Cooling jacket revisions',6000,180,{t:.07,r:.02,d:2}),R('imp','p','Turbopump impeller redesign',7000,200,{t:.06,r:.015,d:1}),
-R('gauge','s','Tank wall gauge study',3000,80,{f:6,d:-1}),R('weld','s','Weld and seam quality program',3500,100,{g:.6,r:.01}),R('ring','s','Stiffening ring layout',4500,120,{g:.8,d:2}),R('vol','s','Tankage volume extension',5000,150,{f:12,d:2}),R('alloy','s','Alloy substitution trials',6000,180,{g:.6,f:6,d:-2}),R('prs','s','Tank pressurization study',7000,200,{f:10,g:.3,d:1}),
+R('gauge','s','Tank wall gauge study',3000,80,{f:6,d:-1}),R('vol','s','Tankage volume extension',5000,150,{f:12,d:2}),R('weld','s','Weld and seam quality program',3500,100,{g:.6,r:.01}),R('ring','s','Stiffening ring layout',4500,120,{g:.8,d:2}),R('alloy','s','Alloy substitution trials',6000,180,{g:.6,f:6,d:-2}),R('prs','s','Tank pressurization study',7000,200,{f:10,g:.3,d:1}),
 R('bea','i','Radio beacon refinement',2000,60,{i:.4}),R('fm','i','FM telemetry transmitter',3500,90,{i:.6,d:1}),R('xdc','i','Pressure transducers',4500,120,{i:.5,d:1}),R('str','i','Strain gauge installation',5000,140,{i:.5,d:1}),R('acc','i','Accelerometer package',6000,160,{i:.5,d:1}),R('mux','i','Telemetry channel multiplexing',7000,190,{i:.4,d:1}),
 // Experimental work: bigger potential, wide uncertainty, and a chance (dud) of turning out a dead end. Effects can be negative.
 R('addv','p','Fuel additive trials (hydrazine blends)',4000,90,{t:.10,r:-.02},{dud:.35}),R('swirl','p','Swirl injector experiments',3800,100,{t:.07,r:.01},{dud:.3}),R('abl','p','Ablative chamber liner',5500,130,{r:.03,d:2},{dud:.15}),R('monop','p','Monopropellant turbine drive',6500,160,{t:.09,d:-1,r:-.01},{dud:.4}),
@@ -51,6 +51,8 @@ R('ms_xrv','x','Re-entry Nose Cone Program',50000,260,{rv:1500,h:.3,d:4},{tier:'
 R('ms_xirbm','x','Guided Ballistic Missile Contract (IRBM)',60000,300,{t:.1,r:.02},{tier:'x',xa:'pi',pay:90000,why:'Turn your engine and guidance into a missile the Pentagon will buy.'}),
 R('ms_xslv','x','Satellite Launch Vehicle Integration',55000,280,{t:.15,r:.02},{tier:'x',xa:'si',why:'Make stages, guidance and payload work as one vehicle.'}),
 R('ms_xasc','x','Ascent Trajectory Optimization',40000,220,{c:-.08,t:.05},{tier:'x',xa:'ap',why:'Fly a cleaner path through the atmosphere.'})];
+// First milestones cost 20% less than listed; Congress earmarks money toward them at each breakthrough (design.js).
+for(const m of MSL)if(m.tier==1)m.c=Math.round(m.c*.8/1000)*1000;
 // Historical firsts: [id, name, cash, reputation, test, rival event that can claim it first]
 export const FIRSTS=[['f_50','First rocket above 50 km',8000,2,c=>c.ok&&c.peak>=50000],['f_mach','First flight past 1,000 m/s',6000,2,c=>c.ok&&c.spd>=1000],
 ['f_space','First American rocket into space (100 km)',20000,6,c=>c.ok&&c.peak>=100000,'r_space'],['f_rec','First payload recovered from flight',5000,2,c=>c.rec],
@@ -62,7 +64,7 @@ export const FIRSTS=[['f_50','First rocket above 50 km',8000,2,c=>c.ok&&c.peak>=
 export const RIVAL=[['r_space',1860,'Soviet geophysical rockets climb above 100 km.','rockets above 100 km'],['r_dog',1980,'Soviet dogs Dezik and Tsygan return alive from a rocket flight to 100 km.','an animal flight to space altitude'],
 ['r_icbm',4170,'The Soviet Union announces a successful intercontinental ballistic missile test. Congress is alarmed.','an ICBM test'],['r_sat',4230,'SPUTNIK. The Soviet Union has placed the first artificial satellite in orbit.','an artificial satellite']];
 // Calendar speed: game days per real second. Tuned so a typical first playthrough reaches orbit around early 1958.
-export const DAYS_PER_SEC=.85;
+export const DAYS_PER_SEC=1.4;
 export const NASA_DAY=4590; // October 1958: NASA opens its doors
 // When the real US programme did each first, for the end-of-phase comparison.
 export const HISTUS={f_50:'Oct 1945, WAC Corporal',f_mach:'Apr 1946, captured V-2',f_space:'May 1946, V-2 at White Sands',f_rec:'Oct 1946, V-2 film canister',f_cosm:'1946, V-2 cosmic-ray counters',f_photo:'Oct 1946, V-2 camera at 105 km',f_bio:'Sep 1951, Aerobee (monkey Yorick)',f_stage:'Feb 1949, Bumper-WAC',f_range:'Jul 1950, Bumper-WAC from Cape Canaveral',f_orbit:'Jan 1958, Explorer 1'};
