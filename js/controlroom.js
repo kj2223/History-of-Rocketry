@@ -4,8 +4,8 @@ const s=(f,x='')=>`style="fill:${f};${x}"`;
 // A seated figure whose shoulders sit on top edge y.
 const person=(x,y)=>`<circle cx="${x}" cy="${y-17}" r="4.5" ${s('var(--dim)')}/><rect x="${x-7}" y="${y-12}" width="14" height="13" rx="4" ${s('var(--dim)')}/>`;
 function console_(x,y,lab,on,fly){let o=`<rect x="${x-28}" y="${y}" width="56" height="14" rx="2" ${s('var(--ln)')}/>`;
-if(lab)o+=`<text x="${x-24}" y="${y+10}" ${s('var(--bg)','font-size:8px;font-weight:bold;font-family:inherit')}>${lab}</text>`;
-if(on)for(let i=0;i<3;i++)o+=`<circle class="lt${fly?' bl':''}" cx="${x+8+i*7}" cy="${y+7}" r="2" ${s(i==2?'var(--wn)':'var(--ac)',`animation-delay:${i*.19}s`)}/>`;return o}
+if(lab)o+=`<text x="${x-25}" y="${y+10}" ${s('var(--bg)','font-size:7.5px;font-weight:bold;font-family:inherit')}>${lab}</text>`;
+if(on)for(let i=0;i<3;i++)o+=`<circle class="lt${fly?' bl':''}" cx="${x+12+i*6}" cy="${y+7}" r="1.8" ${s(i==2?'var(--wn)':'var(--ac)',`animation-delay:${i*.19}s`)}/>`;return o}
 export function roomSVG(r,crew,slots,fly,bub={}){
 const H=r>=5?212:r==4?182:175;let o=`<svg viewBox="0 0 600 ${H}" class="room" role="img" aria-label="${ROOMS[r][0]}"><rect width="600" height="100" ${s('var(--pn)')}/><rect y="100" width="600" height="${H-100}" ${s('var(--bg)')}/><line x1="0" y1="100" x2="600" y2="100" style="stroke:var(--ln)"/>`;
 if(r<2){ // concrete blockhouse: block courses, slit windows onto the pad, a periscope

@@ -7,6 +7,7 @@ export function rivalTick(){let ch=false;for(const[k,,msg]of RIVAL){if(S.rvd[k]|
 if(f&&S.fs[f[0]]){lg(`[WIRE] ${msg} The United States got there first.`,'wn');continue}
 if(f)S.fs[f[0]]='them';note(`Soviet: ${msg.split('.')[0]}`);lg(`[WIRE] ${msg}`,'bad');
 if(k=='r_sat'){S.rep=Math.max(0,S.rep-8);lg('[PRESS] Panic in Washington. Congress opens the purse: appropriations +30% until America answers.','nar')}
+else if(k=='r_gagarin'){S.rep=Math.max(0,S.rep-6);lg('[PRESS] The world hails the first human in space. Washington demands an answer.','nar')}
 else if(k=='r_icbm'){S.rep=Math.max(0,S.rep-3);lg('[PRESS] The missile gap dominates the news. Appropriations +10% from now on.','nar')}
 else if(f){S.rep=Math.max(0,S.rep-3);lg(`[PRESS] Another Soviet first. Matching it now will earn less.`,'nar')}}
 return ch}
@@ -17,8 +18,10 @@ lg(lost?`[PRESS] America answers the Soviets: ${n.replace(/^First /,'').toLowerC
 export function intel(){const nx=RIVAL.find(r=>!S.rvd[r[0]]);if(!nx)return null;const d=S.rv[nx[0]],w=Math.round(d*.08);return{what:nx[3],lo:dateOf(Math.max(S.day,d-w)),hi:dateOf(d+w)}}
 
 // NASA: offered once you reach orbit, or from October 1958 whatever your progress. Establishing it closes Phase One.
-export const nasaReady=()=>!S.nasa&&(S.fs.f_orbit=='us'||S.fs.f_orbit=='second'||S.day>=NASA_DAY);
+// With a satellite up, Congress can pass the Act from about December 1957; without one, Washington acts in October 1958 regardless.
+export const ACT_DAY=NASA_DAY-300;
+export const nasaReady=()=>!S.nasa&&(((S.fs.f_orbit=='us'||S.fs.f_orbit=='second')&&S.day>=ACT_DAY)||S.day>=NASA_DAY);
 export function formNASA(){if(!nasaReady())return;S.nasa=S.day;note('NASA established');lg('[WASHINGTON] The National Aeronautics and Space Act is signed. Your programme becomes the core of NASA.','hd')}
 
 // Intelligence estimate of Soviet progress toward a satellite, as a range.
-export function sovietProgress(){if(S.rvd.r_sat)return{lo:1,hi:1,done:true};const r=S.day/S.rv.r_sat;return{lo:Math.min(1,r/1.08),hi:Math.min(1,r/.92),done:false}}
+export function sovietProgress(){const k=S.nasa?'r_gagarin':'r_sat';if(S.rvd[k])return{lo:1,hi:1,done:true};const r=S.nasa?(S.day-S.nasa)/(S.rv[k]-S.nasa):S.day/S.rv[k];return{lo:Math.min(1,r/1.08),hi:Math.min(1,r/.92),done:false}}

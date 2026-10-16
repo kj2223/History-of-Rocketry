@@ -64,3 +64,26 @@ button.danger{color:var(--bd);border-color:var(--bd)}button.danger:hover:not(:di
 .rbars{margin-bottom:10px}.rbars .bar{height:10px;position:relative;margin-bottom:6px}.bar.su i{background:var(--bd)}.bar.su u{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,var(--bd) 0 3px,transparent 3px 6px);opacity:.6}
 @media (prefers-reduced-motion:reduce){#padroom .bub{animation:none}}
 #pad .gg{justify-content:center}#pad .ga{max-width:150px}
+
+/* Astronaut Office and Mercury */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin:8px 0}.cards>.c{margin:0}.astro.on{border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
+.sk{display:grid;grid-template-columns:78px 1fr 52px;gap:6px;align-items:center;font-size:.75rem;margin:3px 0}.skb{position:relative;height:8px;border:1px solid var(--ln)}
+.skb i{position:absolute;top:0;bottom:0;background:var(--ac);opacity:.3}.skb b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ac)}.skv{text-align:right;font-variant-numeric:tabular-nums}
+.rels{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;font-size:.78rem}.mem{margin-top:12px;border-top:2px solid var(--ln);padding-top:8px}.mem>div{margin:6px 0}
+.memo{max-width:560px;margin:18vh auto 0;text-align:center;display:flex;flex-direction:column;gap:10px}.memo h1{font-size:2rem;color:var(--ink)}
+.spd button{width:auto;margin:0 0 0 4px;padding:1px 7px;font-size:.68rem}.spd button.on{background:var(--ac);color:var(--bg)}
+@media(max-width:560px){.tabs{flex-wrap:wrap}.tabs button{flex:1 1 30%;font-size:11px;padding:6px 4px;min-width:0}}
+.cards{grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))}.cards>*,.sk>*{min-width:0}
+.c.decide{border-color:var(--ac);border-left-width:4px}.c.decide .two{margin-top:8px}
+/* Air-to-ground transcript: a teleprinter roll beside the gauges. */
+.comms{margin:10px 0;border:1px solid var(--ln);background:var(--pn);font-family:"Courier New",Courier,monospace;font-size:12.5px}
+.comms .ct{padding:5px 10px;border-bottom:1px dashed var(--ln);letter-spacing:.12em;font-weight:bold;font-size:11px}
+.ctx{max-height:230px;overflow-y:auto;padding:6px 10px}.sumbox .ctx{max-height:60vh}
+.cl{display:grid;grid-template-columns:46px 92px 1fr;gap:8px;padding:2px 0;line-height:1.35}.cl .ctm{color:var(--dim)}.cl b{font-weight:bold;letter-spacing:.04em}
+.cl.note{grid-template-columns:46px 1fr}.cl.note i{color:var(--dim)}.cl.bad span,.cl.bad i{color:var(--bd)}.cl.cyan span{color:var(--ac)}
+@media(max-width:560px){.cl{grid-template-columns:40px 1fr}.cl b{grid-column:2}.cl span:last-child{grid-column:2}}
+/* Engineering file: the knowledge block heading each system's card. */
+.kn{border-left:3px solid var(--ac);padding:4px 0 6px 8px;margin:6px 0 4px}.kn .c{margin:6px 0}
+/* Rocket programme bar and card */
+.pbar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}.pbar button{flex:1 1 auto;width:auto;margin:0;font-size:.8em;min-width:0}.pbar button.on{background:var(--ac);color:var(--bg)}.pbar .d{opacity:.8}
+.c.prog{border-left:4px solid var(--ac)}
