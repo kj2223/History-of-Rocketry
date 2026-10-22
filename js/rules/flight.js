@@ -215,6 +215,8 @@ export function step(flight) {
   const airDensity = SEA_LEVEL_DENSITY * Math.exp(-flight.altitude / SCALE_HEIGHT), speed = Math.hypot(flight.verticalSpeed, flight.horizontalSpeed);
   const aeroLoad = .5 * airDensity * speed * speed / (flight.gLimit * 40000 * flight.aeroLimitScale) * (1 + .3 * flight.wind);
   const heating = Math.sqrt(airDensity / SEA_LEVEL_DENSITY) * Math.pow(speed / 1e3, 3) / flight.heatLimit;
+  // This second's loads, for the part channels and the crew's callouts (rules/telemetry.js, rules/callouts.js).
+  Object.assign(flight, { aeroLoad, heating, thrustShare: thrust / stage.thrust, gLoad: thrust / mass / GRAVITY });
   // Overheating deforms the skin; it slowly recovers when the heating eases.
   if (thrust > 0) {
     if (heating > 1) flight.deformation += (heating - 1) * .6;

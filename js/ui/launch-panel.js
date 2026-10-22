@@ -10,14 +10,16 @@ import { rangeDataPayment, DIRECTOR_SALARY } from '../rules/economy.js';
 import { SPECIALISTS } from '../rules/game.js';
 import { roomLevel, consoleCount, crewOnConsole } from '../rules/launch-site.js';
 import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
+import { PART_CHANNELS, channelCapacity, availableChannels, watchedChannels } from '../rules/telemetry.js';
 import { CAMPAIGN_TARGETS, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
 import { roomSVG, updateTrace } from './control-room.js';
 import { launchView } from './launch-view.js';
 import { $, option, setHTML, escapeHtml, percent } from './dom.js';
 
-// What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank).
+// What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank),
+// ch: the part channels to watch (null until first shown, then every fitted channel the telemetry can carry).
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
-export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100 };
+export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null };
 
 const payloadLocked = (payload, airframe) => (PAYLOADS[payload].satellite && cannotOrbit(airframe)) || (PAYLOADS[payload].needs && !isResearched(PAYLOADS[payload].needs));
 
@@ -47,7 +49,21 @@ export function renderLaunchForm() {
 <select data-s="pay">${Object.keys(PAYLOADS).filter(name => !PAYLOADS[name].mercury).map(name => option(name, payloadLabel(name, airframe), payloadLocked(name, airframe), form.pay)).join('')}</select>
 <div class="r" style="margin-top:8px"><span class="d">Propellant load (${propellantKg} kg)</span><b id="ldv">${form.load}%</b></div><input type="range" data-s="load" min="10" max="100" step="5" value="${form.load}" style="width:100%">
 ${preview ? estimateHTML(preview, payload, airframe) : ''}
+${partChannelsHTML(airframe)}
 <div class="m">Fuel record: ${S.fr[form.fuel] || 0} successful flights.${airframe && airframe.pk.some(id => !isConfirmed(id)) ? ` Unproven systems aboard: ${airframe.pk.filter(id => !isConfirmed(id)).length} (raises the chance of a hidden fault).` : ''} Range fee ${formatMoney(rangeFee())} included.${rangeDataPayment(1e4) ? ' Successful flights earn a Defense Department range data contract.' : ''}</div><button data-a="count"${quote.error ? ' disabled' : ''}>BEGIN COUNTDOWN${quote.cost ? ' (' + formatMoney(quote.cost) + ')' : ''}</button><div class="m bad">${quote.error || ''}</div>`);
+}
+// PART TELEMETRY: pick which parts to watch, up to what the airframe's telemetry carries (rules/telemetry.js).
+function partChannelsHTML(airframe) {
+  if (!airframe) return '';
+  const capacity = channelCapacity(airframe), available = availableChannels(airframe);
+  if (!capacity) return '<div class="m">Part telemetry: none. The FM telemetry transmitter (instrumentation research) carries one channel from a part of the rocket; multiplexing carries more.</div>';
+  if (launchForm.ch == null) launchForm.ch = available.slice(0, capacity);
+  const picked = watchedChannels(airframe, launchForm.ch);
+  return `<div class="c"><div class="t">PART TELEMETRY (${picked.length} of ${capacity} channel${capacity > 1 ? 's' : ''})</div>`
+    + Object.keys(PART_CHANNELS).map(id => {
+      const fitted = available.includes(id), on = picked.includes(id);
+      return `<label class="m" style="display:block"><input type="checkbox" data-ch="${id}"${on ? ' checked' : ''}${!fitted || (!on && picked.length >= capacity) ? ' disabled' : ''}> ${PART_CHANNELS[id].name}${fitted ? '' : ' [instrument not fitted]'}</label>`;
+    }).join('') + '</div>';
 }
 function payloadLabel(name, airframe) {
   const payload = PAYLOADS[name];

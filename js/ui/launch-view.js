@@ -9,6 +9,8 @@ import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { roomLevel, consoleCount, crewOnConsole, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS } from '../rules/flight.js';
 import { boosterPlan, crewLock } from '../rules/mercury.js';
+import { PART_CHANNELS, partReading, watchedChannels } from '../rules/telemetry.js';
+import { crewCallouts } from '../rules/callouts.js';
 import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName } from '../rules/mission.js';
 import { roomSVG, updateTrace, gaugesSVG } from './control-room.js';
 import { launchForm } from './launch-panel.js';
@@ -237,7 +239,9 @@ function drawFlightInstruments(flight) {
   channels.push(CHANNELS.hor.quality(ground, vehicle)
     ? { label: vehicle >= 3 ? 'INERTIAL H-VEL' : 'RANGE RATE', value: horizontal ? horizontal.value : null, max: gaugeScale(flight, 'hor', horizontal ? horizontal.value : 0, 500), text: horizontal ? approximate(horizontal) + horizontal.value + ' m/s' : '--', lost: lost.hor, jitter: jitter(horizontal) }
     : { label: 'DOWNRANGE', none: 1 });
-  setHTML($('#gpanel'), gaugesSVG(level, channels, true));
+  // The part channels picked before launch, on a second row.
+  const parts = (flight.watch || []).map(id => ({ label: PART_CHANNELS[id].label, max: PART_CHANNELS[id].max || 1, ...partReading(flight, id) }));
+  setHTML($('#gpanel'), gaugesSVG(level, channels, true) + (parts.length ? gaugesSVG(level, parts, true) : ''));
   updateTrace(flight.trace);
 }
 function launchFlight(override) {
@@ -245,6 +249,7 @@ function launchFlight(override) {
   const airframe = S.air.find(candidate => candidate.id == poll.af && candidate.st == 'r');
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override });
   if (!flight) return;
+  flight.watch = watchedChannels(airframe, form.ch);
   airborne.flight = flight;
   flight.countdown = 0;
   clearInterval(launchView.countTimer);
@@ -298,6 +303,7 @@ function flightTick() {
     if (result == 'fail') return finishFlight(0, 'fail');
     if (result == 'orbit') return finishFlight(1, 'orbit');
     if (result == 'land') return finishFlight(1, 'land');
+    crewCallouts(flight);
     takeReadings(flight, flight.coasting && n < steps - 1);
   }
   drawFlightInstruments(flight);

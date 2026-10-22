@@ -233,3 +233,29 @@ test('search odds improve with every payload recovered', async () => {
   S.recn = 5;
   assert.ok(recoveryPlan(flight).search > before);
 });
+
+test('part channels need the FM telemetry transmitter, and each multiplexing package carries one more', async () => {
+  const { channelCapacity, watchedChannels } = await import('../js/rules/telemetry.js');
+  assert.equal(channelCapacity({ pk: ['str', 'xdc'] }), 0, 'no transmitter, no part channels');
+  assert.deepEqual(watchedChannels({ pk: ['str', 'xdc'] }, ['q', 'pc']), []);
+  assert.deepEqual(watchedChannels({ pk: ['fm', 'str', 'xdc'] }, ['q', 'pc']), ['q'], 'one channel on the bare transmitter');
+  assert.deepEqual(watchedChannels({ pk: ['fm', 'mux', 'str', 'xdc'] }, ['q', 'pc', 'g']), ['q', 'pc'], 'no accelerometer aboard, so no payload g');
+});
+
+test('a station calls the flight only when it is staffed, and only the parts it is watching', async () => {
+  const { crewCallouts } = await import('../js/rules/callouts.js');
+  const { logSink } = await import('../js/core/state.js');
+  const heard = [];
+  logSink.fn = text => heard.push(text);
+  const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
+  crewCallouts(flight([]));
+  assert.equal(heard.length, 0, 'nobody on console');
+  S.crew.prop = 1;
+  S.crew.bstr = 1;
+  crewCallouts(flight([]));
+  assert.ok(heard.some(line => line.includes('[PROP] Ten seconds to cutoff.')));
+  assert.ok(!heard.some(line => line.includes('[BSTR]')), 'the aero load is not being watched');
+  crewCallouts(flight(['q']));
+  assert.ok(heard.some(line => line.includes('[BSTR] Max Q.')));
+  logSink.fn = null;
+});

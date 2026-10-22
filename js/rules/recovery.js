@@ -69,14 +69,28 @@ export function recoveryPlan(flight) {
   };
 }
 
-// Fly the steps in order. Returns { recovered, step: the step that failed (sep, heat, chute, search) or null, text: what happened }.
-export function recoverPayload(flight) {
+// THE DESCENT (separation, re-entry, the parachute) is decided once, when the payload starts down from apogee, so the recovery
+// crew can call each step as it happens (rules/callouts.js). Returns { plan, failed: the step that failed (sep, heat, chute) or null }.
+export function rollDescent(flight) {
+  if (flight.descent) return flight.descent;
   const plan = recoveryPlan(flight);
-  if (!plan.system) return { recovered: false, step: 'none', text: 'No recovery system aboard. The payload was destroyed on impact.' };
-  if (Math.random() > plan.separation) return { recovered: false, step: 'sep', text: 'The nose cone failed to separate and came down with the rocket.' };
-  if (Math.random() > plan.heatSurvival) return { recovered: false, step: 'heat', text: `The nose cone burned up on re-entry: it came in at about ${Math.round(plan.reentrySpeed)} m/s, heating ${Math.round(plan.heat * 100)}% of what its heat protection takes.` };
-  if (Math.random() > plan.chuteSurvival) return { recovered: false, step: 'chute', text: plan.chuteLoad > CHUTE_SAFE_LOAD ? `The parachute opened at about ${Math.round(plan.openSpeed)} m/s, a ${Math.round(plan.chuteLoad * 100)}% opening load for a chute built for ${plan.chuteStrength} m/s, and shredded.` : 'The parachute tangled in its rigging and streamed.' };
-  if (Math.random() > plan.search) return { recovered: false, step: 'search', text: `The parachute opened, but the search teams could not find the payload (${Math.round(plan.search * 100)}% search odds).` };
+  let failed = null;
+  if (!plan.system) failed = 'none';
+  else if (Math.random() > plan.separation) failed = 'sep';
+  else if (Math.random() > plan.heatSurvival) failed = 'heat';
+  else if (Math.random() > plan.chuteSurvival) failed = 'chute';
+  return flight.descent = { plan, failed };
+}
+
+// After landing: the descent as rolled, then the search (with the final downrange distance).
+// Returns { recovered, step: the step that failed (none, sep, heat, chute, search) or null, text: what happened }.
+export function recoverPayload(flight) {
+  const { plan, failed } = rollDescent(flight), search = recoveryPlan(flight).search;
+  if (failed == 'none') return { recovered: false, step: 'none', text: 'No recovery system aboard. The payload was destroyed on impact.' };
+  if (failed == 'sep') return { recovered: false, step: 'sep', text: 'The nose cone failed to separate and came down with the rocket.' };
+  if (failed == 'heat') return { recovered: false, step: 'heat', text: `The nose cone burned up on re-entry: it came in at about ${Math.round(plan.reentrySpeed)} m/s, heating ${Math.round(plan.heat * 100)}% of what its heat protection takes.` };
+  if (failed == 'chute') return { recovered: false, step: 'chute', text: plan.chuteLoad > CHUTE_SAFE_LOAD ? `The parachute opened at about ${Math.round(plan.openSpeed)} m/s, a ${Math.round(plan.chuteLoad * 100)}% opening load for a chute built for ${plan.chuteStrength} m/s, and shredded.` : 'The parachute tangled in its rigging and streamed.' };
+  if (Math.random() > search) return { recovered: false, step: 'search', text: `The parachute opened, but the search teams could not find the payload (${Math.round(search * 100)}% search odds).` };
   S.recn = (S.recn || 0) + 1;
   return { recovered: true, step: null, text: `Payload recovered intact${S.fac.recov ? ' by the recovery force' : ''}${S.crew.rec ? ', coordinated by REC' : ''}. Chute opened at about ${Math.round(plan.openSpeed)} m/s.` };
 }
