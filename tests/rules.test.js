@@ -257,6 +257,11 @@ test('a station calls the flight only when it is staffed, and only the parts it 
   assert.ok(!heard.some(line => line.includes('[BSTR]')), 'the aero load is not being watched');
   crewCallouts(flight(['q']));
   assert.ok(heard.some(line => line.includes('[BSTR] Max Q.')));
+  S.crew.rec = 1;
+  crewCallouts(flight([]));
+  assert.ok(!heard.some(line => line.includes('[REC]')), 'nothing aboard to recover');
+  crewCallouts({ ...flight([]), payload: 'Sensor Suite' });
+  assert.ok(heard.some(line => line.includes('[REC] Recovery force standing by')), 'the recovery force needs no channel');
   logSink.fn = null;
 });
 

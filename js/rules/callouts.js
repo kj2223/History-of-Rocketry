@@ -14,7 +14,7 @@ import { FAILURE_WARNINGS, warningLevel } from './telemetry.js';
 const GRAVITY = 9.81;
 const secondsOfBurnLeft = stage => stage.fuel / (stage.thrust / (stage.isp * GRAVITY));
 // Where a coasting flight will come down, by a simple ballistic sum from where it is now.
-const predictedImpact = flight => flight.downrange + flight.horizontalSpeed * (flight.verticalSpeed + Math.sqrt(flight.verticalSpeed ** 2 + 2 * GRAVITY * Math.max(0, flight.altitude))) / GRAVITY;
+export const predictedImpact = flight => flight.downrange + flight.horizontalSpeed * (flight.verticalSpeed + Math.sqrt(flight.verticalSpeed ** 2 + 2 * GRAVITY * Math.max(0, flight.altitude))) / GRAVITY;
 
 // The warning calls, by channel and sign (rules/telemetry.js FAILURE_WARNINGS): [station, the call, the bubble].
 const WARNING_CALLS = {
@@ -65,6 +65,12 @@ export function crewCallouts(flight) {
     said.top = 1;
     call('fido', 'apogee', `Apogee, ${(flight.altitude / 1000).toFixed(1)} kilometres.`, '', `APOGEE ${(flight.altitude / 1000).toFixed(1)} KM`);
     if (PAYLOADS[flight.payload].science) rollDescent(flight);
+  }
+  // RECOVERY FORCE: with a payload to bring home, the Recovery Controller stands the helicopters by at liftoff and sends them
+  // toward the predicted impact as soon as the engine is done. (These need no channel: the controller hears the range.)
+  if (PAYLOADS[flight.payload].science && !PAYLOADS[flight.payload].satellite) {
+    if (flight.time >= 6) call('rec', 'standby', 'Recovery force standing by at the range edge.', '', 'HELOS STANDING BY');
+    if (!powered && lastStage && flight.verticalSpeed > 0) call('rec', 'move', `Helicopters moving out to ${Math.round(predictedImpact(flight) / 1000)} kilometres.`, '', `HELOS TO ${Math.round(predictedImpact(flight) / 1000)} KM`);
   }
   // RECOVERY: each step as it happens, when the recovery channel is watched.
   const descent = flight.descent;

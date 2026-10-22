@@ -1,5 +1,5 @@
-// THE CONTROL-ROOM PICTURE on the Launch tab and in the launch view, drawn as SVG from the room level, the staffed stations and the
-// console count; and the flight instruments, drawn in that room's own hardware.
+// THE CONTROL-ROOM PICTURE at the top of the consoles column, drawn as SVG from the room level, the staffed stations and the
+// console count.
 import { ROOMS, STATIONS } from '../data/launch-site.js';
 
 const fill = (colour, extra = '') => `style="fill:${colour};${extra}"`;
@@ -95,40 +95,4 @@ function drawTrace(line, trace) {
   }
   const [x, y, width, height] = line.dataset.b.split(',').map(Number), highest = Math.max(1, ...trace), span = Math.max(40, trace.length);
   line.setAttribute('points', trace.map((value, index) => `${(x + 4 + index / span * (width - 8)).toFixed(1)},${(y + height - 4 - value / highest * (height - 10)).toFixed(1)}`).join(' '));
-}
-
-// FLIGHT INSTRUMENTS. Each channel: { label, value, max, text, lost (no track), none (not fitted), jitter (needle wobble, degrees) }.
-// Blockhouse: rugged dials. Range control: a row of dials with scales. Mercury and later: digital readouts with status lamps.
-const tickLabel = value => value >= 1e6 ? (value / 1e6).toFixed(0) + 'M' : value >= 1000 ? (value / 1000).toFixed(value >= 1e4 ? 0 : 1) + 'k' : String(Math.round(value));
-const LABEL_STYLE = `font-size:9px;${FONT};letter-spacing:.08em`;
-function dial(x, channel, level, flying) {
-  const radius = level < 2 ? 46 : 52, cy = 70, startAngle = -135, endAngle = 135;
-  const share = channel.value == null ? 0 : Math.max(0, Math.min(1.04, channel.value / channel.max)), jitter = channel.jitter || 0;
-  const angle = (startAngle + (endAngle - startAngle) * share + jitter) * Math.PI / 180;
-  let svg = `<circle cx="${x}" cy="${cy}" r="${radius + 6}" ${fill('var(--ln)')}/><circle cx="${x}" cy="${cy}" r="${radius}" ${fill('var(--bg)', level < 2 ? 'stroke:var(--ink);stroke-width:1;opacity:.95' : '')}/>`;
-  for (let i = 0; i <= 10; i++) {
-    const tick = (startAngle + (endAngle - startAngle) * i / 10) * Math.PI / 180, length = i % 5 ? 6 : 11;
-    svg += `<line x1="${x + Math.sin(tick) * (radius - 2)}" y1="${cy - Math.cos(tick) * (radius - 2)}" x2="${x + Math.sin(tick) * (radius - 2 - length)}" y2="${cy - Math.cos(tick) * (radius - 2 - length)}" style="stroke:var(--ink);stroke-width:${i % 5 ? 1 : 2}"/>`;
-    if (i % 5 == 0 && level >= 2) svg += `<text x="${x + Math.sin(tick) * (radius - 22)}" y="${cy - Math.cos(tick) * (radius - 22) + 3}" text-anchor="middle" ${fill('var(--dim)', `font-size:8px;${FONT}`)}>${tickLabel(channel.max * i / 10)}</text>`;
-  }
-  if (channel.none) return svg + `<rect x="${x - 34}" y="${cy - 9}" width="68" height="16" ${fill('var(--pn)', 'stroke:var(--ln)')}/><text x="${x}" y="${cy + 3}" text-anchor="middle" ${fill('var(--dim)', `font-size:8px;${FONT}`)}>NO CHANNEL</text><text x="${x}" y="${cy + radius + 20}" text-anchor="middle" ${fill('var(--dim)', LABEL_STYLE)}>${channel.label}</text>`;
-  svg += `<line x1="${x}" y1="${cy}" x2="${x + Math.sin(angle) * (radius - 8)}" y2="${cy - Math.cos(angle) * (radius - 8)}" style="stroke:var(--wn);stroke-width:2.5;stroke-linecap:round"/><circle cx="${x}" cy="${cy}" r="4" ${fill('var(--ink)')}/>`;
-  if (channel.lost) svg += `<rect x="${x - 30}" y="${cy + 12}" width="60" height="13" ${fill('var(--bd)')} class="${flying ? 'bl' : ''}"/><text x="${x}" y="${cy + 22}" text-anchor="middle" ${fill('var(--bg)', `font-size:8px;font-weight:bold;${FONT}`)}>NO TRACK</text>`;
-  return svg + `<text x="${x}" y="${cy + radius + 20}" text-anchor="middle" ${fill('var(--dim)', LABEL_STYLE)}>${channel.label}</text><text x="${x}" y="${cy + radius + 33}" text-anchor="middle" ${fill('var(--ink)', `font-size:11px;font-weight:bold;${FONT}`)}>${channel.text}</text>`;
-}
-function readout(x, channel, flying) {
-  const width = 134;
-  let svg = `<rect x="${x - width / 2}" y="10" width="${width}" height="74" rx="3" ${fill('var(--ln)')}/><rect x="${x - width / 2 + 6}" y="26" width="${width - 12}" height="34" ${fill('var(--bg)')}/><text x="${x}" y="21" text-anchor="middle" ${fill('var(--pn)', `font-size:8px;font-weight:bold;letter-spacing:.12em;${FONT}`)}>${channel.label}</text>`;
-  const shown = channel.none ? 'N/A' : channel.lost ? '----' : channel.text;
-  svg += `<text x="${x + width / 2 - 12}" y="51" text-anchor="end" ${fill(channel.none ? 'var(--dim)' : channel.lost ? 'var(--bd)' : 'var(--ac)', "font-size:17px;font-family:'Courier New',monospace;font-weight:bold")} class="${channel.lost && flying ? 'bl' : ''}">${shown}</text>`;
-  svg += `<circle cx="${x - width / 2 + 12}" cy="73" r="3.5" ${fill(channel.none ? 'var(--pn)' : channel.lost ? 'var(--bd)' : 'var(--ac)')}/><text x="${x - width / 2 + 20}" y="76" ${fill('var(--pn)', `font-size:7px;${FONT}`)}>${channel.none ? 'NOT FITTED' : channel.lost ? 'SIGNAL LOST' : 'SIGNAL'}</text>`;
-  return svg;
-}
-export function gaugesSVG(level, channels, flying) {
-  if (level < 2) channels = channels.filter(channel => !channel.none);
-  const count = channels.length, width = 600, digital = level >= 4, height = digital ? 94 : 170, xs = channels.map((_, index) => width * (index + .5) / count);
-  let svg = `<svg viewBox="0 0 ${width} ${height}" class="room gauges" role="img" aria-label="Flight instruments"><rect width="${width}" height="${height}" ${fill(digital ? 'var(--pn)' : 'var(--bg)')}/>`;
-  if (level < 2) svg += `<rect x="20" y="8" width="${width - 40}" height="${height - 16}" rx="2" ${fill('var(--pn)', 'stroke:var(--ln);stroke-width:4')}/>`;
-  channels.forEach((channel, index) => svg += digital ? readout(xs[index], channel, flying) : dial(xs[index], channel, level, flying));
-  return svg + '</svg>';
 }

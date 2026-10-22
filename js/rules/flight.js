@@ -7,7 +7,7 @@
 //   latent: a fault the poll missed (a failure-mode key), wind (0 to 2), overNoGo: launched over a NO-GO call
 //   reliability, gLimit, aeroLimitScale, heatLimit, dragArea, deformation (heat damage), maxQ and maxHeat (shares of their limits)
 //   modeMultipliers: each failure mode's weight on this airframe (fixes lower it, traits raise it)
-//   tracking: { v: instrument tier, g: ground tracking tier }; lastReadings and lostChannels for the instruments; trace: altitudes for the plot
+//   tracking: { v: instrument tier, g: ground tracking tier }; lastReadings and lostChannels for the instruments; trace, rangeTrace: altitudes and downrange distances for the plot
 //   failure: the mode that struck, if any; pending: a failure showing its warning signs, { mode, from, at } (seconds)
 import { formatMoney, gaussian } from '../core/util.js';
 import { PROPELLANTS, PAYLOADS } from '../data/launch.js';
@@ -126,7 +126,7 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
     hazardScale: Math.pow(20 / Math.max(5, coreBurnTime), .6), // short burns pack the same risk into fewer seconds
     modeMultipliers: Object.fromEntries(Object.keys(FAILURE_MODES).map(mode => [mode, (airframe.fix[mode] ? findFix(mode, airframe.fix[mode]).riskMultiplier : 1) * traitWeight(programmeKey, mode, airframe)])),
     programme: programmeKey, tracking: { v: spec.tier, g: trackingTiers().g }, burnTime: Math.round(coreBurnTime),
-    lastReadings: {}, lostChannels: {}, trace: [], countdown: 3, countdownTicks: 0, label: airframe.label, failure: null,
+    lastReadings: {}, lostChannels: {}, trace: [], rangeTrace: [], countdown: 3, countdownTicks: 0, label: airframe.label, failure: null,
   };
 }
 // Launch: pay, take the airframe out of the hangar, a week passes on the calendar. Returns the flight, or null if the quote fails.
@@ -191,7 +191,11 @@ export function takeReadings(flight, quiet) {
     const source = channel == 'alt' ? 'RADAR' : channel == 'vel' ? (flight.tracking.v >= 2 ? 'ACCEL' : 'DOPPLER') : channel == 'hor' ? (flight.tracking.v >= 3 ? 'INERTIAL' : 'RANGE-RATE') : 'PROP';
     parts.push(`${source} ${channel == 'alt' ? formatAltitude(value, quality) : (quality.noise >= .05 ? '~' : '') + value + (channel == 'fuel' ? ' kg' : ' m/s')}`);
   }
-  if (flight.lastReadings.alt) flight.trace.push(flight.lastReadings.alt.value);
+  // The plotting board's track: the radar altitude, and how far downrange the radar has the rocket at the same moment.
+  if (flight.lastReadings.alt) {
+    flight.trace.push(flight.lastReadings.alt.value);
+    flight.rangeTrace.push(flight.downrange);
+  }
   if (parts.length && flight.time % 2 == 0 && !quiet) log(`T+${flight.time}s | ${parts.join(' | ')}`);
 }
 
