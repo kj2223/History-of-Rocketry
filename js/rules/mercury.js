@@ -10,7 +10,7 @@
 //   memo     the memorial overlay still to show  stand    crewed flights stood down until this day
 //   secDone  day Section 1 was completed         chimp, monk  animals flown (they pick the next name)
 //   lj       Little Joe record: { ok: good aborts, mk: a monkey has flown }
-//   fl       flags: office decisions taken (life, win, ovr, cock), failures investigated (four, maFail), maQual
+//   fl       flags: office decisions taken (life, win, ovr, cock), failures investigated (four, maFail, fx_ + a capsule system), maQual
 //   oq       office decisions to come: [{ k, at }]   od   the office decision waiting for an answer
 //   gmul     appropriation multiplier            ch       chimpanzee colony: { on, t: training 0 to 1 }
 //   ma       orbital qualification flights: { ok, n }   elec  0, 1 after the election, 2 after the inauguration
@@ -51,24 +51,31 @@ export const requirementText = missionType => {
 };
 
 // BOOSTERS: what an airframe delivers with a capsule aboard, single stage first, staged if that is not enough.
-// Returns { staged, preview, ok }: the first plan that meets the mission's needs, or else the fastest. Cached per airframe,
-// revision, propellant, mission and (roughly) what the team knows.
+// A plan must also keep the booster inside its heating and aerodynamic limits. A booster too hot at full load is off-loaded
+// (propellant tanks part filled, down to MIN_MERCURY_LOAD) until it is inside them, as long as it still delivers what the mission needs.
+// Returns { staged, load, preview, ok, overLimit }: the first plan that meets the mission's needs, or else the fastest at full load.
+// Cached per airframe, revision, propellant, mission and (roughly) what the team knows.
+export const MIN_MERCURY_LOAD = .5;
 const planCache = new Map();
 export function boosterPlan(airframe, propellant, missionType) {
   const type = MISSION_TYPES[missionType], bundle = S.progs[airframe.prog] || { kn: {} };
   const key = [airframe.id, airframe.rev, propellant, missionType, Math.round(Object.values(bundle.kn).reduce((sum, value) => sum + value, 0) / 5)].join('|');
   if (planCache.has(key)) return planCache.get(key);
-  let best = null;
+  let best = null, fallback = null;
   for (const staged of hasBoosterStage(airframe) ? [0, 1] : [0]) {
-    const preview = previewFlight(airframe, propellant, 'Mercury Capsule', staged, 1);
-    const ok = preview.thrustToWeight > 1.05 && (!type.needs.alt || preview.peakAltitude >= type.needs.alt) && (!type.needs.v || preview.peakSpeed >= type.needs.v);
-    const plan = { staged, preview, ok };
-    if (ok) {
-      best = plan;
-      break;
+    for (let load = 1; load >= MIN_MERCURY_LOAD && !best; load = Math.round((load - .1) * 10) / 10) {
+      const preview = previewFlight(airframe, propellant, 'Mercury Capsule', staged, load);
+      const overLimit = preview.maxHeat >= 1 || preview.maxQ >= 1;
+      const enough = preview.thrustToWeight > 1.05 && (!type.needs.alt || preview.peakAltitude >= type.needs.alt) && (!type.needs.v || preview.peakSpeed >= type.needs.v);
+      const plan = { staged, load, preview, ok: enough && !overLimit, overLimit };
+      if (plan.ok) best = plan;
+      else if (load == 1 && (!fallback || preview.peakSpeed > fallback.preview.peakSpeed)) fallback = plan;
+      // Off-loading only helps a booster that is over its limits and still has speed to spare.
+      if (!overLimit || !enough) break;
     }
-    if (!best || preview.peakSpeed > best.preview.peakSpeed) best = plan;
+    if (best) break;
   }
+  best = best || fallback;
   if (planCache.size > 400) planCache.clear();
   planCache.set(key, best);
   return best;

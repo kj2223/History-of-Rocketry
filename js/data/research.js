@@ -110,6 +110,15 @@ export const PACKAGES = [
   // Found only by investigation: each appears after the failure it cures.
   research('mr_umb','e','Umbilical disconnect sequencing',6000,80,{um:1},{phase:2,hiddenUntil:'four'}),
   research('ma_band','e','Atlas stiffening band',8000,110,{mab:.12},{phase:2,hiddenUntil:'maFail'}),
+  // Found by investigating a spacecraft system that failed in flight (rules/mission.js SYSTEM_FAULTS). Each flag is the system's key.
+  research('fx_hs','c','Heat-shield bond and cure inspection',7000,90,{hs:.06},{phase:2,hiddenUntil:'fx_hs'}),
+  research('fx_pc','c','Parachute reefing and riser redesign',6500,90,{pc:.07},{phase:2,hiddenUntil:'fx_pc'}),
+  research('fx_rr','c','Retropack wiring and igniter redesign',6000,80,{rr:.07},{phase:2,hiddenUntil:'fx_rr'}),
+  research('fx_ec','c','Suit coolant loop redesign',6000,80,{ec:.07},{phase:2,hiddenUntil:'fx_ec'}),
+  research('fx_ac','c','Thruster fuel-line screens',5500,80,{ac:.07},{phase:2,hiddenUntil:'fx_ac'}),
+  research('fx_lb','c','Landing bag strap reinforcement',4500,70,{lb:.07},{phase:2,hiddenUntil:'fx_lb'}),
+  research('fx_tj','e','Redundant tower-jettison circuit',5000,70,{tj:.07},{phase:2,hiddenUntil:'fx_tj'}),
+  research('fx_as','e','Abort-sensing circuit redesign',6000,80,{as:.07},{phase:2,hiddenUntil:'fx_as'}),
 ];
 
 // MILESTONES: major programmes, each a big step in one area.

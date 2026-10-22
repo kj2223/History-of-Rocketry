@@ -4,7 +4,9 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Run it:** serve the folder (for example `python3 -m http.server`) and open `index.html`. The game saves to the browser's localStorage every ten seconds.
 
-**Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` plays Phase One headlessly with a seeded bot and prints pacing per run. It is deterministic, so diff its output before and after a change.
+**Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two Section 1 to the first American in space (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n; `PHASE_ONE_ONLY=1` stops at orbit.
+
+**Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
 
 ## Where things are
 
