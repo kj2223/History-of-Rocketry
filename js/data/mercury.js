@@ -90,7 +90,7 @@ export const TESTING_REGIMES = {
   full: { name: 'Full Lovelace Clinic and Wright-Patterson stress testing', cost: 40000, days: 75, insight: 160, findChance: 1 },
 };
 
-// ASTRONAUT OFFICE DECISIONS: offers and demands that land on the calendar after selection (rules/mercury-office.js has their effects).
+// ASTRONAUT OFFICE DECISIONS: offers and demands that land on the calendar after selection (rules/astronaut-office.js has their effects).
 // answers: [yes button, no button]; cost of saying yes; yes / no: what the log says.
 export const OFFICE_DECISIONS = {
   life: { who: 'PRESS', question: 'Life magazine offers the astronauts an exclusive contract for their personal stories, worth $500,000 shared among them.', answers: ['APPROVE THE CONTRACT', 'TURN IT DOWN'],

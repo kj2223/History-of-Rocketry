@@ -1,5 +1,5 @@
 // PRODUCTION: blueprint revisions, the production line's learning curve, airframe costs and retrofits. No DOM.
-// Player actions that use these (ordering, publishing, upgrades) are in rules/game.js.
+// Player actions that use these (ordering, publishing, upgrades) are in rules/factory.js.
 import { isMilestone } from '../data/research.js';
 import { findFix } from '../data/failures.js';
 import { S, today, withProgramme } from '../core/state.js';

@@ -29,7 +29,7 @@
 //   auto    the launch director's standing orders: { on, fuel, pay, st, load, cd: seconds to the next try }
 //   dev     the run log: { v, ps: play seconds, fl: flights, ev: events, snap: snapshots }
 //   nasa    day NASA was established (0 = not yet) cv      save version
-//   p2      Phase Two (Mercury) state, created by rules/mercury-office.js
+//   p2      Phase Two (Mercury) state (see rules/mercury.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -84,7 +84,7 @@ export function withProgramme(id, fn) {
 // SPLIT FIELDS: S.pk, S.bt, S.kn and S.ear mix two bundles. Keys for research areas r, c and e (and their tier-2 flags)
 // go to the global bundle; everything else goes to the programme in focus.
 const isGlobalAreaKey = key => typeof key == 'string' && GLOBAL_AREAS.includes(key[0]) && (key.length == 1 || key[1] == '2');
-const isGlobalPackage = key => typeof key == 'string' && BY_ID[key] && GLOBAL_AREAS.includes(BY_ID[key].a);
+const isGlobalPackage = key => typeof key == 'string' && BY_ID[key] && GLOBAL_AREAS.includes(BY_ID[key].area);
 
 // A view of one field that sends each key to the right bundle.
 function splitField(name, isGlobal) {

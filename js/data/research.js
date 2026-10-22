@@ -143,7 +143,7 @@ export const MILESTONES = [
   research('ms_xslv','x','Satellite Launch Vehicle Integration',55000,280,{t:.15,r:.02},{tier:'x',jointAreas:'si',why:'Make stages, guidance and payload work as one vehicle.'}),
   research('ms_xasc','x','Ascent Trajectory Optimization',40000,220,{c:-.08,t:.05},{tier:'x',jointAreas:'ap',why:'Fly a cleaner path through the atmosphere.'}),
 ];
-// First milestones cost 20% less than listed (rounded to the nearest $1,000); Congress also earmarks money toward them at each breakthrough (rules/design.js).
+// First milestones cost 20% less than listed (rounded to the nearest $1,000); Congress also earmarks money toward them at each breakthrough (rules/research.js).
 const TIER_ONE_DISCOUNT = .8;
 for (const milestone of MILESTONES) if (milestone.tier == 1) milestone.cost = Math.round(milestone.cost * TIER_ONE_DISCOUNT / 1000) * 1000;
 
