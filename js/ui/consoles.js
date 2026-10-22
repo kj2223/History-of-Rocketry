@@ -3,10 +3,12 @@
 // Each station reads only what it can see: a part channel shows only if it was picked for the flight (rules/telemetry.js).
 // Empty consoles say what they need. Nothing here changes the game.
 import { STATIONS } from '../data/launch-site.js';
+import { PAYLOADS } from '../data/launch.js';
 import { S } from '../core/state.js';
 import { stationLock } from '../rules/launch-site.js';
 import { airborne, formatAltitude } from '../rules/flight.js';
 import { partReading, warningLevel } from '../rules/telemetry.js';
+import { predictedImpact } from '../rules/callouts.js';
 import { reading } from '../rules/mission.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -38,8 +40,15 @@ function flightState(id, flight) {
       const altitude = flight.lastReadings.alt;
       return state(altitude ? formatAltitude(altitude.value, altitude.quality) : 'No track', flight.verticalSpeed > 0 ? 'Projecting apogee.' : 'Projecting impact.', null, 'ok');
     }
-    case 'rec': return watching('rec') ? state(part('rec').text, 'Steering the recovery force to the impact area.', null, /FAIL|LOST|NO /.test(part('rec').text) ? 'bad' : 'ok')
-      : state('Standing by', 'No recovery channel: waiting for the impact call.');
+    case 'rec': {
+      // The recovery force follows the flight: holding at the range edge under power, then off toward the predicted impact.
+      const payload = PAYLOADS[flight.payload], impact = `~${Math.round(predictedImpact(flight) / 1000)} km`;
+      if (!payload.science || payload.satellite) return state('Nothing to recover', 'Standing down for this flight.');
+      if (powered) return state('Helos at the range edge', 'Waiting for cutoff to predict the impact.', null, 'ok');
+      const status = watching('rec') ? part('rec').text : null, trouble = status && /FAIL|LOST|NO /.test(status);
+      if (flight.verticalSpeed > 0) return state(`Helos to ${impact}`, 'Flying out to the predicted impact area.', null, 'ok');
+      return state(status || `Helos at ${impact}`, trouble ? 'Recovery in trouble.' : status ? 'Following the payload down.' : 'No recovery channel: waiting for the chute.', null, trouble ? 'bad' : 'ok');
+    }
     case 'fd': return state('Running the loop', 'Listening to every station.', null, 'ok');
     default: return state('On the loop', 'Listening.');
   }

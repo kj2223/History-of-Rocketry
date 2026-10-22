@@ -48,7 +48,7 @@ function packageCard(entry, mark = '') {
   const tag = done ? (confirmed ? '■' : '□ unproven') : job ? '' : item.dud ? '◆' : '';
   const meta = done ? (confirmed ? 'confirmed' : 'finished, not yet confirmed') : job ? `in work: <span data-j="pk${item.id}">${job.t}s</span> left`
     : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}`;
-  const progress = job ? `<div class="bar"><i style="width:${Math.round((1 - job.t / Math.max(1, item.time)) * 100)}%"></i></div>` : '';
+  const progress = job ? `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '';
   return `<button data-a="rpick" data-id="${item.id}" class="rcard ${look}${researchDesk.pick == item.id ? ' on' : ''}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span><span class="m">${meta}</span>${progress}</button>`;
 }
 // THE DETAIL BAR: the picked package or milestone in full, with what can be done with it.
