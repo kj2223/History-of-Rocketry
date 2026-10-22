@@ -12,7 +12,7 @@ import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds } fr
 import { maturity, candidates, startLock, believedWindow } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
 import { INVESTIGATION_COST, investigationTime } from '../rules/jobs.js';
-import { $ } from './dom.js';
+import { $, setHTML } from './dom.js';
 
 // The job researching an item, for the programme it belongs to (vehicle areas) or the global bundle.
 const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id && job.prog == (isVehicleArea(item.area) ? S.cur : null));
@@ -111,11 +111,11 @@ export function renderDesignBureau() {
   const tiers = trackingTiers(), bundle = S.progs[S.cur];
   // Rocket areas once the programme is ready; recovery always; the spacecraft areas after NASA.
   const areas = (bundle && bundle.ready ? ['p', 's', 'i', 'a'] : []).concat(['r'], S.nasa ? ['c', 'e'] : []);
-  $('#db').innerHTML = programmeBar() + programmeCard()
+  setHTML($('#db'), programmeBar() + programmeCard()
     + `<div class="r"><span class="d">Current design</span><b>${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev}</b></div><div class="r"><span class="d">Airframe instruments</span><b>${INSTRUMENT_NAMES[tiers.v]}</b></div><div class="r"><span class="d">Ground tracking</span><b>${TRACKING_NAMES[tiers.g]}</b></div><div class="r"><span class="d">Teams free</span><b>${freeTeams()} of ${S.teams}</b></div><div class="r"><span class="d">Successful flights</span><b>${S.ok}</b></div>`
     + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar & Base), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}. Engineers propose new ideas as earlier ones are proven. On the bigger rockets, enough confirmed work in an area opens a breakthrough and a choice of major programmes.</div>`
     + `<div class="m">Each system below is an entry in the <b>engineering file</b>: what your team knows about it, the failure modes it has met and how they were cured, and the research still open. Knowledge carries from flight to flight and makes every later judgement better.</div>`
-    + `<div class="areas">${areas.map(areaCard).join('')}</div>`;
+    + `<div class="areas">${areas.map(areaCard).join('')}</div>`);
 }
 
 // INCIDENTS: a failure (or a design-review finding) from records analysis to diagnosis to fix.
@@ -135,7 +135,7 @@ function incidentHTML(incident) {
 export function renderIncidents() {
   const unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv');
   $('#pi').hidden = !unexplained.length;
-  $('#ic').innerHTML = unexplained.slice().reverse().map(incidentHTML).join('');
+  setHTML($('#ic'), unexplained.slice().reverse().map(incidentHTML).join(''));
 }
 
 // THE ENGINEERING FILE: what the team knows about one system, what that knowledge buys, its failure modes and their status.

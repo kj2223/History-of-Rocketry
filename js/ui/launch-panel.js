@@ -11,7 +11,7 @@ import { roomLevel, consoleCount, crewOnConsole } from '../rules/launch-site.js'
 import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
 import { roomSVG, updateTrace } from './control-room.js';
 import { launchView } from './launch-view.js';
-import { $, option } from './dom.js';
+import { $, option, setHTML } from './dom.js';
 
 // What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank).
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
@@ -22,7 +22,7 @@ const payloadLocked = (payload, airframe) => (PAYLOADS[payload].satellite && can
 export function renderControlRoom() {
   const level = roomLevel(), crew = crewOnConsole(), consoles = consoleCount();
   $('#crt').textContent = ROOMS[level].name.toUpperCase();
-  $('#cr').innerHTML = roomSVG(level, crew, consoles, !!airborne.flight);
+  setHTML($('#cr'), roomSVG(level, crew, consoles, !!airborne.flight));
   $('#crm').textContent = `${ROOMS[level].description} ${crew.length} of ${consoles} console${consoles > 1 ? 's' : ''} staffed.`;
   updateTrace(airborne.flight ? airborne.flight.trace : launchView.lastTrace);
 }
@@ -39,13 +39,13 @@ export function renderLaunchForm() {
   if (airframe && hasBoosterStage(airframe) && !form.stageChosen) form.st = 1;
   const quote = quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100), preview = airframe ? previewFlight(airframe, form.fuel, form.pay, form.st, form.load / 100) : null, payload = PAYLOADS[form.pay];
   const propellantKg = airframe ? Math.round(withProgramme(airframe.prog, () => designSpec(airframe.pk).f) * PROPELLANTS[form.fuel].density * form.load / 100) : 0;
-  $('#lc').innerHTML = `<select data-s="af">${ready.length ? ready.map(candidate => option(candidate.id, `${candidate.label} (built ${candidate.built})`, 0, form.af)).join('') : '<option>No airframe in the hangar</option>'}</select>
+  setHTML($('#lc'), `<select data-s="af">${ready.length ? ready.map(candidate => option(candidate.id, `${candidate.label} (built ${candidate.built})`, 0, form.af)).join('') : '<option>No airframe in the hangar</option>'}</select>
 <select data-s="st">${option(0, 'Upper stage alone', 0, form.st)}${option(1, hasBoosterStage(airframe) ? `Full stack: booster stage + upper stage (+${formatMoney(8000)})` : 'No booster stage on this rocket', !hasBoosterStage(airframe), form.st)}</select>
 <select data-s="fuel">${Object.keys(PROPELLANTS).map(name => option(name, `${name} (${airframe ? formatMoney(propellantCost(airframe, name, form.load / 100)) : '$' + PROPELLANTS[name].pricePerKg + '/kg'}, Isp ${PROPELLANTS[name].isp}s)${!propellants.includes(name) ? ' [not this rocket]' : ''}`, !propellants.includes(name), form.fuel)).join('')}</select>
 <select data-s="pay">${Object.keys(PAYLOADS).filter(name => !PAYLOADS[name].mercury).map(name => option(name, payloadLabel(name, airframe), payloadLocked(name, airframe), form.pay)).join('')}</select>
 <div class="r" style="margin-top:8px"><span class="d">Propellant load (${propellantKg} kg)</span><b id="ldv">${form.load}%</b></div><input type="range" data-s="load" min="10" max="100" step="5" value="${form.load}" style="width:100%">
 ${preview ? estimateHTML(preview, payload, airframe) : ''}
-<div class="m">Fuel record: ${S.fr[form.fuel] || 0} successful flights.${airframe && airframe.pk.some(id => !isConfirmed(id)) ? ` Unproven systems aboard: ${airframe.pk.filter(id => !isConfirmed(id)).length} (raises the chance of a hidden fault).` : ''} Range fee ${formatMoney(rangeFee())} included.${rangeDataPayment(1e4) ? ' Successful flights earn a Defense Department range data contract.' : ''}</div><button data-a="count"${quote.error ? ' disabled' : ''}>BEGIN COUNTDOWN${quote.cost ? ' (' + formatMoney(quote.cost) + ')' : ''}</button>${S.staff.director ? `<button data-a="autoSet">SET AS DIRECTOR'S STANDING ORDERS</button>` : ''}<div class="m bad">${quote.error || ''}</div>`;
+<div class="m">Fuel record: ${S.fr[form.fuel] || 0} successful flights.${airframe && airframe.pk.some(id => !isConfirmed(id)) ? ` Unproven systems aboard: ${airframe.pk.filter(id => !isConfirmed(id)).length} (raises the chance of a hidden fault).` : ''} Range fee ${formatMoney(rangeFee())} included.${rangeDataPayment(1e4) ? ' Successful flights earn a Defense Department range data contract.' : ''}</div><button data-a="count"${quote.error ? ' disabled' : ''}>BEGIN COUNTDOWN${quote.cost ? ' (' + formatMoney(quote.cost) + ')' : ''}</button>${S.staff.director ? `<button data-a="autoSet">SET AS DIRECTOR'S STANDING ORDERS</button>` : ''}<div class="m bad">${quote.error || ''}</div>`);
 }
 function payloadLabel(name, airframe) {
   const payload = PAYLOADS[name];

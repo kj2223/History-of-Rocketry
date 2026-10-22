@@ -17,7 +17,7 @@ import { renderHangar, renderFacilities } from './hangar.js';
 import { renderStaff, renderLaunchCrew } from './personnel.js';
 import { renderRace } from './race-and-summaries.js';
 import { renderAstronautOffice, renderMissionPlanner, mercuryDirectiveHTML, memorialHTML, sectionSummaryHTML } from './mercury-panels.js';
-import { $ } from './dom.js';
+import { $, setHTML } from './dom.js';
 
 let dirty = 1, shownEra = -1, shownRoom = -1, tab = 'launch';
 export const markDirty = () => {
@@ -113,7 +113,7 @@ export function render() {
   dirty = 0;
   renderHeader();
   applyEra();
-  $('#dr').innerHTML = directiveHTML();
+  setHTML($('#dr'), directiveHTML());
   $('#tb-astro').hidden = !S.nasa;
   renderAstronautOffice();
   renderMissionPlanner();
