@@ -9,7 +9,7 @@ import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { roomLevel, consoleCount, crewOnConsole, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS } from '../rules/flight.js';
 import { boosterPlan, crewLock } from '../rules/mercury.js';
-import { PART_CHANNELS, partReading, watchedChannels } from '../rules/telemetry.js';
+import { PART_CHANNELS, partReading, watchedChannels, warningLevel } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
 import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName } from '../rules/mission.js';
 import { roomSVG, updateTrace, gaugesSVG } from './control-room.js';
@@ -253,6 +253,7 @@ function launchFlight(override) {
   if (!flight) return;
   flight.watch = watchedChannels(airframe, form.ch);
   flight.bubbles = { tc: { t: 'LIFTOFF', c: 'go' } };
+  flight.warningTicks = 0;
   airborne.flight = flight;
   flight.countdown = 0;
   clearInterval(launchView.countTimer);
@@ -296,7 +297,10 @@ function flightTick() {
     return;
   }
   phase.textContent = flight.stages[flight.stageIndex].fuel > 0 ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
-  const steps = flight.coasting ? 25 : 2, bubbles = flight.bubbles;
+  // While a failure shows its warning on a watched channel, the flight runs in real time (one second every fourth tick), so there is time to abort.
+  const warning = flight.pending && (flight.watch || []).some(id => warningLevel(flight, id) > 0);
+  if (warning && ++flight.warningTicks % 4) return drawFlightInstruments(flight);
+  const steps = warning ? 1 : flight.coasting ? 25 : 2, bubbles = flight.bubbles;
   for (let n = 0; n < steps; n++) {
     const result = step(flight);
     if (result == 'sep') {

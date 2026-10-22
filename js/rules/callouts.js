@@ -9,11 +9,19 @@ import { PAYLOADS } from '../data/launch.js';
 import { STATIONS } from '../data/launch-site.js';
 import { S, log } from '../core/state.js';
 import { rollDescent } from './recovery.js';
+import { FAILURE_WARNINGS, warningLevel } from './telemetry.js';
 
 const GRAVITY = 9.81;
 const secondsOfBurnLeft = stage => stage.fuel / (stage.thrust / (stage.isp * GRAVITY));
 // Where a coasting flight will come down, by a simple ballistic sum from where it is now.
 const predictedImpact = flight => flight.downrange + flight.horizontalSpeed * (flight.verticalSpeed + Math.sqrt(flight.verticalSpeed ** 2 + 2 * GRAVITY * Math.max(0, flight.altitude))) / GRAVITY;
+
+// The warning calls, by channel and sign (rules/telemetry.js FAILURE_WARNINGS): [station, the call, the bubble].
+const WARNING_CALLS = {
+  pc: { rough: ['prop', 'Chamber pressure oscillating!', 'PC ROUGH'], fade: ['prop', 'Chamber pressure falling off!', 'PC DROPPING'] },
+  skin: { climb: ['tlm', 'Skin temperature past the limit and climbing!', 'SKIN HOT'] },
+  q: { rough: ['bstr', 'Flutter on the strain gauges!', 'FLUTTER'], climb: ['bstr', 'Loads in the red!', 'LOADS RED'] },
+};
 
 export function crewCallouts(flight) {
   const said = flight.called || (flight.called = {}), watching = id => (flight.watch || []).includes(id);
@@ -43,6 +51,13 @@ export function crewCallouts(flight) {
   }
   // TELEMETRY: skin heating, when it is watched.
   if (watching('skin') && flight.heating > .8) call('tlm', 'skin', `Skin temperature ${Math.round(flight.heating * 100)} percent and climbing.`, 'wn', `SKIN ${Math.round(flight.heating * 100)}%`);
+
+  // WARNINGS: a failure building on a watched channel, called by the station that reads it, once the sign is clear.
+  const warning = flight.pending && FAILURE_WARNINGS[flight.pending.mode];
+  if (warning && watching(warning.channel) && warningLevel(flight, warning.channel) > .3) {
+    const [station, text, bubble] = WARNING_CALLS[warning.channel][warning.sign];
+    call(station, 'warn', text, 'bad', bubble);
+  }
 
   // APOGEE: flight dynamics calls it, and the payload starts home.
   if (flight.time > 5 && flight.verticalSpeed <= 0 && !said.top) {
