@@ -46,9 +46,11 @@ export function closePad() {
   render();
 }
 // Speech bubbles over the stations: GO / NO-GO as the poll is read out, and the fuelling call before it.
+// In flight, the latest call on the loop (rules/callouts.js).
 function stationBubbles() {
   const count = launchView.count, bubbles = {};
   if (!count) return bubbles;
+  if (count.phase == 'flight' && airborne.flight) return airborne.flight.bubbles;
   if (count.shown) {
     for (const line of count.poll.lines.slice(0, count.shown)) bubbles[line.id] = { t: line.go ? 'GO' : 'NO-GO', c: line.go ? 'go' : 'no' };
   } else if (count.phase == 'count') {
@@ -250,6 +252,7 @@ function launchFlight(override) {
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override });
   if (!flight) return;
   flight.watch = watchedChannels(airframe, form.ch);
+  flight.bubbles = { tc: { t: 'LIFTOFF', c: 'go' } };
   airborne.flight = flight;
   flight.countdown = 0;
   clearInterval(launchView.countTimer);
@@ -293,7 +296,7 @@ function flightTick() {
     return;
   }
   phase.textContent = flight.stages[flight.stageIndex].fuel > 0 ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
-  const steps = flight.coasting ? 25 : 2;
+  const steps = flight.coasting ? 25 : 2, bubbles = flight.bubbles;
   for (let n = 0; n < steps; n++) {
     const result = step(flight);
     if (result == 'sep') {
@@ -306,6 +309,7 @@ function flightTick() {
     crewCallouts(flight);
     takeReadings(flight, flight.coasting && n < steps - 1);
   }
+  if (flight.bubbles != bubbles) renderPad();
   drawFlightInstruments(flight);
 }
 
