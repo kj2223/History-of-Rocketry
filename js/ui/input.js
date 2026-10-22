@@ -51,6 +51,11 @@ document.addEventListener('change', event => {
     S.p2.lc = isNaN(+value) ? value : +value;
     return render();
   }
+  if (data.ch) {
+    const picked = launchForm.ch || [];
+    launchForm.ch = event.target.checked ? [...picked, data.ch] : picked.filter(id => id != data.ch);
+    return render();
+  }
   if (data.cf) {
     campaignForm[data.cf] = data.cf == 'kind' ? value : +value;
     return render();
