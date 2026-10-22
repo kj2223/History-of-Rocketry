@@ -51,6 +51,15 @@ function packageCard(entry, mark = '') {
   const progress = job ? `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '';
   return `<button data-a="rpick" data-id="${item.id}" class="rcard ${look}${researchDesk.pick == item.id ? ' on' : ''}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span><span class="m">${meta}</span>${progress}</button>`;
 }
+// A finished package not yet confirmed can be proven on the ground: a static firing (propulsion, with a test stand) or
+// qualification tests (areas c and e).
+function groundTestHTML(area, item) {
+  const qualification = area == 'c' || area == 'e';
+  if (!((area == 'p' && S.fac.stand) || qualification) || isConfirmed(item.id)) return '';
+  const job = findJob(candidate => candidate.k == 'gt' && candidate.id == item.id), lock = groundTestLock(item.id);
+  return job ? `<div class="m wn">${qualification ? 'Qualification tests' : 'Static firing'}: <span data-j="gt${item.id}">${job.t}s</span></div>`
+    : `<button data-a="gt" data-id="${item.id}"${lock ? ' disabled' : ''}>${qualification ? 'QUALIFICATION TEST ($4,000, 110s)' : 'GROUND TEST ($2,000, 30s)'}</button>`;
+}
 // THE DETAIL BAR: the picked package or milestone in full, with what can be done with it.
 function detailBar() {
   const id = researchDesk.pick;
