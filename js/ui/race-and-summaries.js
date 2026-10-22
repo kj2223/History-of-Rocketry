@@ -3,7 +3,7 @@ import { FIRSTS, RIVAL, HISTORICAL_US_FIRSTS } from '../data/history.js';
 import { S, today, formatDate } from '../core/state.js';
 import { programmeProgress } from '../rules/economy.js';
 import { intelligenceEstimate, sovietProgress } from '../rules/race.js';
-import { $ } from './dom.js';
+import { $, setHTML } from './dom.js';
 
 const FIRST_STATUS = { us: ['ok', 'US FIRST'], second: ['wn', 'SECOND'], them: ['bad', 'SOVIET FIRST'] };
 export function renderRace() {
@@ -14,7 +14,7 @@ export function renderRace() {
     const status = FIRST_STATUS[S.fs[first.id]];
     return `<div class="first"><span>${first.name}${first.rivalEvent ? ' <span class="d">(contested)</span>' : ''}</span><b class="${status ? status[0] : 'd'}">${status ? status[1] : 'open'}</b></div>`;
   }).join('');
-  $('#race').innerHTML = bars + firsts + `<div class="m" style="margin-top:8px">${RIVAL.filter(event => S.rvd[event.id]).map(event => `<div class="bad">Soviet: ${event.short} (achieved)</div>`).join('')}${estimate ? `Intelligence expects ${estimate.what} between ${estimate.lo} and ${estimate.hi}.` : 'The Soviet programme has achieved everything we were tracking.'}</div>`;
+  setHTML($('#race'), bars + firsts + `<div class="m" style="margin-top:8px">${RIVAL.filter(event => S.rvd[event.id]).map(event => `<div class="bad">Soviet: ${event.short} (achieved)</div>`).join('')}${estimate ? `Intelligence expects ${estimate.what} between ${estimate.lo} and ${estimate.hi}.` : 'The Soviet programme has achieved everything we were tracking.'}</div>`);
 }
 
 // END-OF-PHASE SUMMARY: your timeline, and your firsts against the Soviets and the real US programme.

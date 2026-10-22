@@ -12,7 +12,7 @@ import { skillEstimate, isQualified, simulatorTier, activeAstronauts } from '../
 import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters } from '../rules/mercury.js';
 import { manRatingRecord, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
 import { quoteLaunch } from '../rules/design.js';
-import { $, escapeHtml, percent } from './dom.js';
+import { $, escapeHtml, percent, setHTML } from './dom.js';
 
 // The finalists ticked during selection.
 export const selectedFinalists = new Set();
@@ -66,17 +66,17 @@ export function renderAstronautOffice() {
   const state = S.p2, main = $('#ao'), side = $('#ao2');
   if (!main) return;
   if (!state) {
-    main.innerHTML = '<div class="m">The Astronaut Office opens when NASA is established.</div>';
-    side.innerHTML = '';
+    setHTML(main, '<div class="m">The Astronaut Office opens when NASA is established.</div>');
+    setHTML(side, '');
     return;
   }
-  main.innerHTML = officeDecisionHTML() + (!state.selDone ? selectionHTML(state)
-    : `<div class="m">General training takes about ${QUALIFICATION_DAYS} days before an astronaut can be assigned; a flight then needs mission training. Simulator: <b>${SIMULATOR_NAMES[simulatorTier()]}</b>.</div><div class="cards">${state.astros.filter(astronaut => astronaut.st != 'lost').map(astronaut => astronautCard(astronaut, 0)).join('')}</div>`);
+  setHTML(main, officeDecisionHTML() + (!state.selDone ? selectionHTML(state)
+    : `<div class="m">General training takes about ${QUALIFICATION_DAYS} days before an astronaut can be assigned; a flight then needs mission training. Simulator: <b>${SIMULATOR_NAMES[simulatorTier()]}</b>.</div><div class="cards">${state.astros.filter(astronaut => astronaut.st != 'lost').map(astronaut => astronautCard(astronaut, 0)).join('')}</div>`));
   const chimps = state.ch.t >= 1 ? '<b class="ok">Trained and ready</b>' : state.ch.on ? `<b>${percent(state.ch.t)} trained</b>` : `<button data-a="chimps"${S.b < CHIMP_TRAINING_COST ? ' disabled' : ''}>START TRAINING (${formatMoney(CHIMP_TRAINING_COST)})</button>`;
-  side.innerHTML = `<div class="t">ANIMAL PROGRAMME</div><div class="r"><span class="d">Chimpanzee colony, Holloman AFB</span>${chimps}</div><div class="m">About five months of lever and couch training before a chimpanzee can fly. Little Joe monkeys need no special training.</div>
+  setHTML(side, `<div class="t">ANIMAL PROGRAMME</div><div class="r"><span class="d">Chimpanzee colony, Holloman AFB</span>${chimps}</div><div class="m">About five months of lever and couch training before a chimpanzee can fly. Little Joe monkeys need no special training.</div>
 <div class="t" style="margin-top:10px">TRAINING FACILITIES</div>${TRAINING_FACILITIES.map(([id, name]) => `<div class="r"><span class="d">${name}</span><b class="${S.fac[id] ? 'ok' : 'd'}">${S.fac[id] ? 'Operational' : 'Not built (Hangar & Base)'}</b></div>`).join('')}
 <div class="t" style="margin-top:10px">FLIGHT CONTROLLERS</div>${['capcom', 'surg'].map(id => `<div class="r"><span class="d">${STATIONS[id].name}</span><b class="${S.crew[id] ? 'ok' : 'd'}">${S.crew[id] ? 'On console' : 'Vacant (Personnel)'}</b></div>`).join('')}
-${state.mem.length ? `<div class="mem"><div class="t">IN MEMORIAM</div>${state.mem.map(entry => `<div><b>${escapeHtml(entry.name)}</b>, ${entry.svc}<div class="m">${entry.mission}, ${formatDate(entry.d)}</div></div>`).join('')}</div>` : ''}`;
+${state.mem.length ? `<div class="mem"><div class="t">IN MEMORIAM</div>${state.mem.map(entry => `<div><b>${escapeHtml(entry.name)}</b>, ${entry.svc}<div class="m">${entry.mission}, ${formatDate(entry.d)}</div></div>`).join('')}</div>` : ''}`);
 }
 
 // THE MAN-RATING BOARD: what stands between your boosters and a crew, for the booster chosen in the planner.
@@ -113,7 +113,7 @@ export function renderMissionPlanner() {
   if (capsules.length) html += flightPreparationHTML(state, capsules, boosters);
   else if (!boosters.length) html += '<div class="m">Capsules fly on your own boosters: keep airframes in the hangar.</div>';
   html += manRatingBoardHTML() + (state.lastTx ? '<button data-a="txview">LAST FLIGHT: AIR-TO-GROUND TRANSCRIPT</button>' : '');
-  box.querySelector('#mp').innerHTML = html;
+  setHTML(box.querySelector('#mp'), html);
 }
 // The planner's choices are kept in S.p2: lv capsule, lb booster, lf propellant, lc crew. Missing or stale ones are filled in here.
 function flightPreparationHTML(state, capsules, boosters) {

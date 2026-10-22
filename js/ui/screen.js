@@ -10,14 +10,14 @@ import { nasaReady, SPACE_ACT_DAY } from '../rules/race.js';
 import { roomLevel } from '../rules/launch-site.js';
 import { buildRate } from '../rules/factory.js';
 import { catchUp, ensureStarter } from '../rules/game.js';
-import { renderControlRoom, renderLaunchForm } from './launch-panel.js';
+import { renderControlRoom, renderLaunchForm, renderCampaign } from './launch-panel.js';
 import { launchView, renderPad } from './launch-view.js';
 import { renderDesignBureau, renderIncidents } from './design-bureau.js';
 import { renderHangar, renderFacilities } from './hangar.js';
 import { renderStaff, renderLaunchCrew } from './personnel.js';
 import { renderRace } from './race-and-summaries.js';
 import { renderAstronautOffice, renderMissionPlanner, mercuryDirectiveHTML, memorialHTML, sectionSummaryHTML } from './mercury-panels.js';
-import { $ } from './dom.js';
+import { $, setHTML } from './dom.js';
 
 let dirty = 1, shownEra = -1, shownRoom = -1, tab = 'launch';
 export const markDirty = () => {
@@ -113,7 +113,7 @@ export function render() {
   dirty = 0;
   renderHeader();
   applyEra();
-  $('#dr').innerHTML = directiveHTML();
+  setHTML($('#dr'), directiveHTML());
   $('#tb-astro').hidden = !S.nasa;
   renderAstronautOffice();
   renderMissionPlanner();
@@ -121,6 +121,7 @@ export function render() {
   renderControlRoom();
   renderRace();
   renderLaunchForm();
+  renderCampaign();
   if (launchView.count && launchView.count.phase != 'flight') renderPad();
   renderDesignBureau();
   renderIncidents();

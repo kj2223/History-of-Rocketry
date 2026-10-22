@@ -23,6 +23,7 @@ import { checkFirsts } from './race.js';
 import { recordBoosterFlight } from './manrate.js';
 import { programmeOf, traitWeight, revealTraits, maturity } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
+import { recordCampaignFlight } from './campaign.js';
 
 // What is in the air right now: the UI's launch view (and the launch director) keep the flight or Mercury mission here.
 export const airborne = { flight: null, mission: null };
@@ -400,6 +401,7 @@ function endFlightForProgramme(flight, ok, why) {
   checkBreakthroughs();
   recordBoosterFlight(flight.airframe, ok && why != 'abort');
   learnFromFlight(flight, ok);
+  recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
   revealTraits(flight.programme);
   save();
 }

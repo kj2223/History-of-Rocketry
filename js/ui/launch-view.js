@@ -13,7 +13,7 @@ import { beginMission, stepMission, endMission, reading, decisionOptions, decisi
 import { roomSVG, updateTrace, gaugesSVG } from './control-room.js';
 import { launchForm } from './launch-panel.js';
 import { render, markDirty } from './screen.js';
-import { $ } from './dom.js';
+import { $, setHTML } from './dom.js';
 
 // The launch view's state. count: the countdown in progress, or null:
 //   poll (rules/launch-site.js runPoll), shown: poll lines revealed so far, phase: count | flight | done
@@ -77,7 +77,7 @@ export function renderPad() {
   if (!count) return;
   const level = roomLevel(), poll = count.poll, airframe = S.air.find(candidate => candidate.id == poll.af) || { label: count.label }, pollDone = count.shown >= poll.lines.length;
   $('#padt').textContent = `${ROOMS[level].name} — ${count.label}`;
-  $('#padroom').innerHTML = roomSVG(level, crewOnConsole(), consoleCount(), count.phase == 'flight', stationBubbles());
+  setHTML($('#padroom'), roomSVG(level, crewOnConsole(), consoleCount(), count.phase == 'flight', stationBubbles()));
   updateTrace(airborne.flight ? airborne.flight.trace : airborne.mission ? airborne.mission.trace : launchView.lastTrace);
   if (count.phase == 'done' && count.mission) return showMissionResult(count.result);
   if (count.phase == 'done') return showFlightResult(count.result);
@@ -237,7 +237,7 @@ function drawFlightInstruments(flight) {
   channels.push(CHANNELS.hor.quality(ground, vehicle)
     ? { label: vehicle >= 3 ? 'INERTIAL H-VEL' : 'RANGE RATE', value: horizontal ? horizontal.value : null, max: gaugeScale(flight, 'hor', horizontal ? horizontal.value : 0, 500), text: horizontal ? approximate(horizontal) + horizontal.value + ' m/s' : '--', lost: lost.hor, jitter: jitter(horizontal) }
     : { label: 'DOWNRANGE', none: 1 });
-  $('#gpanel').innerHTML = gaugesSVG(level, channels, true);
+  setHTML($('#gpanel'), gaugesSVG(level, channels, true));
   updateTrace(flight.trace);
 }
 function launchFlight(override) {
@@ -359,7 +359,7 @@ function drawMissionInstruments(mission) {
     { label: 'G-LOAD', value: now.g, max: 16, text: `${now.g.toFixed(1)} g` },
     { label: 'CABIN TEMP', value: now.temp, max: 60, text: `${now.temp} °C` },
   ];
-  $('#gpanel').innerHTML = gaugesSVG(Math.max(level, 2), channels, true);
+  setHTML($('#gpanel'), gaugesSVG(Math.max(level, 2), channels, true));
   updateTrace(mission.trace);
 }
 function decisionHTML(mission) {

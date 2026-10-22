@@ -8,12 +8,13 @@ import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, ground
 import { airborne } from '../rules/flight.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from '../rules/factory.js';
 import { startRetrofit, startInvestigation, chooseFix, startReview } from '../rules/jobs.js';
-import { hire, toggleAutomation, setStandingOrders, ensureStarter } from '../rules/game.js';
+import { hire, ensureStarter } from '../rules/game.js';
+import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { orderCapsule } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
-import { launchForm } from './launch-panel.js';
+import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript } from './launch-view.js';
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
@@ -26,7 +27,7 @@ document.addEventListener('input', event => {
   if (event.target.dataset.s == 'load') $('#ldv').textContent = event.target.value + '%';
 });
 
-// SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, and the launch form.
+// SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, the campaign form and the launch form.
 document.addEventListener('change', event => {
   const data = event.target.dataset, value = event.target.value;
   if (data.focus) {
@@ -48,6 +49,10 @@ document.addEventListener('change', event => {
   }
   if (data.mc) {
     S.p2.lc = isNaN(+value) ? value : +value;
+    return render();
+  }
+  if (data.cf) {
+    campaignForm[data.cf] = data.cf == 'kind' ? value : +value;
     return render();
   }
   if (data.ap) {
@@ -119,8 +124,12 @@ const GAME_ACTIONS = {
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),
-  autoOn: () => toggleAutomation(),
-  autoSet: () => setStandingOrders(launchForm),
+  cstart: () => {
+    const error = startCampaign({ prog: campaignRocket(), fuel: launchForm.fuel, pay: launchForm.pay, st: launchForm.st, ...campaignForm });
+    if (error) log('[LAUNCH DIRECTOR] ' + error, 'bad');
+  },
+  cend: () => endCampaign('ended'),
+  cgo: () => goAhead(),
   fac: id => buildFacility(id),
   inv: id => startInvestigation(+id),
   fix: (id, button) => chooseFix(+id, button.dataset.f),

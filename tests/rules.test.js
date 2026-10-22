@@ -6,12 +6,15 @@ import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID } from '../js/data/research.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
-import { ensureStarter } from '../js/rules/game.js';
-import { createProgramme } from '../js/rules/programs.js';
+import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
+import { createProgramme, isMature, startLock } from '../js/rules/programs.js';
+import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe } from '../js/rules/production.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
+import { autoLaunch } from '../js/rules/auto.js';
+import { startCampaign, goAhead, directorMargin, recordCampaignFlight, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL } from '../js/rules/campaign.js';
 
 // The same small generator the balance bot uses.
 const seeded = seed => () => {
@@ -116,4 +119,79 @@ test('selection takes three to seven finalists and refuses the medically disqual
   assert.equal(selectCrew([1, 2, 3]), false, 'includes a disqualified finalist');
   assert.equal(selectCrew([2, 3, 4]), true);
   assert.equal(S.p2.astros.length, 3);
+});
+
+test('a programme matures only with the knowledge and its own successful flights', () => {
+  readyProgramme('aerobee');
+  for (const area of ['p', 's', 'i', 'a']) S.progs.aerobee.kn[area] = MATURE + 5;
+  assert.equal(isMature('aerobee'), false, 'knowledge alone is not enough');
+  assert.match(startLock('viking'), /mature/);
+  S.progs.aerobee.okf = FLIGHTS_TO_MATURE;
+  assert.equal(isMature('aerobee'), true);
+});
+
+test('a new programme starts well short of maturity, however well the last rocket is known', () => {
+  readyProgramme('aerobee');
+  for (const area of ['p', 's', 'i', 'a']) S.progs.aerobee.kn[area] = 100;
+  createProgramme('viking');
+  for (const area of ['p', 's', 'i', 'a']) assert.ok(S.progs.viking.kn[area] < 35, `${area} starts at ${S.progs.viking.kn[area]}`);
+});
+
+test('the launch director can be hired only after three successful Aerobee flights', () => {
+  readyProgramme('aerobee');
+  S.b = 100000;
+  hire('director');
+  assert.equal(S.staff.director, 0);
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  hire('director');
+  assert.equal(S.staff.director, 1);
+});
+
+// A campaign for the Aerobee with money to spare, run second by second until it closes.
+const runCampaign = (goal, budget, months) => {
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.staff.director = 1;
+  assert.equal(startCampaign({ prog: 'aerobee', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal, months, budget }), null);
+  for (let second = 0; second < 5000 && S.auto.camp; second++) {
+    tickSecond();
+    autoLaunch();
+    if (S.auto.camp && S.auto.camp.hold) goAhead();
+    S.b = Math.max(S.b, 200000);
+  }
+  return S.auto.last;
+};
+
+test('a campaign orders airframes and flies until its target is met', () => {
+  const report = runCampaign(2, 400000, 48);
+  assert.equal(report.outcome, 'met');
+  assert.equal(report.okn, 2);
+  assert.ok(report.spent > 0 && report.spent <= report.budget);
+  assert.equal(S.auto.xp, report.n, 'the director gains a flight of experience for each flight it ran');
+});
+
+test('a campaign closes when its budget cannot cover another airframe or flight', () => {
+  const report = runCampaign(50, 20000, 48);
+  assert.equal(report.outcome, 'budget');
+  assert.ok(report.spent <= 20000);
+});
+
+test('a campaign closes at its deadline', () => {
+  const report = runCampaign(50, 1e7, 6);
+  assert.equal(report.outcome, 'deadline');
+});
+
+test('flights you fly yourself count towards the campaign; the director learns only from its own', () => {
+  readyProgramme('aerobee');
+  S.staff.director = 1;
+  startCampaign({ prog: 'aerobee', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'alt', goal: 25, months: 12, budget: 50000 });
+  recordCampaignFlight({ programme: 'aerobee' }, true, 30000, false);
+  assert.equal(S.auto.last.outcome, 'met');
+  assert.equal(S.auto.xp, 0);
+});
+
+test('an experienced director flies closer to the limits', () => {
+  const rookie = directorMargin();
+  S.auto.xp = DIRECTOR_FULL_SKILL;
+  assert.ok(directorMargin() > rookie);
 });

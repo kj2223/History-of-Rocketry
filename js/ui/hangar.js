@@ -12,13 +12,13 @@ import { unitCost, batchCost, buildTime, draftChanges, experienceCarryover, line
 import { buildTeams, buildRate, refundFor } from '../rules/factory.js';
 import { facilityLock } from '../rules/launch-site.js';
 import { programmeBar } from './design-bureau.js';
-import { $ } from './dom.js';
+import { $, setHTML } from './dom.js';
 
 const AUTO_PUBLISH_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10];
 export function renderHangar() {
-  $('#bp').innerHTML = programmeBar() + drawingOfficeHTML();
-  $('#as').innerHTML = factoryHTML();
-  $('#hg').innerHTML = S.air.length ? S.air.slice().reverse().map(airframeCard).join('') : '<div class="m">The hangar is empty.</div>';
+  setHTML($('#bp'), programmeBar() + drawingOfficeHTML());
+  setHTML($('#as'), factoryHTML());
+  setHTML($('#hg'), S.air.length ? S.air.slice().reverse().map(airframeCard).join('') : '<div class="m">The hangar is empty.</div>');
 }
 function drawingOfficeHTML() {
   const draft = draftChanges(), changes = draft.packages.length + draft.fixes.length, fixCount = Object.keys(S.bp.fix).length;
@@ -61,6 +61,6 @@ function facilityCard(id) {
 }
 export function renderFacilities() {
   const ids = Object.keys(FACILITIES);
-  $('#fc').innerHTML = `<div class="t">CONTROL ROOM</div><div class="m">Each upgrade moves you further from a military blockhouse and adds consoles for launch crew.</div>` + ids.filter(id => FACILITIES[id].controlRoom).map(facilityCard).join('')
-    + `<div class="t" style="margin-top:10px">RANGE, TEST & RECOVERY</div>` + ids.filter(id => !FACILITIES[id].controlRoom).map(facilityCard).join('');
+  setHTML($('#fc'), `<div class="t">CONTROL ROOM</div><div class="m">Each upgrade moves you further from a military blockhouse and adds consoles for launch crew.</div>` + ids.filter(id => FACILITIES[id].controlRoom).map(facilityCard).join('')
+    + `<div class="t" style="margin-top:10px">RANGE, TEST & RECOVERY</div>` + ids.filter(id => !FACILITIES[id].controlRoom).map(facilityCard).join(''));
 }

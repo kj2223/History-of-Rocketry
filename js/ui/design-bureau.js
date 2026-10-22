@@ -3,16 +3,16 @@
 import { formatMoney } from '../core/util.js';
 import { MILESTONES, AREAS } from '../data/research.js';
 import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
-import { PROGRAMMES, MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
+import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
 import { trackingTiers, designation } from '../rules/design.js';
 import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, costAfterEarmark } from '../rules/research.js';
 import { breakthroughNeeds } from '../data/research.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds } from '../rules/knowledge.js';
-import { maturity, candidates, startLock, believedWindow } from '../rules/programs.js';
+import { maturity, candidates, startLock, believedWindow, successfulFlights } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
 import { INVESTIGATION_COST, investigationTime } from '../rules/jobs.js';
-import { $ } from './dom.js';
+import { $, setHTML } from './dom.js';
 
 // The job researching an item, for the programme it belongs to (vehicle areas) or the global bundle.
 const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id && job.prog == (isVehicleArea(item.area) ? S.cur : null));
@@ -85,7 +85,9 @@ function programmeCard() {
   const programme = PROGRAMMES[kind], level = maturity(kind), design = findJob(job => job.k == 'dev' && job.prog == kind);
   let html = `<div class="c prog"><div class="r"><b>${programme.name.toUpperCase()} PROGRAMME</b><span class="d">since ${formatDate(bundle.start)}</span></div><div class="m"><i>${programme.why}</i></div>`;
   if (!bundle.ready) return html + `<div class="wn">Detailed design under way: <span data-j="dev${kind}">${design ? design.t : 0}s</span>.</div></div>`;
-  html += `<div class="r"><span class="d">Maturity (team knowledge of the rocket)</span><b class="${level >= MATURE ? 'ok' : ''}">${Math.round(level)} / ${MATURE}</b></div><div class="bar"><i style="width:${Math.min(100, level / MATURE * 100)}%"></i></div>`;
+  const flown = successfulFlights(kind);
+  html += `<div class="r"><span class="d">Maturity (team knowledge of the rocket)</span><b class="${level >= MATURE ? 'ok' : ''}">${Math.round(level)} / ${MATURE}</b></div><div class="bar"><i style="width:${Math.min(100, level / MATURE * 100)}%"></i></div>`
+    + `<div class="r"><span class="d">Successful flights</span><b class="${flown >= FLIGHTS_TO_MATURE ? 'ok' : ''}">${Math.min(flown, FLIGHTS_TO_MATURE)} / ${FLIGHTS_TO_MATURE}</b></div>`;
   // The performance window: a range narrower than 6% (1.2 points for reliability) shows as one figure.
   html += `<div class="t" style="margin-top:8px">PERFORMANCE WINDOW</div><div class="m">What the team believes the bare rocket can do. Each range narrows as the system behind it is understood.</div>` + DESIGN_STATS.map(({ key, label }) => {
     const range = believedWindow(kind, key), narrow = (range.hi - range.lo) / Math.max(1e-9, Math.abs(range.mid)) < .06 || key == 'r' && range.hi - range.lo < .012;
@@ -111,11 +113,11 @@ export function renderDesignBureau() {
   const tiers = trackingTiers(), bundle = S.progs[S.cur];
   // Rocket areas once the programme is ready; recovery always; the spacecraft areas after NASA.
   const areas = (bundle && bundle.ready ? ['p', 's', 'i', 'a'] : []).concat(['r'], S.nasa ? ['c', 'e'] : []);
-  $('#db').innerHTML = programmeBar() + programmeCard()
+  setHTML($('#db'), programmeBar() + programmeCard()
     + `<div class="r"><span class="d">Current design</span><b>${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev}</b></div><div class="r"><span class="d">Airframe instruments</span><b>${INSTRUMENT_NAMES[tiers.v]}</b></div><div class="r"><span class="d">Ground tracking</span><b>${TRACKING_NAMES[tiers.g]}</b></div><div class="r"><span class="d">Teams free</span><b>${freeTeams()} of ${S.teams}</b></div><div class="r"><span class="d">Successful flights</span><b>${S.ok}</b></div>`
     + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar & Base), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}. Engineers propose new ideas as earlier ones are proven. On the bigger rockets, enough confirmed work in an area opens a breakthrough and a choice of major programmes.</div>`
     + `<div class="m">Each system below is an entry in the <b>engineering file</b>: what your team knows about it, the failure modes it has met and how they were cured, and the research still open. Knowledge carries from flight to flight and makes every later judgement better.</div>`
-    + `<div class="areas">${areas.map(areaCard).join('')}</div>`;
+    + `<div class="areas">${areas.map(areaCard).join('')}</div>`);
 }
 
 // INCIDENTS: a failure (or a design-review finding) from records analysis to diagnosis to fix.
@@ -135,7 +137,7 @@ function incidentHTML(incident) {
 export function renderIncidents() {
   const unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv');
   $('#pi').hidden = !unexplained.length;
-  $('#ic').innerHTML = unexplained.slice().reverse().map(incidentHTML).join('');
+  setHTML($('#ic'), unexplained.slice().reverse().map(incidentHTML).join(''));
 }
 
 // THE ENGINEERING FILE: what the team knows about one system, what that knowledge buys, its failure modes and their status.
