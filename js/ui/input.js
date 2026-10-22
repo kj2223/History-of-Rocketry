@@ -18,7 +18,8 @@ import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript } from './launch-view.js';
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
-import { render, renderHeader, showTab, markDirty, resetScreen } from './screen.js';
+import { researchDesk } from './design-bureau.js';
+import { render, renderHeader, showDesk, markDirty, resetScreen } from './screen.js';
 import { $ } from './dom.js';
 
 let resetArmed = 0;
@@ -188,6 +189,15 @@ const VIEW_ACTIONS = {
     }
   },
   txview: () => showLastTranscript(),
+  // The R&D desk: switch its view, or pick a research card for the detail bar.
+  rview: id => {
+    researchDesk.view = id;
+    render();
+  },
+  rpick: id => {
+    researchDesk.pick = id;
+    render();
+  },
   sec1: () => {
     $('#sum').innerHTML = sectionSummaryHTML();
     $('#sum').hidden = false;
@@ -195,8 +205,8 @@ const VIEW_ACTIONS = {
 };
 
 document.addEventListener('click', event => {
-  const tabButton = event.target.closest('[data-tab-btn]');
-  if (tabButton) return showTab(tabButton.dataset.tabBtn);
+  const deskButton = event.target.closest('[data-desk]');
+  if (deskButton) return showDesk(deskButton.dataset.desk);
   const speedButton = event.target.closest('[data-spd]');
   if (speedButton) {
     S.speed = +speedButton.dataset.spd;
@@ -238,6 +248,7 @@ function resetGame(button) {
   airborne.flight = null;
   launchView.count = null;
   $('#pad').hidden = true;
+  $('#home').hidden = false;
   resetState();
   ensureStarter();
   $('#lg').innerHTML = '';
