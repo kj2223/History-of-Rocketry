@@ -13,7 +13,7 @@ import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
 import { CAMPAIGN_TARGETS, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
 import { roomSVG, updateTrace } from './control-room.js';
 import { launchView } from './launch-view.js';
-import { $, option, setHTML, escapeHtml } from './dom.js';
+import { $, option, setHTML, escapeHtml, percent } from './dom.js';
 
 // What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank).
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
@@ -60,7 +60,14 @@ function scienceHTML(preview, payload) {
   const value = payload.science * (payload.satellite ? 1 : Math.max(.2, Math.min(2.5, preview.peakAltitude / 30000))) * preview.scienceMultiplier;
   if (payload.satellite) return `<div class="r"><span class="d">Science on orbit</span><b>~${formatMoney(value * .5)}</b></div>`;
   const recovery = preview.recovery;
-  return `<div class="r"><span class="d">Recovery odds</span><b class="${recovery.noSystem || recovery.chance < .3 ? 'bad' : recovery.chance < .6 ? 'wn' : 'ok'}">${recovery.noSystem ? 'no recovery system' : '~' + Math.round(recovery.chance * 100) + '%' + (recovery.burnUp > 0 ? ' (re-entry too fast for its heat protection)' : '')}</b></div><div class="r"><span class="d">Science if recovered / telemetry only</span><b>~${formatMoney(value * .5)} / ~${formatMoney(value * .5 * (payload.telemetryShare || 0) * (.4 + .2 * trackingTiers().v))}</b></div>`;
+  const science = row('Science if recovered / telemetry only', `~${formatMoney(value * .5)} / ~${formatMoney(value * .5 * (payload.telemetryShare || 0) * (.4 + .2 * trackingTiers().v))}`);
+  if (!recovery.system) return row('Recovery', 'no parachute aboard', 'bad') + science;
+  return row('Recovery odds', '~' + Math.round(recovery.chance * 100) + '%', recovery.chance < .3 ? 'bad' : recovery.chance < .6 ? 'wn' : 'ok')
+    + row('&nbsp;1. Nose-cone separation', percent(recovery.separation), recovery.separation < .9 ? 'wn' : 'ok')
+    + row('&nbsp;2. Re-entry heating', `~${Math.round(recovery.heat * 100)}% of rating (${Math.round(recovery.reentrySpeed / 10) * 10} m/s)`, recovery.heat > 1 ? 'bad' : recovery.heat > .9 ? 'wn' : 'ok')
+    + row('&nbsp;3. Chute opens at', `~${Math.round(recovery.openSpeed / 5) * 5} m/s, built for ${recovery.chuteStrength}`, recovery.chuteLoad > 1 ? 'bad' : recovery.chuteLoad > .75 ? 'wn' : 'ok')
+    + row('&nbsp;4. Search odds', percent(recovery.search), recovery.search < .6 ? 'wn' : 'ok')
+    + science;
 }
 const row = (label, value, style) => `<div class="r"><span class="d">${label}</span><b${style == null ? '' : ` class="${style}"`}>${value}</b></div>`;
 function estimateHTML(preview, payload, airframe) {

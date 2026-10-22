@@ -212,3 +212,24 @@ test('no two airframes are built alike, but the pre-flight estimate uses the dra
   S.b = 1e6;
   assert.notEqual(fly(first), fly(second));
 });
+
+test('a payload is recovered step by step, and a stronger chute or a ballute fixes a chute that opens too fast', async () => {
+  const { recoveryPlan } = await import('../js/rules/recovery.js');
+  readyProgramme('aerobee');
+  giveResearch(['chute', 'ribbon']);
+  const flight = pk => ({ airframe: { pk }, spec: { rv: 700, rc: .35 }, peakAltitude: 40000, peakHorizontalSpeed: 200, downrange: 30000 });
+  assert.equal(recoveryPlan(flight([])).system, false, 'no parachute, nothing to recover');
+  const plain = recoveryPlan(flight(['chute'])), ribbon = recoveryPlan(flight(['chute', 'ribbon'])), ballute = recoveryPlan(flight(['chute', 'ball']));
+  assert.ok(plain.chuteLoad > .75, 'a plain chute opening at terminal speed is near its limit');
+  assert.ok(ribbon.chuteSurvival > plain.chuteSurvival && ballute.chuteSurvival > plain.chuteSurvival);
+  const higher = recoveryPlan({ ...flight(['chute']), peakAltitude: 90000 });
+  assert.ok(higher.heat > plain.heat && higher.heatSurvival < 1, 'a higher flight comes back hotter');
+});
+
+test('search odds improve with every payload recovered', async () => {
+  const { recoveryPlan } = await import('../js/rules/recovery.js');
+  const flight = { airframe: { pk: ['chute'] }, spec: { rv: 700, rc: .35 }, peakAltitude: 30000, peakHorizontalSpeed: 100, downrange: 20000 };
+  const before = recoveryPlan(flight).search;
+  S.recn = 5;
+  assert.ok(recoveryPlan(flight).search > before);
+});

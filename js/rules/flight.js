@@ -16,7 +16,8 @@ import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES, SYMPTOMS, visibleSymptoms, findFix } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, save, isConfirmed, addHistory, recordRunEvent, withProgramme } from '../core/state.js';
-import { designSpec, fixModifiers, trackingTiers, quoteLaunch, recoveryOdds } from './design.js';
+import { designSpec, fixModifiers, trackingTiers, quoteLaunch } from './design.js';
+import { recoveryPlan, recoverPayload } from './recovery.js';
 import { confirmPackage, checkBreakthroughs } from './research.js';
 import { loseReputation, rangeDataPayment } from './economy.js';
 import { checkFirsts } from './race.js';
@@ -154,7 +155,7 @@ export function previewFlight(airframe, propellantName, payloadName, stage, load
   return {
     thrustToWeight, burnoutG, gLimit: flight.gLimit, peakAltitude: flight.peakAltitude, peakSpeed: flight.peakSpeed,
     peakHorizontalSpeed: flight.peakHorizontalSpeed || 0, orbit: result == 'orbit', downrange: flight.downrange, burnTime: flight.burnTime,
-    maxQ: flight.maxQ, maxHeat: flight.maxHeat, recovery: recoveryOdds(flight.spec, flight.peakSpeed, flight.downrange), scienceMultiplier: flight.spec.sv,
+    maxQ: flight.maxQ, maxHeat: flight.maxHeat, recovery: recoveryPlan(flight), scienceMultiplier: flight.spec.sv,
     uncertainty: Math.max(.03, .2 * (1 - .1 * (tiers.g + tiers.v)) * (S.fac.comp ? .5 : 1) * (S.fac.wall ? .8 : 1) * (S.crew.fido ? .8 : 1)),
   };
 }
@@ -304,11 +305,9 @@ function scienceReturn(flight, peak, why) {
   const value = payload.science * (payload.satellite ? 1 : Math.max(.2, Math.min(2.5, peak / 30000))) * spec.sv;
   if (why == 'orbit') earned = value;
   else {
-    const odds = recoveryOdds(spec, flight.peakSpeed, flight.downrange);
-    recovered = !odds.noSystem && Math.random() < odds.chance;
-    if (odds.noSystem) log('[RECOVERY] No recovery system aboard. The payload was destroyed on impact.', 'wn');
-    else if (recovered) log(`[RECOVERY] Payload recovered intact${S.fac.recov ? ' by the recovery force' : ''}${S.crew.rec ? ', coordinated by REC' : ''}.`, 'ok');
-    else log(odds.burnUp > .5 ? '[RECOVERY] The nose cone burned up on re-entry, too fast for its heat protection.' : '[RECOVERY] Recovery teams could not locate the payload.', 'bad');
+    const recovery = recoverPayload(flight);
+    recovered = recovery.recovered;
+    log('[RECOVERY] ' + recovery.text, recovered ? 'ok' : recovery.step == 'none' ? 'wn' : 'bad');
     earned = recovered ? value : value * (payload.telemetryShare || 0) * (.4 + .2 * flight.tracking.v);
   }
   if (earned > 0) {

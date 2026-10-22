@@ -62,7 +62,7 @@ export const PACKAGES = [
   research('area','a','Area-rule fuselage shaping',6000,150,{c:-.12,q:-.08},{dud:.35}),
   research('hsink','a','Copper heat-sink nose',5500,130,{h:.21,d:4},{dud:.25}),
   research('blunt','a','Blunt-body nose shape',5000,120,{h:.18,c:.06},{dud:.3}),
-  // PAYLOADS & RECOVERY: rc = recovery chance, rv = re-entry speed the payload survives (m/s), sv = science return
+  // PAYLOADS & RECOVERY: rc = search odds (rules/recovery.js), rv = re-entry speed the heat protection takes (m/s), sv = science return
   research('chute','r','Nose-cone parachute',3000,80,{rc:.35,d:3}),
   research('bcn','r','Recovery radio beacon',2500,70,{rc:.12,d:1}),
   research('dye','r','Sea-dye marker & flotation bag',2000,60,{rc:.08,d:1}),
@@ -170,7 +170,7 @@ export const PHASE_TWO_AREAS = ['c', 'e'];
 export const EFFECTS = {
   t: ['thrust', 100, '%'], r: ['reliability', 100, ' pts'], f: ['propellant', 1, ' kg'], g: ['g-limit', 1, 'g'], d: ['dry mass', 1, ' kg'],
   i: ['instrumentation', 1, ' tier'], c: ['drag', 100, '%'], h: ['heat tolerance', 100, '%'], q: ['aero load limit', 100, '%'],
-  rc: ['recovery chance', 100, '%'], rv: ['re-entry speed limit', 1, ' m/s'], sv: ['science return', 100, '%'],
+  rc: ['search odds', 100, '%'], rv: ['re-entry speed limit', 1, ' m/s'], sv: ['science return', 100, '%'],
   // Mercury spacecraft systems
   hs: ['heat shield', 100, ' pts'], ec: ['environmental control', 100, ' pts'], ac: ['attitude control', 100, ' pts'], rr: ['retrorockets', 100, ' pts'],
   pc: ['parachutes', 100, ' pts'], lb: ['landing bag', 100, ' pts'], man: ['manual control', 1, ''],
