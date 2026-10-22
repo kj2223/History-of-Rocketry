@@ -1,7 +1,12 @@
 {
   "type": "module",
   "scripts": {
+    "start": "electron .",
     "test": "node --test tests/*.test.js",
     "balance": "node tools/balance.mjs"
-  }
+  },
+  "devDependencies": {
+    "electron": "^38.8.6"
+  },
+  "main": "desktop/main.js"
 }
