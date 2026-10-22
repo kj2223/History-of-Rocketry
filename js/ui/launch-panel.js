@@ -6,7 +6,8 @@ import { BY_ID } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, isResearched, isConfirmed, withProgramme, formatDate } from '../core/state.js';
 import { designSpec, trackingTiers, rangeFee, propellantCost, hasBoosterStage, cannotOrbit, quoteLaunch } from '../rules/design.js';
-import { rangeDataPayment } from '../rules/economy.js';
+import { rangeDataPayment, DIRECTOR_SALARY } from '../rules/economy.js';
+import { SPECIALISTS } from '../rules/game.js';
 import { roomLevel, consoleCount, crewOnConsole } from '../rules/launch-site.js';
 import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
 import { CAMPAIGN_TARGETS, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
@@ -96,7 +97,7 @@ export function renderCampaign() {
   if (panel.hidden) return;
   const camp = S.auto.camp, last = S.auto.last;
   let html = row('Launch director', S.staff.director ? `${directorRank()}, ${directorExperience()} flight${directorExperience() == 1 ? '' : 's'} run` : 'not hired');
-  if (!S.staff.director) html += '<div class="m">The Aerobee flies routinely now. Hire a launch director in Personnel to run launches as campaigns: you set a target, a deadline and a budget, and the director orders airframes and flies until it is done, while you develop the next rocket.</div>';
+  if (!S.staff.director) html += `<div class="m">The Aerobee flies routinely now. A launch director runs launches as campaigns: you set a target, a deadline and a budget, and the director orders airframes and flies until it is done, while you develop the next rocket. A new director is cautious and asks for guidance; it grows bolder and steadier with every flight. ${formatMoney(DIRECTOR_SALARY)} per funding cycle.</div><button data-a="hire" data-id="director"${S.b < SPECIALISTS.director.cost ? ' disabled' : ''}>HIRE LAUNCH DIRECTOR (${formatMoney(SPECIALISTS.director.cost)})</button>`;
   else if (camp) html += campaignHTML(camp);
   else html += campaignFormHTML();
   if (last && !camp) html += `<div class="m">Last campaign (${outcomeText(last.outcome)}): ${campaignSummary(last)}. ${last.n} flights, ${last.okn} successful, best ${(last.best / 1000).toFixed(1)} km, ${formatMoney(last.spent)} spent.</div>`;

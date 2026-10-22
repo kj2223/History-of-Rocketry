@@ -10,6 +10,7 @@ import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
 import { createProgramme, isMature, startLock } from '../js/rules/programs.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe } from '../js/rules/production.js';
+import { previewFlight, beginFlight, step } from '../js/rules/flight.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
@@ -194,4 +195,20 @@ test('an experienced director flies closer to the limits', () => {
   const rookie = directorMargin();
   S.auto.xp = DIRECTOR_FULL_SKILL;
   assert.ok(directorMargin() > rookie);
+});
+
+test('no two airframes are built alike, but the pre-flight estimate uses the drawings', () => {
+  const first = readyProgramme('aerobee'), second = withProgramme('aerobee', () => makeAirframe({ pk: [], fix: {}, rev: 1 }, 0, 'aerobee'));
+  assert.notDeepEqual(first.vr, second.vr);
+  const estimate = airframe => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1).peakAltitude);
+  assert.equal(estimate(first), estimate(second));
+  const fly = airframe => {
+    S.air.push(airframe);
+    const flight = beginFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1);
+    flight.noFail = true;
+    while (step(flight) == 'tick');
+    return flight.peakAltitude;
+  };
+  S.b = 1e6;
+  assert.notEqual(fly(first), fly(second));
 });

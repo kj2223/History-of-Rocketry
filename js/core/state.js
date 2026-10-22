@@ -127,6 +127,8 @@ export const load = () => {
     if (saved && saved.cv >= 3) {
       Object.assign(S, saved);
       if (!saved.dev) S.dev = { v: 1, ps: 0, fl: 0, ev: [], snap: [] };
+      // Saves from before launch campaigns hold the director's old standing orders: replace them with an empty campaign record.
+      if ('on' in S.auto) S.auto = newGameState().auto;
       for (const event of RIVAL) if (!(event.id in S.rv)) S.rv[event.id] = jitterSovietDate(event.day);
     }
   } catch (e) {}

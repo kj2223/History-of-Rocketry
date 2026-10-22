@@ -1,11 +1,11 @@
-// PERSONNEL tab: payroll, build and engineering teams, the specialists, and the launch crew on console.
+// PERSONNEL tab: payroll, build and engineering teams, the press office, and the launch crew on console.
+// The launch director is hired and managed on the Launch tab (ui/launch-panel.js).
 import { formatMoney } from '../core/util.js';
 import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { S } from '../core/state.js';
 import { payroll } from '../rules/economy.js';
 import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost } from '../rules/factory.js';
 import { engineeringTeamCost, MAX_ENGINEERING_TEAMS, SPECIALISTS } from '../rules/game.js';
-import { directorUnlocked, directorRank, directorExperience, AEROBEE_FLIGHTS_TO_UNLOCK } from '../rules/campaign.js';
 import { roomLevel, consoleCount, crewOnConsole, stationLock } from '../rules/launch-site.js';
 import { $, setHTML } from './dom.js';
 
@@ -19,10 +19,7 @@ export function renderStaff() {
     + staffCard(`ENGINEERING TEAMS (${S.teams}/${MAX_ENGINEERING_TEAMS})`, 'Each team works one job at a time: packages, investigations, fixes, retrofits, ground tests. $1,200 per cycle for each team beyond the first two.',
       S.teams < MAX_ENGINEERING_TEAMS ? `<button data-a="hire" data-id="team"${S.b < engineeringTeamCost() ? ' disabled' : ''}>HIRE ENGINEERING TEAM (${formatMoney(engineeringTeamCost())})</button>` : '<div class="ok">Fully staffed.</div>')
     + staffCard('PUBLIC RELATIONS SPECIALIST', 'Halves the reputation lost to failures and slowly rebuilds it. $1,000 per cycle.',
-      S.staff.pr ? '<div class="ok">On staff.</div>' : `<button data-a="hire" data-id="pr"${S.b < SPECIALISTS.pr.cost ? ' disabled' : ''}>HIRE PR SPECIALIST (${formatMoney(SPECIALISTS.pr.cost)})</button>`)
-    + staffCard('LAUNCH DIRECTOR',
-      S.staff.director ? `Runs the launch campaigns you set on the Launch tab. ${directorRank()}, ${directorExperience()} flight${directorExperience() == 1 ? '' : 's'} run: a new director keeps well inside the rocket's limits and asks for guidance; experience brings steadier countdowns and bolder flights. $2,500 per cycle.` : 'Runs launch campaigns for you: you set a target, a deadline and a budget, the director orders airframes and flies. $2,500 per cycle.',
-      S.staff.director ? '<div class="ok">On staff.</div>' : directorUnlocked() ? `<button data-a="hire" data-id="director"${S.b < SPECIALISTS.director.cost ? ' disabled' : ''}>HIRE LAUNCH DIRECTOR (${formatMoney(SPECIALISTS.director.cost)})</button>` : `<div class="m">Available after ${AEROBEE_FLIGHTS_TO_UNLOCK} successful Aerobee flights.</div>`));
+      S.staff.pr ? '<div class="ok">On staff.</div>' : `<button data-a="hire" data-id="pr"${S.b < SPECIALISTS.pr.cost ? ' disabled' : ''}>HIRE PR SPECIALIST (${formatMoney(SPECIALISTS.pr.cost)})</button>`));
 }
 // The launch crew: the Test Conductor is always on console; other stations are hired into free consoles.
 export function renderLaunchCrew() {

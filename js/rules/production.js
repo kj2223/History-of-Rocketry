@@ -1,5 +1,6 @@
 // PRODUCTION: blueprint revisions, the production line's learning curve, airframe costs and retrofits. No DOM.
 // Player actions that use these (ordering, publishing, upgrades) are in rules/factory.js.
+import { gaussian } from '../core/util.js';
 import { isMilestone } from '../data/research.js';
 import { findFix } from '../data/failures.js';
 import { S, today, withProgramme } from '../core/state.js';
@@ -38,10 +39,24 @@ export function experienceCarryover() {
   return Math.pow(.85, draft.packages.length - milestones) * Math.pow(.4, milestones) * Math.pow(.97, draft.fixes.length);
 }
 
+// BUILD VARIATION: no two airframes come out the same. Each one's thrust, dry mass and drag differ a little from the drawings,
+// typically by 3%, 2% and 4% (never more than two and a half times that). A practised line builds more consistently: the spread
+// shrinks with line learning, to under half on a mature line. Stored on the airframe as vr: { t, m, d } multipliers.
+const BUILD_SPREAD = { t: .03, m: .02, d: .04 };
+const MAX_DEVIATIONS = 2.5;
+export function buildVariation(experience) {
+  const consistency = lineLearning(experience), variation = {};
+  for (const key in BUILD_SPREAD) {
+    const deviation = Math.max(-MAX_DEVIATIONS, Math.min(MAX_DEVIATIONS, gaussian()));
+    variation[key] = Math.round((1 + deviation * BUILD_SPREAD[key] * consistency) * 1000) / 1000;
+  }
+  return variation;
+}
+
 // A new airframe built to a blueprint configuration { pk, fix, rev }.
 export const makeAirframe = (config, cost, programme = S.cur) => {
-  const id = S.nid++;
-  return { id, prog: programme, pk: [...config.pk], fix: { ...config.fix }, rev: config.rev || 1, cost, st: 'r', built: today(), label: airframeLabel(programme, config.pk, id) };
+  const id = S.nid++, line = S.progs[programme] && S.progs[programme].line;
+  return { id, prog: programme, pk: [...config.pk], fix: { ...config.fix }, rev: config.rev || 1, cost, st: 'r', built: today(), label: airframeLabel(programme, config.pk, id), vr: buildVariation(line ? line.xp : 0) };
 };
 
 // Upgrading a built airframe to the published blueprint: one factory job however many changes it carries.
