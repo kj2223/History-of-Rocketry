@@ -8,7 +8,7 @@
 //   reliability, gLimit, aeroLimitScale, heatLimit, dragArea, deformation (heat damage), maxQ and maxHeat (shares of their limits)
 //   modeMultipliers: each failure mode's weight on this airframe (fixes lower it, traits raise it)
 //   tracking: { v: instrument tier, g: ground tracking tier }; lastReadings and lostChannels for the instruments; trace: altitudes for the plot
-//   failure: the mode that struck, if any
+//   failure: the mode that struck, if any; pending: a failure showing its warning signs, { mode, from, at } (seconds)
 import { formatMoney, gaussian } from '../core/util.js';
 import { PROPELLANTS, PAYLOADS } from '../data/launch.js';
 import { DIRECTIVES, DIRECTIVE_NEWS } from '../data/history.js';
@@ -18,6 +18,7 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, save, isConfirmed, addHistory, recordRunEvent, withProgramme } from '../core/state.js';
 import { designSpec, fixModifiers, trackingTiers, quoteLaunch } from './design.js';
 import { recoveryPlan, recoverPayload } from './recovery.js';
+import { FAILURE_WARNINGS, WARNING_SECONDS } from './telemetry.js';
 import { confirmPackage, checkBreakthroughs } from './research.js';
 import { loseReputation, rangeDataPayment } from './economy.js';
 import { checkFirsts } from './race.js';
@@ -194,6 +195,17 @@ export function takeReadings(flight, quiet) {
   if (parts.length && flight.time % 2 == 0 && !quiet) log(`T+${flight.time}s | ${parts.join(' | ')}`);
 }
 
+// A failure strikes: at once (returns true), or, for a mode with a warning, after a few seconds of signs on its part channel
+// (flight.pending: { mode, from, at }; rules/telemetry.js shows the signs, and you can abort in the meantime).
+function strike(flight, mode) {
+  if (!FAILURE_WARNINGS[mode]) {
+    flight.failure = mode;
+    return true;
+  }
+  flight.pending = { mode, from: flight.time, at: flight.time + WARNING_SECONDS.least + Math.floor(Math.random() * (WARNING_SECONDS.most - WARNING_SECONDS.least + 1)) };
+  return false;
+}
+
 // ONE SECOND OF FLIGHT. Returns 'tick', 'sep' (a booster stage separated), 'fail', 'orbit' or 'land'.
 export function step(flight) {
   flight.time++;
@@ -229,20 +241,22 @@ export function step(flight) {
     log(`T+${flight.time}s | [TLM] SKIN TEMPERATURE ABOVE LIMIT`, 'bad');
   }
 
+  // A failure already showing on its channel strikes when its warning runs out, powered or not.
+  if (flight.pending && flight.time >= flight.pending.at) {
+    flight.failure = flight.pending.mode;
+    return 'fail';
+  }
   // A latent fault strikes only in its window: ignition (i), just after separation (x), through the dense air (h, f), or any time after T+3.
-  if (thrust > 0 && !flight.noFail && flight.latent) {
+  if (thrust > 0 && !flight.noFail && flight.latent && !flight.pending) {
     const mode = flight.latent;
     const inWindow = mode == 'i' ? flight.time <= 3
       : mode == 'x' ? !!(flight.separationTime && flight.time - flight.separationTime <= 3)
       : (mode == 'h' || mode == 'f') ? (aeroLoad > .25 || heating > .25 || (flight.time > 8 && flight.time < 25))
       : flight.time > 3;
-    if (inWindow && Math.random() < LATENT_FAULT_CHANCE) {
-      flight.failure = mode;
-      return 'fail';
-    }
+    if (inWindow && Math.random() < LATENT_FAULT_CHANCE && strike(flight, mode)) return 'fail';
   }
   // THE FAILURE MODEL: a chance of failing this second, then which mode, weighted by what the vehicle is going through.
-  if (thrust > 0 && !flight.noFail) {
+  if (thrust > 0 && !flight.noFail && !flight.pending) {
     const justSeparated = flight.separationTime && flight.time - flight.separationTime <= 2;
     const spike = (flight.time <= 3 ? .012 : 0) + (justSeparated ? .04 : 0); // ignition and staging are risky moments
     const gLoad = thrust / mass / GRAVITY;
@@ -271,8 +285,7 @@ export function step(flight) {
         roll -= weights[mode] * (flight.modeMultipliers[mode] || 1);
         if (roll <= 0) { pick = mode; break; }
       }
-      flight.failure = pick;
-      return 'fail';
+      if (strike(flight, pick)) return 'fail';
     }
   }
 
@@ -358,8 +371,19 @@ function endFlightForProgramme(flight, ok, why) {
         loseReputation('known');
         log('[PRESS] Reporters learn the launch went ahead over a NO-GO call.', 'nar');
       }
-    } else log('Flight aborted by range safety.', 'bad');
-    if (PAYLOADS[flight.payload].animal) {
+    } else {
+      log('Flight aborted by range safety.', 'bad');
+      // Aborting ahead of a failure that was showing its signs: the vehicle was failing, so the engineers still investigate.
+      if (flight.pending) {
+        flight.failure = flight.pending.mode;
+        log(`T+${flight.time}s | Aborted ahead of a failure.`, 'wn');
+        visibleSymptoms(flight.failure, tracking).forEach(symptom => log(`[ANALYSIS] Records indicate ${SYMPTOMS[symptom].text}.`, 'wn'));
+        openIncident(flight, tracking, null);
+      }
+    }
+    // An abort fires the nose cone clear, so a payload with a recovery system can still come home (rules/recovery.js).
+    if (why == 'abort' && PAYLOADS[flight.payload].science) scienceReturn(flight, peak, why);
+    else if (PAYLOADS[flight.payload].animal) {
       loseReputation('bio');
       log('[PRESS] The primate was lost with the vehicle. The press is critical.', 'nar');
     }
@@ -424,7 +448,8 @@ export function boosterRun(airframe, propellantName, stage, options = {}) {
 function boosterRunForProgramme(airframe, propellantName, stage, options) {
   const flight = makeFlight(airframe, propellantName, 'Mercury Capsule', stage, options.load || 1, options), burn = totalBurnTime(flight);
   let result;
-  do result = step(flight); while ((result == 'tick' || result == 'sep') && flight.stages[flight.stages.length - 1].fuel > 0 && flight.time < 2000);
+  // A failure already showing its warning at burnout still strikes.
+  do result = step(flight); while ((result == 'tick' || result == 'sep') && (flight.stages[flight.stages.length - 1].fuel > 0 || flight.pending) && flight.time < 2000);
   return { flight, failure: result == 'fail' ? flight.failure : null, short: result == 'land', fraction: Math.min(1, flight.time / Math.max(1, burn)), altitude: flight.altitude, speed: Math.hypot(flight.verticalSpeed, flight.horizontalSpeed) };
 }
 // A booster failure on a Mercury flight opens an incident like any other flight; a good boost confirms the airframe's packages and adds to the propellant record.

@@ -6,7 +6,7 @@ import { findFix } from '../data/failures.js';
 import { FACILITIES } from '../data/launch-site.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { MISSION_TYPES } from '../data/mercury.js';
-import { S, formatDate, findJob } from '../core/state.js';
+import { S, formatDate, findJob, withProgramme } from '../core/state.js';
 import { designation } from '../rules/design.js';
 import { unitCost, batchCost, buildTime, draftChanges, experienceCarryover, lineLearning, lineExperience, retrofitQuote } from '../rules/production.js';
 import { buildTeams, buildRate, refundFor } from '../rules/factory.js';
@@ -45,12 +45,18 @@ function queueItemHTML(item, index, progress) {
     : `New ${PROGRAMMES[item.prog] ? PROGRAMMES[item.prog].name : ''} airframe, Rev ${(item.cfg && item.cfg.rev) || 1}${outdated}`;
   return `<div class="c qi"><div class="r"><span>${onFloor ? '<b class="wn">ON THE FLOOR</b> ' : `<span class="d">${index + 1}.</span> `}${what}</span><span class="d">${onFloor ? `<span data-q="${index}">${progress(item)}% (${Math.ceil(item.t / buildRate(item))}s)</span>` : Math.ceil(item.tot / buildRate(item)) + 's'}</span></div>${onFloor ? `<div class="bar"><i data-qb="${index}" style="width:${progress(item)}%"></i></div>` : ''}<button data-a="cancelq" data-id="${index}" class="danger">CANCEL (refund ${formatMoney(refundFor(index))})</button></div>`;
 }
+// An up-to-date airframe: say so, and point at finished changes still waiting in the draft (they reach airframes only once published).
+function unpublishedNote(airframe) {
+  const draft = withProgramme(airframe.prog, draftChanges), waiting = draft.packages.length + draft.fixes.length;
+  return '<div class="m">Built to the current blueprint.'
+    + (waiting ? ` ${waiting} finished change${waiting > 1 ? 's are' : ' is'} waiting in the draft: publish the next blueprint revision${airframe.prog != S.cur ? ` of the ${PROGRAMMES[airframe.prog].name}` : ' above'} to upgrade.` : '') + '</div>';
+}
 function airframeCard(airframe) {
   const quote = retrofitQuote(airframe), retrofit = findJob(job => job.k == 'retro' && job.id == airframe.id), latest = S.progs[airframe.prog] ? S.progs[airframe.prog].bp.rev : 1;
   const status = airframe.st == 'queued' ? '<div class="wn">Waiting in the factory queue for its upgrade.</div>'
     : airframe.st == 'retro' && retrofit ? `<div class="wn">Retrofit: <span data-j="retro${airframe.id}">${retrofit.t}s</span></div>`
     : quote ? `<div class="m">${quote.changes} change${quote.changes > 1 ? 's' : ''} behind Rev ${latest}.</div><button data-a="upgrade" data-id="${airframe.id}"${S.b < quote.cost ? ' disabled' : ''}>QUEUE UPGRADE TO REV ${latest} (${formatMoney(quote.cost)}, ${quote.time}s)</button>`
-    : '<div class="m">Built to the current blueprint.</div>';
+    : unpublishedNote(airframe);
   return `<div class="c"><div class="t">${airframe.label}, Rev ${airframe.rev || 1} | built ${airframe.built}</div>` + status + '</div>';
 }
 

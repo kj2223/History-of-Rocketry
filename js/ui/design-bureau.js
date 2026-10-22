@@ -64,8 +64,9 @@ function commissionHTML(entry, showName) {
     + '</div>';
 }
 // Joint programmes (milestones drawing on two areas). Not shown at present: it returns nothing before building its card.
+const SHOW_JOINT_PROGRAMMES = false;
 function jointProgrammesCard() {
-  return '';
+  if (!SHOW_JOINT_PROGRAMMES) return '';
   const joint = MILESTONES.filter(milestone => milestone.tier == 'x');
   const open = joint.filter(milestone => isResearched(milestone.id) || !milestoneLock(milestone) || findJob(job => job.id == milestone.id));
   const near = joint.filter(milestone => !open.includes(milestone) && [...milestone.jointAreas].some(hasFirstMilestone));

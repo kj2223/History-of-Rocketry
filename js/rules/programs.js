@@ -119,8 +119,11 @@ export function finishDesign(kind) {
   const bundle = S.progs[kind];
   if (!bundle) return;
   bundle.ready = 1;
+  const previous = S.cur;
   S.cur = kind;
   log(`[PROGRAMME] ${PROGRAMMES[kind].name}: the drawings are released. Order airframes in Hangar & Base; its true performance is still to be learned.`, 'hd');
+  // Each rocket keeps its own research and blueprint, so say plainly that the screens have moved to the new one.
+  if (previous && previous != kind) log(`[PROGRAMME] The Design Bureau and Hangar now show the ${PROGRAMMES[kind].name}: new research goes to it. Switch back to the ${PROGRAMMES[previous].name} with the rocket bar at the top of either tab.`, 'wn');
 }
 
 // TRAITS. A trait is found when its failure mode is diagnosed or a review flags it; a stat trait surfaces once the team knows that system well (40).

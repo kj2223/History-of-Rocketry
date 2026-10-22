@@ -259,3 +259,21 @@ test('a station calls the flight only when it is staffed, and only the parts it 
   assert.ok(heard.some(line => line.includes('[BSTR] Max Q.')));
   logSink.fn = null;
 });
+
+test('an engine failure shows on chamber pressure for a few seconds first, and aborting in time still opens the incident', async () => {
+  const { partReading } = await import('../js/rules/telemetry.js');
+  const { endFlight } = await import('../js/rules/flight.js');
+  const airframe = readyProgramme('aerobee');
+  S.b = 1e6;
+  const flight = beginFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, { latent: 'p' });
+  let result;
+  do result = step(flight); while (result == 'tick' && !flight.pending);
+  assert.ok(flight.pending && !flight.failure, 'the pump fault is showing, not yet struck');
+  const steady = flight.thrustShare * 100;
+  while (flight.time < flight.pending.at - 1) step(flight);
+  assert.ok(partReading(flight, 'pc').value < steady * .75, 'chamber pressure falls away before the failure');
+  const incidents = () => withProgramme('aerobee', () => S.inc.length), before = incidents();
+  endFlight(flight, false, 'abort');
+  assert.equal(flight.failure, 'p');
+  assert.equal(incidents(), before + 1);
+});

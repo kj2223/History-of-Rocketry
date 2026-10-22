@@ -92,5 +92,5 @@ export function recoverPayload(flight) {
   if (failed == 'chute') return { recovered: false, step: 'chute', text: plan.chuteLoad > CHUTE_SAFE_LOAD ? `The parachute opened at about ${Math.round(plan.openSpeed)} m/s, a ${Math.round(plan.chuteLoad * 100)}% opening load for a chute built for ${plan.chuteStrength} m/s, and shredded.` : 'The parachute tangled in its rigging and streamed.' };
   if (Math.random() > search) return { recovered: false, step: 'search', text: `The parachute opened, but the search teams could not find the payload (${Math.round(search * 100)}% search odds).` };
   S.recn = (S.recn || 0) + 1;
-  return { recovered: true, step: null, text: `Payload recovered intact${S.fac.recov ? ' by the recovery force' : ''}${S.crew.rec ? ', coordinated by REC' : ''}. Chute opened at about ${Math.round(plan.openSpeed)} m/s.` };
+  return { recovered: true, step: null, text: `Payload recovered intact${S.fac.recov ? ' by the recovery force' : ''}${S.crew.rec ? ', coordinated by REC' : ''}. ${plan.openSpeed < 30 ? 'Chute opened low and slow.' : `Chute opened at about ${Math.round(plan.openSpeed)} m/s.`}` };
 }

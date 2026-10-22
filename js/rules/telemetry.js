@@ -19,6 +19,25 @@ export const PART_CHANNELS = {
   rec: { label: 'RECOVERY', name: 'Recovery sequence', needs: ['chute', 'ribbon', 'ms_rec', 'ms_disc'], max: 4 },
 };
 const MULTIPLEXING = ['mux', 'subc', 'pcm'];
+
+// WARNINGS: most failures show on a part channel for a few seconds before they strike (rules/flight.js holds the failure back
+// as flight.pending). Hard starts (i) and staging failures (x) are sudden and give no warning.
+//   rough  the reading shakes harder and harder      climb  the reading runs up past the limit      fade  the reading falls away
+export const FAILURE_WARNINGS = {
+  c: { channel: 'pc', sign: 'rough' }, // combustion instability: chamber pressure oscillation
+  p: { channel: 'pc', sign: 'fade' },  // pump cavitation: pressure tailing off
+  v: { channel: 'pc', sign: 'fade' },  // valve or line leak: pressure dropping
+  h: { channel: 'skin', sign: 'climb' }, // heat failure: skin temperature past the limit
+  f: { channel: 'q', sign: 'rough' },  // fin flutter: the strain gauges shake
+  s: { channel: 'q', sign: 'climb' },  // structural failure: loads in the red
+};
+export const WARNING_SECONDS = { least: 3, most: 6 };
+// How far a warning has built, 0 to 1, on this channel (0 if nothing is building there).
+export function warningLevel(flight, id) {
+  const pending = flight.pending;
+  if (!pending || FAILURE_WARNINGS[pending.mode].channel != id) return 0;
+  return Math.min(1, (flight.time - pending.from + 1) / (pending.at - pending.from + 1));
+}
 // Telemetry readings are steadier than radar: about 3% of noise.
 const TELEMETRY_NOISE = .03;
 
@@ -35,7 +54,12 @@ export function partReading(flight, id) {
     const text = recoveryStatus(flight);
     return { value: RECOVERY_STEPS.indexOf(text) + 1, text };
   }
-  const channel = PART_CHANNELS[id], value = Math.max(0, channel.value(flight) * (1 + TELEMETRY_NOISE * gaussian()));
+  const channel = PART_CHANNELS[id], level = warningLevel(flight, id), sign = level && FAILURE_WARNINGS[flight.pending.mode].sign;
+  let value = channel.value(flight);
+  if (sign == 'rough') value *= 1 + .35 * level * Math.sin(flight.time * 2.7) + .15 * level * gaussian();
+  if (sign == 'climb') value += (130 - value) * level;
+  if (sign == 'fade') value *= 1 - .45 * level;
+  value = Math.max(0, value * (1 + TELEMETRY_NOISE * gaussian()));
   return { value, text: (id == 'g' ? value.toFixed(1) : Math.round(value)) + channel.unit };
 }
 const RECOVERY_STEPS = ['SEPARATED', 'RE-ENTRY', 'CHUTE OUT'];
