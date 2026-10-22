@@ -103,13 +103,3 @@ function quoteForProgramme(airframe, propellantName, payloadName, stage, load) {
   return { cost };
 }
 
-// RECOVERY: the chance a payload is found intact. Too fast on the way down and it burns up unless the heat protection is good enough.
-// Returns { chance, burnUp: 0 to 1, noSystem: 1 when nothing aboard can be recovered }.
-export function recoveryOdds(spec, peakSpeed, downrange) {
-  if (spec.rc <= 0) return { chance: 0, burnUp: 0, noSystem: 1 };
-  let chance = spec.rc + (S.fac.recov ? .2 : 0) + (S.crew.rec ? .15 : 0) + (S.fac.ship ? .05 : 0);
-  if (downrange > 80000 && !S.fac.recov && !S.fac.ship) chance -= .2;
-  const burnUp = peakSpeed > spec.rv ? Math.min(1, (peakSpeed - spec.rv) / spec.rv * 2) : 0;
-  chance *= 1 - burnUp;
-  return { chance: Math.max(0, Math.min(.95, chance)), burnUp };
-}

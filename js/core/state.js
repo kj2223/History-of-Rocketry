@@ -30,6 +30,7 @@
 //           (rules/campaign.js)
 //   dev     the run log: { v, ps: play seconds, fl: flights, ev: events, snap: snapshots }
 //   nasa    day NASA was established (0 = not yet) cv      save version
+//   recn    payloads recovered (the search teams' experience, rules/recovery.js)
 //   p2      Phase Two (Mercury) state (see rules/mercury.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
