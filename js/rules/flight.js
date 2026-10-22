@@ -90,14 +90,21 @@ const boosterStage = (programme, spec, modifiers, load = 1) => {
     isp: booster.isp * (1 + .25 * (spec.t * modifiers.t - 1)),
   };
 };
+// NO TWO FLIGHTS ALIKE: the airframe's own build variation (rules/production.js), and on the day the engine runs typically
+// 1.5% hotter or cooler (never more than 3%). The pre-flight estimate uses the drawings: the engineers don't know a particular airframe's quirks.
+const DAY_TO_DAY_THRUST = .015;
+const AS_DRAWN = { t: 1, m: 1, d: 1 };
+const withVariation = (eachStage, build, onTheDay) => ({ ...eachStage, dry: eachStage.dry * build.m, thrust: eachStage.thrust * build.t * onTheDay });
 function makeFlightForProgramme(airframe, propellantName, payloadName, stage, load, options) {
   const programmeKey = programmeOf(airframe), programme = PROGRAMMES[programmeKey] || {};
   const spec = designSpec(airframe.pk, options.estimated), modifiers = fixModifiers(airframe.fix);
   const propellant = PROPELLANTS[propellantName], payload = PAYLOADS[payloadName];
+  const build = options.estimated ? AS_DRAWN : airframe.vr || AS_DRAWN;
+  const onTheDay = options.estimated ? 1 : 1 + DAY_TO_DAY_THRUST * Math.max(-2, Math.min(2, gaussian()));
   const core = {
-    dry: spec.dry + spec.d + modifiers.d,
+    dry: (spec.dry + spec.d + modifiers.d) * build.m,
     fuel: spec.f * propellant.density * load,
-    thrust: spec.thr * spec.t * modifiers.t,
+    thrust: spec.thr * spec.t * modifiers.t * build.t * onTheDay,
     isp: propellant.isp * (1 + .5 * (spec.t * modifiers.t - 1)),
   };
   const coreBurnTime = core.fuel / (core.thrust / (core.isp * GRAVITY));
@@ -108,9 +115,9 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   return {
     airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over,
     propellant: propellantName, payload: payloadName, satellite: !!payload.satellite, payloadMass: payload.mass, separationRisk: 1,
-    stages: stage && programme.booster ? [boosterStage(programme, spec, modifiers, load), core] : [core], stageIndex: 0,
+    stages: stage && programme.booster ? [withVariation(boosterStage(programme, spec, modifiers, load), build, onTheDay), core] : [core], stageIndex: 0,
     altitude: 0, verticalSpeed: 0, horizontalSpeed: 0, time: 0, peakAltitude: 0, peakSpeed: 0, peakHorizontalSpeed: 0, downrange: 0, load, noFail: false,
-    aeroLimitScale: spec.q + modifiers.q, heatLimit: spec.h + modifiers.h, dragArea: .004 * Math.max(.35, spec.c + modifiers.c),
+    aeroLimitScale: spec.q + modifiers.q, heatLimit: spec.h + modifiers.h, dragArea: .004 * Math.max(.35, spec.c + modifiers.c) * build.d,
     deformation: 0, maxQ: 0, maxHeat: 0, heatWarned: 0, reliability,
     referenceThrust: Math.max(1, spec.thr / 2.5) * 1.2, // pump trouble grows as thrust rises past this
     gLimit: spec.g + modifiers.g,
