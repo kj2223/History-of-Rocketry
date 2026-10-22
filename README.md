@@ -62,14 +62,17 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 
 | File | Draws |
 |---|---|
-| `ui/screen.js` | The header, era theme, directive panel, tabs, and `render()` for the whole page |
+| `index.html` | The one fixed screen: header, desk rail, the control room's three columns, and the desk drawer |
+| `ui/screen.js` | The header, era theme, directive panel, opening and closing desks, and `render()` for the whole page |
 | `ui/input.js` | Every click and select: `data-a` on a button names its action |
-| `ui/launch-panel.js` | The Launch tab: control room and launch form |
-| `ui/launch-view.js` | The full-screen countdown, poll, flight instruments, Mercury flights and transcript |
+| `ui/launch-panel.js` | The control-room picture and the launch form |
+| `ui/launch-view.js` | The pad under the plotting board: countdown, poll, flight instruments, Mercury flights and transcript |
+| `ui/plot.js` | The plotting board: the flight's altitude against the directive |
+| `ui/consoles.js` | One live tile per launch-crew station: readout, gauge, what it is doing, its last call |
 | `ui/control-room.js` | The control-room and instrument SVGs |
-| `ui/design-bureau.js` | The Design Bureau tab and incident cards |
-| `ui/hangar.js` | Hangar & Base: blueprints, the factory queue, airframes, facilities |
-| `ui/personnel.js` | Personnel: teams, specialists, launch crew |
+| `ui/design-bureau.js` | The R&D desk: research columns and detail bar, the rocket programme, the engineering file, incidents |
+| `ui/hangar.js` | The Hangar desk (blueprints, the factory queue, airframes) and the Base desk (facilities) |
+| `ui/personnel.js` | The Crew desk: teams, specialists, launch crew |
 | `ui/race-and-summaries.js` | The race panel, the Phase One summary, the run log |
 | `ui/mercury-panels.js` | The Astronaut Office, mission planner, man-rating board, Mercury overlays |
 
