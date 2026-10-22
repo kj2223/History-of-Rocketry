@@ -46,11 +46,12 @@ export function closePad() {
   render();
 }
 // Speech bubbles over the stations: GO / NO-GO as the poll is read out, and the fuelling call before it.
-// In flight, the latest call on the loop (rules/callouts.js).
+// In flight, the latest call on the loop (rules/callouts.js); after it, every station's last call and the Test Conductor's verdict.
 function stationBubbles() {
   const count = launchView.count, bubbles = {};
   if (!count) return bubbles;
   if (count.phase == 'flight' && airborne.flight) return airborne.flight.bubbles;
+  if (count.phase == 'done' && count.lastCalls) return count.lastCalls;
   if (count.shown) {
     for (const line of count.poll.lines.slice(0, count.shown)) bubbles[line.id] = { t: line.go ? 'GO' : 'NO-GO', c: line.go ? 'go' : 'no' };
   } else if (count.phase == 'count') {
@@ -267,16 +268,20 @@ function launchFlight(override) {
   $('#ln').textContent = roomLevel() >= 2 ? 'Trajectory is plotted on the board.' : 'No plotting board yet: radar calls come in below.';
   launchView.flightTimer = setInterval(flightTick, 250);
 }
+// The Test Conductor's last word on the loop, by how the flight ended.
+const FLIGHT_VERDICTS = { land: { t: 'IMPACT', c: 'go' }, orbit: { t: 'ORBIT', c: 'go' }, fail: { t: 'VEHICLE LOST', c: 'no' }, abort: { t: 'ABORTED', c: 'no' } };
 export function finishFlight(ok, why) {
+  const flight = airborne.flight;
   clearInterval(launchView.flightTimer);
   launchView.flightTimer = null;
-  launchView.lastTrace = airborne.flight.trace.slice();
-  endFlight(airborne.flight, ok, why);
+  launchView.lastTrace = flight.trace.slice();
+  endFlight(flight, ok, why);
   airborne.flight = null;
   document.documentElement.classList.remove('flying');
   if (launchView.count) {
     launchView.count.phase = 'done';
     launchView.count.result = { ok, why };
+    launchView.count.lastCalls = { ...flight.lastCalls, tc: FLIGHT_VERDICTS[why] };
   }
   $('#fl').hidden = true;
   markDirty();

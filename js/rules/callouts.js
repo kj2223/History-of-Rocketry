@@ -4,7 +4,7 @@
 // the launch director's flights run quietly. No DOM.
 //
 // The latest call also shows as a short bubble over its station in the pad room, one voice on the loop at a time:
-// flight.bubbles = { station: { t: text, c: 'go' | 'no' | 'wn' } }.
+// flight.bubbles = { station: { t: text, c: 'go' | 'no' | 'wn' } }. flight.lastCalls keeps every station's latest, for after the flight.
 import { PAYLOADS } from '../data/launch.js';
 import { STATIONS } from '../data/launch-site.js';
 import { S, log } from '../core/state.js';
@@ -31,6 +31,7 @@ export function crewCallouts(flight) {
     said[key] = 1;
     log(`T+${flight.time}s | [${STATIONS[station].callSign}] ${text}`, style);
     flight.bubbles = { [station]: { t: bubble, c: style == 'bad' ? 'no' : style == 'wn' ? 'wn' : 'go' } };
+    flight.lastCalls = { ...flight.lastCalls, ...flight.bubbles };
   };
   const stage = flight.stages[flight.stageIndex], lastStage = flight.stageIndex == flight.stages.length - 1, powered = stage.fuel > 0;
 
