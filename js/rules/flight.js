@@ -405,13 +405,14 @@ function endFlightForProgramme(flight, ok, why) {
 }
 
 // MERCURY BOOSTERS: one of your airframes flies its normal physics and failure model with a capsule aboard, from liftoff to burnout.
+// options.load: the propellant load the mission plan chose (rules/mercury.js boosterPlan), full by default.
 export const totalBurnTime = flight => flight.stages.reduce((sum, eachStage) => sum + eachStage.fuel / (eachStage.thrust / (eachStage.isp * GRAVITY)), 0);
 // Returns { flight, failure: the mode or null, short: it fell back before burnout, fraction: share of the burn flown, altitude, speed }.
 export function boosterRun(airframe, propellantName, stage, options = {}) {
   return withProgramme(programmeOf(airframe), () => boosterRunForProgramme(airframe, propellantName, stage, options));
 }
 function boosterRunForProgramme(airframe, propellantName, stage, options) {
-  const flight = makeFlight(airframe, propellantName, 'Mercury Capsule', stage, 1, options), burn = totalBurnTime(flight);
+  const flight = makeFlight(airframe, propellantName, 'Mercury Capsule', stage, options.load || 1, options), burn = totalBurnTime(flight);
   let result;
   do result = step(flight); while ((result == 'tick' || result == 'sep') && flight.stages[flight.stages.length - 1].fuel > 0 && flight.time < 2000);
   return { flight, failure: result == 'fail' ? flight.failure : null, short: result == 'land', fraction: Math.min(1, flight.time / Math.max(1, burn)), altitude: flight.altitude, speed: Math.hypot(flight.verticalSpeed, flight.horizontalSpeed) };

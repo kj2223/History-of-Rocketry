@@ -10,6 +10,7 @@
 //   outcome: what went wrong or right (see newOutcome); latent: a fault the poll missed; overNoGo: launched over a NO-GO
 //   altitudeScale, speedScale: the profile scaled to the booster; callSign; boost: the booster run; rescued: the man-rating
 //   redundancy rode out a booster fault; retroWillFail; trace: altitudes for the plotting board; done
+//   faults: spacecraft systems that failed (keys of SYSTEM_FAULTS), investigated when the mission ends
 import { formatMoney, gaussian, clamp } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES } from '../data/failures.js';
@@ -101,7 +102,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   const type = MISSION_TYPES[capsule.mt], systems = capsuleSystems(capsule.cfg), propellant = options.fuel || 'Alcohol & LOX';
   const plan = boosterPlan(booster, propellant, capsule.mt);
   if (!plan.ok) return null;
-  const quote = quoteLaunch(booster, propellant, 'Mercury Capsule', plan.staged, 1);
+  const quote = quoteLaunch(booster, propellant, 'Mercury Capsule', plan.staged, plan.load);
   if (quote.error) return null;
   S.b -= quote.cost;
   state.veh.splice(state.veh.indexOf(capsule), 1);
@@ -136,9 +137,9 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   // The booster: your airframe's own physics and failure model. The man-rating modifications give a failing booster a chance to ride it out.
   const boostEnd = type.boostEnd, rocketSpec = designSpec(Object.keys(S.pk));
   const rescueChance = Math.min(.6, ((rocketSpec.mr || 0) + (capsule.mt == 'ma' ? rocketSpec.mab || 0 : 0)) * 2.5);
-  let boost = boosterRun(booster, propellant, plan.staged, { latent: mission.latent, wind: options.wind || 0 });
+  let boost = boosterRun(booster, propellant, plan.staged, { latent: mission.latent, wind: options.wind || 0, load: plan.load });
   if ((boost.failure || boost.short) && Math.random() < rescueChance) {
-    boost = boosterRun(booster, propellant, plan.staged, { wind: options.wind || 0 });
+    boost = boosterRun(booster, propellant, plan.staged, { wind: options.wind || 0, load: plan.load });
     mission.rescued = 1;
   }
   mission.boost = boost;
@@ -373,10 +374,37 @@ export function stepMission(mission, seconds) {
   }
   return 'tick';
 }
+// SPACECRAFT FAULTS: each capsule system that failed in flight is noted, and after the flight the engineers investigate it.
+// The first failure of each system proposes a corrective package (data/research.js, the fx_ packages), as real Mercury
+// failures did: a clogged thruster screen, a parachute that streamed, a landing bag strap that tore.
+const SYSTEM_FAULTS = {
+  hs: 'Sectioning the recovered shield shows voids where the resin did not bond',
+  pc: 'Drop tests show the main canopy opening too violently and tearing',
+  rr: 'The retropack igniter circuit has a single point of failure',
+  ec: 'The suit coolant loop freezes up at its heat-exchanger valve',
+  ac: 'Debris in the thruster fuel lines blocks the small jets',
+  lb: 'The landing bag straps tear under the shock of opening',
+  tj: 'The tower-jettison circuit has no backup path',
+  as: 'The abort-sensing circuit misreads the booster\'s signals',
+};
+const systemFault = (mission, system) => {
+  mission.faults = mission.faults || [];
+  if (!mission.faults.includes(system)) mission.faults.push(system);
+};
+// After the flight: the first time a system fails, its investigation proposes the package that cures it.
+function investigateFaults(mission, state) {
+  for (const system of mission.faults || []) {
+    const flag = 'fx_' + system;
+    if (state.fl[flag]) continue;
+    state.fl[flag] = 1;
+    log(`[INVESTIGATION] ${SYSTEM_FAULTS[system]}. New package proposed: ${BY_ID[flag].name}.`, 'hd');
+  }
+}
 // What each event does. Each returns 'decide' or 'end' to stop the step there, or nothing to carry on.
 const EVENTS = {
   stray(mission, pilot, outcome) {
     outcome.strayLaunch = 1;
+    systemFault(mission, 'as');
     outcome.lost = mission.crew ? 0 : 1;
     mission.booster.st = 'r';
     S.air.push(mission.booster);
@@ -411,7 +439,10 @@ const EVENTS = {
     if (Math.random() < mission.systems.reliability('as')) {
       report(mission, 'Abort sensing trips automatically.', 'wn');
       towerFires(mission);
-    } else if (raiseDecision(mission, 'abort')) return 'decide';
+    } else {
+      systemFault(mission, 'as');
+      if (raiseDecision(mission, 'abort')) return 'decide';
+    }
     if (mission.done) return 'end';
   },
   plannedAbort(mission, pilot, outcome) {
@@ -419,6 +450,7 @@ const EVENTS = {
     if (Math.random() < mission.systems.reliability('as')) towerFires(mission);
     else {
       report(mission, 'Abort sensing fails to fire the tower.', 'bad');
+      systemFault(mission, 'as');
       outcome.lost = 1;
       mission.done = 1;
       return 'end';
@@ -436,19 +468,23 @@ const EVENTS = {
   },
   tj(mission) {
     report(mission, 'Tower jettison did not fire.', 'bad');
+    systemFault(mission, 'tj');
     if (raiseDecision(mission, 'tj')) return 'decide';
   },
   att(mission) {
     report(mission, 'Attitude control fault.', 'wn');
+    systemFault(mission, 'ac');
     if (raiseDecision(mission, 'att')) return 'decide';
   },
   ecs(mission) {
     report(mission, 'Environmental control fault: temperatures rising.', 'wn');
+    systemFault(mission, 'ec');
     if (raiseDecision(mission, 'ecs')) return 'decide';
   },
   retro(mission, pilot) {
     if (mission.retroWillFail) {
       report(mission, 'Retrofire signal sent; no retro ignition.', 'wn');
+      systemFault(mission, 'rr');
       if (raiseDecision(mission, 'retro')) return 'decide';
     } else {
       report(mission, 'Retrorockets fire on time.', 'ok');
@@ -463,6 +499,7 @@ const EVENTS = {
     if (Math.random() < heatChance) {
       outcome.heatDamage = 1;
       report(mission, 'Heat-shield temperatures far above prediction.', 'bad');
+      systemFault(mission, 'hs');
       if (pilot) transmit(mission, 'P', 'Getting hot in here. Orange glow all around.', 'bad');
       if (mission.crew && Math.random() < .12) {
         outcome.lost = 1;
@@ -495,6 +532,7 @@ const EVENTS = {
       return;
     }
     report(mission, 'MAIN PARACHUTE FAILURE. Reserve deployed.', 'bad');
+    systemFault(mission, 'pc');
     if (pilot) transmit(mission, 'P', 'Main is streaming! Going to the reserve!', 'bad');
     if (Math.random() > mainChance * .95) {
       outcome.parachuteFailed = 1;
@@ -517,6 +555,7 @@ const EVENTS = {
     }
     if (Math.random() > mission.systems.reliability('lb')) {
       report(mission, 'Hard landing: the landing bag did not deploy properly.', 'wn');
+      systemFault(mission, 'lb');
       if (mission.crew && Math.random() < .25) outcome.injured = 1;
       if (!mission.crew && Math.random() < (S.fac.recov ? .2 : .4)) outcome.sank = 1;
     }
@@ -578,6 +617,7 @@ export function endMission(mission) {
     state.fl.four = 1;
     log('[INVESTIGATION] The tail-plug cables pulled out in the wrong order and the booster read it as a cutoff command. New package proposed: Umbilical disconnect sequencing.', 'hd');
   }
+  investigateFaults(mission, state);
   if (mission.missionType == 'ma' && outcome.boosterFailed && !state.fl.maFail) {
     state.fl.maFail = 1;
     log('[INVESTIGATION] The booster skin buckled where it meets the capsule adapter. New package proposed: booster stiffening band.', 'hd');
