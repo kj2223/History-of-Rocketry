@@ -4,7 +4,7 @@
 // The programme table itself is in data/programmes.js.
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, BY_ID } from '../data/research.js';
-import { PROGRAMMES, PROGRAMME_ORDER, MATURE, TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
+import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
 import { S, log, addHistory, newBundle, recordRunEvent } from '../core/state.js';
 
 // The four research areas that belong to a rocket (the others are global: see core/state.js).
@@ -55,7 +55,7 @@ export function rollProgramme(kind) {
 }
 
 // Start a programme: a fresh bundle, the rolled design, and a head start in knowledge from the rockets already flown
-// (45% of the best team's knowledge, or 60% of the rocket it is derived from).
+// (a share of the best team's knowledge, or a larger share of the rocket it is derived from: HEAD_START in data/programmes.js).
 export function createProgramme(kind) {
   const programme = PROGRAMMES[kind], bundle = newBundle(), rolled = rollProgramme(kind);
   Object.assign(bundle, { kind, start: Math.round(S.day), ...rolled, ready: programme.designTime ? 0 : 1 });
@@ -63,7 +63,7 @@ export function createProgramme(kind) {
   for (const area of VEHICLE_AREAS) {
     const best = Math.max(0, ...earlier.map(other => other.kn[area] || 0));
     const parent = programme.derivedFrom && S.progs[programme.derivedFrom] ? S.progs[programme.derivedFrom].kn[area] || 0 : 0;
-    bundle.kn[area] = Math.max(best * .45, parent * .6);
+    bundle.kn[area] = Math.max(best * HEAD_START.best, parent * HEAD_START.parent);
   }
   S.progs[kind] = bundle;
   return bundle;
@@ -77,14 +77,20 @@ export const maturity = kind => {
   if (!bundle) return 0;
   return VEHICLE_AREAS.reduce((sum, area) => sum + (bundle.kn[area] || 0), 0) / VEHICLE_AREAS.length;
 };
+// Successful flights of the programme's own airframes (saved in its bundle as okf).
+export const successfulFlights = kind => (S.progs[kind] && S.progs[kind].okf) || 0;
+// Mature: the team knows the rocket (maturity MATURE) and has flown it successfully FLIGHTS_TO_MATURE times. Once mature, always mature.
+export const isMature = kind => {
+  const bundle = S.progs[kind];
+  return !!bundle && (!!bundle.matured || (!!bundle.ready && maturity(kind) >= MATURE && successfulFlights(kind) >= FLIGHTS_TO_MATURE));
+};
 // Why a programme cannot be started yet, or null if it can: all prerequisites (or any one) mature, NASA where needed, the money.
 export function startLock(kind) {
   const programme = PROGRAMMES[kind];
   if (S.progs[kind]) return 'Already started.';
   if (programme.needsNasa && !S.nasa) return 'Needs NASA.';
-  const isMature = required => S.progs[required] && maturity(required) >= MATURE;
   const met = programme.anyRequirement ? programme.requires.some(isMature) : programme.requires.every(isMature);
-  if (!met) return `Needs ${programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ')} to reach maturity ${MATURE}.`;
+  if (!met) return `Needs ${programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ')} to mature (knowledge ${MATURE} and ${FLIGHTS_TO_MATURE} successful flights).`;
   if (S.b < programme.cost) return `Need ${formatMoney(programme.cost - S.b)} more.`;
   return null;
 }

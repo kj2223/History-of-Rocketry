@@ -34,7 +34,7 @@ function run(seed) {
   Math.random = rng(seed);
   resetState();
   ensureStarter();
-  const army = seed % 2 == 0, programmeStarted = {};
+  const army = seed % 2 == 0, programmeStarted = {}, programmeMatured = {};
   let t = 0, flights = 0, fails = 0, scrubs = 0, lastSignature = '', lastFlown = -999;
   const directiveTimes = [];
   const advance = seconds => {
@@ -42,6 +42,7 @@ function run(seed) {
       tickSecond();
       t++;
       while (directiveTimes.length < S.dir) directiveTimes.push(t);
+      for (const kind in S.progs) if (S.progs[kind].matured && !(kind in programmeMatured)) programmeMatured[kind] = t;
     }
   };
   // ONE ORDINARY LAUNCH of an airframe from the hangar, flown the way a sensible player would. ballastOnly: no satellite attempt.
@@ -133,7 +134,7 @@ function run(seed) {
     flyLaunch(ready);
   }
   const phaseOne = {
-    programmeStarted, maturity: Object.fromEntries(Object.keys(S.progs).map(kind => [kind, Math.round(maturity(kind))])), t, flights, fails, scrubs,
+    programmeStarted, programmeMatured, maturity: Object.fromEntries(Object.keys(S.progs).map(kind => [kind, Math.round(maturity(kind))])), t, flights, fails, scrubs,
     crew: Object.keys(S.crew).filter(id => S.crew[id]).length, facilities: Object.keys(S.fac).length, directiveTimes, budget: S.b, packages: Object.keys(S.pk).length,
     orbit: S.dir >= GOAL, date: formatDate(S.day), sputnik: formatDate(S.rv.r_sat), race: S.fs.f_orbit || '-', sovietFirsts: Object.values(S.fs).filter(value => value == 'them' || value == 'second').length,
     lostFirstIds: Object.keys(S.fs).filter(id => S.fs[id] == 'them' || S.fs[id] == 'second'),
@@ -146,11 +147,11 @@ function run(seed) {
   };
 }
 const minutes = seconds => seconds === undefined ? '  -- ' : (seconds / 60).toFixed(1).padStart(5);
-// SEED=n plays only run n (with TRACE=1, one line per launch and per mission).
+// "programmes" lists each rocket as kind@started>matured (minutes). SEED=n plays only run n (with TRACE=1, one line per launch and per mission).
 for (let i = 0; i < RUNS; i++) {
   if (process.env.SEED && +process.env.SEED != i) continue;
   const r = run(1000 + i * 7919);
-  console.log(`programmes ${Object.entries(r.programmeStarted).map(([kind, time]) => kind + '@' + minutes(time).trim()).join(' ')} | maturity ${JSON.stringify(r.maturity)}`);
+  console.log(`programmes ${Object.entries(r.programmeStarted).map(([kind, time]) => kind + '@' + minutes(time).trim() + (kind in r.programmeMatured ? '>' + minutes(r.programmeMatured[kind]).trim() : '')).join(' ')} | maturity ${JSON.stringify(r.maturity)}`);
   console.log(`seed ${i}: flights ${r.flights} fails ${r.fails} scrubs ${r.scrubs} crew ${r.crew} base ${r.facilities} pkgs ${r.packages} end ${minutes(r.t)}m budget ${Math.round(r.budget)} orbit ${r.orbit} ${r.date} (${r.race}, Sputnik ${r.sputnik}) lostFirsts ${r.sovietFirsts} | directives(min) ${DIRECTIVES.map((_, k) => minutes(r.directiveTimes[k])).join(' ')}`);
   console.log(`        lost to the Soviets in Phase One: ${r.lostFirstIds.join(' ') || 'none'}`);
   const mercury = r.mercury;

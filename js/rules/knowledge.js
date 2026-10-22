@@ -40,7 +40,8 @@ export function learn(area, points) {
 // What a flight teaches depends on how much it sends home: instruments aboard (tracking.v) and tracking on the ground (tracking.g).
 export const teachingValue = tracking => .6 + .3 * (tracking ? tracking.v : 0) + .2 * (tracking ? tracking.g : 0) + (S.fac.trknet ? .3 : 0);
 export function learnFromFlight(flight, ok) {
-  const value = teachingValue(flight.tracking);
+  const value = teachingValue(flight.tracking), bundle = S.progs[flight.programme];
+  if (ok && bundle) bundle.okf = (bundle.okf || 0) + 1;
   for (const area of ['p', 's', 'a']) learn(area, .8 * value);
   if (!ok && flight.failure) learn(systemOf(flight.failure), 2.5 * value);
 }

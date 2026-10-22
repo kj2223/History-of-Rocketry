@@ -3,12 +3,12 @@
 import { formatMoney } from '../core/util.js';
 import { AREAS } from '../data/research.js';
 import { DAYS_PER_SECOND, DAYS_PER_SECOND_PHASE_TWO } from '../data/history.js';
-import { PROGRAMMES, MATURE } from '../data/programmes.js';
+import { PROGRAMMES } from '../data/programmes.js';
 import { S, log } from '../core/state.js';
 import { grant, defenseSupplement, payroll, programmeProgress } from './economy.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
 import { roomLevel, constructionTick } from './launch-site.js';
-import { createProgramme, maturity } from './programs.js';
+import { createProgramme, isMature } from './programs.js';
 import { hasFirstMilestone, giveEarmark } from './research.js';
 import { makeAirframe } from './production.js';
 import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost, factoryTick, autoPublishDue, publishBlueprint } from './factory.js';
@@ -94,7 +94,7 @@ function matureTick() {
   let changed = false;
   for (const kind in S.progs) {
     const bundle = S.progs[kind];
-    if (bundle.matured || !bundle.ready || maturity(kind) < MATURE) continue;
+    if (bundle.matured || !isMature(kind)) continue;
     bundle.matured = 1;
     changed = true;
     const programme = PROGRAMMES[kind];

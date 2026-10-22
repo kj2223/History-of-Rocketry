@@ -68,6 +68,10 @@ export const PROGRAMMES = {
 };
 export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas'];
 export const MATURE = 45; // programme maturity (average team knowledge of the rocket) that opens the next programme
+export const FLIGHTS_TO_MATURE = 3; // and the rocket must also have flown this many successful flights of its own
+// What a new programme's team already knows: a share of the best knowledge on any earlier rocket, or of the rocket it grows out of.
+// Kept low so a new rocket starts as a problem to work out ("Familiar" at most), not as a rocket the team already understands.
+export const HEAD_START = { best: .25, parent: .4 };
 
 // Flaws a new rocket can be born with. The keys are stored in saves.
 //   mode: the failure mode it feeds (with weight times the usual chance) until a fix for that mode is in the design

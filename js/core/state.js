@@ -51,7 +51,7 @@ export const GLOBAL_AREAS = ['r', 'c', 'e'];
 //   bp     the published blueprint: { rev, pk: package ids, fix }
 //   line   the production line: { xp: units built to the current blueprint }
 //   mrate  man-rating record (rules/manrate.js)
-// A rocket programme's bundle also has kind, start, T (true design), bias, traits, ready and matured (rules/programs.js).
+// A rocket programme's bundle also has kind, start, T (true design), bias, traits, ready, matured and okf (successful flights) (rules/programs.js).
 export const newBundle = () => ({ pk: {}, bt: {}, fix: {}, inc: [], known: {}, kn: {}, ear: {}, bp: { rev: 1, pk: [], fix: {} }, line: { xp: 0 }, mrate: null });
 
 export const newGameState = () => ({

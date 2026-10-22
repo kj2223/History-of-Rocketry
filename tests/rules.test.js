@@ -7,7 +7,8 @@ import { BY_ID } from '../js/data/research.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter } from '../js/rules/game.js';
-import { createProgramme } from '../js/rules/programs.js';
+import { createProgramme, isMature, startLock } from '../js/rules/programs.js';
+import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe } from '../js/rules/production.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
@@ -116,4 +117,20 @@ test('selection takes three to seven finalists and refuses the medically disqual
   assert.equal(selectCrew([1, 2, 3]), false, 'includes a disqualified finalist');
   assert.equal(selectCrew([2, 3, 4]), true);
   assert.equal(S.p2.astros.length, 3);
+});
+
+test('a programme matures only with the knowledge and its own successful flights', () => {
+  readyProgramme('aerobee');
+  for (const area of ['p', 's', 'i', 'a']) S.progs.aerobee.kn[area] = MATURE + 5;
+  assert.equal(isMature('aerobee'), false, 'knowledge alone is not enough');
+  assert.match(startLock('viking'), /mature/);
+  S.progs.aerobee.okf = FLIGHTS_TO_MATURE;
+  assert.equal(isMature('aerobee'), true);
+});
+
+test('a new programme starts well short of maturity, however well the last rocket is known', () => {
+  readyProgramme('aerobee');
+  for (const area of ['p', 's', 'i', 'a']) S.progs.aerobee.kn[area] = 100;
+  createProgramme('viking');
+  for (const area of ['p', 's', 'i', 'a']) assert.ok(S.progs.viking.kn[area] < 35, `${area} starts at ${S.progs.viking.kn[area]}`);
 });
