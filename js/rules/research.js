@@ -2,6 +2,7 @@
 // The catalogue itself is in data/research.js.
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, MILESTONES, BY_ID, isMilestone, AREAS, formatEffect, breakthroughNeeds } from '../data/research.js';
+import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
 import { learn, knowledgeFraction } from './knowledge.js';
 import { programmePackages, isInProgramme, scaledForProgramme, VEHICLE_AREAS, programmeData } from './programs.js';
@@ -120,7 +121,7 @@ export function finishResearch(id) {
   for (const key in item.effects) effects[key] = item.effects[key] * (dud ? -.3 + .45 * Math.random() : Math.max(-.25, Math.min(1.8, 1 + spread * gaussian())));
   S.pk[id] = { a: effects, c: 0, m: null, dud };
   learn(item.area, isMilestone(id) ? 6 : 3);
-  log(`[DESIGN] Complete: ${item.name}. Publish a new blueprint revision to build it into airframes; its real effect is confirmed when one flies.`, 'ok');
+  log(`[DESIGN] Complete: ${item.name}${isVehicleArea(item.area) && S.cur ? ` for the ${PROGRAMMES[S.cur].name}` : ''}. Publish a new blueprint revision to build it into airframes; its real effect is confirmed when one flies.`, 'ok');
   if (isMilestone(id)) addHistory(`Milestone: ${item.name}`);
   if (item.contract) {
     S.b += item.contract;
