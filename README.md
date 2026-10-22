@@ -49,7 +49,8 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/knowledge.js` | What the engineers know about each system |
 | `rules/launch-site.js` | Building facilities, hiring launch crew, the go/no-go poll, pad troubleshooting, ground tests |
 | `rules/flight.js` | Flight physics, failures, instrument readings, flight results |
-| `rules/auto.js` | The launch director flying from standing orders |
+| `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
+| `rules/auto.js` | The launch director flying the running campaign |
 | `rules/race.js` | American firsts, Soviet events, intelligence, forming NASA |
 | `rules/manrate.js` | Man-rating boosters for crews |
 | `rules/mercury.js` | Phase Two state, mission requirements, boosters for capsules, who may fly, capsules, directives |

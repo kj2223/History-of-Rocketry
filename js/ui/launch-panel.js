@@ -4,14 +4,15 @@ import { PROPELLANTS, PAYLOADS } from '../data/launch.js';
 import { ROOMS } from '../data/launch-site.js';
 import { BY_ID } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, isResearched, isConfirmed, withProgramme } from '../core/state.js';
+import { S, isResearched, isConfirmed, withProgramme, formatDate } from '../core/state.js';
 import { designSpec, trackingTiers, rangeFee, propellantCost, hasBoosterStage, cannotOrbit, quoteLaunch } from '../rules/design.js';
 import { rangeDataPayment } from '../rules/economy.js';
 import { roomLevel, consoleCount, crewOnConsole } from '../rules/launch-site.js';
 import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
+import { CAMPAIGN_TARGETS, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
 import { roomSVG, updateTrace } from './control-room.js';
 import { launchView } from './launch-view.js';
-import { $, option, setHTML } from './dom.js';
+import { $, option, setHTML, escapeHtml } from './dom.js';
 
 // What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank).
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
@@ -45,7 +46,7 @@ export function renderLaunchForm() {
 <select data-s="pay">${Object.keys(PAYLOADS).filter(name => !PAYLOADS[name].mercury).map(name => option(name, payloadLabel(name, airframe), payloadLocked(name, airframe), form.pay)).join('')}</select>
 <div class="r" style="margin-top:8px"><span class="d">Propellant load (${propellantKg} kg)</span><b id="ldv">${form.load}%</b></div><input type="range" data-s="load" min="10" max="100" step="5" value="${form.load}" style="width:100%">
 ${preview ? estimateHTML(preview, payload, airframe) : ''}
-<div class="m">Fuel record: ${S.fr[form.fuel] || 0} successful flights.${airframe && airframe.pk.some(id => !isConfirmed(id)) ? ` Unproven systems aboard: ${airframe.pk.filter(id => !isConfirmed(id)).length} (raises the chance of a hidden fault).` : ''} Range fee ${formatMoney(rangeFee())} included.${rangeDataPayment(1e4) ? ' Successful flights earn a Defense Department range data contract.' : ''}</div><button data-a="count"${quote.error ? ' disabled' : ''}>BEGIN COUNTDOWN${quote.cost ? ' (' + formatMoney(quote.cost) + ')' : ''}</button>${S.staff.director ? `<button data-a="autoSet">SET AS DIRECTOR'S STANDING ORDERS</button>` : ''}<div class="m bad">${quote.error || ''}</div>`);
+<div class="m">Fuel record: ${S.fr[form.fuel] || 0} successful flights.${airframe && airframe.pk.some(id => !isConfirmed(id)) ? ` Unproven systems aboard: ${airframe.pk.filter(id => !isConfirmed(id)).length} (raises the chance of a hidden fault).` : ''} Range fee ${formatMoney(rangeFee())} included.${rangeDataPayment(1e4) ? ' Successful flights earn a Defense Department range data contract.' : ''}</div><button data-a="count"${quote.error ? ' disabled' : ''}>BEGIN COUNTDOWN${quote.cost ? ' (' + formatMoney(quote.cost) + ')' : ''}</button><div class="m bad">${quote.error || ''}</div>`);
 }
 function payloadLabel(name, airframe) {
   const payload = PAYLOADS[name];
@@ -77,4 +78,50 @@ function estimateHTML(preview, payload, airframe) {
     + row('Downrange', `~${(preview.downrange / 1000).toFixed(preview.downrange < 1e5 ? 1 : 0)} km`)
     + scienceHTML(preview, payload)
     + `<div class="m">Burn about ${preview.burnTime}s. More propellant adds speed but weight and cost; a heavy payload cuts everything and can stop liftoff. Faster flights are harder to recover.</div></div>`;
+}
+
+// THE CAMPAIGN CARD (once the launch director can be hired): the running campaign and the director's requests, or a form
+// to start one. The rocket, propellant, payload and stage come from the launch form; the target, deadline and budget from here.
+export const campaignForm = { kind: 'ok', goal: 3, months: 12, budget: 100000 };
+const CAMPAIGN_MONTHS = [6, 12, 24], CAMPAIGN_BUDGETS = [50000, 100000, 200000, 400000];
+// The rocket a new campaign would fly: the launch form's airframe, or the programme in focus.
+export function campaignRocket() {
+  const airframe = S.air.find(candidate => candidate.id == launchForm.af && candidate.st == 'r');
+  return airframe ? airframe.prog : S.cur;
+}
+const campaignSummary = camp => `${PROGRAMMES[camp.prog].name}, ${targetText(camp.kind, camp.goal)}`;
+export function renderCampaign() {
+  const panel = $('#pc');
+  panel.hidden = !directorUnlocked();
+  if (panel.hidden) return;
+  const camp = S.auto.camp, last = S.auto.last;
+  let html = row('Launch director', S.staff.director ? `${directorRank()}, ${directorExperience()} flight${directorExperience() == 1 ? '' : 's'} run` : 'not hired');
+  if (!S.staff.director) html += '<div class="m">The Aerobee flies routinely now. Hire a launch director in Personnel to run launches as campaigns: you set a target, a deadline and a budget, and the director orders airframes and flies until it is done, while you develop the next rocket.</div>';
+  else if (camp) html += campaignHTML(camp);
+  else html += campaignFormHTML();
+  if (last && !camp) html += `<div class="m">Last campaign (${outcomeText(last.outcome)}): ${campaignSummary(last)}. ${last.n} flights, ${last.okn} successful, best ${(last.best / 1000).toFixed(1)} km, ${formatMoney(last.spent)} spent.</div>`;
+  setHTML($('#cpg'), html);
+}
+function campaignHTML(camp) {
+  const progress = camp.kind == 'alt' ? `best ${(camp.best / 1000).toFixed(1)} km of ${camp.goal}` : `${camp.okn} of ${camp.goal}`;
+  return `<div class="t">${campaignSummary(camp)}</div>`
+    + row('Progress', progress, camp.kind == 'alt' ? (camp.best >= camp.goal * 1000 ? 'ok' : null) : null)
+    + row('Flights flown', camp.n)
+    + row('Spent', `${formatMoney(camp.spent)} of ${formatMoney(camp.budget)}`, camp.spent > camp.budget * .8 ? 'wn' : null)
+    + row('Deadline', formatDate(camp.end), S.day > camp.end - 60 ? 'wn' : null)
+    + row('Flies to', `${Math.round(directorMargin() * 100)}% of the rocket's limits`)
+    + (camp.hold
+      ? `<div class="c"><div class="wn">The director asks for guidance. ${escapeHtml(camp.hold)}</div><div class="m">Fly the next one yourself from the launch form below, or tell the director to go ahead, flying to ${Math.round(VETERAN_MARGIN * 100)}% of the limits.</div><button data-a="cgo">GO AHEAD</button></div>`
+      : `<div class="m">${camp.fuel}, ${camp.pay}, ${camp.st ? 'full stack' : 'upper stage alone'}. The director orders airframes within the budget and picks the propellant load. Flights you fly yourself with this rocket count too.</div>`)
+    + '<button data-a="cend">END CAMPAIGN</button>';
+}
+function campaignFormHTML() {
+  const prog = campaignRocket(), ready = !!(S.progs[prog] && S.progs[prog].ready), target = CAMPAIGN_TARGETS[campaignForm.kind];
+  if (!target.goals.includes(campaignForm.goal)) campaignForm.goal = target.goals[1];
+  return `<div class="m">New campaign for the ${PROGRAMMES[prog].name}, as set in the launch form below: ${launchForm.fuel}, ${launchForm.pay}, ${launchForm.st ? 'full stack' : 'upper stage alone'}.</div>`
+    + `<select data-cf="kind">${Object.keys(CAMPAIGN_TARGETS).map(kind => option(kind, CAMPAIGN_TARGETS[kind].name, 0, campaignForm.kind)).join('')}</select>`
+    + `<select data-cf="goal">${target.goals.map(goal => option(goal, `Target: ${targetText(campaignForm.kind, goal)}`, 0, campaignForm.goal)).join('')}</select>`
+    + `<select data-cf="months">${CAMPAIGN_MONTHS.map(months => option(months, `Deadline: ${formatDate(S.day + months * 30)} (${months} months)`, 0, campaignForm.months)).join('')}</select>`
+    + `<select data-cf="budget">${CAMPAIGN_BUDGETS.map(budget => option(budget, `Budget: ${formatMoney(budget)}`, 0, campaignForm.budget)).join('')}</select>`
+    + `<button data-a="cstart"${ready ? '' : ' disabled'}>START CAMPAIGN</button>`;
 }

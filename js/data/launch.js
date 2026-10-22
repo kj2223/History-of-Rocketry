@@ -1,5 +1,5 @@
 // PROPELLANTS AND PAYLOADS: what a rocket can burn and carry. Tune launch costs and science here.
-// The names are also stored in saves (the launch director's standing orders), so rename one only with care.
+// The names are also stored in saves (a launch campaign's propellant and payload), so rename one only with care.
 
 // Propellant cost = handlingCost + pricePerKg x (kilograms loaded) ^ 0.8, so it grows more slowly than the rocket (rules/design.js).
 //   isp: specific impulse (s), how hard the propellant pushes

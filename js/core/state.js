@@ -26,7 +26,8 @@
 //   rv      day each Soviet event happens (jittered per game)    rvd   Soviet events that have happened
 //   hist    programme history for the summaries: [{ d: day, t: text }]
 //   speed   time speed (0 paused, 1, 2, 4)          ap      auto-publish: { on, n: changes that trigger it }
-//   auto    the launch director's standing orders: { on, fuel, pay, st, load, cd: seconds to the next try }
+//   auto    the launch director: { xp: flights run, camp: the running campaign, cd: seconds to the next try, last: the last report }
+//           (rules/campaign.js)
 //   dev     the run log: { v, ps: play seconds, fl: flights, ev: events, snap: snapshots }
 //   nasa    day NASA was established (0 = not yet) cv      save version
 //   p2      Phase Two (Mercury) state (see rules/mercury.js)
@@ -60,7 +61,7 @@ export const newGameState = () => ({
   rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
   fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3,
   staff: { pr: 0, director: 0 },
-  auto: { on: 0, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 1, cd: 15 },
+  auto: { xp: 0, camp: null, cd: 15, last: null },
 });
 
 export const S = newGameState();

@@ -10,7 +10,7 @@ import { nasaReady, SPACE_ACT_DAY } from '../rules/race.js';
 import { roomLevel } from '../rules/launch-site.js';
 import { buildRate } from '../rules/factory.js';
 import { catchUp, ensureStarter } from '../rules/game.js';
-import { renderControlRoom, renderLaunchForm } from './launch-panel.js';
+import { renderControlRoom, renderLaunchForm, renderCampaign } from './launch-panel.js';
 import { launchView, renderPad } from './launch-view.js';
 import { renderDesignBureau, renderIncidents } from './design-bureau.js';
 import { renderHangar, renderFacilities } from './hangar.js';
@@ -121,6 +121,7 @@ export function render() {
   renderControlRoom();
   renderRace();
   renderLaunchForm();
+  renderCampaign();
   if (launchView.count && launchView.count.phase != 'flight') renderPad();
   renderDesignBureau();
   renderIncidents();

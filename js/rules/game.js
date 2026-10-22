@@ -15,6 +15,7 @@ import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost, factoryTick, autoPublishDue
 import { finishJob } from './jobs.js';
 import { ensurePhaseTwo, officeTick } from './astronaut-office.js';
 import { trainingTick } from './astronauts.js';
+import { directorUnlocked } from './campaign.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -107,12 +108,12 @@ function matureTick() {
   return changed;
 }
 
-// STAFF: engineering teams (up to 6), build teams (up to 4) and two specialists.
+// STAFF: engineering teams (up to 6), build teams (up to 4) and two specialists. The launch director unlocks with the Aerobee (rules/campaign.js).
 export const MAX_ENGINEERING_TEAMS = 6;
 export const engineeringTeamCost = () => 12000 + 6000 * (S.teams - 2);
 export const SPECIALISTS = {
   pr: { cost: 15000, news: 'Press office established. Failures now cost half the reputation, and reputation slowly recovers.' },
-  director: { cost: 25000, news: 'Launch director appointed. Standing orders can now fly the fleet unattended.' },
+  director: { cost: 25000, news: 'Launch director appointed. Set a campaign on the Launch tab and the director flies it for you.' },
 };
 // what: 'bteam', 'team', or a specialist's key.
 export function hire(what) {
@@ -133,18 +134,12 @@ export function hire(what) {
     return;
   }
   const specialist = SPECIALISTS[what];
+  if (what == 'director' && !directorUnlocked()) return;
   if (specialist && !S.staff[what] && S.b >= specialist.cost) {
     S.b -= specialist.cost;
     S.staff[what] = 1;
     log('[PERSONNEL] ' + specialist.news, 'ok');
   }
-}
-// The launch director's switch and standing orders. orders: the launch form, { fuel, pay, st, load: percent }.
-export function toggleAutomation() {
-  if (S.staff.director) S.auto.on = S.auto.on ? 0 : 1;
-}
-export function setStandingOrders(orders) {
-  if (S.staff.director) Object.assign(S.auto, { fuel: orders.fuel, pay: orders.pay, st: orders.st, load: orders.load / 100 });
 }
 
 // THE STARTING POSITION, also applied to loaded saves: the WAC Corporal programme, earmarks owed, and one free airframe.
