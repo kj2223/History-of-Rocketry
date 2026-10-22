@@ -1,0 +1,248 @@
+// INPUT: every button, select and slider on the page. Buttons carry data-a (the action) and data-id; after an action the game is
+// saved and the screen redrawn, except where an action returns early.
+import { S, save, resetState, log } from '../core/state.js';
+import { formNasa } from '../rules/race.js';
+import { commission } from '../rules/research.js';
+import { startProgramme } from '../rules/programs.js';
+import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
+import { airborne } from '../rules/flight.js';
+import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from '../rules/factory.js';
+import { startRetrofit, startInvestigation, chooseFix, startReview } from '../rules/jobs.js';
+import { hire, ensureStarter } from '../rules/game.js';
+import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
+import { orderCapsule } from '../rules/mercury.js';
+import { manualAbort, chooseOption } from '../rules/mission.js';
+import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
+import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
+import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
+import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript } from './launch-view.js';
+import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
+import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
+import { render, renderHeader, showTab, markDirty, resetScreen } from './screen.js';
+import { $ } from './dom.js';
+
+let resetArmed = 0;
+
+document.addEventListener('input', event => {
+  if (event.target.dataset.s == 'load') $('#ldv').textContent = event.target.value + '%';
+});
+
+// SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, the campaign form and the launch form.
+document.addEventListener('change', event => {
+  const data = event.target.dataset, value = event.target.value;
+  if (data.focus) {
+    setTrainingFocus(+data.focus, value);
+    save();
+    return render();
+  }
+  if (data.mv) {
+    S.p2.lv = +value;
+    return render();
+  }
+  if (data.mb) {
+    S.p2.lb = +value;
+    return render();
+  }
+  if (data.mf) {
+    S.p2.lf = value;
+    return render();
+  }
+  if (data.mc) {
+    S.p2.lc = isNaN(+value) ? value : +value;
+    return render();
+  }
+  if (data.ch) {
+    const picked = launchForm.ch || [];
+    launchForm.ch = event.target.checked ? [...picked, data.ch] : picked.filter(id => id != data.ch);
+    return render();
+  }
+  if (data.cf) {
+    campaignForm[data.cf] = data.cf == 'kind' ? value : +value;
+    return render();
+  }
+  if (data.ap) {
+    S.ap.n = +value;
+    save();
+    return render();
+  }
+  const field = data.s;
+  if (!field) return;
+  launchForm[field] = field == 'st' || field == 'load' ? +value : value;
+  if (field == 'st') launchForm.stageChosen = 1;
+  if (field == 'af') launchForm.stageChosen = 0;
+  render();
+});
+
+// BUTTONS. Pad actions only apply while a countdown is open.
+const PAD_ACTIONS = {
+  count: () => startCount(),
+  fuel: () => startFuelling(),
+  topoff: count => {
+    if (count) {
+      count.fuel = count.target;
+      log('[PAD] LOX topped off.', 'ok');
+    }
+  },
+  hold: count => {
+    if (count) {
+      count.hold = 'Held by the Test Conductor.';
+      count.userHold = true;
+    }
+  },
+  resume: count => {
+    if (count) {
+      count.hold = '';
+      count.userHold = false;
+    }
+  },
+  over: count => {
+    if (count) {
+      count.override = true;
+      count.hold = '';
+      log('[TC] Continuing the count over a NO-GO.', 'bad');
+    }
+  },
+  scrub: count => {
+    if (count) scrub(count.poll);
+    closePad();
+  },
+  // Standing down after fuelling costs a scrub.
+  stand: count => {
+    if (count && count.fuel > .01) scrub(count.poll);
+    closePad();
+  },
+  closepad: () => closePad(),
+  fixpad: count => {
+    if (count) {
+      troubleshoot(count.poll);
+      holdDay();
+      if (!count.poll.nogo) {
+        count.hold = 'Fixed. Resume when ready.';
+        count.userHold = true;
+      }
+    }
+  },
+};
+// Actions that change the game: id is the button's data-id; button is the element (for data-n and data-f).
+const GAME_ACTIONS = {
+  com: id => commission(id),
+  ord: (id, button) => orderAirframes(+button.dataset.n),
+  retro: id => startRetrofit(id),
+  hire: id => hire(id),
+  cstart: () => {
+    const error = startCampaign({ prog: campaignRocket(), fuel: launchForm.fuel, pay: launchForm.pay, st: launchForm.st, ...campaignForm });
+    if (error) log('[LAUNCH DIRECTOR] ' + error, 'bad');
+  },
+  cend: () => endCampaign('ended'),
+  cgo: () => goAhead(),
+  fac: id => buildFacility(id),
+  inv: id => startInvestigation(+id),
+  fix: (id, button) => chooseFix(+id, button.dataset.f),
+  publish: () => publishBlueprint(),
+  upgrade: id => queueRetrofit(+id),
+  cancelq: id => cancelQueueItem(+id),
+  aptog: () => S.ap.on = S.ap.on ? 0 : 1,
+  mcount: () => startMissionCount(),
+  mord: id => orderCapsule(id),
+  prog: id => {
+    if (S.progs[id]) S.cur = id;
+  },
+  pstart: id => startProgramme(id),
+  rev: id => startReview(id),
+  reg: id => chooseTestingRegime(id),
+  offy: () => answerOfficeDecision(true),
+  offn: () => answerOfficeDecision(false),
+  chimps: () => startChimpTraining(),
+  selt: id => selectedFinalists.has(+id) ? selectedFinalists.delete(+id) : selectedFinalists.add(+id),
+  selok: () => {
+    if (selectCrew([...selectedFinalists])) selectedFinalists.clear();
+  },
+  asg: id => assignPilot(+id, 'mr'),
+  memok: () => {
+    S.p2.memo = null;
+    $('#sum').hidden = true;
+  },
+  crew: id => hireStation(id),
+  dismiss: id => dismissStation(id),
+  gt: id => groundTest(id),
+};
+// Actions that only change what is shown: they return without saving or redrawing.
+const VIEW_ACTIONS = {
+  nasa: () => {
+    formNasa();
+    ensurePhaseTwo();
+    save();
+    render();
+    showPhaseOneSummary();
+  },
+  summary: () => showPhaseOneSummary(),
+  closesum: () => {
+    $('#sum').hidden = true;
+  },
+  runlog: () => showRunLog(),
+  copylog: () => copyRunLog(),
+  mdec: id => {
+    if (airborne.mission) {
+      chooseOption(airborne.mission, +id);
+      renderPad();
+    }
+  },
+  txview: () => showLastTranscript(),
+  sec1: () => {
+    $('#sum').innerHTML = sectionSummaryHTML();
+    $('#sum').hidden = false;
+  },
+};
+
+document.addEventListener('click', event => {
+  const tabButton = event.target.closest('[data-tab-btn]');
+  if (tabButton) return showTab(tabButton.dataset.tabBtn);
+  const speedButton = event.target.closest('[data-spd]');
+  if (speedButton) {
+    S.speed = +speedButton.dataset.spd;
+    return renderHeader();
+  }
+  const button = event.target.closest('button[data-a]');
+  if (!button || button.disabled) return;
+  const action = button.dataset.a, id = button.dataset.id;
+  if (VIEW_ACTIONS[action]) return VIEW_ACTIONS[action](id);
+  if (PAD_ACTIONS[action]) PAD_ACTIONS[action](launchView.count);
+  else if (action == 'abort') {
+    if (airborne.flight) finishFlight(0, 'abort');
+    else if (airborne.mission) manualAbort(airborne.mission);
+  } else if (GAME_ACTIONS[action]) GAME_ACTIONS[action](id, button);
+  else if (action == 'reset') {
+    if (!resetArmed) return armReset(button);
+    resetGame(button);
+  }
+  save();
+  markDirty();
+  render();
+});
+// RESET takes two clicks within four seconds.
+function armReset(button) {
+  resetArmed = 1;
+  button.textContent = 'CLICK AGAIN TO WIPE THE SAVE';
+  setTimeout(() => {
+    resetArmed = 0;
+    const resetButton = $('#rs');
+    if (resetButton) resetButton.textContent = 'RESET';
+  }, 4000);
+}
+function resetGame(button) {
+  resetArmed = 0;
+  button.textContent = 'RESET';
+  if (launchView.flightTimer) clearInterval(launchView.flightTimer);
+  if (launchView.countTimer) clearInterval(launchView.countTimer);
+  launchView.flightTimer = launchView.countTimer = null;
+  airborne.flight = null;
+  launchView.count = null;
+  $('#pad').hidden = true;
+  resetState();
+  ensureStarter();
+  $('#lg').innerHTML = '';
+  $('#fl').hidden = true;
+  $('#lc').hidden = false;
+  resetScreen();
+  document.documentElement.classList.remove('flying');
+}

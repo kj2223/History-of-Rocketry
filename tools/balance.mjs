@@ -1,53 +1,159 @@
 // Headless bot: plays the real rules in virtual time and prints pacing. Run: node tools/balance.mjs [runs] [maxMinutes]
-import { S, resetState, dateOf } from '../js/state.js';
-import { PK, BY, DIR, MODES } from '../js/data.js';
-import { ensureStarter, can, commission, unit, tiers } from '../js/design.js';
-import { tickSecond, orderAirframes, startInvestigation, chooseFix, hire, teamCost, publishBlueprint } from '../js/game.js';
-import { draftDiff, quoteLaunch } from '../js/design.js';
-import { beginFlight, previewFlight, step, sample, endFlight } from '../js/flight.js';
-import { FACS, STN } from '../js/data.js';
-import { poll, scrub, baseLock, buildFacility, stnLock, hireStation, troubleshoot, fixCost } from '../js/base.js';
-const BUY = [['crew','prop'],['crew','rso'],['fac','wx'],['fac','tty'],['crew','tlm'],['fac','radar'],['fac','plot'],['crew','bstr'],['fac','comp'],['crew','fido']];
-import { done, free } from '../js/state.js';
-const RUNS = +process.argv[2] || 6, MAXM = +process.argv[3] || 240, GOAL = 5;
+// Phase One runs to orbit; then tools/mercury-bot.mjs plays Phase Two Section 1 for up to maxMinutes more.
+// Seeded, so the same code prints the same report: diff the output before and after a balance change.
+import { S, resetState, formatDate, freeTeams } from '../js/core/state.js';
+import { PACKAGES, BY_ID } from '../js/data/research.js';
+import { DIRECTIVES } from '../js/data/history.js';
+import { MERCURY_DIRECTIVES } from '../js/data/mercury.js';
+import { FAILURE_MODES } from '../js/data/failures.js';
+import { FACILITIES, STATIONS } from '../js/data/launch-site.js';
+import { PROGRAMMES } from '../js/data/programmes.js';
+import { researchLock, commission, itemsInArea } from '../js/rules/research.js';
+import { hasBoosterStage, quoteLaunch } from '../js/rules/design.js';
+import { unitCost, draftChanges } from '../js/rules/production.js';
+import { candidates, startLock, startProgramme, maturity } from '../js/rules/programs.js';
+import { tickSecond, hire, engineeringTeamCost, ensureStarter } from '../js/rules/game.js';
+import { orderAirframes, publishBlueprint } from '../js/rules/factory.js';
+import { startInvestigation, chooseFix, startReview, INVESTIGATION_COST } from '../js/rules/jobs.js';
+import { beginFlight, previewFlight, step, takeReadings, endFlight } from '../js/rules/flight.js';
+import { runPoll, scrub, facilityLock, buildFacility, stationLock, hireStation, troubleshoot, PAD_FIX_COST } from '../js/rules/launch-site.js';
+import { playMercury } from './mercury-bot.mjs';
+
+const BUY = [['crew', 'prop'], ['crew', 'rso'], ['fac', 'wx'], ['fac', 'tty'], ['crew', 'tlm'], ['fac', 'radar'], ['fac', 'plot'], ['crew', 'bstr'], ['fac', 'comp'], ['crew', 'fido']];
+const RUNS = +process.argv[2] || 6, MAX_MINUTES = +process.argv[3] || 240, GOAL = 5;
 const rng = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-const ORDER = ['bea','inj','ogive','gauge','fm','mix','ablnose','fins','weld','noz','ring','xdc','seal','vol','str','cool','alloy','acc','imp','prs','mux','insul','flush','flut','ms_eng','ms_xasc','ms_xirbm','ms_xslv','ms_aero','ms_stg','ms_in'];
+// Research everything the programme offers, cheapest first, plus the first approach of each milestone choice and four recovery packages.
+const researchList = () => [...['p', 's', 'i', 'a'].flatMap(itemsInArea), ...['ms_rel', 'ms_eng', 'ms_in', 'ms_rg', 'ms_aero', 'ms_blunt'].map(id => BY_ID[id]), ...PACKAGES.filter(item => item.area == 'r' && !item.dud).slice(0, 4)]
+  .sort((first, second) => first.cost - second.cost).map(item => item.id);
+// The newest ready rocket.
+const latestProgramme = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready).sort((first, second) => PROGRAMMES[second].generation - PROGRAMMES[first].generation)[0];
+// Army path: Redstone then Jupiter-C; navy path: Vanguard.
+const offPath = (kind, army) => ((kind == 'redstone' || kind == 'jupc') && !army) || (kind == 'vanguard' && army);
+
 function run(seed) {
-  Math.random = rng(seed); resetState(); ensureStarter();
-  let t = 0, flights = 0, fails = 0, scrubs = 0; const dirT = [], ev = [];
-  const adv = n => { for (let i = 0; i < n; i++) { tickSecond(); t++; while (dirT.length < S.dir) dirT.push(t); } };
-  while (t < MAXM * 60 && S.dir < GOAL) {
-    const res = unit() + 6000;
-    { const d = draftDiff(); if (d.pk.length + d.fx.length) publishBlueprint(); }
-    if (S.teams < 4 && S.b > teamCost() + res + 15000) hire('team');
-    for (const [k, id] of BUY) { if (k == 'fac' && !baseLock(id) && S.b - FACS[id][1] > res + 20000) buildFacility(id); if (k == 'crew' && !stnLock(id) && S.b - STN[id].c > res + 20000) hireStation(id); }
-    if (!S.air.some(a => a.st == 'r') && !S.aq.length && S.b >= unit() + 4000) orderAirframes(1);
-    for (const i of S.inc) {
-      if (!free()) break;
-      if (i.st == 'open' && S.b - 1500 >= res) startInvestigation(i.id);
-      else if (i.st == 'diag') for (const f of MODES[i.dx].fx.slice().sort((a, b) => a[2] - b[2])) if (S.b - f[3] >= res && free()) { chooseFix(i.id, f[0]); break; }
+  Math.random = rng(seed);
+  resetState();
+  ensureStarter();
+  const army = seed % 2 == 0, programmeStarted = {}, programmeMatured = {};
+  let t = 0, flights = 0, fails = 0, scrubs = 0, lastSignature = '', lastFlown = -999;
+  const directiveTimes = [];
+  const advance = seconds => {
+    for (let i = 0; i < seconds; i++) {
+      tickSecond();
+      t++;
+      while (directiveTimes.length < S.dir) directiveTimes.push(t);
+      for (const kind in S.progs) if (S.progs[kind].matured && !(kind in programmeMatured)) programmeMatured[kind] = t;
     }
-    for (const id of ORDER) if (free() && !can(id) && S.b - BY[id].c >= res) commission(id);
-    const rd = S.air.filter(a => a.st == 'r').sort((a, b) => b.pk.length - a.pk.length)[0];
-    if (!rd) { adv(1); continue; }
-    const stage = done('ms_stg') ? 1 : 0, kero = S.bt.p || done('ms_eng');
-    const sat = done('ms_stg') && done('ms_in') && S.dir >= 4;
-    const pay = sat ? 'Explorer Satellite' : 'Inert Ballast';
-    // a sensible player picks the fuel and load whose estimate is highest while staying inside the airframe's aero and heating limits
+  };
+  // ONE ORDINARY LAUNCH of an airframe from the hangar, flown the way a sensible player would. ballastOnly: no satellite attempt.
+  const flyLaunch = (ready, ballastOnly = false) => {
+    const stage = hasBoosterStage(ready) ? 1 : 0, propellants = PROGRAMMES[ready.prog].propellants;
+    const satellite = PROGRAMMES[ready.prog].canOrbit && S.dir >= 4 && !ballastOnly;
+    const payload = satellite ? 'Explorer Satellite' : 'Inert Ballast';
+    // A sensible player picks the propellant and load whose estimate is highest while staying inside the airframe's aero and heating limits.
     let best = null;
-    for (const fu of kero ? ['Kerosene & LOX', 'Alcohol & LOX'] : ['Alcohol & LOX'])
-      for (let l = 1; l >= .3; l = Math.round((l - .1) * 10) / 10) { const p = previewFlight(rd, fu, pay, stage, l); if (p.maxQ < .9 && p.maxH < .9) { const m = sat ? p.spd : p.alt; if (!best || m > best.alt) best = { fu, l, alt: m }; break; } }
-    const fuel = best ? best.fu : 'Alcohol & LOX', load = best ? best.l : .3;
-    if (quoteLaunch(rd, fuel, pay, stage, load).err) { adv(1); continue; }
-    const P = poll(rd, fuel, stage); if (P.nogo && S.b > fixCost()) troubleshoot(P); if (P.nogo) { scrub(P); scrubs++; adv(3); continue; }
-    let F = beginFlight(rd, fuel, pay, stage, load, { latent: P.fault, wind: P.wind });
-    if (!F) { adv(1); continue; }
-    let r; do { r = step(F); if (r == 'tick') sample(F); } while (r == 'tick' || r == 'sep');
-    if (process.env.TRACE) console.log(`t=${(t/60).toFixed(1)}m dir ${S.dir} ${rd.label} pk ${rd.pk.length} load ${load} ${fuel[0]} -> ${r} peak ${(F.pk/1000).toFixed(0)}km spd ${Math.round(F.ps)} hv ${Math.round(F.hv)} t ${F.t} pay ${pay[0]} st ${stage} maxQ ${Math.round(F.maxQ*100)} heat ${Math.round(F.maxH*100)} fail ${F.fail||''} $${Math.round(S.b)}`);
-    endFlight(F, r != 'fail', r); flights++; if (r == 'fail') fails++;
-    adv(12 + Math.ceil(F.t / 5));
+    for (const propellant of propellants)
+      for (let load = 1; load >= .3; load = Math.round((load - .1) * 10) / 10) {
+        const preview = previewFlight(ready, propellant, payload, stage, load);
+        if (preview.maxQ < .9 && preview.maxHeat < .9 && !/heavy/.test(quoteLaunch(ready, propellant, payload, stage, load).error || '')) {
+          const measure = satellite ? preview.peakSpeed : preview.peakAltitude;
+          if (!best || measure > best.measure) best = { propellant, load, measure };
+          break;
+        }
+      }
+    const propellant = best ? best.propellant : 'Alcohol & LOX', load = best ? best.load : .3;
+    // A satellite attempt is worth flying when the estimate says orbit, or when the rocket has changed since the last try (new data to gather).
+    if (satellite) {
+      const preview = previewFlight(ready, propellant, payload, stage, load), signature = ready.pk.length + ':' + Object.keys(ready.fix).length + ':' + ready.id;
+      if (lastSignature == signature && !(preview.peakSpeed >= 7000) && t - lastFlown < 150) return advance(5);
+      lastSignature = signature;
+      lastFlown = t;
+    }
+    if (quoteLaunch(ready, propellant, payload, stage, load).error) return advance(1);
+    const poll = runPoll(ready, propellant, stage);
+    if (poll.nogo && S.b > PAD_FIX_COST) troubleshoot(poll);
+    if (poll.nogo) {
+      scrub(poll);
+      scrubs++;
+      return advance(3);
+    }
+    const flight = beginFlight(ready, propellant, payload, stage, load, { latent: poll.fault, wind: poll.wind });
+    if (!flight) return advance(1);
+    let result;
+    do {
+      result = step(flight);
+      if (result == 'tick') takeReadings(flight);
+    } while (result == 'tick' || result == 'sep');
+    if (process.env.TRACE) console.log(`t=${(t / 60).toFixed(1)}m ${formatDate(S.day)} dir ${S.dir} ${ready.label} pk ${ready.pk.length} load ${load} ${propellant[0]} -> ${result} peak ${(flight.peakAltitude / 1000).toFixed(0)}km spd ${Math.round(flight.peakSpeed)} hv ${Math.round(flight.peakHorizontalSpeed)} t ${flight.time} pay ${payload[0]} st ${stage} maxQ ${Math.round(flight.maxQ * 100)} heat ${Math.round(flight.maxHeat * 100)} fail ${flight.failure || ''} $${Math.round(S.b)}`);
+    endFlight(flight, result != 'fail', result);
+    flights++;
+    if (result == 'fail') fails++;
+    // Real time on screen: a 30 s count, powered flight at 8 steps a second, coasting at 100, and a few seconds to read the result.
+    { const powered = Math.min(flight.time, flight.burnTime * (flight.stages.length > 1 ? 3 : 1)); advance(30 + 8 + Math.ceil(powered / 8 + (flight.time - powered) / 100)); }
+  };
+  while (t < MAX_MINUTES * 60 && S.dir < GOAL) {
+    const reserve = unitCost() + 6000;
+    { const draft = draftChanges(); if (draft.packages.length + draft.fixes.length) publishBlueprint(); }
+    if (S.teams < 4 && S.b > engineeringTeamCost() + reserve + 15000) hire('team');
+    for (const [kind, id] of BUY) {
+      if (kind == 'fac' && !facilityLock(id) && S.b - FACILITIES[id].cost > reserve + 20000) buildFacility(id);
+      if (kind == 'crew' && !stationLock(id) && S.b - STATIONS[id].cost > reserve + 20000) hireStation(id);
+    }
+    {
+      const latest = latestProgramme();
+      S.cur = latest;
+      if (!S.air.some(airframe => airframe.st == 'r' && airframe.prog == latest) && !S.aq.some(item => item.prog == latest) && S.b >= unitCost() + 4000) orderAirframes(1);
+    }
+    for (const incident of S.inc) {
+      if (!freeTeams()) break;
+      if (incident.st == 'open' && S.b - INVESTIGATION_COST >= reserve) startInvestigation(incident.id);
+      else if (incident.st == 'diag') for (const fix of FAILURE_MODES[incident.dx].fixes.slice().sort((first, second) => first.riskMultiplier - second.riskMultiplier)) if (S.b - fix.cost >= reserve && freeTeams()) {
+        chooseFix(incident.id, fix.id);
+        break;
+      }
+    }
+    // Programmes: start the next rung once the current rocket is mature.
+    for (const candidate of candidates()) {
+      if (offPath(candidate, army)) continue;
+      if (!startLock(candidate) && S.b - PROGRAMMES[candidate].cost > reserve) {
+        startProgramme(candidate);
+        programmeStarted[candidate] = t;
+      }
+    }
+    S.cur = latestProgramme();
+    // Save up for the next programme once its predecessor is half mature.
+    const saving = candidates().find(candidate => !(PROGRAMMES[candidate].needsNasa && !S.nasa) && !offPath(candidate, army) && maturity(PROGRAMMES[candidate].requires.find(kind => S.progs[kind]) || 'wac') >= 50);
+    const researchReserve = reserve + (saving ? PROGRAMMES[saving].cost : 0);
+    for (const id of researchList()) if (freeTeams() && !researchLock(id) && S.b - BY_ID[id].cost * PROGRAMMES[S.cur].costScale >= researchReserve) commission(id);
+    if (freeTeams() && S.b > reserve + 20000) {
+      const area = ['p', 's', 'a'].sort((first, second) => (S.kn[first] || 0) - (S.kn[second] || 0))[0];
+      if ((S.kn[area] || 0) > 25) startReview(area);
+    }
+    const ready = S.air.filter(airframe => airframe.st == 'r').sort((first, second) => PROGRAMMES[second.prog].generation - PROGRAMMES[first.prog].generation || second.pk.length - first.pk.length)[0];
+    if (!ready) { advance(1); continue; }
+    flyLaunch(ready);
   }
-  return { t, flights, fails, scrubs, crew: Object.keys(S.crew).filter(k => S.crew[k]).length, fac: Object.keys(S.fac).length, dirT, b: S.b, pk: Object.keys(S.pk).length, orbit: S.dir >= GOAL, date: dateOf(S.day), sput: dateOf(S.rv.r_sat), race: S.fs.f_orbit || '-', sovietFirsts: Object.values(S.fs).filter(v => v == 'them' || v == 'second').length };
+  const phaseOne = {
+    programmeStarted, programmeMatured, maturity: Object.fromEntries(Object.keys(S.progs).map(kind => [kind, Math.round(maturity(kind))])), t, flights, fails, scrubs,
+    crew: Object.keys(S.crew).filter(id => S.crew[id]).length, facilities: Object.keys(S.fac).length, directiveTimes, budget: S.b, packages: Object.keys(S.pk).length,
+    orbit: S.dir >= GOAL, date: formatDate(S.day), sputnik: formatDate(S.rv.r_sat), race: S.fs.f_orbit || '-', sovietFirsts: Object.values(S.fs).filter(value => value == 'them' || value == 'second').length,
+    lostFirstIds: Object.keys(S.fs).filter(id => S.fs[id] == 'them' || S.fs[id] == 'second'),
+  };
+  if (!phaseOne.orbit || process.env.PHASE_ONE_ONLY) return phaseOne;
+  // Phase Two picks up where Phase One stopped, with the same clock and the same flying.
+  const mercury = playMercury({ advance, now: () => t, flyLaunch, maxSeconds: t + MAX_MINUTES * 60 });
+  return {
+    ...phaseOne, mercury, endMercury: t, budgetMercury: S.b, sectionDate: S.p2 && S.p2.secDone ? formatDate(S.p2.secDone) : '-', gagarin: formatDate(S.rv.r_gagarin), human: S.fs.f_human || '-',
+  };
 }
-const m = x => x === undefined ? '  -- ' : (x / 60).toFixed(1).padStart(5);
-for (let i = 0; i < RUNS; i++) { const r = run(1000 + i * 7919); console.log(`seed ${i}: flights ${r.flights} fails ${r.fails} scrubs ${r.scrubs} crew ${r.crew} base ${r.fac} pkgs ${r.pk} end ${m(r.t)}m budget ${Math.round(r.b)} orbit ${r.orbit} ${r.date} (${r.race}, Sputnik ${r.sput}) lostFirsts ${r.sovietFirsts} | directives(min) ${DIR.map((_, k) => m(r.dirT[k])).join(' ')}`); }
+const minutes = seconds => seconds === undefined ? '  -- ' : (seconds / 60).toFixed(1).padStart(5);
+// "programmes" lists each rocket as kind@started>matured (minutes). SEED=n plays only run n (with TRACE=1, one line per launch and per mission).
+for (let i = 0; i < RUNS; i++) {
+  if (process.env.SEED && +process.env.SEED != i) continue;
+  const r = run(1000 + i * 7919);
+  console.log(`programmes ${Object.entries(r.programmeStarted).map(([kind, time]) => kind + '@' + minutes(time).trim() + (kind in r.programmeMatured ? '>' + minutes(r.programmeMatured[kind]).trim() : '')).join(' ')} | maturity ${JSON.stringify(r.maturity)}`);
+  console.log(`seed ${i}: flights ${r.flights} fails ${r.fails} scrubs ${r.scrubs} crew ${r.crew} base ${r.facilities} pkgs ${r.packages} end ${minutes(r.t)}m budget ${Math.round(r.budget)} orbit ${r.orbit} ${r.date} (${r.race}, Sputnik ${r.sputnik}) lostFirsts ${r.sovietFirsts} | directives(min) ${DIRECTIVES.map((_, k) => minutes(r.directiveTimes[k])).join(' ')}`);
+  console.log(`        lost to the Soviets in Phase One: ${r.lostFirstIds.join(' ') || 'none'}`);
+  const mercury = r.mercury;
+  if (mercury) console.log(`        mercury: ${mercury.done ? 'done' : 'NOT DONE'} in ${minutes(r.endMercury - mercury.nasaAt)}m after NASA (play total ${minutes(r.endMercury)}m) ${r.sectionDate} (first human: ${r.human}, Gagarin ${r.gagarin}) missions ${mercury.missions} failed ${mercury.missionFails} astronautsLost ${mercury.astronautsLost} rating launches ${mercury.launches} budget ${Math.round(r.budgetMercury)} | directives(min after NASA) ${MERCURY_DIRECTIVES.map((_, k) => minutes(mercury.directiveTimes[k])).join(' ')}`);
+}
