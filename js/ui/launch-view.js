@@ -1,4 +1,5 @@
-// THE LAUNCH VIEW: the control room fills the screen from rollout to splashdown.
+// THE LAUNCH VIEW: from rollout to splashdown the pad takes the launch desk's place under the plotting board, while the
+// consoles on the right follow every station.
 // The count starts at T-30. Propellant loading runs inside it; the stations are polled from T-15; anything not ready, or any NO-GO,
 // holds the clock. Then either the rocket flies its physics (ordinary launches) or a Mercury mission runs its timeline.
 import { formatMoney, gaussian } from '../core/util.js';
@@ -6,14 +7,16 @@ import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { MISSION_TYPES } from '../data/mercury.js';
 import { S, log, logSink } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
-import { roomLevel, consoleCount, crewOnConsole, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
+import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS } from '../rules/flight.js';
 import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
 import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName } from '../rules/mission.js';
-import { roomSVG, updateTrace, gaugesSVG } from './control-room.js';
-import { launchForm } from './launch-panel.js';
+import { gaugesSVG } from './control-room.js';
+import { launchForm, renderControlRoom } from './launch-panel.js';
+import { renderConsoles } from './consoles.js';
+import { renderPlot } from './plot.js';
 import { render, markDirty } from './screen.js';
 import { $, setHTML } from './dom.js';
 
@@ -30,24 +33,24 @@ const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real s
 
 function openPad() {
   $('#pad').hidden = false;
+  $('#home').hidden = true;
   $('#padlog').innerHTML = '';
   $('#comms').hidden = true;
-  document.body.classList.add('padopen');
 }
 export function closePad() {
   clearInterval(launchView.countTimer);
   launchView.countTimer = null;
   launchView.count = null;
   $('#pad').hidden = true;
+  $('#home').hidden = false;
   $('#fl').hidden = true;
   $('#comms').hidden = true;
-  document.body.classList.remove('padopen');
   markDirty();
   render();
 }
 // Speech bubbles over the stations: GO / NO-GO as the poll is read out, and the fuelling call before it.
 // In flight, the latest call on the loop (rules/callouts.js); after it, every station's last call and the Test Conductor's verdict.
-function stationBubbles() {
+export function stationBubbles() {
   const count = launchView.count, bubbles = {};
   if (!count) return bubbles;
   if (count.phase == 'flight' && airborne.flight) return airborne.flight.bubbles;
@@ -74,6 +77,7 @@ function updateCountDisplay() {
   const tank = $('#tankfill'), tankPercent = $('#tankpct');
   if (tank) tank.style.width = count.fuel * 100 + '%';
   if (tankPercent) tankPercent.textContent = Math.round(count.fuel * 100) + '%';
+  renderConsoles();
 }
 
 // The pad: the room with its stations, then the tank, the poll, holds and the buttons for what can be done now.
@@ -82,8 +86,9 @@ export function renderPad() {
   if (!count) return;
   const level = roomLevel(), poll = count.poll, airframe = S.air.find(candidate => candidate.id == poll.af) || { label: count.label }, pollDone = count.shown >= poll.lines.length;
   $('#padt').textContent = `${ROOMS[level].name} — ${count.label}`;
-  setHTML($('#padroom'), roomSVG(level, crewOnConsole(), consoleCount(), count.phase == 'flight', stationBubbles()));
-  updateTrace(airborne.flight ? airborne.flight.trace : airborne.mission ? airborne.mission.trace : launchView.lastTrace);
+  renderControlRoom();
+  renderConsoles();
+  renderPlot();
   if (count.phase == 'done' && count.mission) return showMissionResult(count.result);
   if (count.phase == 'done') return showFlightResult(count.result);
   if (count.phase == 'flight') {
@@ -245,7 +250,8 @@ function drawFlightInstruments(flight) {
   // The part channels picked before launch, on a second row.
   const parts = (flight.watch || []).map(id => ({ label: PART_CHANNELS[id].label, max: PART_CHANNELS[id].max || 1, ...partReading(flight, id) }));
   setHTML($('#gpanel'), gaugesSVG(level, channels, true) + (parts.length ? gaugesSVG(level, parts, true) : ''));
-  updateTrace(flight.trace);
+  renderConsoles();
+  renderPlot();
 }
 function launchFlight(override) {
   const count = launchView.count, poll = count.poll, form = launchForm;
@@ -265,7 +271,7 @@ function launchFlight(override) {
   $('#fl').hidden = false;
   renderPad();
   drawFlightInstruments(flight);
-  $('#ln').textContent = roomLevel() >= 2 ? 'Trajectory is plotted on the board.' : 'No plotting board yet: radar calls come in below.';
+  $('#ln').textContent = roomLevel() >= 2 ? 'Trajectory is plotted on the board above.' : 'No plotting board yet: radar calls are marked by hand above.';
   launchView.flightTimer = setInterval(flightTick, 250);
 }
 // The Test Conductor's last word on the loop, by how the flight ended.
@@ -379,7 +385,8 @@ function drawMissionInstruments(mission) {
     { label: 'CABIN TEMP', value: now.temp, max: 60, text: `${now.temp} °C` },
   ];
   setHTML($('#gpanel'), gaugesSVG(Math.max(level, 2), channels, true));
-  updateTrace(mission.trace);
+  renderConsoles();
+  renderPlot();
 }
 function decisionHTML(mission) {
   const key = mission.pending.key, options = decisionOptions(mission, key);

@@ -1,4 +1,4 @@
-// THE LAUNCH TAB: the control-room picture, and the launch form with its pre-flight estimate.
+// THE LAUNCH DESK: the control-room picture, and the launch form with its pre-flight estimate.
 import { formatMoney } from '../core/util.js';
 import { PROPELLANTS, PAYLOADS } from '../data/launch.js';
 import { ROOMS } from '../data/launch-site.js';
@@ -13,7 +13,7 @@ import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
 import { PART_CHANNELS, channelCapacity, availableChannels, watchedChannels } from '../rules/telemetry.js';
 import { CAMPAIGN_TARGETS, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
 import { roomSVG, updateTrace } from './control-room.js';
-import { launchView } from './launch-view.js';
+import { launchView, stationBubbles } from './launch-view.js';
 import { $, option, setHTML, escapeHtml, percent } from './dom.js';
 
 // What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank),
@@ -26,7 +26,7 @@ const payloadLocked = (payload, airframe) => (PAYLOADS[payload].satellite && can
 export function renderControlRoom() {
   const level = roomLevel(), crew = crewOnConsole(), consoles = consoleCount();
   $('#crt').textContent = ROOMS[level].name.toUpperCase();
-  setHTML($('#cr'), roomSVG(level, crew, consoles, !!airborne.flight));
+  setHTML($('#cr'), roomSVG(level, crew, consoles, !!(airborne.flight || airborne.mission), stationBubbles()));
   $('#crm').textContent = `${ROOMS[level].description} ${crew.length} of ${consoles} console${consoles > 1 ? 's' : ''} staffed.`;
   updateTrace(airborne.flight ? airborne.flight.trace : launchView.lastTrace);
 }

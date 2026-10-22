@@ -1,13 +1,16 @@
-// THE DESIGN BUREAU tab: the programme bar and card, the engineering file for each system (knowledge, failure modes, research,
-// milestones), and the panel of unexplained failures.
+// THE R&D DESK (a drawer over the control room). Four views:
+//   research          one column per area: breakthrough progress, the milestone, and a compact card per package. Picking a card
+//                     shows it in the bar along the bottom, with its COMMISSION (or ground test) button.
+//   programme         the programme bar and the focused rocket's card: maturity, performance window, flaws, next programmes.
+//   engineering file  what the team knows about each system, its failure modes and design reviews.
+//   incidents         failures not yet explained.
 import { formatMoney } from '../core/util.js';
-import { MILESTONES, AREAS } from '../data/research.js';
+import { MILESTONES, AREAS, BY_ID } from '../data/research.js';
 import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
 import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
 import { trackingTiers, designation } from '../rules/design.js';
 import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, costAfterEarmark } from '../rules/research.js';
-import { breakthroughNeeds } from '../data/research.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds } from '../rules/knowledge.js';
 import { maturity, candidates, startLock, believedWindow, successfulFlights } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
@@ -17,38 +20,45 @@ import { $, setHTML } from './dom.js';
 // The job researching an item, for the programme it belongs to (vehicle areas) or the global bundle.
 const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id && job.prog == (isVehicleArea(item.area) ? S.cur : null));
 
-// ONE AREA'S CARD: the engineering file, finished work (with ground tests), ideas on offer, and the milestone block.
-function areaCard(area) {
-  const counts = areaCounts(area), open = itemsInArea(area).filter(item => !isResearched(item.id)), offered = open.filter(isProposed), later = open.length - offered.length;
-  const vehicle = isVehicleArea(area);
-  const breakthroughNote = vehicle ? (PROGRAMMES[S.cur].hasMilestones && firstMilestoneOptions(area).length ? ` (${breakthroughNeedsHere(area)[0]} for a breakthrough)` : '') : ` (${breakthroughNeeds(area)[0]} for a breakthrough, ${breakthroughNeeds(area)[1]} for the second milestone)`;
-  let html = `<div class="c"><div class="t">${vehicle ? PROGRAMMES[S.cur].name.toUpperCase() + ': ' : ''}${AREAS[area].toUpperCase()}${vehicle ? '' : ' <span class="d">(all rockets)</span>'}</div>${engineeringFile(area)}<div class="t" style="margin-top:8px;font-size:.8em">RESEARCH</div><div class="m">Complete ${counts.done}/${counts.total} | confirmed ${counts.confirmed}${breakthroughNote}</div>`;
-  itemsInArea(area).filter(item => isResearched(item.id)).forEach(item => {
-    html += `<div class="m">✓ ${item.name}: ${describeResearch(item)}</div>`;
-    html += groundTestHTML(area, item);
-  });
-  offered.forEach(item => html += commissionHTML(item, 1));
-  if (later) html += `<div class="m">${later} more idea${later > 1 ? 's' : ''} will be proposed as your engineers prove what they have.</div>`;
-  if (vehicle && (!PROGRAMMES[S.cur].hasMilestones || !firstMilestoneOptions(area).length)) return html + '</div>';
-  return html + milestoneBlock(area, counts) + '</div>';
+// ONE AREA'S COLUMN: breakthrough progress, the milestone slot, then a card per package (finished, in work, or on offer).
+function researchColumn(area) {
+  const counts = areaCounts(area), vehicle = isVehicleArea(area), needs = breakthroughNeedsHere(area)[0];
+  const hasMilestones = !vehicle || (PROGRAMMES[S.cur].hasMilestones && firstMilestoneOptions(area).length);
+  const open = itemsInArea(area).filter(item => !isResearched(item.id)), offered = open.filter(isProposed), later = open.length - offered.length;
+  let html = `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}${vehicle ? '' : ' <span class="d">all rockets</span>'}</div>`;
+  if (hasMilestones) html += `<div class="r m"><span>Breakthrough</span><span>${Math.min(counts.confirmed, needs)} of ${needs} confirmed</span></div><div class="bar"><i style="width:${Math.min(100, counts.confirmed / needs * 100)}%"></i></div>` + milestoneSlot(area, needs, counts);
+  else html += `<div class="m">${counts.done} of ${counts.total} done · ${counts.confirmed} confirmed</div>`;
+  itemsInArea(area).filter(item => isResearched(item.id)).forEach(item => html += packageCard(item));
+  offered.forEach(item => html += packageCard(item));
+  if (later) html += `<div class="m">${later} more idea${later > 1 ? 's' : ''} will be proposed as the engineers prove what they have.</div>`;
+  return html + '</div>';
 }
-// Unconfirmed propulsion work can be fired on the test stand; spacecraft work qualified on the ground.
-function groundTestHTML(area, item) {
-  const qualification = area == 'c' || area == 'e';
-  if (!((area == 'p' && S.fac.stand) || qualification) || isConfirmed(item.id)) return '';
-  const job = findJob(candidate => candidate.k == 'gt' && candidate.id == item.id), lock = groundTestLock(item.id);
-  return job ? `<div class="m wn">${qualification ? 'Qualification tests' : 'Static firing'}: <span data-j="gt${item.id}">${job.t}s</span></div>`
-    : `<button data-a="gt" data-id="${item.id}"${lock ? ' disabled' : ''}>${qualification ? 'QUALIFICATION TEST ($4,000, 110s)' : 'GROUND TEST ($2,000, 30s)'}</button>`;
+// The milestone slot at the top of a column: locked, a choice to make (one card per approach), or the chosen programme.
+function milestoneSlot(area, needs, counts) {
+  const options = firstMilestoneOptions(area), second = isVehicleArea(area) ? null : MILESTONES.find(milestone => milestone.area == area && milestone.tier == 2);
+  const chosen = options.find(milestone => isResearched(milestone.id) || findJob(job => job.k == 'pk' && job.id == milestone.id));
+  if (chosen) return `<div class="ms-slot">${packageCard(chosen, '★')}${second && isResearched(chosen.id) ? packageCard(second, '★★') : ''}</div>`;
+  if (S.bt[area]) return `<div class="ms-slot ready"><div class="t">BREAKTHROUGH: CHOOSE ONE</div>${options.map(milestone => packageCard(milestone, '★')).join('')}</div>`;
+  return `<div class="ms-slot"><span class="d">Milestone opens after ${needs - Math.min(needs, counts.confirmed)} more confirmed</span></div>`;
 }
-// The first milestone (a choice of approaches once the breakthrough lands) and, outside the rocket areas, the second.
-function milestoneBlock(area, counts) {
-  const firstOptions = firstMilestoneOptions(area), second = isVehicleArea(area) ? null : MILESTONES.find(milestone => milestone.area == area && milestone.tier == 2);
-  const chosen = firstOptions.find(milestone => isResearched(milestone.id) || findJob(job => job.k == 'pk' && job.id == milestone.id));
-  let inner;
-  if (chosen) inner = `<div class="t">FIRST MILESTONE</div>${milestoneRow(chosen)}${second ? `<div class="t" style="margin-top:8px">SECOND MILESTONE</div>${milestoneRow(second)}` : ''}`;
-  else if (S.bt[area]) inner = `<div class="t">BREAKTHROUGH: CHOOSE ONE APPROACH</div>${S.ear && S.ear[area] ? `<div class="m ok">Congress has earmarked ${formatMoney(S.ear[area])} toward this programme.</div>` : ''}${firstOptions.map(milestoneRow).join('<div class="or">or</div>')}`;
-  else inner = `<div class="m">A breakthrough after ${breakthroughNeedsHere(area)[0]} confirmed packages (${counts.confirmed}/${breakthroughNeedsHere(area)[0]}) will open a choice of approaches.</div>`;
-  return `<div class="msb">` + inner + '</div>';
+// A compact card. Picking it shows it in the detail bar. mark: shown before the name (milestones).
+function packageCard(entry, mark = '') {
+  const item = itemAsSeen(entry.id), job = researchJob(item), done = isResearched(item.id), confirmed = done && isConfirmed(item.id);
+  const look = done ? (confirmed ? 'done' : 'flown') : job ? 'work' : item.dud ? 'exp' : 'open';
+  const tag = done ? (confirmed ? '■' : '□ unproven') : job ? '' : item.dud ? '◆' : '';
+  const meta = done ? (confirmed ? 'confirmed' : 'finished, not yet confirmed') : job ? `in work: <span data-j="pk${item.id}">${job.t}s</span> left`
+    : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}`;
+  const progress = job ? `<div class="bar"><i style="width:${Math.round((1 - job.t / Math.max(1, item.time)) * 100)}%"></i></div>` : '';
+  return `<button data-a="rpick" data-id="${item.id}" class="rcard ${look}${researchDesk.pick == item.id ? ' on' : ''}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span><span class="m">${meta}</span>${progress}</button>`;
+}
+// THE DETAIL BAR: the picked package or milestone in full, with what can be done with it.
+function detailBar() {
+  const id = researchDesk.pick;
+  if (!id || !BY_ID[id]) return '<div class="rdetail m">Pick a card to see what the engineers expect from it and to commission it.</div>';
+  const item = itemAsSeen(id), milestone = item.tier != null;
+  let html = `<div class="rdetail"><div class="grow"><b>${item.name}</b>${item.dud ? ' <span class="exp-t">◆ experimental</span>' : ''}${milestone && item.why ? `<div class="m"><i>${item.why}</i></div>` : ''}`;
+  if (isResearched(id)) return html + `<div class="m">${describeResearch(item)}</div></div><div>${groundTestHTML(item.area, item)}</div></div>`;
+  return html + `</div><div class="rdetail-act">${commissionHTML(item)}</div></div>`;
 }
 function milestoneRow(milestone) {
   if (isResearched(milestone.id)) return `<div class="ok">★ ${milestone.name}</div><div class="m">${describeResearch(milestone)}</div>`;
@@ -110,15 +120,21 @@ function programmeCard() {
 
 const INSTRUMENT_NAMES = ['Radio beacon only', 'FM telemetry (few channels)', 'Instrumented airframe', 'Full telemetry + inertial platform'];
 const TRACKING_NAMES = ['Optical & radar tracking', 'Tracking radar network', 'Radar network + downrange ship'];
-export function renderDesignBureau() {
-  const tiers = trackingTiers(), bundle = S.progs[S.cur];
+// What the desk shows: view (research | programme | file | incidents), pick: the research card in the detail bar.
+export const researchDesk = { view: 'research', pick: null };
+const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGINEERING FILE', incidents: 'UNEXPLAINED FAILURES' };
+export function renderResearchDesk() {
+  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv');
   // Rocket areas once the programme is ready; recovery always; the spacecraft areas after NASA.
   const areas = (bundle && bundle.ready ? ['p', 's', 'i', 'a'] : []).concat(['r'], S.nasa ? ['c', 'e'] : []);
-  setHTML($('#db'), programmeBar() + programmeCard()
-    + `<div class="r"><span class="d">Current design</span><b>${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev}</b></div><div class="r"><span class="d">Airframe instruments</span><b>${INSTRUMENT_NAMES[tiers.v]}</b></div><div class="r"><span class="d">Ground tracking</span><b>${TRACKING_NAMES[tiers.g]}</b></div><div class="r"><span class="d">Teams free</span><b>${freeTeams()} of ${S.teams}</b></div><div class="r"><span class="d">Successful flights</span><b>${S.ok}</b></div>`
-    + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar & Base), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}. Engineers propose new ideas as earlier ones are proven. On the bigger rockets, enough confirmed work in an area opens a breakthrough and a choice of major programmes.</div>`
-    + `<div class="m">Each system below is an entry in the <b>engineering file</b>: what your team knows about it, the failure modes it has met and how they were cured, and the research still open. Knowledge carries from flight to flight and makes every later judgement better.</div>`
-    + `<div class="areas">${areas.map(areaCard).join('')}</div>`);
+  const view = researchDesk.view;
+  let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length ? ` (${unexplained.length})` : ''}</button>`).join('')}`
+    + `<span class="m">${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev} · ${INSTRUMENT_NAMES[tiers.v]} · ${TRACKING_NAMES[tiers.g]} · <b>teams free ${freeTeams()} of ${S.teams}</b></span></div>`;
+  if (view == 'research') html += programmeBar() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + detailBar();
+  else if (view == 'programme') html += programmeBar() + programmeCard() + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar desk), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}.</div>`;
+  else if (view == 'file') html += `<div class="m">Each system's entry in the engineering file: what your team knows about it, the failure modes it has met and how they were cured. Knowledge carries from flight to flight.</div><div class="rcols" style="--areas:${areas.length}">${areas.map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`;
+  else html += unexplained.length ? `<div class="cards">${unexplained.slice().reverse().map(incidentHTML).join('')}</div>` : '<div class="m">No unexplained failures on file.</div>';
+  setHTML($('#rdesk'), html);
 }
 
 // INCIDENTS: a failure (or a design-review finding) from records analysis to diagnosis to fix.
@@ -135,12 +151,6 @@ function incidentHTML(incident) {
   } else if (incident.st == 'fixing') html += `<div class="wn">Implementing: <span data-j="fix${incident.id}">${(findJob(job => job.k == 'fix' && job.id == incident.id) || { t: 0 }).t}s</span></div>`;
   return html + '</div>';
 }
-export function renderIncidents() {
-  const unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv');
-  $('#pi').hidden = !unexplained.length;
-  setHTML($('#ic'), unexplained.slice().reverse().map(incidentHTML).join(''));
-}
-
 // THE ENGINEERING FILE: what the team knows about one system, what that knowledge buys, its failure modes and their status.
 function engineeringFile(area) {
   const value = knowledge(area), modes = [...SYSTEMS[area].modes];

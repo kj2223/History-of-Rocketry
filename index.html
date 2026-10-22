@@ -1,13 +1,97 @@
-<!DOCTYPE html><html lang="en" data-era="0"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="claude:viewport-fit-sides" content="cover"><title>Project Vanguard</title><link rel="stylesheet" href="style.css"></head><body><div id="bn"></div><div id="sum" hidden></div><div id="pad" hidden><div class="padw"><div class="padhd"><b id="padt"></b><b id="padph" class="t"></b></div><div id="padroom"></div><div id="paddlg"></div><div id="fl" hidden><div id="gpanel"></div><div class="m" id="ln"></div><button data-a="abort" style="color:var(--bd);border-color:var(--bd)">MANUAL ABORT</button></div><div id="comms" class="comms" hidden><div class="ct">AIR-TO-GROUND <span class="d">• transcript</span></div><div id="ctx" class="ctx"></div></div><div id="padlog"></div></div></div><div class="w">
-<header><div><h1>PROJECT VANGUARD</h1><div class="d" id="era"></div><div class="d" id="site"></div></div><div style="text-align:right"><div class="d">Calendar: <b id="dt"></b><span id="cu" class="wn"></span> | Grant in <span id="gt"></span>s (<span id="ga"></span>)</div><div class="d spd">Time <button data-spd="0">PAUSE</button><button data-spd="1">1x</button><button data-spd="2">2x</button><button data-spd="4">4x</button></div><div class="d">Record: <b id="ra">0 m</b> altitude | <b id="rv">0 m/s</b> speed | <b id="rd">0 km</b> range</div><div class="d" data-l="TREASURY|BUREAU OF THE BUDGET|FUNDING OFFICE"></div><div id="bg" class="t" style="font-size:1.3rem"></div><div class="d">Reputation <b id="rp"></b> <button style="width:auto;padding:1px 6px;font-size:.65rem" data-a="runlog">RUN LOG</button> <button id="rs" style="width:auto;padding:1px 6px;font-size:.65rem;color:var(--bd);border-color:var(--bd)" data-a="reset">RESET</button></div></div></header>
-<nav class="tabs"><button data-tab-btn="launch" class="on">LAUNCH</button><button data-tab-btn="design" id="tb-design">DESIGN BUREAU</button><button data-tab-btn="hangar">HANGAR & BASE</button><button data-tab-btn="staff">PERSONNEL</button><button data-tab-btn="astro" id="tb-astro" hidden>ASTRONAUTS</button></nav>
-<section data-tab="launch" class="g"><div><div class="p"><h2 id="crt">CONTROL ROOM</h2><div id="cr"></div><div class="m" id="crm"></div></div><div class="p"><h2 data-l="ACTIVE DOD DIRECTIVE|DEFENSE DEPARTMENT DIRECTIVE|NATIONAL SPACE OBJECTIVE"></h2><div id="dr"></div></div><div class="p"><h2 data-l="FIRSTS & FOREIGN INTELLIGENCE|THE MISSILE RACE|THE SPACE RACE"></h2><div id="race"></div></div>
-</div><div><div class="p" id="pm" hidden><h2>MERCURY MISSIONS</h2><div id="mp"></div></div><div class="p" id="pc" hidden><h2>LAUNCH CAMPAIGN</h2><div id="cpg"></div></div><div class="p"><h2 data-l="LAUNCH FACILITY|LAUNCH COMPLEX & BLOCKHOUSE|LAUNCH CONTROL CENTER"></h2><div id="lc"></div>
+<!DOCTYPE html>
+<html lang="en" data-era="0">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project Vanguard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- One fixed screen: the header, the desk rail, and the control room. Nothing scrolls the page; long panels scroll inside themselves.
+     Every other desk (research, hangar, base, crew, astronauts) opens as a drawer over the room, which keeps running behind it. -->
+<div id="bn"></div><div id="sum" hidden></div>
+<div class="app">
+
+<header class="top">
+  <div class="brand"><h1>PROJECT VANGUARD</h1><div class="d"><span id="era"></span> · <span id="site"></span></div></div>
+  <div class="stats">
+    <div><span class="lbl">CALENDAR</span><b id="dt"></b><span id="cu" class="wn"></span></div>
+    <div><span class="lbl" data-l="TREASURY|BUREAU OF THE BUDGET|FUNDING OFFICE"></span><b id="bg" class="t"></b></div>
+    <div><span class="lbl">GRANT IN</span><b><span id="gt"></span>s · <span id="ga"></span></b></div>
+    <div><span class="lbl">REPUTATION</span><b id="rp"></b></div>
+    <div><span class="lbl">RECORDS</span><b><span id="ra">0 m</span> · <span id="rv">0 m/s</span> · <span id="rd">0 km</span></b></div>
+  </div>
+  <div class="spd"><button data-spd="0">PAUSE</button><button data-spd="1">1×</button><button data-spd="2">2×</button><button data-spd="4">4×</button></div>
+</header>
+
+<nav class="rail" aria-label="Desks">
+  <button data-desk="" class="on" aria-label="Control room"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 20V9l7-5 7 5v11M9 20v-6h6v6"/></svg>ROOM</button>
+  <button data-desk="rd" id="desk-rd" aria-label="Research and design"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>R&amp;D<i class="badge" id="badge-rd" hidden></i></button>
+  <button data-desk="hangar" aria-label="Drawing office, factory and hangar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V10l9-6 9 6v11M7 21v-7h10v7"/></svg>HANGAR</button>
+  <button data-desk="base" aria-label="Launch site and base"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M5 9l7-7 7 7M4 22h16"/></svg>BASE</button>
+  <button data-desk="crew" aria-label="Personnel and launch crew"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5"/></svg>CREW</button>
+  <button data-desk="astro" id="desk-astro" aria-label="Astronaut Office" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM5 21c0-4 3-6 7-6s7 2 7 6"/></svg>ASTRO</button>
+  <div class="grow"></div>
+  <button data-a="runlog" aria-label="Run log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5zM8 9h8M8 13h8M8 17h5"/></svg>LOG</button>
+  <button id="rs" data-a="reset" class="danger" aria-label="Reset the game">RESET</button>
+</nav>
+
+<main class="room-grid">
+  <!-- LEFT: what you are aiming for, and the range teleprinter -->
+  <section class="col left">
+    <div class="p"><h2 data-l="ACTIVE DOD DIRECTIVE|DEFENSE DEPARTMENT DIRECTIVE|NATIONAL SPACE OBJECTIVE"></h2><div id="dr"></div></div>
+    <div class="p"><h2 data-l="FIRSTS & FOREIGN INTELLIGENCE|THE MISSILE RACE|THE SPACE RACE"></h2><div id="race"></div></div>
+    <div class="p fill"><h2 data-l="COMMAND TELEMETRY LOG|TELEPRINTER & RANGE LOG|MISSION CONTROL LOG"></h2><div id="lg"></div></div>
+  </section>
+
+  <!-- CENTER: the plotting board, then the launch desk (or, from rollout to splashdown, the pad) -->
+  <section class="col center">
+    <div class="p board"><h2 id="boardt">PLOTTING BOARD</h2><div id="plot"></div></div>
+    <div id="home" class="home">
+      <div class="p"><h2 data-l="LAUNCH FACILITY|LAUNCH COMPLEX & BLOCKHOUSE|LAUNCH CONTROL CENTER"></h2><div id="lc"></div></div>
+      <div class="stack">
+        <div class="p" id="pm" hidden><h2>MERCURY MISSIONS</h2><div id="mp"></div></div>
+        <div class="p" id="pc" hidden><h2>LAUNCH CAMPAIGN</h2><div id="cpg"></div></div>
+      </div>
+    </div>
+    <div id="pad" class="p pad" hidden>
+      <div class="padhd"><b id="padt"></b><b id="padph" class="t"></b></div>
+      <div id="paddlg"></div>
+      <div id="fl" hidden><div id="gpanel"></div><div class="m" id="ln"></div><button data-a="abort" class="danger big">MANUAL ABORT</button></div>
+      <div id="comms" class="comms" hidden><div class="ct">AIR-TO-GROUND <span class="d">• transcript</span></div><div id="ctx" class="ctx"></div></div>
+      <div class="ct">THE LOOP</div><div id="padlog"></div>
+    </div>
+  </section>
+
+  <!-- RIGHT: the room and every console, live -->
+  <section class="col right">
+    <div class="p roompic"><h2 id="crt">CONTROL ROOM</h2><div id="cr"></div><div class="m" id="crm"></div></div>
+    <div id="cons" class="cons"></div>
+  </section>
+
+  <!-- THE DRAWER: the desk picked on the rail. It covers the left and centre columns; the consoles stay in view. -->
+  <section id="drawer" class="drawer" hidden>
+    <div class="drawer-hd"><h2 id="drawer-t"></h2><button data-desk="" class="close" aria-label="Close the desk">✕ CLOSE</button></div>
+    <div class="drawer-body">
+      <div data-deskpane="rd"><div id="rdesk"></div></div>
+      <div data-deskpane="hangar" class="g3">
+        <div class="p"><h2>DRAWING OFFICE</h2><div id="bp"></div></div>
+        <div class="p"><h2>FACTORY QUEUE</h2><div id="as"></div></div>
+        <div class="p"><h2>HANGAR</h2><div id="hg"></div></div>
+      </div>
+      <div data-deskpane="base"><div class="p"><h2>LAUNCH SITE &amp; BASE UPGRADES</h2><div id="fc"></div></div></div>
+      <div data-deskpane="crew" class="g2">
+        <div class="p"><h2>PERSONNEL &amp; PAYROLL</h2><div id="sf"></div></div>
+        <div class="p"><h2>LAUNCH CREW</h2><div id="crew"></div></div>
+      </div>
+      <div data-deskpane="astro" class="g2">
+        <div class="p"><h2>ASTRONAUT OFFICE</h2><div id="ao"></div></div>
+        <div class="p"><h2>TRAINING &amp; FLIGHT CONTROL</h2><div id="ao2"></div></div>
+      </div>
+    </div>
+  </section>
+</main>
 </div>
-</div></section>
-<section data-tab="design" hidden><div class="p" id="pi" hidden><h2>UNEXPLAINED FAILURES</h2><div id="ic"></div></div><div class="p"><h2 data-l="DESIGN BUREAU (R&amp;D)|DESIGN BUREAU &amp; TEST STAND|ENGINEERING DIRECTORATE"></h2><div id="db"></div></div></section>
-<section data-tab="hangar" class="g" hidden><div><div class="p"><h2>DRAWING OFFICE</h2><div id="bp"></div></div><div class="p"><h2>FACTORY QUEUE</h2><div id="as"></div></div><div class="p"><h2>HANGAR</h2><div id="hg"></div></div></div><div><div class="p" id="pf"><h2>LAUNCH SITE &amp; BASE UPGRADES</h2><div id="fc"></div></div></div></section>
-<section data-tab="astro" class="g" hidden><div><div class="p"><h2>ASTRONAUT OFFICE</h2><div id="ao"></div></div></div><div><div class="p"><h2>TRAINING &amp; FLIGHT CONTROL</h2><div id="ao2"></div></div></div></section>
-<section data-tab="staff" class="g" hidden><div><div class="p"><h2>PERSONNEL & PAYROLL</h2><div id="sf"></div></div></div><div><div class="p"><h2>LAUNCH CREW</h2><div id="crew"></div></div></div></section>
-<div class="p"><h2 data-l="COMMAND TELEMETRY LOG|TELEPRINTER & RANGE LOG|MISSION CONTROL LOG"></h2><div id="lg"></div>
-</div><script type="module" src="js/main.js"></script></body></html>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

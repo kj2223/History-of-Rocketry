@@ -1,4 +1,4 @@
-// THE SCREEN: the header, era and control-room theme, the directive panel, tabs, and redrawing every panel.
+// THE SCREEN: the header, era and control-room theme, the directive panel, the desk drawer, and redrawing every panel.
 // The game clock marks the screen dirty when something changes; main.js redraws it then, and refreshes the timers otherwise.
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES, DIRECTIVE_NEWS, ERAS } from '../data/history.js';
@@ -12,14 +12,16 @@ import { buildRate } from '../rules/factory.js';
 import { catchUp, ensureStarter } from '../rules/game.js';
 import { renderControlRoom, renderLaunchForm, renderCampaign } from './launch-panel.js';
 import { launchView, renderPad } from './launch-view.js';
-import { renderDesignBureau, renderIncidents } from './design-bureau.js';
+import { renderResearchDesk } from './design-bureau.js';
+import { renderConsoles } from './consoles.js';
+import { renderPlot } from './plot.js';
 import { renderHangar, renderFacilities } from './hangar.js';
 import { renderStaff, renderLaunchCrew } from './personnel.js';
 import { renderRace } from './race-and-summaries.js';
 import { renderAstronautOffice, renderMissionPlanner, mercuryDirectiveHTML, memorialHTML, sectionSummaryHTML } from './mercury-panels.js';
 import { $, setHTML } from './dom.js';
 
-let dirty = 1, shownEra = -1, shownRoom = -1, tab = 'launch';
+let dirty = 1, shownEra = -1, shownRoom = -1, desk = '';
 export const markDirty = () => {
   dirty = 1;
 };
@@ -43,16 +45,22 @@ logSink.fn = (text, style) => {
   }
 };
 
-export function showTab(name) {
-  tab = name;
-  applyTab();
+// THE DESKS: '' is the control room alone; any other desk opens its drawer over the room. Picking the open desk again closes it.
+const DESK_TITLES = { rd: 'RESEARCH & DESIGN', hangar: 'DRAWING OFFICE, FACTORY & HANGAR', base: 'LAUNCH SITE & BASE', crew: 'PERSONNEL & LAUNCH CREW', astro: 'ASTRONAUT OFFICE' };
+export function showDesk(name) {
+  desk = name == desk ? '' : name;
+  applyDesk();
 }
-// The Design Bureau tab counts incidents waiting for analysis or a fix.
-function applyTab() {
-  document.querySelectorAll('[data-tab]').forEach(section => section.hidden = section.dataset.tab != tab);
-  document.querySelectorAll('[data-tab-btn]').forEach(button => button.classList.toggle('on', button.dataset.tabBtn == tab));
-  const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'diag').length;
-  $('#tb-design').textContent = waiting ? `DESIGN BUREAU (${waiting})` : 'DESIGN BUREAU';
+// The R&D button counts incidents waiting for analysis or a fix.
+function applyDesk() {
+  if (desk == 'astro' && !S.nasa) desk = '';
+  $('#drawer').hidden = !desk;
+  $('#drawer-t').textContent = DESK_TITLES[desk] || '';
+  document.querySelectorAll('[data-deskpane]').forEach(pane => pane.hidden = pane.dataset.deskpane != desk);
+  document.querySelectorAll('.rail [data-desk]').forEach(button => button.classList.toggle('on', button.dataset.desk == desk));
+  const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'diag').length, badge = $('#badge-rd');
+  badge.hidden = !waiting;
+  badge.textContent = waiting;
 }
 
 // THE HEADER: speed, date (and catch-up), the next appropriation, budget, reputation and records.
@@ -114,22 +122,23 @@ export function render() {
   renderHeader();
   applyEra();
   setHTML($('#dr'), directiveHTML());
-  $('#tb-astro').hidden = !S.nasa;
+  $('#desk-astro').hidden = !S.nasa;
   renderAstronautOffice();
   renderMissionPlanner();
   showOverlays();
   renderControlRoom();
+  renderConsoles();
+  renderPlot();
   renderRace();
   renderLaunchForm();
   renderCampaign();
   if (launchView.count && launchView.count.phase != 'flight') renderPad();
-  renderDesignBureau();
-  renderIncidents();
+  renderResearchDesk();
   renderHangar();
   renderFacilities();
   renderStaff();
   renderLaunchCrew();
-  applyTab();
+  applyDesk();
 }
 // Between redraws, only the header and the countdown figures on jobs and the factory queue change.
 export function refreshTimers() {
