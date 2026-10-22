@@ -25,8 +25,9 @@ import { $, setHTML } from './dom.js';
 //   fuel / target: propellant on board / planned (shares of a full tank), filling, label, clock (count seconds left), running
 //   hold: why the clock is held ('' if not), userHold: held by the player, override: continuing over a NO-GO
 //   polling, pollTicks: the poll is being read out; mission: { vid, crew, af, fuel } for a Mercury flight; result: how it ended
-// countTimer, flightTimer: the interval timers. lastTrace: the last flight's altitudes, kept on the plotting board.
-export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [] };
+// countTimer, flightTimer: the interval timers. lastTrace, lastRangeTrace: the last flight's track, kept on the plotting board
+// (a Mercury mission has no downrange track: null).
+export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null };
 export const isBusy = () => !!launchView.count;
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
@@ -298,6 +299,7 @@ export function finishFlight(ok, why) {
   clearInterval(launchView.flightTimer);
   launchView.flightTimer = null;
   launchView.lastTrace = flight.trace.slice();
+  launchView.lastRangeTrace = flight.rangeTrace.slice();
   endFlight(flight, ok, why);
   airborne.flight = null;
   document.documentElement.classList.remove('flying');
@@ -415,6 +417,7 @@ function finishMission() {
   launchView.flightTimer = null;
   const mission = airborne.mission, result = endMission(mission);
   launchView.lastTrace = mission.trace.slice();
+  launchView.lastRangeTrace = null;
   airborne.mission = null;
   document.documentElement.classList.remove('flying');
   if (launchView.count) {
