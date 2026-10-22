@@ -26,8 +26,8 @@ import { $, setHTML } from './dom.js';
 //   hold: why the clock is held ('' if not), userHold: held by the player, override: continuing over a NO-GO
 //   polling, pollTicks: the poll is being read out; mission: { vid, crew, af, fuel } for a Mercury flight; result: how it ended
 // countTimer, flightTimer: the interval timers. lastTrace, lastRangeTrace: the last flight's track, kept on the plotting board
-// (a Mercury mission has no downrange track: null).
-export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null };
+// (a Mercury mission has no downrange track: null). planned: the pre-flight prediction of the flight in the air, drawn under its track.
+export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null, planned: null };
 export const isBusy = () => !!launchView.count;
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
@@ -105,7 +105,7 @@ export function renderPad() {
   if (count.shown && !pollDone) html += `<div class="m wn">${level >= 4 && S.crew.fd ? 'FLIGHT: "All stations, go/no-go for launch."' : 'Polling the stations…'}</div>`;
   if (pollDone && poll.lines.length == 1) html += '<div class="m">Nobody else is on the net. Launch crew hired in Personnel will catch faults before they fly.</div>';
   if (pollDone && poll.wk && poll.wind && airframe.pk) {
-    const windy = previewFlight(airframe, launchForm.fuel, launchForm.pay, launchForm.st, count.fuel, poll.wind);
+    const windy = previewFlight(airframe, launchForm.fuel, launchForm.pay, launchForm.st, count.fuel, poll.wind, launchForm.plan);
     html += `<div class="r"><span class="d">Aero load in these winds</span><b class="${windy.maxQ > .85 ? 'bad' : windy.maxQ > .6 ? 'wn' : 'ok'}">${Math.round(windy.maxQ * 100)}% of limit</b></div>`;
   }
   if (count.hold) html += `<div class="t bad">HOLD: ${count.hold}</div>`;
@@ -274,8 +274,10 @@ function drawFlightInstruments(flight) {
 function launchFlight(override) {
   const count = launchView.count, poll = count.poll, form = launchForm;
   const airframe = S.air.find(candidate => candidate.id == poll.af && candidate.st == 'r');
-  const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override });
+  const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
+  const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
   if (!flight) return;
+  launchView.planned = planned;
   flight.watch = watchedChannels(airframe, form.ch);
   flight.bubbles = { tc: { t: 'LIFTOFF', c: 'go' } };
   flight.warningTicks = 0;

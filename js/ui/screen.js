@@ -15,6 +15,7 @@ import { launchView, renderPad } from './launch-view.js';
 import { renderResearchDesk } from './design-bureau.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
+import { renderTrajectory } from './trajectory.js';
 import { renderHangar, renderFacilities } from './hangar.js';
 import { renderStaff, renderLaunchCrew } from './personnel.js';
 import { renderRace } from './race-and-summaries.js';
@@ -140,6 +141,7 @@ export function render() {
   renderControlRoom();
   renderConsoles();
   renderPlot();
+  renderTrajectory();
   renderRace();
   renderLaunchForm();
   renderCampaign();

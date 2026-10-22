@@ -105,6 +105,11 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .plot .goal{stroke:var(--wn);stroke-dasharray:8 5}.plot .goal-t{fill:var(--wn);font-size:11px;font-family:inherit}
 .plot .trace{fill:none;stroke:var(--ac);stroke-width:2.5}.plot .trace.old{opacity:.55;stroke-dasharray:5 4}.plot .dot{fill:var(--ac)}
 .plot .now{fill:var(--ac)}.plot .now.bl{animation:blink .7s steps(2) infinite}.plot .now-t{fill:var(--ink);font-size:13px;font-weight:bold;font-family:inherit}
+/* The plotting board's header and FIDO's trajectory panel, which pops out beside the plot (ui/trajectory.js) */
+.plot .plan{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 4;opacity:.7}.plot .band{fill:var(--ac);opacity:.1}
+.boardhd{display:flex;align-items:flex-start;gap:8px}.boardhd h2{flex:1}.boardhd button{width:auto;margin:0;padding:3px 10px;font-size:.7rem;letter-spacing:.08em}.boardhd button.on{background:var(--ac);color:var(--bg)}
+.boardbody{display:flex;gap:8px;align-items:flex-start}.boardbody #plot{flex:1;min-width:0}.traj{flex:0 0 270px;max-height:34vh;overflow:auto;background:var(--pn);border:1px solid var(--ac);padding:8px 10px}
+.traj .ct{margin-top:6px}.traj input{margin:0 0 4px}.tjprog{display:flex;gap:4px}.tjprog button{flex:1;width:auto;margin:0;padding:4px 0;font-size:.68rem}.tjprog button.on{background:var(--ac);color:var(--bg)}
 .home{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}.home:has(.stack>.p:not([hidden])){grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}.home .stack:not(:has(>.p:not([hidden]))){display:none}
 #lc{columns:2 300px;column-gap:18px}#lc>*{break-inside:avoid}.home>.p,.home .stack{margin:0;min-height:0;overflow:auto}.home .stack{display:flex;flex-direction:column;gap:12px}.home .stack>.p{margin:0}
 .pad{flex:1;min-height:0;overflow:auto;margin:0;display:flex;flex-direction:column;gap:8px}.pad .ct{font-size:.7rem;letter-spacing:.14em;color:var(--dim);border-top:1px solid var(--ln);padding-top:6px}

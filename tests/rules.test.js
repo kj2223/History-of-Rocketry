@@ -213,6 +213,16 @@ test('no two airframes are built alike, but the pre-flight estimate uses the dra
   assert.notEqual(fly(first), fly(second));
 });
 
+test('a flight plan steers the trajectory: no plan flies the default, a vertical rail stays over the range, a low rail goes long', () => {
+  const airframe = readyProgramme('aerobee');
+  const predict = plan => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, 0, plan));
+  const standard = predict(null), vertical = predict({ elevation: 90, program: 'lofted' }), long = predict({ elevation: 75, program: 'flat' });
+  assert.equal(standard.path.altitude.length, standard.path.downrange.length);
+  assert.ok(vertical.downrange < 1000 && vertical.peakAltitude > standard.peakAltitude);
+  assert.ok(long.downrange > standard.downrange && long.peakAltitude < standard.peakAltitude);
+  assert.ok(long.maxHeat > vertical.maxHeat, 'a flat climb spends longer fast in the thick air');
+});
+
 test('a payload is recovered step by step, and a stronger chute or a ballute fixes a chute that opens too fast', async () => {
   const { recoveryPlan } = await import('../js/rules/recovery.js');
   readyProgramme('aerobee');

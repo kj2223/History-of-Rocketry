@@ -19,7 +19,8 @@ import { $, option, setHTML, escapeHtml, percent } from './dom.js';
 // What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank),
 // ch: the part channels to watch (null until first shown, then every fitted channel the telemetry can carry).
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
-export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null };
+// plan: the trajectory panel's flight plan (ui/trajectory.js), or null to fly the default.
+export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null, plan: null };
 
 const payloadLocked = (payload, airframe) => (PAYLOADS[payload].satellite && cannotOrbit(airframe)) || (PAYLOADS[payload].needs && !isResearched(PAYLOADS[payload].needs));
 
@@ -41,7 +42,7 @@ export function renderLaunchForm() {
   if (payloadLocked(form.pay, airframe)) form.pay = 'Inert Ballast';
   if (form.st && !hasBoosterStage(airframe)) form.st = 0;
   if (airframe && hasBoosterStage(airframe) && !form.stageChosen) form.st = 1;
-  const quote = quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100), preview = airframe ? previewFlight(airframe, form.fuel, form.pay, form.st, form.load / 100) : null, payload = PAYLOADS[form.pay];
+  const quote = quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100), preview = airframe ? previewFlight(airframe, form.fuel, form.pay, form.st, form.load / 100, 0, form.plan) : null, payload = PAYLOADS[form.pay];
   const propellantKg = airframe ? Math.round(withProgramme(airframe.prog, () => designSpec(airframe.pk).f) * PROPELLANTS[form.fuel].density * form.load / 100) : 0;
   setHTML($('#lc'), `<select data-s="af">${ready.length ? ready.map(candidate => option(candidate.id, `${candidate.label} (built ${candidate.built})`, 0, form.af)).join('') : '<option>No airframe in the hangar</option>'}</select>
 <select data-s="st">${option(0, 'Upper stage alone', 0, form.st)}${option(1, hasBoosterStage(airframe) ? `Full stack: booster stage + upper stage (+${formatMoney(8000)})` : 'No booster stage on this rocket', !hasBoosterStage(airframe), form.st)}</select>
