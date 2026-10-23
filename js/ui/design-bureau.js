@@ -12,7 +12,7 @@ import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '..
 import { trackingTiers, designation } from '../rules/design.js';
 import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, costAfterEarmark } from '../rules/research.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds } from '../rules/knowledge.js';
-import { maturity, candidates, startLock, believedWindow, successfulFlights } from '../rules/programs.js';
+import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
 import { INVESTIGATION_COST, investigationTime } from '../rules/jobs.js';
 import { $, setHTML } from './dom.js';
@@ -121,8 +121,11 @@ function programmeCard() {
     + (found.length < bundle.traits.length ? '<div class="m">New rockets always hide flaws. Failures, investigations and design reviews bring them out.</div>' : '<div class="m ok">The engineers believe every flaw in the design is now known.</div>');
   const next = candidates();
   if (next.length) html += `<div class="t" style="margin-top:8px">NEXT PROGRAMMES</div>` + next.map(candidate => {
-    const proposed = PROGRAMMES[candidate], lock = startLock(candidate);
-    return `<div class="c"><div class="r"><b>${proposed.name}</b><span class="d">${proposed.year}</span></div><div class="m">${proposed.why}</div><button data-a="pstart" data-id="${candidate}"${lock ? ' disabled' : ''}>START THE ${proposed.name.toUpperCase()} PROGRAMME (${formatMoney(proposed.cost)}, ${proposed.designTime}s of design)</button>${lock ? `<div class="m">${lock}</div>` : ''}</div>`;
+    const proposed = PROGRAMMES[candidate], lock = startLock(candidate), skipped = isShortcut(candidate) && PROGRAMMES[proposed.skip.past].name;
+    const warning = skipped ? `<div class="m wn">Skips the ${skipped} generation: the ${skipped} closes for good, its research is folded into this rocket, the design takes longer, it hides more flaws and the team starts knowing little of it.</div>` : '';
+    const closes = (proposed.closes || []).filter(other => !S.progs[other]).map(other => PROGRAMMES[other].name);
+    const fork = !skipped && closes.length ? `<div class="m">Starting it closes the ${closes.join(' and ')}.</div>` : '';
+    return `<div class="c"><div class="r"><b>${proposed.name}</b><span class="d">${proposed.year}</span></div><div class="m">${proposed.why}</div>${warning}${fork}<button data-a="pstart" data-id="${candidate}"${lock ? ' disabled' : ''}>START THE ${proposed.name.toUpperCase()} PROGRAMME (${formatMoney(proposed.cost)}, ${designTimeFor(candidate)}s of design)</button>${lock ? `<div class="m">${lock}</div>` : ''}</div>`;
   }).join('');
   return html + '</div>';
 }

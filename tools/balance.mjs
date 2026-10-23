@@ -27,7 +27,7 @@ const researchList = () => [...['p', 's', 'i', 'a'].flatMap(itemsInArea), ...['m
   .sort((first, second) => first.cost - second.cost).map(item => item.id);
 // The newest ready rocket.
 const latestProgramme = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready).sort((first, second) => PROGRAMMES[second].generation - PROGRAMMES[first].generation)[0];
-// Army path: Redstone then Jupiter-C; navy path: Vanguard.
+// Army path: Redstone then Jupiter-C; navy path: Vanguard straight from Viking, skipping the Redstone generation.
 const offPath = (kind, army) => ((kind == 'redstone' || kind == 'jupc') && !army) || (kind == 'vanguard' && army);
 
 function run(seed) {

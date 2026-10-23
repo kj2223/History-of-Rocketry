@@ -13,11 +13,17 @@ export const VEHICLE_AREAS = ['p', 's', 'i', 'a'];
 // Each programme researches a slice of the package catalogue: later rockets get later work, scaled to their size.
 const PACKAGES_BY_AREA = {};
 for (const area of VEHICLE_AREAS) PACKAGES_BY_AREA[area] = PACKAGES.filter(item => item.area == area && !item.phase);
+// A programme that skipped a generation also takes on the slice of the rocket it skipped.
 export function programmePackages(kind, area) {
-  const programme = PROGRAMMES[kind], list = PACKAGES_BY_AREA[area] || [];
-  const count = Math.min(programme.packagesPerArea, list.length);
-  const start = Math.min(programme.generation * 2, Math.max(0, list.length - count));
-  return list.slice(start, start + count);
+  const list = PACKAGES_BY_AREA[area] || [];
+  const slice = programme => {
+    const count = Math.min(programme.packagesPerArea, list.length);
+    const start = Math.min(programme.generation * 2, Math.max(0, list.length - count));
+    return [start, start + count];
+  };
+  const [start, end] = slice(PROGRAMMES[kind]);
+  const bundle = S.progs[kind];
+  return list.slice(bundle && bundle.skip ? slice(PROGRAMMES[PROGRAMMES[kind].skip.past])[0] : start, end);
 }
 export const isInProgramme = (kind, id) => {
   const item = BY_ID[id];
@@ -34,15 +40,16 @@ export function scaledForProgramme(item, kind) {
 
 // A programme's true design, rolled when it starts: the nominal figures, a deviation inside the window, a bias in what the team
 // first believes, and its hidden flaws. T (the true design) keeps the short stat keys of data/programmes.js; it is saved.
-export function rollProgramme(kind) {
+// skipping: the programme is taking its shortcut past a generation (more flaws, worse reliability).
+export function rollProgramme(kind, skipping = false) {
   const programme = PROGRAMMES[kind], design = programme.design;
   const trueDesign = { c: design.c, i: design.i }, bias = {};
-  const traitCount = programme.traitRange[0] + Math.floor(Math.random() * (programme.traitRange[1] - programme.traitRange[0] + 1));
+  const traitCount = programme.traitRange[0] + Math.floor(Math.random() * (programme.traitRange[1] - programme.traitRange[0] + 1)) + (skipping ? programme.skip.extraTraits : 0);
   // Satellite launchers are rolled within a narrower spread: their flaws are in reliability, not in whether orbit is possible at all.
   const spread = programme.canOrbit ? .45 : 1;
   for (const { key, startWidth } of DESIGN_STATS) {
     const deviation = Math.max(-1, Math.min(1, gaussian() * .45));
-    trueDesign[key] = key == 'r' ? design.r + deviation * startWidth : design[key] * (1 + deviation * startWidth * spread);
+    trueDesign[key] = key == 'r' ? design.r + (skipping ? programme.skip.r : 0) + deviation * startWidth : design[key] * (1 + deviation * startWidth * spread);
     bias[key] = Math.max(-1.5, Math.min(1.5, gaussian()));
   }
   const pool = TRAITS.filter(trait => !trait.stagedOnly || programme.booster), traits = [];
@@ -56,14 +63,16 @@ export function rollProgramme(kind) {
 
 // Start a programme: a fresh bundle, the rolled design, and a head start in knowledge from the rockets already flown
 // (a share of the best team's knowledge, or a larger share of the rocket it is derived from: HEAD_START in data/programmes.js).
-export function createProgramme(kind) {
-  const programme = PROGRAMMES[kind], bundle = newBundle(), rolled = rollProgramme(kind);
+// A programme taking its shortcut past a generation is saved with skip: 1 and keeps much less of that knowledge.
+export function createProgramme(kind, skipping = false) {
+  const programme = PROGRAMMES[kind], bundle = newBundle(), rolled = rollProgramme(kind, skipping);
   Object.assign(bundle, { kind, start: Math.round(S.day), ...rolled, ready: programme.designTime ? 0 : 1 });
+  if (skipping) bundle.skip = 1;
   const earlier = Object.values(S.progs);
   for (const area of VEHICLE_AREAS) {
     const best = Math.max(0, ...earlier.map(other => other.kn[area] || 0));
     const parent = programme.derivedFrom && S.progs[programme.derivedFrom] ? S.progs[programme.derivedFrom].kn[area] || 0 : 0;
-    bundle.kn[area] = Math.max(best * HEAD_START.best, parent * HEAD_START.parent);
+    bundle.kn[area] = Math.max(best * (skipping ? programme.skip.headStart : HEAD_START.best), parent * HEAD_START.parent);
   }
   S.progs[kind] = bundle;
   return bundle;
@@ -84,28 +93,40 @@ export const isMature = kind => {
   const bundle = S.progs[kind];
   return !!bundle && (!!bundle.matured || (!!bundle.ready && maturity(kind) >= MATURE && successfulFlights(kind) >= FLIGHTS_TO_MATURE));
 };
-// Why a programme cannot be started yet, or null if it can: all prerequisites (or any one) mature, NASA where needed, the money.
+// The programme already started that closed this one (the other branch of a fork), or undefined.
+export const closedBy = kind => Object.keys(S.progs).find(other => other != kind && (PROGRAMMES[other].closes || []).includes(kind));
+const requirementsMet = programme => programme.anyRequirement ? programme.requires.some(isMature) : programme.requires.every(isMature);
+// Starting this programme now would take its shortcut: the generation it skips has not been started.
+export const isShortcut = kind => !!PROGRAMMES[kind].skip && !S.progs[PROGRAMMES[kind].skip.past];
+export const designTimeFor = kind => Math.round(PROGRAMMES[kind].designTime * (isShortcut(kind) ? PROGRAMMES[kind].skip.designTime : 1));
+// Why a programme cannot be started yet, or null if it can: not closed by the other branch, all prerequisites (or any one)
+// mature or its shortcut open, NASA where needed, the money.
 export function startLock(kind) {
   const programme = PROGRAMMES[kind];
   if (S.progs[kind]) return 'Already started.';
+  const closer = closedBy(kind);
+  if (closer) return `Closed: the ${PROGRAMMES[closer].name} programme took the other route.`;
   if (programme.needsNasa && !S.nasa) return 'Needs NASA.';
-  const met = programme.anyRequirement ? programme.requires.some(isMature) : programme.requires.every(isMature);
-  if (!met) return `Needs ${programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ')} to mature (knowledge ${MATURE} and ${FLIGHTS_TO_MATURE} successful flights).`;
+  const met = requirementsMet(programme) || isShortcut(kind) && isMature(programme.skip.from);
+  const needs = programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ');
+  if (!met) return `Needs ${isShortcut(kind) ? `${PROGRAMMES[programme.skip.from].name} (to skip straight to it) or ${needs}` : needs} to mature (knowledge ${MATURE} and ${FLIGHTS_TO_MATURE} successful flights).`;
   if (S.b < programme.cost) return `Need ${formatMoney(programme.cost - S.b)} more.`;
   return null;
 }
-// Programmes worth showing as next: not started, and their prerequisites at least started.
+// Programmes worth showing as next: not started, not closed, and their prerequisites (or the start of a shortcut) at least started.
 export const candidates = () => PROGRAMME_ORDER.filter(kind => {
   const programme = PROGRAMMES[kind];
-  return !S.progs[kind] && programme.requires && (programme.anyRequirement ? programme.requires.some(required => S.progs[required]) : programme.requires.every(required => S.progs[required]));
+  if (S.progs[kind] || !programme.requires || closedBy(kind)) return false;
+  return isShortcut(kind) && S.progs[programme.skip.from] || (programme.anyRequirement ? programme.requires.some(required => S.progs[required]) : programme.requires.every(required => S.progs[required]));
 });
 export function startProgramme(kind) {
   if (startLock(kind)) return false;
-  const programme = PROGRAMMES[kind];
+  const programme = PROGRAMMES[kind], skipping = isShortcut(kind), designTime = designTimeFor(kind);
   S.b -= programme.cost;
-  createProgramme(kind);
-  S.jobs.push({ k: 'dev', prog: kind, id: kind, t: programme.designTime, tot: programme.designTime, free: 1 });
-  log(`[PROGRAMME] ${programme.name} programme approved (${formatMoney(programme.cost)}). Engineers begin the detailed design; the first drawings are ready in about ${programme.designTime}s.`, 'hd');
+  createProgramme(kind, skipping);
+  S.jobs.push({ k: 'dev', prog: kind, id: kind, t: designTime, tot: designTime, free: 1 });
+  log(`[PROGRAMME] ${programme.name} programme approved (${formatMoney(programme.cost)}). Engineers begin the detailed design; the first drawings are ready in about ${designTime}s.`, 'hd');
+  if (skipping) log(`[PROGRAMME] ${programme.name} skips the ${PROGRAMMES[programme.skip.past].name} generation: the ${PROGRAMMES[programme.skip.past].name} programme is closed, its research is folded into the ${programme.name}, and the team starts with little it already knows.`, 'wn');
   if (programme.igyFunding) {
     S.b += programme.igyFunding;
     log(`[CONGRESS] ${programme.name} is named the American satellite for the International Geophysical Year. A dedicated appropriation of ${formatMoney(programme.igyFunding)} comes with it.`, 'hd');
