@@ -7,7 +7,7 @@ import { BY_ID } from '../js/data/research.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
-import { createProgramme, isMature, startLock } from '../js/rules/programs.js';
+import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe } from '../js/rules/production.js';
 import { previewFlight, beginFlight, step } from '../js/rules/flight.js';
@@ -136,6 +136,41 @@ test('a new programme starts well short of maturity, however well the last rocke
   for (const area of ['p', 's', 'i', 'a']) S.progs.aerobee.kn[area] = 100;
   createProgramme('viking');
   for (const area of ['p', 's', 'i', 'a']) assert.ok(S.progs.viking.kn[area] < 35, `${area} starts at ${S.progs.viking.kn[area]}`);
+});
+
+// A programme marked mature without flying it.
+const matureProgramme = kind => {
+  readyProgramme(kind);
+  S.progs[kind].matured = 1;
+};
+
+test('Vanguard straight from Viking skips Redstone: Redstone closes and Vanguard pays for it', () => {
+  matureProgramme('viking');
+  for (const area of ['p', 's', 'i', 'a']) S.progs.viking.kn[area] = 100;
+  S.b = 1000000;
+  assert.deepEqual(candidates().filter(kind => kind != 'aerobee'), ['redstone', 'vanguard']);
+  assert.equal(startProgramme('vanguard'), true);
+  assert.equal(S.progs.vanguard.skip, 1);
+  assert.match(startLock('redstone'), /Closed/);
+  assert.ok(!candidates().includes('redstone'));
+  assert.equal(S.jobs.find(job => job.k == 'dev').tot, 96, 'a longer design phase');
+  assert.equal(S.progs.vanguard.traits.length, 4, 'one more hidden flaw');
+  for (const area of ['p', 's', 'i', 'a']) {
+    assert.ok(S.progs.vanguard.kn[area] <= 10, `${area} starts at ${S.progs.vanguard.kn[area]}`);
+    const redstoneWork = programmePackages('redstone', area).map(item => item.id), vanguardWork = programmePackages('vanguard', area).map(item => item.id);
+    assert.ok(redstoneWork.every(id => vanguardWork.includes(id)), 'Redstone research is folded into Vanguard');
+  }
+});
+
+test('after Redstone, Vanguard and Jupiter-C are a choice: starting one closes the other', () => {
+  matureProgramme('viking');
+  matureProgramme('redstone');
+  S.b = 1000000;
+  assert.deepEqual(candidates().filter(kind => kind != 'aerobee'), ['vanguard', 'jupc']);
+  assert.equal(startProgramme('vanguard'), true);
+  assert.equal(S.progs.vanguard.skip, undefined, 'no shortcut penalty on the full route');
+  assert.equal(S.jobs.find(job => job.k == 'dev').tot, 60);
+  assert.match(startLock('jupc'), /Closed/);
 });
 
 test('the launch director can be hired only after three successful Aerobee flights', () => {

@@ -4,6 +4,10 @@
 // Each programme:
 //   name, year (first flight), generation (its rung on the ladder; later rockets get later research)
 //   requires: programmes that must reach maturity first (all of them, or any one with anyRequirement)
+//   closes: programmes that can no longer be started once this one is (the other branch of a fork)
+//   skip: a shortcut past a generation: start from mature `from` without `past` (which it closes), at a price. The work on `past`
+//     is folded into this rocket's research; designTime is multiplied, it hides extraTraits more flaws, r is added to its
+//     reliability, and its team keeps only headStart (instead of HEAD_START.best) of the best earlier knowledge
 //   derivedFrom: the programme it grows out of (it inherits more of that team's knowledge), needsNasa: opens only with NASA
 //   design: the nominal bare rocket. The true figures are rolled inside a window when the programme starts (rules/programs.js).
 //     dry mass (kg), f propellant capacity (kg of alcohol-equivalent), thr thrust (N), g structural g-limit,
@@ -45,14 +49,15 @@ export const PROGRAMMES = {
     why: 'A heavy, conservative Army ballistic missile. Short ranged but dependable: the kind of rocket you would trust with a man.',
   },
   vanguard: {
-    name: 'Vanguard', year: 1955, generation: 4, requires: ['viking'],
+    name: 'Vanguard', year: 1955, generation: 4, requires: ['redstone'], closes: ['redstone', 'jupc'],
+    skip: { from: 'viking', past: 'redstone', designTime: 1.6, extraTraits: 1, r: -.03, headStart: .1 },
     design: { dry: 110, f: 165, thr: 9000, g: 8, h: 1.8, q: 1.6, c: .85, r: -.04, i: 1.8 },
     cost: 110000, designTime: 60, unitCost: 30000, unitTime: 34, sizeScale: 3, costScale: 2.4, timeScale: .9, packagesPerArea: 6, learningRate: 4, traitRange: [3, 3],
     propellants: ['Kerosene & LOX', 'Alcohol & LOX'], hasMilestones: 1, canOrbit: 1, igyFunding: 100000, booster: { dry: 1000, fuel: 9000, thr: 170000, isp: 265 },
     why: 'An all-new three-stage satellite launcher from the Navy\'s Viking team. Light and efficient on paper, but every stage is new.',
   },
   jupc: {
-    name: 'Jupiter-C', year: 1956, generation: 4, requires: ['redstone'], derivedFrom: 'redstone',
+    name: 'Jupiter-C', year: 1956, generation: 4, requires: ['redstone'], derivedFrom: 'redstone', closes: ['vanguard'],
     design: { dry: 90, f: 270, thr: 10500, g: 10.5, h: 1.8, q: 1.7, c: .85, r: -.01, i: 1.6 },
     cost: 90000, designTime: 50, unitCost: 28000, unitTime: 32, sizeScale: 3, costScale: 2.2, timeScale: .9, packagesPerArea: 5, learningRate: 4, traitRange: [2, 2],
     propellants: ['Alcohol & LOX'], hasMilestones: 1, canOrbit: 1, booster: { dry: 1100, fuel: 10500, thr: 200000, isp: 262 },
