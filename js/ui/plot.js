@@ -62,9 +62,13 @@ export function renderPlot() {
   if (!plotted) svg += trace.map((metres, index) => index % 4 ? '' : `<circle cx="${xOf(index)}" cy="${y(metres)}" r="3" class="dot"/>`).join('');
   // The flight's milestones, marked on the track where they happened (liftoff is left off: it is the origin).
   const events = range ? (flight ? flight.events : launchView.lastEvents || []) : [];
+  // A label too close to the last one drawn is left off (on a long flight the early milestones bunch up near the pad).
+  let lastLabel = null;
   if (plotted && trace.length) svg += events.filter(event => event.key != 'liftoff').map(event => {
     const x = LEFT + event.downrange / span * plotWidth, height = y(event.altitude);
-    return `<circle cx="${x.toFixed(1)}" cy="${height.toFixed(1)}" r="3" class="mark"/><text x="${(x + 6).toFixed(1)}" y="${(height + 12).toFixed(1)}" class="mark-t">${event.label}</text>`;
+    const crowded = lastLabel && Math.hypot(x - lastLabel.x, height - lastLabel.y) < 40;
+    if (!crowded) lastLabel = { x, y: height };
+    return `<circle cx="${x.toFixed(1)}" cy="${height.toFixed(1)}" r="3" class="mark"/>` + (crowded ? '' : `<text x="${(x + 6).toFixed(1)}" y="${(height + 12).toFixed(1)}" class="mark-t">${event.label}</text>`);
   }).join('');
   if (trace.length) {
     const last = trace.length - 1, metres = trace[last], reading = flight && flight.lastReadings.alt;

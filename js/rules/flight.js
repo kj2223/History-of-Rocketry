@@ -405,7 +405,7 @@ export function step(flight) {
   Object.assign(flight, { aeroLoad, heating, angleOfAttack, chamberShare: shareSum / SUBSTEPS, thrustShare: meanThrust / stage.thrust, gLoad: thrust / mass / GRAVITY, mach: speed / speedOfSound(flight.altitude) });
   // Max Q: the peak aero load on the way up, marked where it happened once the load has clearly fallen away.
   if (flight.verticalSpeed > 0 && aeroLoad > (flight.qTop ? flight.qTop.load : 0)) flight.qTop = { load: aeroLoad, time: flight.time, altitude: flight.altitude, downrange: flight.downrange };
-  if (flight.qTop && flight.qTop.load > .02 && aeroLoad < flight.qTop.load * .8) markEvent(flight, 'maxq', flight.qTop);
+  if (flight.qTop && flight.qTop.load > .02 && aeroLoad < flight.qTop.load * .9) markEvent(flight, 'maxq', flight.qTop);
   if (flight.time > 5 && flight.verticalSpeed <= 0) markEvent(flight, 'apogee');
   // Overheating deforms the skin; it slowly recovers when the heating eases.
   if (powered) {
