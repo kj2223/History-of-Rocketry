@@ -275,6 +275,33 @@ test('a station calls the flight only when it is staffed, and only the parts it 
   logSink.fn = null;
 });
 
+test('on a planned flight FIDO and RSO call the track against the plan, and REC waits on station at the planned impact', async () => {
+  const { crewCallouts } = await import('../js/rules/callouts.js');
+  const { onPlannedStation, recoveryPlan } = await import('../js/rules/recovery.js');
+  const { logSink } = await import('../js/core/state.js');
+  const heard = [];
+  logSink.fn = text => heard.push(text);
+  const airframe = readyProgramme('aerobee'), plan = { elevation: 85, program: 'standard' };
+  S.b = 1e6;
+  Object.assign(S.crew, { fido: 1, rso: 1, rec: 1 });
+  const flight = beginFlight(airframe, 'Alcohol & LOX', 'Sensor Suite', 0, 1, { plan });
+  flight.prediction = withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Sensor Suite', 0, 1, 0, plan));
+  flight.noFail = true;
+  while (step(flight) == 'tick') crewCallouts(flight);
+  assert.ok(heard.some(line => /\[REC\] Recovery force on station at \d+ kilometres/.test(line)));
+  assert.ok(heard.some(line => /\[FIDO\] Trajectory (nominal|high|low|long|short)/.test(line)), 'FIDO calls the track against the plan at cutoff');
+  assert.ok(heard.some(line => /\[FIDO\] Apogee, .* Plan was/.test(line)));
+  assert.ok(heard.some(line => /\[RSO\] Impact predicted .* Plan was/.test(line)));
+  // The search: easier inside the planned footprint, no help far outside it.
+  const planned = flight.prediction.downrange;
+  assert.ok(onPlannedStation(flight, planned) && !onPlannedStation(flight, planned + 50000));
+  const withChute = { ...flight, airframe: { ...flight.airframe, pk: [...flight.airframe.pk, 'chute'] } };
+  const searchAt = downrange => recoveryPlan({ ...withChute, downrange }).search;
+  assert.ok(searchAt(planned) > searchAt(planned + 50000));
+  assert.ok(!onPlannedStation({ ...flight, plan: null }, planned), 'no plan, nobody on station');
+  logSink.fn = null;
+});
+
 test('an engine failure shows on chamber pressure for a few seconds first, and aborting in time still opens the incident', async () => {
   const { partReading } = await import('../js/rules/telemetry.js');
   const { endFlight } = await import('../js/rules/flight.js');

@@ -277,7 +277,7 @@ function launchFlight(override) {
   const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
   if (!flight) return;
-  launchView.planned = planned;
+  launchView.planned = flight.prediction = planned;
   flight.watch = watchedChannels(airframe, form.ch);
   flight.bubbles = { tc: { t: 'LIFTOFF', c: 'go' } };
   flight.warningTicks = 0;
