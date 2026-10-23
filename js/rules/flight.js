@@ -5,7 +5,8 @@
 //   stages: [booster, core] or [core]; each { isBooster, dry, fuel, thrust (rated at sea level, N), isp and vacuumIsp (s), flow (kg/s),
 //           residual (kg never burned), litAt (ignition time, s), out (burned out) }. stageIndex: the stage burning now.
 //   cutoffs: each stage's cutoff time (s), by index; events: what happened when and where ({ key, label, time, altitude, downrange })
-//   chamberShare, thrustShare, gLoad, mach, aeroLoad, heating: this second's figures; liftoffTime: when it left the pad
+//   chamberShare, thrustShare, gLoad, mach, angleOfAttack (radians off the flight path), aeroLoad, heating: this second's figures;
+//   liftoffTime: when it left the pad
 //   time (s), altitude (m), verticalSpeed, horizontalSpeed (m/s), downrange (m), peakAltitude, peakSpeed, peakHorizontalSpeed
 //   latent: a fault the poll missed (a failure-mode key), wind (0 to 2), overNoGo: launched over a NO-GO call
 //   plan: the trajectory panel's { elevation (degrees), program (a PITCH_PROGRAMS key), aim (the upper stage's degrees above the
@@ -38,7 +39,11 @@ export const airborne = { flight: null, mission: null };
 const GRAVITY = 9.81, EARTH_RADIUS = 6371e3, SEA_LEVEL_DENSITY = 1.225, SCALE_HEIGHT = 8500;
 const ORBIT_ALTITUDE = 120000, ORBIT_SPEED = 7000; // horizontal speed above 120 km that counts as orbit
 const LATENT_FAULT_CHANCE = .09; // chance per second that a latent fault strikes while its window is open
-const DEFAULT_LEAN = .15; // radians off vertical the rail leans a rocket flown without a plan
+// Radians off vertical the rail leans a rocket flown without a plan: an unguided rocket flies its gravity turn from the tower's
+// angle, so its towers stood near vertical (about 87 degrees up); a guided rocket leans about 81 degrees and its program does the rest.
+const defaultLean = tier => tier ? .15 : .05;
+// The same, as the trajectory panel shows it: degrees above the horizon, to the nearest degree.
+export const defaultElevation = tier => Math.round(90 - defaultLean(tier) * 180 / Math.PI);
 // The upper stage fires this far off vertical (radians): closer to horizontal with better guidance (instrument tier).
 const guidedPitch = tier => Math.min(1.5708, 1.35 + .08 * tier);
 // The flattest upper stage aim the guidance can hold, in whole degrees above the horizon: a plan may aim higher, never lower.
@@ -253,6 +258,14 @@ const SUBSTEPS = 10, DT = 1 / SUBSTEPS; // the physics runs in tenths of a secon
 const IGNITION_SECONDS = 1.5, TAIL_OFF_SECONDS = 2, ENGINE_OUT_SHARE = .05;
 const ROUGHNESS = .1; // the chamber wobbles by this share of the engine's unreliability each second (a 90% engine: about 1%)
 const PRESSURE_SCALE_HEIGHT = 7400; // metres: the air pressure falls by a factor of e every 7.4 km
+// THE GRAVITY TURN. Below CLEAR_SPEED (m/s) the rocket rides the launcher's angle. Above it, fins hold it to its flight path and
+// gravity bends that path over: a gravity turn. An unguided rocket (instrument tier 0) is steered only by the launcher's angle.
+// A guided rocket steers toward its pitch program, but the autopilot spares the structure: the angle it may point off its flight
+// path times the dynamic pressure (as a share of the airframe's limit) stays inside steeringBudget (radians; more with better
+// guidance). So it hardly steers through max Q and steers freely in thin air. Every degree off the path adds AOA_LOAD to the
+// aero load (shares of itself), so a hard turn low down costs loads.
+const CLEAR_SPEED = 30, AOA_LOAD = .03;
+const steeringBudget = tier => tier ? (1 + .5 * tier) * Math.PI / 180 : 0;
 // Seconds from booster cutoff to separation, and from separation to the upper stage lighting (the stack coasts in between).
 const SEPARATION_DELAY = 1, UPPER_IGNITION_DELAY = 1.5;
 // Seconds of burn left at full flow in a stage's usable propellant.
@@ -323,9 +336,9 @@ export function step(flight) {
   // closer to horizontal. The plan sets the launcher's lean, the pitch program and the upper stage's aim; without one the rocket
   // flies the default lean, the standard program and the guidance's aim.
   const staged = flight.stages.length > 1, plan = flight.plan, program = PITCH_PROGRAMS[plan ? plan.program : 'standard'];
-  const lean = plan ? (90 - plan.elevation) * Math.PI / 180 : DEFAULT_LEAN;
+  const lean = plan ? (90 - plan.elevation) * Math.PI / 180 : defaultLean(flight.tracking.v);
   const rough = flight.noFail ? 1 : 1 + ROUGHNESS * (1 - flight.reliability) * gaussian();
-  let shareSum = 0, thrustSum = 0, thrust = 0, mass = stackMass(flight), landed = false;
+  let shareSum = 0, thrustSum = 0, thrust = 0, mass = stackMass(flight), landed = false, angleOfAttack = 0;
   for (let sub = 1; sub <= SUBSTEPS; sub++) {
     const at = flight.time - 1 + sub * DT, share = engineShare(stage, at) * rough;
     mass = stackMass(flight);
@@ -340,11 +353,22 @@ export function step(flight) {
       if (at - stage.litAt > IGNITION_SECONDS && engineShare(stage, at) < ENGINE_OUT_SHARE) engineOut(flight, stage);
     }
     const radius = EARTH_RADIUS + flight.altitude, density = SEA_LEVEL_DENSITY * Math.exp(-Math.max(0, flight.altitude) / SCALE_HEIGHT);
-    const pitch = staged && flight.stageIndex > 0
-      ? Math.min(guidedPitch(flight.tracking.v), plan && plan.aim != null ? (90 - plan.aim) * Math.PI / 180 : Infinity)
-      : Math.max(at > 2 ? lean : 0, Math.min(.97, Math.max(0, (flight.altitude - program.start) / (staged ? program.span - 3500 * flight.tracking.v : program.span))) * 1.5);
-    // Drag acts against the direction of flight, rising through the sound barrier.
+    // Where the rocket points (radians off vertical). The upper stage holds its guided aim. Below it, the rocket rides the launcher's
+    // angle until it has speed, then flies a gravity turn: it points along its own flight path and gravity bends that path over,
+    // while the guidance steers toward the pitch program as far as it can (steeringLimit). Steering off the path costs aero load.
     const speed = Math.hypot(flight.verticalSpeed, flight.horizontalSpeed), mach = speed / speedOfSound(flight.altitude);
+    const flightPath = Math.atan2(flight.horizontalSpeed, flight.verticalSpeed);
+    let pitch;
+    if (staged && flight.stageIndex > 0) pitch = Math.min(guidedPitch(flight.tracking.v), plan && plan.aim != null ? (90 - plan.aim) * Math.PI / 180 : Infinity);
+    else if (speed < CLEAR_SPEED) pitch = lean;
+    else {
+      const programmed = Math.max(lean, Math.min(.97, Math.max(0, (flight.altitude - program.start) / (staged ? program.span - 3500 * flight.tracking.v : program.span))) * 1.5);
+      const pressureShare = .5 * density * speed * speed / (flight.gLimit * 40000 * flight.aeroLimitScale); // dynamic pressure, share of the limit
+      const limit = Math.min(Math.PI / 2, steeringBudget(flight.tracking.v) / Math.max(1e-3, pressureShare));
+      pitch = flightPath + Math.max(-limit, Math.min(limit, programmed - flightPath));
+    }
+    angleOfAttack = speed < CLEAR_SPEED ? 0 : Math.abs(pitch - flightPath);
+    // Drag acts against the direction of flight, rising through the sound barrier.
     const drag = speed > 0 ? .5 * density * flight.dragArea * (stage.isBooster ? 1.8 : 1) * dragRise(mach) * speed / mass : 0; // per m/s of speed
     const verticalAcceleration = thrust / mass * Math.cos(pitch) - GRAVITY * Math.pow(EARTH_RADIUS / radius, 2) + flight.horizontalSpeed * flight.horizontalSpeed / radius - drag * flight.verticalSpeed;
     const horizontalAcceleration = thrust / mass * Math.sin(pitch) - flight.verticalSpeed * flight.horizontalSpeed / radius - drag * flight.horizontalSpeed;
@@ -374,10 +398,11 @@ export function step(flight) {
   //   thin air), gLoad: the acceleration the thrust gives (g), mach.
   // Aerodynamic load and heating, as shares of what the airframe can take.
   const airDensity = SEA_LEVEL_DENSITY * Math.exp(-Math.max(0, flight.altitude) / SCALE_HEIGHT), speed = Math.hypot(flight.verticalSpeed, flight.horizontalSpeed);
-  const aeroLoad = .5 * airDensity * speed * speed / (flight.gLimit * 40000 * flight.aeroLimitScale) * (1 + .3 * flight.wind);
+  const steering = 1 + AOA_LOAD * angleOfAttack * 180 / Math.PI; // pointing off the flight path loads the airframe sideways
+  const aeroLoad = .5 * airDensity * speed * speed / (flight.gLimit * 40000 * flight.aeroLimitScale) * (1 + .3 * flight.wind) * steering;
   const heating = Math.sqrt(airDensity / SEA_LEVEL_DENSITY) * Math.pow(speed / 1e3, 3) / flight.heatLimit;
   const meanThrust = thrustSum / SUBSTEPS;
-  Object.assign(flight, { aeroLoad, heating, chamberShare: shareSum / SUBSTEPS, thrustShare: meanThrust / stage.thrust, gLoad: thrust / mass / GRAVITY, mach: speed / speedOfSound(flight.altitude) });
+  Object.assign(flight, { aeroLoad, heating, angleOfAttack, chamberShare: shareSum / SUBSTEPS, thrustShare: meanThrust / stage.thrust, gLoad: thrust / mass / GRAVITY, mach: speed / speedOfSound(flight.altitude) });
   // Max Q: the peak aero load on the way up, marked where it happened once the load has clearly fallen away.
   if (flight.verticalSpeed > 0 && aeroLoad > (flight.qTop ? flight.qTop.load : 0)) flight.qTop = { load: aeroLoad, time: flight.time, altitude: flight.altitude, downrange: flight.downrange };
   if (flight.qTop && flight.qTop.load > .02 && aeroLoad < flight.qTop.load * .8) markEvent(flight, 'maxq', flight.qTop);
