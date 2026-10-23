@@ -332,7 +332,7 @@ function flightTick() {
     }
     return;
   }
-  phase.textContent = isPowered(flight) ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
+  phase.textContent = hasEvent(flight, 'boco') && !hasEvent(flight, 'ign2') ? 'STAGING' : isPowered(flight) ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
   // While a failure shows its warning on a watched channel, the flight runs in real time (one second every fourth tick), so there is time to abort.
   const warning = flight.pending && (flight.watch || []).some(id => warningLevel(flight, id) > 0);
   if (warning && ++flight.warningTicks % 4) return drawFlightInstruments(flight);
@@ -340,7 +340,8 @@ function flightTick() {
   for (let n = 0; n < steps; n++) {
     const result = step(flight);
     if (result == 'sep') {
-      logSink.fn(flight.tracking.v >= 1 ? `T+${flight.time}s | [TLM] Booster separation confirmed.` : `T+${flight.time}s | [RANGE] Staging commanded. Separation not confirmed.`, 'ok');
+      // With a Structures & Booster Engineer on the loop, BSTR calls the separation (rules/callouts.js).
+      if (!S.crew.bstr) logSink.fn(flight.tracking.v >= 1 ? `T+${flight.time}s | [TLM] Booster separation confirmed.` : `T+${flight.time}s | [RANGE] Staging commanded. Separation not confirmed.`, 'ok');
       continue;
     }
     if (result == 'fail') return finishFlight(0, 'fail');

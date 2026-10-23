@@ -180,7 +180,8 @@ export function previewFlight(airframe, propellantName, payloadName, stage, load
     result = step(flight);
     path.altitude.push(Math.max(0, flight.altitude));
     path.downrange.push(flight.downrange);
-    burnoutG = Math.max(burnoutG, flight.gLoad); // the hardest push comes just before cutoff, with the tanks nearly dry and the air thin
+    // The last stage's hardest push, just before its cutoff with the tanks nearly dry and the air thin.
+    if (flight.stageIndex == flight.stages.length - 1) burnoutG = Math.max(burnoutG, flight.gLoad);
   } while (result == 'tick' || result == 'sep');
   const tiers = trackingTiers();
   return {
@@ -250,6 +251,8 @@ const SUBSTEPS = 10, DT = 1 / SUBSTEPS; // the physics runs in tenths of a secon
 const IGNITION_SECONDS = 1.5, TAIL_OFF_SECONDS = 2, ENGINE_OUT_SHARE = .05;
 const ROUGHNESS = .1; // the chamber wobbles by this share of the engine's unreliability each second (a 90% engine: about 1%)
 const PRESSURE_SCALE_HEIGHT = 7400; // metres: the air pressure falls by a factor of e every 7.4 km
+// Seconds from booster cutoff to separation, and from separation to the upper stage lighting (the stack coasts in between).
+const SEPARATION_DELAY = 1, UPPER_IGNITION_DELAY = 1.5;
 // Seconds of burn left at full flow in a stage's usable propellant.
 export const burnSeconds = stage => Math.max(0, stage.fuel - stage.residual) / stage.flow;
 // Whether the stage burning now has its engine running.
@@ -302,13 +305,15 @@ function engineOut(flight, stage) {
 // ONE SECOND OF FLIGHT. Returns 'tick', 'sep' (a booster stage separated), 'fail', 'orbit' or 'land'.
 export function step(flight) {
   flight.time++;
-  let stage = flight.stages[flight.stageIndex];
-  if (stage.isBooster && stage.out) {
+  let stage = flight.stages[flight.stageIndex], separated = false;
+  // STAGING: the booster burns out and tails off; a second later it separates, and after a short coast the upper stage lights.
+  if (stage.isBooster && stage.out && flight.time >= flight.cutoffs[flight.stageIndex] + SEPARATION_DELAY) {
     flight.stageIndex++;
     flight.separationTime = flight.time;
-    flight.stages[flight.stageIndex].litAt = flight.time;
+    stage = flight.stages[flight.stageIndex];
+    stage.litAt = flight.time - 1 + UPPER_IGNITION_DELAY;
     markEvent(flight, 'sep');
-    return 'sep';
+    separated = true;
   }
 
   // THE TRAJECTORY, a tenth of a second at a time. On a staged flight the booster lofts the stack and the upper stage fires toward
@@ -392,18 +397,20 @@ export function step(flight) {
     flight.failure = flight.pending.mode;
     return 'fail';
   }
-  // A latent fault strikes only in its window: ignition (i), just after separation (x), through the dense air (h, f), or any time after T+3.
+  // Seconds since the upper stage lit (null before it has): staging failures strike as it lights.
+  const sinceStaging = flight.stageIndex > 0 && stage.litAt < flight.time ? flight.time - stage.litAt : null;
+  // A latent fault strikes only in its window: ignition (i), just after staging (x), through the dense air (h, f), or any time after T+3.
   if (powered && !flight.noFail && flight.latent && !flight.pending) {
     const mode = flight.latent;
     const inWindow = mode == 'i' ? flight.time <= 3
-      : mode == 'x' ? !!(flight.separationTime && flight.time - flight.separationTime <= 3)
+      : mode == 'x' ? sinceStaging != null && sinceStaging <= 3
       : (mode == 'h' || mode == 'f') ? (aeroLoad > .25 || heating > .25 || (flight.time > 8 && flight.time < 25))
       : flight.time > 3;
     if (inWindow && Math.random() < LATENT_FAULT_CHANCE && strike(flight, mode)) return 'fail';
   }
   // THE FAILURE MODEL: a chance of failing this second, then which mode, weighted by what the vehicle is going through.
   if (powered && !flight.noFail && !flight.pending) {
-    const justSeparated = flight.separationTime && flight.time - flight.separationTime <= 2;
+    const justSeparated = sinceStaging != null && sinceStaging <= 2;
     const spike = (flight.time <= 3 ? .012 : 0) + (justSeparated ? .04 : 0); // ignition and staging are risky moments
     const stress = Math.max(0, flight.gLoad / (flight.gLimit * (1 - .35 * Math.min(1, flight.deformation))) - .85) + Math.max(0, aeroLoad - .8) * .5;
     const unreliability = 1 - flight.reliability;
@@ -435,10 +442,10 @@ export function step(flight) {
   }
 
   if (flight.altitude >= ORBIT_ALTITUDE && flight.horizontalSpeed >= ORBIT_SPEED && flight.satellite) return 'orbit';
-  flight.coasting = !powered && flight.altitude > 90000;
+  flight.coasting = !powered && flight.altitude > 90000 && !(stage.litAt > flight.time); // not while an upper stage is about to light
   if ((landed || flight.altitude <= 0) && flight.time > 2 && (flight.liftoffTime || flight.time > 6)) return 'land';
   if (flight.time > 5000) return 'land';
-  return 'tick';
+  return separated ? 'sep' : 'tick';
 }
 
 // SCIENCE pays on landing (if recovered, or the telemetered share) or in orbit. Animal payloads make headlines either way.
