@@ -5,12 +5,13 @@
 //   stages: [booster, core] or [core]; each { isBooster, dry, fuel, thrust, isp }. stageIndex: the stage burning now.
 //   time (s), altitude (m), verticalSpeed, horizontalSpeed (m/s), downrange (m), peakAltitude, peakSpeed, peakHorizontalSpeed
 //   latent: a fault the poll missed (a failure-mode key), wind (0 to 2), overNoGo: launched over a NO-GO call
+//   plan: the trajectory panel's { elevation (degrees), program (a PITCH_PROGRAMS key) }, or null to fly the default
 //   reliability, gLimit, aeroLimitScale, heatLimit, dragArea, deformation (heat damage), maxQ and maxHeat (shares of their limits)
 //   modeMultipliers: each failure mode's weight on this airframe (fixes lower it, traits raise it)
 //   tracking: { v: instrument tier, g: ground tracking tier }; lastReadings and lostChannels for the instruments; trace, rangeTrace: altitudes and downrange distances for the plot
 //   failure: the mode that struck, if any; pending: a failure showing its warning signs, { mode, from, at } (seconds)
 import { formatMoney, gaussian } from '../core/util.js';
-import { PROPELLANTS, PAYLOADS } from '../data/launch.js';
+import { PROPELLANTS, PAYLOADS, PITCH_PROGRAMS } from '../data/launch.js';
 import { DIRECTIVES, DIRECTIVE_NEWS } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES, SYMPTOMS, visibleSymptoms, findFix } from '../data/failures.js';
@@ -33,6 +34,7 @@ export const airborne = { flight: null, mission: null };
 const GRAVITY = 9.81, EARTH_RADIUS = 6371e3, SEA_LEVEL_DENSITY = 1.225, SCALE_HEIGHT = 8500;
 const ORBIT_ALTITUDE = 120000, ORBIT_SPEED = 7000; // horizontal speed above 120 km that counts as orbit
 const LATENT_FAULT_CHANCE = .09; // chance per second that a latent fault strikes while its window is open
+const DEFAULT_LEAN = .15; // radians off vertical the rail leans a rocket flown without a plan, from T+2
 
 // INCIDENTS: a failure opens one (or adds evidence to one already open). Incidents are saved:
 //   { id, mode, sym: symptoms seen, cand: modes that fit them, ev: failures on file, st: open | inv | diag | fixing | done,
@@ -115,7 +117,7 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   const unproven = airframe.pk.filter(id => !isConfirmed(id)).length;
   const reliability = Math.min(.99, propellant.reliability + Math.min(.15, (S.fr[propellantName] || 0) * .015) + spec.r - Math.min(.08, unproven * .012) + .07 * maturity(programmeKey) / 100);
   return {
-    airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over,
+    airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over, plan: options.plan || null,
     propellant: propellantName, payload: payloadName, satellite: !!payload.satellite, payloadMass: payload.mass, separationRisk: 1,
     stages: stage && programme.booster ? [withVariation(boosterStage(programme, spec, modifiers, load), build, onTheDay), core] : [core], stageIndex: 0,
     altitude: 0, verticalSpeed: 0, horizontalSpeed: 0, time: 0, peakAltitude: 0, peakSpeed: 0, peakHorizontalSpeed: 0, downrange: 0, load, noFail: false,
@@ -143,20 +145,26 @@ export function beginFlight(airframe, propellantName, payloadName, stage, load =
   return flight;
 }
 // THE PRE-FLIGHT ESTIMATE: a failure-free run of the same vehicle, as the engineers believe it. uncertainty: the ± the UI shows.
-export function previewFlight(airframe, propellantName, payloadName, stage, load, wind = 0) {
-  const flight = makeFlight(airframe, propellantName, payloadName, stage, load, { wind, estimated: 1 });
+// path: the predicted altitudes and downrange distances, second by second, for the plotting board.
+export function previewFlight(airframe, propellantName, payloadName, stage, load, wind = 0, plan = null) {
+  const flight = makeFlight(airframe, propellantName, payloadName, stage, load, { wind, estimated: 1, plan });
   flight.noFail = true;
   let liftoffMass = flight.payloadMass;
   flight.stages.forEach(eachStage => liftoffMass += eachStage.dry + eachStage.fuel);
   const lastStage = flight.stages[flight.stages.length - 1];
   const thrustToWeight = flight.stages[0].thrust / liftoffMass / GRAVITY, burnoutG = lastStage.thrust / (lastStage.dry + flight.payloadMass) / GRAVITY;
+  const path = { altitude: [], downrange: [] };
   let result;
-  do result = step(flight); while (result == 'tick' || result == 'sep');
+  do {
+    result = step(flight);
+    path.altitude.push(Math.max(0, flight.altitude));
+    path.downrange.push(flight.downrange);
+  } while (result == 'tick' || result == 'sep');
   const tiers = trackingTiers();
   return {
     thrustToWeight, burnoutG, gLimit: flight.gLimit, peakAltitude: flight.peakAltitude, peakSpeed: flight.peakSpeed,
     peakHorizontalSpeed: flight.peakHorizontalSpeed || 0, orbit: result == 'orbit', downrange: flight.downrange, burnTime: flight.burnTime,
-    maxQ: flight.maxQ, maxHeat: flight.maxHeat, recovery: recoveryPlan(flight), scienceMultiplier: flight.spec.sv,
+    maxQ: flight.maxQ, maxHeat: flight.maxHeat, recovery: recoveryPlan(flight), scienceMultiplier: flight.spec.sv, path,
     uncertainty: Math.max(.03, .2 * (1 - .1 * (tiers.g + tiers.v)) * (S.fac.comp ? .5 : 1) * (S.fac.wall ? .8 : 1) * (S.crew.fido ? .8 : 1)),
   };
 }
@@ -295,11 +303,13 @@ export function step(flight) {
 
   // THE TRAJECTORY. On a staged flight the booster lofts the stack and the upper stage fires toward the horizon, as the real satellite
   // launchers did. Better guidance (instrument tier) flies a tighter turn and aims the upper stage closer to horizontal.
+  // The plan sets the launcher's lean and the pitch program; without one the rocket flies the default lean and the standard program.
   const radius = EARTH_RADIUS + flight.altitude, density = SEA_LEVEL_DENSITY * Math.exp(-flight.altitude / SCALE_HEIGHT);
-  const staged = flight.stages.length > 1;
+  const staged = flight.stages.length > 1, plan = flight.plan, program = PITCH_PROGRAMS[plan ? plan.program : 'standard'];
+  const lean = plan ? (90 - plan.elevation) * Math.PI / 180 : DEFAULT_LEAN;
   const pitch = staged && flight.stageIndex > 0
     ? Math.min(1.5708, 1.35 + .08 * flight.tracking.v)
-    : Math.max(flight.time > 2 ? .15 : 0, Math.min(.97, Math.max(0, (flight.altitude - 5000) / (staged ? 40000 - 3500 * flight.tracking.v : 40000))) * 1.5);
+    : Math.max(flight.time > 2 ? lean : 0, Math.min(.97, Math.max(0, (flight.altitude - program.start) / (staged ? program.span - 3500 * flight.tracking.v : program.span))) * 1.5);
   const drag = .5 * density * flight.dragArea * (flight.stages[flight.stageIndex].isBooster ? 1.8 : 1) * flight.verticalSpeed * Math.abs(flight.verticalSpeed);
   const previousVerticalSpeed = flight.verticalSpeed;
   flight.verticalSpeed += thrust / mass * Math.cos(pitch) - GRAVITY * Math.pow(EARTH_RADIUS / radius, 2) + flight.horizontalSpeed * flight.horizontalSpeed / radius - drag / mass;

@@ -19,6 +19,7 @@ import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight,
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
 import { researchDesk } from './design-bureau.js';
+import { trajectoryPanel, currentPlan } from './trajectory.js';
 import { render, renderHeader, showDesk, markDirty, resetScreen } from './screen.js';
 import { $ } from './dom.js';
 
@@ -26,6 +27,7 @@ let resetArmed = 0;
 
 document.addEventListener('input', event => {
   if (event.target.dataset.s == 'load') $('#ldv').textContent = event.target.value + '%';
+  if (event.target.dataset.tj == 'elevation') $('#tjv').textContent = event.target.value + '°';
 });
 
 // SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, the campaign form and the launch form.
@@ -50,6 +52,10 @@ document.addEventListener('change', event => {
   }
   if (data.mc) {
     S.p2.lc = isNaN(+value) ? value : +value;
+    return render();
+  }
+  if (data.tj) {
+    launchForm.plan = { ...currentPlan(), [data.tj]: +value };
     return render();
   }
   if (data.ch) {
@@ -196,6 +202,19 @@ const VIEW_ACTIONS = {
   },
   rpick: id => {
     researchDesk.pick = id;
+    render();
+  },
+  // The trajectory panel: open or close it, pick a pitch program, or go back to the default plan.
+  traj: () => {
+    trajectoryPanel.open = !trajectoryPanel.open;
+    render();
+  },
+  tjprog: id => {
+    launchForm.plan = { ...currentPlan(), program: id };
+    render();
+  },
+  tjreset: () => {
+    launchForm.plan = null;
     render();
   },
   sec1: () => {

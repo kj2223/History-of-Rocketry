@@ -26,3 +26,15 @@ export const PAYLOADS = {
   'Explorer Satellite': { cost: 15000, mass: 20, science: 25000, satellite: 1 },
   'Mercury Capsule': { cost: 0, mass: 100, science: 0, mercury: 1 },
 };
+
+// PITCH PROGRAMS: how a single-stage rocket (or a booster stage) turns over toward the horizon on the way up, set on the
+// trajectory panel. The turn starts at start (m) and tips the rocket over across span (m) of climb. The keys are kept on the launch form.
+// Standard is the default every rocket flies without a plan; better guidance tightens a booster stage's turn (rules/flight.js).
+export const PITCH_PROGRAMS = {
+  lofted: { name: 'Lofted', start: 20000, span: 90000, description: 'Holds the climb near vertical: the highest apogee, a short trip downrange.' },
+  standard: { name: 'Standard', start: 5000, span: 40000, description: 'The usual turn: a balance of height and distance.' },
+  flat: { name: 'Flat', start: 1500, span: 20000, description: 'Turns over early: the longest trip downrange, but fast through the thick air, so higher loads and heating.' },
+};
+// The launcher's elevation (degrees above the horizon) the trajectory panel allows. Without a plan the rail leans the rocket
+// 0.15 radians (about 81 degrees) two seconds after liftoff.
+export const ELEVATION_RANGE = { min: 75, max: 90 };

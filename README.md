@@ -27,7 +27,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 |---|---|
 | Research packages and milestones (cost, time, effects) | `data/research.js` |
 | Rockets: design figures, costs, propellants, flaws | `data/programmes.js` |
-| Propellants and payloads | `data/launch.js` |
+| Propellants, payloads and pitch programs | `data/launch.js` |
 | Failure modes, symptoms and fixes | `data/failures.js` |
 | Facilities, control rooms, launch-crew stations | `data/launch-site.js` |
 | Directives, eras, historical firsts, Soviet dates, calendar speed | `data/history.js` |
@@ -48,7 +48,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/jobs.js` | Engineering-team jobs: investigations, fixes, design reviews, retrofits |
 | `rules/knowledge.js` | What the engineers know about each system |
 | `rules/launch-site.js` | Building facilities, hiring launch crew, the go/no-go poll, pad troubleshooting, ground tests |
-| `rules/flight.js` | Flight physics, failures, instrument readings, flight results |
+| `rules/flight.js` | Flight physics (including the flight plan's trajectory), failures, instrument readings, flight results |
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
 | `rules/auto.js` | The launch director flying the running campaign |
 | `rules/race.js` | American firsts, Soviet events, intelligence, forming NASA |
@@ -67,7 +67,8 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `ui/input.js` | Every click and select: `data-a` on a button names its action |
 | `ui/launch-panel.js` | The control-room picture and the launch form |
 | `ui/launch-view.js` | The pad under the plotting board: countdown, poll, the mission clock strip, Mercury flights and transcript |
-| `ui/plot.js` | The plotting board: the flight's altitude against the directive |
+| `ui/plot.js` | The plotting board: the flight's altitude over distance downrange, FIDO's predicted arc, and the directive |
+| `ui/trajectory.js` | The trajectory panel beside the plotting board: launcher elevation, pitch program and the prediction |
 | `ui/consoles.js` | One live tile per launch-crew station: readout, gauge, what it is doing, its last call |
 | `ui/control-room.js` | The control-room picture |
 | `ui/design-bureau.js` | The R&D desk: research columns and detail bar, the rocket programme, the engineering file, incidents |
