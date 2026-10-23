@@ -14,9 +14,9 @@ import { STATIONS } from '../data/launch-site.js';
 import { S, log } from '../core/state.js';
 import { rollDescent, onPlannedStation } from './recovery.js';
 import { FAILURE_WARNINGS, warningLevel } from './telemetry.js';
+import { burnSeconds, isPowered } from './flight.js';
 
 const GRAVITY = 9.81;
-const secondsOfBurnLeft = stage => stage.fuel / (stage.thrust / (stage.isp * GRAVITY));
 const km = metres => `${(metres / 1000).toFixed(1)} kilometres`;
 // Where the flight is against the plan at this second: { altitude, range } as shares off the planned figures (0.1 = 10% over),
 // range null while the plan has barely left the pad. Null without a prediction, below 1 km on the plan (where small
@@ -57,13 +57,13 @@ export function crewCallouts(flight) {
     flight.bubbles = { [station]: { t: bubble, c: style == 'bad' ? 'no' : style == 'wn' ? 'wn' : 'go' } };
     flight.lastCalls = { ...flight.lastCalls, ...flight.bubbles };
   };
-  const stage = flight.stages[flight.stageIndex], lastStage = flight.stageIndex == flight.stages.length - 1, powered = stage.fuel > 0;
+  const stage = flight.stages[flight.stageIndex], lastStage = flight.stageIndex == flight.stages.length - 1, powered = isPowered(flight);
 
   // TELEMETRY: the link is up.
   if (flight.time >= 2 && (flight.watch || []).length) call('tlm', 'link', `Telemetry good. ${flight.watch.length} channel${flight.watch.length > 1 ? 's' : ''} reading.`, 'ok', 'TLM GOOD');
   // PROPULSION: the burn clock, and the chamber when it is watched.
   if (powered && flight.time >= 3 && watching('pc')) call('prop', 'pc', `Chamber pressure steady, ${Math.round(flight.thrustShare * 100)} percent.`, '', `PC ${Math.round(flight.thrustShare * 100)}%`);
-  if (powered && secondsOfBurnLeft(stage) <= 10 && flight.burnTime > 15) call('prop', 'ten' + flight.stageIndex, lastStage ? 'Ten seconds to cutoff.' : 'Ten seconds to booster burnout.', '', lastStage ? 'T-10 CUTOFF' : 'T-10 BURNOUT');
+  if (powered && burnSeconds(stage) <= 10 && flight.burnTime > 15) call('prop', 'ten' + flight.stageIndex, lastStage ? 'Ten seconds to cutoff.' : 'Ten seconds to booster burnout.', '', lastStage ? 'T-10 CUTOFF' : 'T-10 BURNOUT');
   if (!powered && lastStage) call('prop', 'cutoff', 'Cutoff. Good burn.', 'ok', 'CUTOFF');
   // RANGE SAFETY: on course, then the predicted impact once the engine is done.
   if (flight.time >= 10) call('rso', 'course', 'Vehicle on course, inside the range.', '', 'ON COURSE');

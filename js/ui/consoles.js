@@ -6,21 +6,20 @@ import { STATIONS } from '../data/launch-site.js';
 import { PAYLOADS } from '../data/launch.js';
 import { S } from '../core/state.js';
 import { stationLock } from '../rules/launch-site.js';
-import { airborne, formatAltitude } from '../rules/flight.js';
+import { airborne, formatAltitude, burnSeconds, isPowered } from '../rules/flight.js';
 import { partReading, warningLevel } from '../rules/telemetry.js';
 import { predictedImpact, offPlanWords } from '../rules/callouts.js';
 import { reading } from '../rules/mission.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
-const GRAVITY = 9.81;
-const burnLeft = stage => Math.max(0, Math.round(stage.fuel / (stage.thrust / (stage.isp * GRAVITY))));
+const burnLeft = stage => Math.round(burnSeconds(stage));
 // A station's state for its tile: text (the readout), gauge (0 to 1, or null for none), level ('ok' | 'wn' | 'bad' | ''), work.
 const state = (text, work, gauge = null, level = '') => ({ text, work, gauge, level });
 
 // IN FLIGHT: what each station is watching right now.
 function flightState(id, flight) {
-  const watching = channel => (flight.watch || []).includes(channel), stage = flight.stages[flight.stageIndex], powered = stage.fuel > 0;
+  const watching = channel => (flight.watch || []).includes(channel), stage = flight.stages[flight.stageIndex], powered = isPowered(flight);
   const part = channel => partReading(flight, channel), alarm = channel => warningLevel(flight, channel) > .3;
   switch (id) {
     case 'tc': return state(`T+${flight.time}s · ${powered ? 'powered flight' : flight.verticalSpeed > 0 ? 'coasting up' : 'descent'}`, 'Running the clock. Abort is your call.', null, 'ok');

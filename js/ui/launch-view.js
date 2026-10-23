@@ -9,7 +9,7 @@ import { PAYLOADS } from '../data/launch.js';
 import { S, log, logSink } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
-import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS } from '../rules/flight.js';
+import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS, isPowered, hasEvent } from '../rules/flight.js';
 import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
@@ -328,7 +328,7 @@ function flightTick() {
     }
     return;
   }
-  phase.textContent = flight.stages[flight.stageIndex].fuel > 0 ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
+  phase.textContent = isPowered(flight) ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
   // While a failure shows its warning on a watched channel, the flight runs in real time (one second every fourth tick), so there is time to abort.
   const warning = flight.pending && (flight.watch || []).some(id => warningLevel(flight, id) > 0);
   if (warning && ++flight.warningTicks % 4) return drawFlightInstruments(flight);

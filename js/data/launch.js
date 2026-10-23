@@ -2,12 +2,14 @@
 // The names are also stored in saves (a launch campaign's propellant and payload), so rename one only with care.
 
 // Propellant cost = handlingCost + pricePerKg x (kilograms loaded) ^ 0.8, so it grows more slowly than the rocket (rules/design.js).
-//   isp: specific impulse (s), how hard the propellant pushes
+//   isp: specific impulse (s) at sea level, how hard the propellant pushes on the pad
+//   vacuumIsp: specific impulse (s) in vacuum: with no air pressing back on the nozzle exit the same engine pushes harder,
+//              so thrust climbs through the burn as the rocket leaves the atmosphere (rules/flight.js)
 //   reliability: the engine's base chance of a clean flight with this propellant
 //   density: kilograms loaded per kilogram of tank capacity (tank capacity is rated in alcohol-equivalent kg)
 export const PROPELLANTS = {
-  'Alcohol & LOX': { handlingCost: 1200, pricePerKg: 40, isp: 225, reliability: .9, density: 1 },
-  'Kerosene & LOX': { handlingCost: 2000, pricePerKg: 50, isp: 290, reliability: .85, density: 1.25 },
+  'Alcohol & LOX': { handlingCost: 1200, pricePerKg: 40, isp: 225, vacuumIsp: 250, reliability: .9, density: 1 },
+  'Kerosene & LOX': { handlingCost: 2000, pricePerKg: 50, isp: 290, vacuumIsp: 320, reliability: .85, density: 1.25 },
 };
 
 // Payloads.

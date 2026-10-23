@@ -332,7 +332,7 @@ test('a station calls the flight only when it is staffed, and only the parts it 
   const { logSink } = await import('../js/core/state.js');
   const heard = [];
   logSink.fn = text => heard.push(text);
-  const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
+  const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200, flow: 10, residual: 0, litAt: 0 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
   crewCallouts(flight([]));
   assert.equal(heard.length, 0, 'nobody on console');
   S.crew.prop = 1;
@@ -386,7 +386,7 @@ test('an engine failure shows on chamber pressure for a few seconds first, and a
   let result;
   do result = step(flight); while (result == 'tick' && !flight.pending);
   assert.ok(flight.pending && !flight.failure, 'the pump fault is showing, not yet struck');
-  const steady = flight.thrustShare * 100;
+  const steady = flight.chamberShare * 100;
   while (flight.time < flight.pending.at - 1) step(flight);
   assert.ok(partReading(flight, 'pc').value < steady * .75, 'chamber pressure falls away before the failure');
   const incidents = () => withProgramme('aerobee', () => S.inc.length), before = incidents();
