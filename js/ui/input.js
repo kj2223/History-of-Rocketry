@@ -2,7 +2,7 @@
 // saved and the screen redrawn, except where an action returns early.
 import { S, save, resetState, log } from '../core/state.js';
 import { formNasa } from '../rules/race.js';
-import { commission } from '../rules/research.js';
+import { commission, crashProgramme } from '../rules/research.js';
 import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
 import { airborne } from '../rules/flight.js';
@@ -134,6 +134,7 @@ const PAD_ACTIONS = {
 // Actions that change the game: id is the button's data-id; button is the element (for data-n and data-f).
 const GAME_ACTIONS = {
   com: id => commission(id),
+  crash: id => crashProgramme(id),
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),

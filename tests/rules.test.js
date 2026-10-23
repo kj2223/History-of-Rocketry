@@ -4,6 +4,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID } from '../js/data/research.js';
+import { commission, crashProgramme, crashLock, crashCost } from '../js/rules/research.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
@@ -392,4 +393,22 @@ test('an engine failure shows on chamber pressure for a few seconds first, and a
   endFlight(flight, false, 'abort');
   assert.equal(flight.failure, 'p');
   assert.equal(incidents(), before + 1);
+});
+
+test('a crash programme halves the time left on a NASA-era research job, once, for twice its cost', () => {
+  S.nasa = 1;
+  S.b = 200000;
+  commission('esc_tower');
+  const job = S.jobs.find(candidate => candidate.id == 'esc_tower'), before = job.t, budget = S.b;
+  crashProgramme('esc_tower');
+  assert.equal(job.t, Math.ceil(before / 2));
+  assert.equal(S.b, budget - crashCost(BY_ID.esc_tower));
+  assert.equal(crashCost(BY_ID.esc_tower), 2 * BY_ID.esc_tower.cost);
+  assert.ok(crashLock('esc_tower'), 'only once per job');
+});
+
+test('crash programmes are not offered before NASA', () => {
+  S.b = 200000;
+  commission('inj');
+  assert.ok(crashLock('inj'));
 });

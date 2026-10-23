@@ -40,7 +40,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | File | Covers |
 |---|---|
 | `rules/game.js` | The tick, the calendar catch-up, hiring staff, the starting position, run-log snapshots |
-| `rules/research.js` | What can be commissioned, breakthroughs, earmarks, finishing and confirming packages |
+| `rules/research.js` | What can be commissioned, breakthroughs, earmarks, crash programmes, finishing and confirming packages |
 | `rules/programs.js` | Starting a rocket programme, its hidden true design and flaws, maturity |
 | `rules/design.js` | What an airframe can do, launch quotes, recovery odds |
 | `rules/production.js` | Blueprint drafts, line learning, airframe and retrofit costs |

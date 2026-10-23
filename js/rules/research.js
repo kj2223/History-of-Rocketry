@@ -96,6 +96,30 @@ export const commission = id => {
   log(`[DESIGN] Started: ${item.name} (${formatMoney(item.cost)}).`, 'wn');
 };
 
+// CRASH PROGRAMMES (NASA era): overtime and outside contractors halve the time left on a running research job, once per job,
+// for twice the item's cost. Crash early: the price is the same however little work is left.
+export const CRASH_COST_MULTIPLIER = 2;
+export const crashCost = item => CRASH_COST_MULTIPLIER * item.cost;
+// Why a running research job cannot be put on a crash schedule, or null if it can.
+export function crashLock(id) {
+  const item = itemAsSeen(id), job = researchJob(item);
+  if (!S.nasa) return 'Crash programmes open when NASA is established.';
+  if (!job) return 'Not in work.';
+  if (job.cr) return 'Already on a crash schedule.';
+  if (job.t < 2) return 'Nearly done.';
+  if (S.b < crashCost(item)) return `Need ${formatMoney(crashCost(item) - S.b)} more.`;
+  return null;
+}
+export function crashProgramme(id) {
+  const lock = crashLock(id);
+  if (lock) return log(lock, 'bad');
+  const item = itemAsSeen(id), job = researchJob(item);
+  S.b -= crashCost(item);
+  job.t = Math.ceil(job.t / 2);
+  job.cr = 1;
+  log(`[DESIGN] Crash programme on ${item.name} (${formatMoney(crashCost(item))}): overtime and contractors halve the work left.`, 'wn');
+}
+
 // Research is proposed gradually: two ideas per area at first, one more each time a package in that area is confirmed.
 // Second-generation ideas follow the same rule (starting from one) after the first milestone.
 export function isProposed(item) {
