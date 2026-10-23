@@ -258,6 +258,45 @@ test('a flight plan steers the trajectory: no plan flies the default, a vertical
   assert.ok(long.maxHeat > vertical.maxHeat, 'a flat climb spends longer fast in the thick air');
 });
 
+test('a staged plan can aim the upper stage higher than the guidance does, never flatter', () => {
+  const airframe = readyProgramme('vanguard');
+  const predict = plan => withProgramme('vanguard', () => previewFlight(airframe, 'Kerosene & LOX', 'Inert Ballast', 1, 1, 0, plan));
+  const guided = predict(null), flattest = guided.flattestAim;
+  assert.ok(flattest >= 0, 'a staged rocket has an upper stage to aim');
+  const steep = predict({ elevation: 81, program: 'standard', aim: 30 }), flatter = predict({ elevation: 81, program: 'standard', aim: flattest - 10 });
+  assert.ok(steep.peakAltitude > guided.peakAltitude, 'aiming the upper stage up climbs higher');
+  assert.equal(flatter.peakHorizontalSpeed, predict({ elevation: 81, program: 'standard' }).peakHorizontalSpeed, 'aimed flatter than the guidance holds, the upper stage flies the guidance\'s own aim');
+  assert.equal(withProgramme('aerobee', () => previewFlight(readyProgramme('aerobee'), 'Alcohol & LOX', 'Inert Ballast', 0, 1)).flattestAim, null);
+});
+
+test('trajectory analysts need the range computer and FIDO; their search finds the best plan the engineers can see', async () => {
+  const { analystLock, hireAnalyst, analysts, newSearch, workSearch, scorePlan, candidatePlans, SAFE_LOAD } = await import('../js/rules/trajectory.js');
+  const { TRAJECTORY_ANALYSTS } = await import('../js/data/launch-site.js');
+  const airframe = readyProgramme('aerobee');
+  S.b = 1e6;
+  assert.ok(analystLock(), 'no range computer yet');
+  S.fac.comp = 1;
+  assert.ok(analystLock(), 'no FIDO on console');
+  S.crew.fido = 1;
+  hireAnalyst();
+  assert.equal(analysts(), 1);
+  const predict = plan => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, 0, plan));
+  const search = newSearch('test', null);
+  assert.equal(search.total, candidatePlans(null).length);
+  workSearch(search, 2 / TRAJECTORY_ANALYSTS.runsPerDay, 'height', predict);
+  assert.equal(search.worked, 2, 'one analyst works runsPerDay candidates a day');
+  workSearch(search, 1e4, 'height', predict);
+  assert.equal(search.untried.length, 0);
+  const everyScore = candidatePlans(null).map(plan => scorePlan(predict(plan), 'height'));
+  assert.equal(search.best.score, Math.max(...everyScore), 'with every candidate worked, the team has the true best');
+  assert.ok(search.best.preview.maxQ <= SAFE_LOAD && search.best.preview.maxHeat <= SAFE_LOAD);
+  assert.ok(search.best.preview.peakAltitude >= predict(null).peakAltitude, 'the best for height beats the default');
+  S.crew.fido = 0;
+  const idle = newSearch('idle', null);
+  workSearch(idle, 1e4, 'height', predict);
+  assert.equal(idle.worked, 0, 'without FIDO the analysts do not work');
+});
+
 test('a payload is recovered step by step, and a stronger chute or a ballute fixes a chute that opens too fast', async () => {
   const { recoveryPlan } = await import('../js/rules/recovery.js');
   readyProgramme('aerobee');

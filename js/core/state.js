@@ -18,7 +18,8 @@
 //   air     airframes in the hangar: { id, prog, pk, fix, rev, cost, st: r ready | queued | retro, built, label }
 //   aq      factory queue: { k: build | retro | msn, prog, cfg, cost, t: work left, tot: work in all, ... }
 //   fac     facilities in service, { id: 1 }       fb      facilities under construction, { id: day in service }
-//   crew    launch-crew stations staffed, { id: 1 } staff   { pr, director }: specialists hired
+//   crew    launch-crew stations staffed, { id: 1 } staff   { pr, director, ta }: specialists hired
+//                                                  (ta: trajectory analysts, a count; rules/trajectory.js)
 //   nid     next airframe id                       prod    airframes produced
 //   ok      successful flights                     fr      successful flights per propellant
 //   gt      seconds until the next appropriation   sg      1 once the starter airframe has been given
@@ -61,7 +62,7 @@ export const newGameState = () => ({
   nid: 1, prod: 0, ok: 0, fr: {}, gt: 30, sg: 0, hs: 0, hd: 0, crew: {}, fs: {}, rvd: {},
   rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
   fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3,
-  staff: { pr: 0, director: 0 },
+  staff: { pr: 0, director: 0, ta: 0 },
   auto: { xp: 0, camp: null, cd: 15, last: null },
 });
 

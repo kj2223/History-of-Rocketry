@@ -20,6 +20,7 @@ import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
 import { researchDesk } from './design-bureau.js';
 import { trajectoryPanel, currentPlan } from './trajectory.js';
+import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, markDirty, resetScreen } from './screen.js';
 import { $ } from './dom.js';
 
@@ -27,7 +28,7 @@ let resetArmed = 0;
 
 document.addEventListener('input', event => {
   if (event.target.dataset.s == 'load') $('#ldv').textContent = event.target.value + '%';
-  if (event.target.dataset.tj == 'elevation') $('#tjv').textContent = event.target.value + '°';
+  if (event.target.dataset.tj) $('#tj-' + event.target.dataset.tj).textContent = event.target.value + '°';
 });
 
 // SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, the campaign form and the launch form.
@@ -171,6 +172,8 @@ const GAME_ACTIONS = {
   },
   crew: id => hireStation(id),
   dismiss: id => dismissStation(id),
+  analyst: () => hireAnalyst(),
+  unanalyst: () => releaseAnalyst(),
   gt: id => groundTest(id),
 };
 // Actions that only change what is shown: they return without saving or redrawing.
@@ -215,6 +218,15 @@ const VIEW_ACTIONS = {
   },
   tjreset: () => {
     launchForm.plan = null;
+    render();
+  },
+  // The trajectory team: the goal it searches for, and flying the best plan it has found.
+  tjgoal: id => {
+    trajectoryPanel.goal = id;
+    render();
+  },
+  tjbest: () => {
+    launchForm.plan = { ...trajectoryPanel.search.best.plan };
     render();
   },
   sec1: () => {
