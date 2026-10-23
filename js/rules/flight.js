@@ -2,7 +2,11 @@
 //
 // A flight is one object, created by makeFlight and advanced one second at a time by step():
 //   airframe, spec (designSpec of its packages), programme, label, propellant, payload, load (share of a full tank)
-//   stages: [booster, core] or [core]; each { isBooster, dry, fuel, thrust, isp }. stageIndex: the stage burning now.
+//   stages: [booster, core] or [core]; each { isBooster, dry, fuel, thrust (rated at sea level, N), isp and vacuumIsp (s), flow (kg/s),
+//           residual (kg never burned), litAt (ignition time, s), out (burned out) }. stageIndex: the stage burning now.
+//   cutoffs: each stage's cutoff time (s), by index; events: what happened when and where ({ key, label, time, altitude, downrange })
+//   chamberShare, thrustShare, gLoad, mach, angleOfAttack (radians off the flight path), aeroLoad, heating: this second's figures;
+//   liftoffTime: when it left the pad
 //   time (s), altitude (m), verticalSpeed, horizontalSpeed (m/s), downrange (m), peakAltitude, peakSpeed, peakHorizontalSpeed
 //   latent: a fault the poll missed (a failure-mode key), wind (0 to 2), overNoGo: launched over a NO-GO call
 //   plan: the trajectory panel's { elevation (degrees), program (a PITCH_PROGRAMS key), aim (the upper stage's degrees above the
@@ -35,7 +39,11 @@ export const airborne = { flight: null, mission: null };
 const GRAVITY = 9.81, EARTH_RADIUS = 6371e3, SEA_LEVEL_DENSITY = 1.225, SCALE_HEIGHT = 8500;
 const ORBIT_ALTITUDE = 120000, ORBIT_SPEED = 7000; // horizontal speed above 120 km that counts as orbit
 const LATENT_FAULT_CHANCE = .09; // chance per second that a latent fault strikes while its window is open
-const DEFAULT_LEAN = .15; // radians off vertical the rail leans a rocket flown without a plan, from T+2
+// Radians off vertical the rail leans a rocket flown without a plan: an unguided rocket flies its gravity turn from the tower's
+// angle, so its towers stood near vertical (about 87 degrees up); a guided rocket leans about 81 degrees and its program does the rest.
+const defaultLean = tier => tier ? .15 : .05;
+// The same, as the trajectory panel shows it: degrees above the horizon, to the nearest degree.
+export const defaultElevation = tier => Math.round(90 - defaultLean(tier) * 180 / Math.PI);
 // The upper stage fires this far off vertical (radians): closer to horizontal with better guidance (instrument tier).
 const guidedPitch = tier => Math.min(1.5708, 1.35 + .08 * tier);
 // The flattest upper stage aim the guidance can hold, in whole degrees above the horizon: a plan may aim higher, never lower.
@@ -89,34 +97,50 @@ function makeFlight(airframe, propellantName, payloadName, stage, load, options 
 // The booster stage shares the design's fortunes: thrust and propellant scale with the rocket's own figures and its research.
 // Research reaches the booster stage at half strength: most packages are aimed at the upper stage.
 const halfStrength = x => 1 + (x - 1) * .5;
-const boosterStage = (programme, spec, modifiers, load = 1) => {
-  const booster = programme.booster, design = programme.design;
+const boosterStage = (programme, spec, modifiers, propellant, load = 1) => {
+  const booster = programme.booster, design = programme.design, isp = booster.isp * (1 + .25 * (spec.t * modifiers.t - 1));
   return {
     isBooster: 1,
     dry: booster.dry * halfStrength(spec.dry / design.dry),
     fuel: booster.fuel * halfStrength(spec.f / design.f) * load,
     thrust: booster.thr * halfStrength(spec.thr / design.thr * spec.t * modifiers.t),
-    isp: booster.isp * (1 + .25 * (spec.t * modifiers.t - 1)),
+    isp, vacuumIsp: isp * propellant.vacuumIsp / propellant.isp, // the booster's engine gains in thin air as the core's does
   };
 };
 // NO TWO FLIGHTS ALIKE: the airframe's own build variation (rules/production.js), and on the day the engine runs typically
 // 1.5% hotter or cooler (never more than 3%). The pre-flight estimate uses the drawings: the engineers don't know a particular airframe's quirks.
-const DAY_TO_DAY_THRUST = .015;
+// The engine also runs a little more or less efficiently than drawn (Isp, typically 1%, from the mixture ratio on the day),
+// and a hotter engine burns its propellant faster: a burn can run a few seconds long or short of the plan.
+const DAY_TO_DAY_THRUST = .015, DAY_TO_DAY_ISP = .01;
 const AS_DRAWN = { t: 1, m: 1, d: 1 };
-const withVariation = (eachStage, build, onTheDay) => ({ ...eachStage, dry: eachStage.dry * build.m, thrust: eachStage.thrust * build.t * onTheDay });
+// RESIDUALS: the share of loaded propellant that never reaches the engine (lines, sumps, tank corners). It rides to the end as dead weight.
+// Typically 2%, but it varies by a quarter either way from flight to flight, so a burn can end a little early or late.
+const RESIDUAL_SHARE = .02, RESIDUAL_SPREAD = .25;
+// One stage, ready to fly: its propellant flow (kg/s) is fixed by the rated sea-level thrust, so the burn time does not depend on altitude.
+// litAt: when its engine lights (the first stage at T+0; an upper stage after separation, rules below), out: burned out.
+const readyStage = (eachStage, build, onTheDay, efficiency, residualShare) => {
+  const thrust = eachStage.thrust * build.t * onTheDay;
+  const flow = thrust / (eachStage.isp * GRAVITY);
+  return { ...eachStage, dry: eachStage.dry * build.m, thrust: thrust * efficiency, isp: eachStage.isp * efficiency, vacuumIsp: eachStage.vacuumIsp * efficiency, flow, residual: eachStage.fuel * residualShare, litAt: null, out: 0 };
+};
+const roll = spread => 1 + spread * Math.max(-2, Math.min(2, gaussian()));
 function makeFlightForProgramme(airframe, propellantName, payloadName, stage, load, options) {
   const programmeKey = programmeOf(airframe), programme = PROGRAMMES[programmeKey] || {};
   const spec = designSpec(airframe.pk, options.estimated), modifiers = fixModifiers(airframe.fix);
   const propellant = PROPELLANTS[propellantName], payload = PAYLOADS[payloadName];
   const build = options.estimated ? AS_DRAWN : airframe.vr || AS_DRAWN;
-  const onTheDay = options.estimated ? 1 : 1 + DAY_TO_DAY_THRUST * Math.max(-2, Math.min(2, gaussian()));
-  const core = {
-    dry: (spec.dry + spec.d + modifiers.d) * build.m,
+  const onTheDay = options.estimated ? 1 : roll(DAY_TO_DAY_THRUST), efficiency = options.estimated ? 1 : roll(DAY_TO_DAY_ISP);
+  const residualShare = () => RESIDUAL_SHARE * (options.estimated ? 1 : roll(RESIDUAL_SPREAD / 2));
+  const engineGain = 1 + .5 * (spec.t * modifiers.t - 1);
+  const core = readyStage({
+    dry: spec.dry + spec.d + modifiers.d,
     fuel: spec.f * propellant.density * load,
-    thrust: spec.thr * spec.t * modifiers.t * build.t * onTheDay,
-    isp: propellant.isp * (1 + .5 * (spec.t * modifiers.t - 1)),
-  };
-  const coreBurnTime = core.fuel / (core.thrust / (core.isp * GRAVITY));
+    thrust: spec.thr * spec.t * modifiers.t,
+    isp: propellant.isp * engineGain, vacuumIsp: propellant.vacuumIsp * engineGain,
+  }, build, onTheDay, efficiency, residualShare());
+  const stages = stage && programme.booster ? [readyStage(boosterStage(programme, spec, modifiers, propellant, load), build, onTheDay, efficiency, residualShare()), core] : [core];
+  stages[0].litAt = 0;
+  const coreBurnTime = burnSeconds(core);
   // Reliability: the propellant's base, up to +15 points of experience with it, the design's offset,
   // up to -8 points for unproven packages, and up to +7 points as the programme matures.
   const unproven = airframe.pk.filter(id => !isConfirmed(id)).length;
@@ -124,7 +148,7 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   return {
     airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over, plan: options.plan || null,
     propellant: propellantName, payload: payloadName, satellite: !!payload.satellite, payloadMass: payload.mass, separationRisk: 1,
-    stages: stage && programme.booster ? [withVariation(boosterStage(programme, spec, modifiers, load), build, onTheDay), core] : [core], stageIndex: 0,
+    stages, stageIndex: 0, cutoffs: [], events: [],
     altitude: 0, verticalSpeed: 0, horizontalSpeed: 0, time: 0, peakAltitude: 0, peakSpeed: 0, peakHorizontalSpeed: 0, downrange: 0, load, noFail: false,
     aeroLimitScale: spec.q + modifiers.q, heatLimit: spec.h + modifiers.h, dragArea: .004 * Math.max(.35, spec.c + modifiers.c) * build.d,
     deformation: 0, maxQ: 0, maxHeat: 0, heatWarned: 0, reliability,
@@ -156,18 +180,19 @@ export function previewFlight(airframe, propellantName, payloadName, stage, load
   flight.noFail = true;
   let liftoffMass = flight.payloadMass;
   flight.stages.forEach(eachStage => liftoffMass += eachStage.dry + eachStage.fuel);
-  const lastStage = flight.stages[flight.stages.length - 1];
-  const thrustToWeight = flight.stages[0].thrust / liftoffMass / GRAVITY, burnoutG = lastStage.thrust / (lastStage.dry + flight.payloadMass) / GRAVITY;
+  const thrustToWeight = flight.stages[0].thrust / liftoffMass / GRAVITY;
   const path = { altitude: [], downrange: [] };
-  let result;
+  let result, burnoutG = 0;
   do {
     result = step(flight);
     path.altitude.push(Math.max(0, flight.altitude));
     path.downrange.push(flight.downrange);
+    // The last stage's hardest push, just before its cutoff with the tanks nearly dry and the air thin.
+    if (flight.stageIndex == flight.stages.length - 1) burnoutG = Math.max(burnoutG, flight.gLoad);
   } while (result == 'tick' || result == 'sep');
   const tiers = trackingTiers();
   return {
-    thrustToWeight, burnoutG, gLimit: flight.gLimit, peakAltitude: flight.peakAltitude, peakSpeed: flight.peakSpeed,
+    thrustToWeight, burnoutG, gLimit: flight.gLimit, cutoffs: flight.cutoffs, events: flight.events, peakAltitude: flight.peakAltitude, peakSpeed: flight.peakSpeed,
     peakHorizontalSpeed: flight.peakHorizontalSpeed || 0, orbit: result == 'orbit', downrange: flight.downrange, burnTime: flight.burnTime,
     flattestAim: flight.stages.length > 1 ? flattestAim(flight.tracking.v) : null, // null: no upper stage to aim
     maxQ: flight.maxQ, maxHeat: flight.maxHeat, recovery: recoveryPlan(flight), scienceMultiplier: flight.spec.sv, path,
@@ -224,31 +249,166 @@ function strike(flight, mode) {
   return false;
 }
 
+// THE ENGINE. A stage's engine lights at litAt, builds to full thrust over IGNITION_SECONDS, runs with a small roughness on
+// the chamber pressure, and tails off as its tanks run dry: the last of the usable propellant feeds a thrust decay lasting about
+// TAIL_OFF_SECONDS, and once thrust is below ENGINE_OUT_SHARE of rated the engine is out (what is left rides as dead weight).
+// Thrust rises with altitude: the same propellant flow pushes harder as the air pressing back on the nozzle thins (sea-level
+// Isp on the pad, vacuum Isp above the atmosphere).
+const SUBSTEPS = 10, DT = 1 / SUBSTEPS; // the physics runs in tenths of a second inside each game second
+const IGNITION_SECONDS = 1.5, TAIL_OFF_SECONDS = 2, ENGINE_OUT_SHARE = .05;
+const ROUGHNESS = .1; // the chamber wobbles by this share of the engine's unreliability each second (a 90% engine: about 1%)
+const PRESSURE_SCALE_HEIGHT = 7400; // metres: the air pressure falls by a factor of e every 7.4 km
+// THE GRAVITY TURN. Below CLEAR_SPEED (m/s) the rocket rides the launcher's angle. Above it, fins hold it to its flight path and
+// gravity bends that path over: a gravity turn. An unguided rocket (instrument tier 0) is steered only by the launcher's angle.
+// A guided rocket steers toward its pitch program, but the autopilot spares the structure: the angle it may point off its flight
+// path times the dynamic pressure (as a share of the airframe's limit) stays inside steeringBudget (radians; more with better
+// guidance). So it hardly steers through max Q and steers freely in thin air. Every degree off the path adds AOA_LOAD to the
+// aero load (shares of itself), so a hard turn low down costs loads.
+const CLEAR_SPEED = 30, AOA_LOAD = .03;
+const steeringBudget = tier => tier ? (1 + .5 * tier) * Math.PI / 180 : 0;
+// Seconds from booster cutoff to separation, and from separation to the upper stage lighting (the stack coasts in between).
+const SEPARATION_DELAY = 1, UPPER_IGNITION_DELAY = 1.5;
+// Seconds of burn left at full flow in a stage's usable propellant.
+export const burnSeconds = stage => Math.max(0, stage.fuel - stage.residual) / stage.flow;
+// Whether the stage burning now has its engine running.
+export const isPowered = flight => {
+  const stage = flight.stages[flight.stageIndex];
+  return stage.litAt != null && stage.litAt < flight.time && !stage.out;
+};
+// The engine's share of its rated flow at a moment (seconds): building up after ignition, then tailing off near empty.
+// The tail-off runs on the last TAIL_OFF_SECONDS / 2 of full-flow propellant, and thrust falls away evenly over TAIL_OFF_SECONDS.
+function engineShare(stage, at) {
+  if (stage.out || stage.litAt == null || at <= stage.litAt) return 0;
+  const building = (at - stage.litAt) / IGNITION_SECONDS;
+  const tailing = Math.sqrt(Math.max(0, stage.fuel - stage.residual) / (stage.flow * TAIL_OFF_SECONDS / 2));
+  return Math.min(1, building, tailing);
+}
+// THE AIR. Drag rises steeply through the sound barrier, peaks just past Mach 1 and eases off at higher Mach numbers:
+// [Mach number, drag against the subsonic drag], straight lines between.
+const DRAG_RISE = [[0, 1], [.8, 1], [1.1, 2], [1.5, 1.7], [2.5, 1.3], [5, 1]];
+export function dragRise(mach) {
+  for (let index = 1; index < DRAG_RISE.length; index++) {
+    const [fromMach, fromDrag] = DRAG_RISE[index - 1], [toMach, toDrag] = DRAG_RISE[index];
+    if (mach <= toMach) return fromDrag + (toDrag - fromDrag) * Math.max(0, mach - fromMach) / (toMach - fromMach);
+  }
+  return DRAG_RISE[DRAG_RISE.length - 1][1];
+}
+// The speed of sound (m/s): falling through the lower air, steady in the stratosphere, a little higher again above it.
+export const speedOfSound = altitude => altitude < 11000 ? 340 - .0041 * Math.max(0, altitude) : altitude < 20000 ? 295 : Math.min(330, 295 + .0012 * (altitude - 20000));
+const stackMass = flight => {
+  let mass = flight.payloadMass;
+  for (let index = flight.stageIndex; index < flight.stages.length; index++) mass += flight.stages[index].dry + flight.stages[index].fuel;
+  return mass;
+};
+// THE FLIGHT'S EVENTS, for the crew's calls, the console tiles and the marks on the plotting board: each once, where it happened.
+//   liftoff, mach1, maxq (marked where the load peaked), boco (booster cutoff), sep, ign2 (upper stage ignition), cutoff, apogee
+const EVENT_LABELS = { liftoff: 'LIFTOFF', mach1: 'MACH 1', maxq: 'MAX Q', boco: 'BOOSTER CUTOFF', sep: 'SEPARATION', ign2: 'STAGE 2 IGNITION', cutoff: 'CUTOFF', apogee: 'APOGEE' };
+function markEvent(flight, key, where = flight) {
+  if (flight.events.some(event => event.key == key)) return;
+  flight.events.push({ key, label: EVENT_LABELS[key], time: where.time, altitude: Math.max(0, where.altitude), downrange: where.downrange });
+}
+export const hasEvent = (flight, key) => !!(flight.events || []).some(event => event.key == key);
+// A stage's engine is out: the leftover propellant becomes dead weight, and the cutoff is logged for the flight's record.
+function engineOut(flight, stage) {
+  stage.out = 1;
+  stage.dry += stage.fuel;
+  stage.fuel = 0;
+  flight.cutoffs[flight.stageIndex] = flight.time;
+  markEvent(flight, stage.isBooster ? 'boco' : 'cutoff');
+}
+
 // ONE SECOND OF FLIGHT. Returns 'tick', 'sep' (a booster stage separated), 'fail', 'orbit' or 'land'.
 export function step(flight) {
   flight.time++;
-  const stage = flight.stages[flight.stageIndex];
-  let thrust = 0;
-  if (stage.fuel > 0) {
-    const fullBurn = stage.thrust / (stage.isp * GRAVITY), burned = Math.min(fullBurn, stage.fuel);
-    stage.fuel -= burned;
-    thrust = stage.thrust * burned / fullBurn;
-  } else if (stage.isBooster) {
+  let stage = flight.stages[flight.stageIndex], separated = false;
+  // STAGING: the booster burns out and tails off; a second later it separates, and after a short coast the upper stage lights.
+  if (stage.isBooster && stage.out && flight.time >= flight.cutoffs[flight.stageIndex] + SEPARATION_DELAY) {
     flight.stageIndex++;
     flight.separationTime = flight.time;
-    return 'sep';
+    stage = flight.stages[flight.stageIndex];
+    stage.litAt = flight.time - 1 + UPPER_IGNITION_DELAY;
+    markEvent(flight, 'sep');
+    separated = true;
   }
-  let mass = flight.payloadMass;
-  for (let index = flight.stageIndex; index < flight.stages.length; index++) mass += flight.stages[index].dry + flight.stages[index].fuel;
 
+  // THE TRAJECTORY, a tenth of a second at a time. On a staged flight the booster lofts the stack and the upper stage fires toward
+  // the horizon, as the real satellite launchers did. Better guidance (instrument tier) flies a tighter turn and aims the upper stage
+  // closer to horizontal. The plan sets the launcher's lean, the pitch program and the upper stage's aim; without one the rocket
+  // flies the default lean, the standard program and the guidance's aim.
+  const staged = flight.stages.length > 1, plan = flight.plan, program = PITCH_PROGRAMS[plan ? plan.program : 'standard'];
+  const lean = plan ? (90 - plan.elevation) * Math.PI / 180 : defaultLean(flight.tracking.v);
+  const rough = flight.noFail ? 1 : 1 + ROUGHNESS * (1 - flight.reliability) * gaussian();
+  let shareSum = 0, thrustSum = 0, thrust = 0, mass = stackMass(flight), landed = false, angleOfAttack = 0;
+  for (let sub = 1; sub <= SUBSTEPS; sub++) {
+    const at = flight.time - 1 + sub * DT, share = engineShare(stage, at) * rough;
+    mass = stackMass(flight);
+    thrust = 0;
+    if (share > 0) {
+      const pressure = Math.exp(-Math.max(0, flight.altitude) / PRESSURE_SCALE_HEIGHT);
+      thrust = stage.flow * share * GRAVITY * (stage.vacuumIsp - (stage.vacuumIsp - stage.isp) * pressure);
+      stage.fuel -= stage.flow * share * DT;
+      shareSum += share;
+      thrustSum += thrust;
+      if (flight.stageIndex > 0) markEvent(flight, 'ign2');
+      if (at - stage.litAt > IGNITION_SECONDS && engineShare(stage, at) < ENGINE_OUT_SHARE) engineOut(flight, stage);
+    }
+    const radius = EARTH_RADIUS + flight.altitude, density = SEA_LEVEL_DENSITY * Math.exp(-Math.max(0, flight.altitude) / SCALE_HEIGHT);
+    // Where the rocket points (radians off vertical). The upper stage holds its guided aim. Below it, the rocket rides the launcher's
+    // angle until it has speed, then flies a gravity turn: it points along its own flight path and gravity bends that path over,
+    // while the guidance steers toward the pitch program as far as it can (steeringLimit). Steering off the path costs aero load.
+    const speed = Math.hypot(flight.verticalSpeed, flight.horizontalSpeed), mach = speed / speedOfSound(flight.altitude);
+    const flightPath = Math.atan2(flight.horizontalSpeed, flight.verticalSpeed);
+    let pitch;
+    if (staged && flight.stageIndex > 0) pitch = Math.min(guidedPitch(flight.tracking.v), plan && plan.aim != null ? (90 - plan.aim) * Math.PI / 180 : Infinity);
+    else if (speed < CLEAR_SPEED) pitch = lean;
+    else {
+      const programmed = Math.max(lean, Math.min(.97, Math.max(0, (flight.altitude - program.start) / (staged ? program.span - 3500 * flight.tracking.v : program.span))) * 1.5);
+      const pressureShare = .5 * density * speed * speed / (flight.gLimit * 40000 * flight.aeroLimitScale); // dynamic pressure, share of the limit
+      const limit = Math.min(Math.PI / 2, steeringBudget(flight.tracking.v) / Math.max(1e-3, pressureShare));
+      pitch = flightPath + Math.max(-limit, Math.min(limit, programmed - flightPath));
+    }
+    angleOfAttack = speed < CLEAR_SPEED ? 0 : Math.abs(pitch - flightPath);
+    // Drag acts against the direction of flight, rising through the sound barrier.
+    const drag = speed > 0 ? .5 * density * flight.dragArea * (stage.isBooster ? 1.8 : 1) * dragRise(mach) * speed / mass : 0; // per m/s of speed
+    const verticalAcceleration = thrust / mass * Math.cos(pitch) - GRAVITY * Math.pow(EARTH_RADIUS / radius, 2) + flight.horizontalSpeed * flight.horizontalSpeed / radius - drag * flight.verticalSpeed;
+    const horizontalAcceleration = thrust / mass * Math.sin(pitch) - flight.verticalSpeed * flight.horizontalSpeed / radius - drag * flight.horizontalSpeed;
+    // On the pad until the thrust beats the weight.
+    if (!flight.liftoffTime && flight.verticalSpeed + verticalAcceleration * DT <= 0) continue;
+    if (!flight.liftoffTime) {
+      flight.liftoffTime = at;
+      markEvent(flight, 'liftoff');
+    }
+    flight.verticalSpeed += verticalAcceleration * DT;
+    flight.horizontalSpeed += horizontalAcceleration * DT;
+    flight.altitude += flight.verticalSpeed * DT;
+    flight.downrange += flight.horizontalSpeed * DT;
+    flight.peakAltitude = Math.max(flight.peakAltitude, flight.altitude);
+    flight.peakSpeed = Math.max(flight.peakSpeed, Math.hypot(flight.verticalSpeed, flight.horizontalSpeed));
+    flight.peakHorizontalSpeed = Math.max(flight.peakHorizontalSpeed, flight.horizontalSpeed);
+    if (mach >= 1 && flight.verticalSpeed > 0) markEvent(flight, 'mach1');
+    if (flight.altitude <= 0) {
+      landed = true;
+      break;
+    }
+  }
+  const powered = shareSum > 0;
+
+  // This second's figures, for the failure model, the part channels and the crew's callouts (rules/telemetry.js, rules/callouts.js):
+  //   chamberShare: the chamber pressure against rated, thrustShare: the thrust against the rated sea-level thrust (above 100% in
+  //   thin air), gLoad: the acceleration the thrust gives (g), mach.
   // Aerodynamic load and heating, as shares of what the airframe can take.
-  const airDensity = SEA_LEVEL_DENSITY * Math.exp(-flight.altitude / SCALE_HEIGHT), speed = Math.hypot(flight.verticalSpeed, flight.horizontalSpeed);
-  const aeroLoad = .5 * airDensity * speed * speed / (flight.gLimit * 40000 * flight.aeroLimitScale) * (1 + .3 * flight.wind);
+  const airDensity = SEA_LEVEL_DENSITY * Math.exp(-Math.max(0, flight.altitude) / SCALE_HEIGHT), speed = Math.hypot(flight.verticalSpeed, flight.horizontalSpeed);
+  const steering = 1 + AOA_LOAD * angleOfAttack * 180 / Math.PI; // pointing off the flight path loads the airframe sideways
+  const aeroLoad = .5 * airDensity * speed * speed / (flight.gLimit * 40000 * flight.aeroLimitScale) * (1 + .3 * flight.wind) * steering;
   const heating = Math.sqrt(airDensity / SEA_LEVEL_DENSITY) * Math.pow(speed / 1e3, 3) / flight.heatLimit;
-  // This second's loads, for the part channels and the crew's callouts (rules/telemetry.js, rules/callouts.js).
-  Object.assign(flight, { aeroLoad, heating, thrustShare: thrust / stage.thrust, gLoad: thrust / mass / GRAVITY });
+  const meanThrust = thrustSum / SUBSTEPS;
+  Object.assign(flight, { aeroLoad, heating, angleOfAttack, chamberShare: shareSum / SUBSTEPS, thrustShare: meanThrust / stage.thrust, gLoad: thrust / mass / GRAVITY, mach: speed / speedOfSound(flight.altitude) });
+  // Max Q: the peak aero load on the way up, marked where it happened once the load has clearly fallen away.
+  if (flight.verticalSpeed > 0 && aeroLoad > (flight.qTop ? flight.qTop.load : 0)) flight.qTop = { load: aeroLoad, time: flight.time, altitude: flight.altitude, downrange: flight.downrange };
+  if (flight.qTop && flight.qTop.load > .02 && aeroLoad < flight.qTop.load * .9) markEvent(flight, 'maxq', flight.qTop);
+  if (flight.time > 5 && flight.verticalSpeed <= 0) markEvent(flight, 'apogee');
   // Overheating deforms the skin; it slowly recovers when the heating eases.
-  if (thrust > 0) {
+  if (powered) {
     if (heating > 1) flight.deformation += (heating - 1) * .6;
     else if (flight.deformation > 0) flight.deformation = Math.max(0, flight.deformation - .02);
     flight.maxQ = Math.max(flight.maxQ, aeroLoad);
@@ -264,25 +424,26 @@ export function step(flight) {
     flight.failure = flight.pending.mode;
     return 'fail';
   }
-  // A latent fault strikes only in its window: ignition (i), just after separation (x), through the dense air (h, f), or any time after T+3.
-  if (thrust > 0 && !flight.noFail && flight.latent && !flight.pending) {
+  // Seconds since the upper stage lit (null before it has): staging failures strike as it lights.
+  const sinceStaging = flight.stageIndex > 0 && stage.litAt < flight.time ? flight.time - stage.litAt : null;
+  // A latent fault strikes only in its window: ignition (i), just after staging (x), through the dense air (h, f), or any time after T+3.
+  if (powered && !flight.noFail && flight.latent && !flight.pending) {
     const mode = flight.latent;
     const inWindow = mode == 'i' ? flight.time <= 3
-      : mode == 'x' ? !!(flight.separationTime && flight.time - flight.separationTime <= 3)
+      : mode == 'x' ? sinceStaging != null && sinceStaging <= 3
       : (mode == 'h' || mode == 'f') ? (aeroLoad > .25 || heating > .25 || (flight.time > 8 && flight.time < 25))
       : flight.time > 3;
     if (inWindow && Math.random() < LATENT_FAULT_CHANCE && strike(flight, mode)) return 'fail';
   }
   // THE FAILURE MODEL: a chance of failing this second, then which mode, weighted by what the vehicle is going through.
-  if (thrust > 0 && !flight.noFail && !flight.pending) {
-    const justSeparated = flight.separationTime && flight.time - flight.separationTime <= 2;
+  if (powered && !flight.noFail && !flight.pending) {
+    const justSeparated = sinceStaging != null && sinceStaging <= 2;
     const spike = (flight.time <= 3 ? .012 : 0) + (justSeparated ? .04 : 0); // ignition and staging are risky moments
-    const gLoad = thrust / mass / GRAVITY;
-    const stress = Math.max(0, gLoad / (flight.gLimit * (1 - .35 * Math.min(1, flight.deformation))) - .85) + Math.max(0, aeroLoad - .8) * .5;
+    const stress = Math.max(0, flight.gLoad / (flight.gLimit * (1 - .35 * Math.min(1, flight.deformation))) - .85) + Math.max(0, aeroLoad - .8) * .5;
     const unreliability = 1 - flight.reliability;
     const weights = {
       c: unreliability,
-      p: unreliability * .8 * Math.min(2, thrust / flight.referenceThrust),
+      p: unreliability * .8 * Math.min(2, stage.thrust * flight.chamberShare / flight.referenceThrust),
       s: stress * 2 + .02,
       i: flight.time <= 3 ? unreliability * 4 : 0,
       v: unreliability * .4,
@@ -307,29 +468,11 @@ export function step(flight) {
     }
   }
 
-  // THE TRAJECTORY. On a staged flight the booster lofts the stack and the upper stage fires toward the horizon, as the real satellite
-  // launchers did. Better guidance (instrument tier) flies a tighter turn and aims the upper stage closer to horizontal.
-  // The plan sets the launcher's lean, the pitch program and the upper stage's aim; without one the rocket flies the default lean,
-  // the standard program and the guidance's aim.
-  const radius = EARTH_RADIUS + flight.altitude, density = SEA_LEVEL_DENSITY * Math.exp(-flight.altitude / SCALE_HEIGHT);
-  const staged = flight.stages.length > 1, plan = flight.plan, program = PITCH_PROGRAMS[plan ? plan.program : 'standard'];
-  const lean = plan ? (90 - plan.elevation) * Math.PI / 180 : DEFAULT_LEAN;
-  const pitch = staged && flight.stageIndex > 0
-    ? Math.min(guidedPitch(flight.tracking.v), plan && plan.aim != null ? (90 - plan.aim) * Math.PI / 180 : Infinity)
-    : Math.max(flight.time > 2 ? lean : 0, Math.min(.97, Math.max(0, (flight.altitude - program.start) / (staged ? program.span - 3500 * flight.tracking.v : program.span))) * 1.5);
-  const drag = .5 * density * flight.dragArea * (flight.stages[flight.stageIndex].isBooster ? 1.8 : 1) * flight.verticalSpeed * Math.abs(flight.verticalSpeed);
-  const previousVerticalSpeed = flight.verticalSpeed;
-  flight.verticalSpeed += thrust / mass * Math.cos(pitch) - GRAVITY * Math.pow(EARTH_RADIUS / radius, 2) + flight.horizontalSpeed * flight.horizontalSpeed / radius - drag / mass;
-  flight.altitude += flight.verticalSpeed;
-  flight.horizontalSpeed += thrust / mass * Math.sin(pitch) - previousVerticalSpeed * flight.horizontalSpeed / radius - (flight.horizontalSpeed > 0 ? .5 * density * flight.dragArea * flight.horizontalSpeed * flight.horizontalSpeed / mass : 0);
-  flight.peakAltitude = Math.max(flight.peakAltitude, flight.altitude);
-  flight.peakSpeed = Math.max(flight.peakSpeed, Math.hypot(flight.verticalSpeed, flight.horizontalSpeed));
-  flight.peakHorizontalSpeed = Math.max(flight.peakHorizontalSpeed || 0, flight.horizontalSpeed);
-  flight.downrange += flight.horizontalSpeed;
   if (flight.altitude >= ORBIT_ALTITUDE && flight.horizontalSpeed >= ORBIT_SPEED && flight.satellite) return 'orbit';
-  flight.coasting = thrust == 0 && flight.altitude > 90000;
-  if ((flight.altitude <= 0 && flight.time > 2) || flight.time > 5000) return 'land';
-  return 'tick';
+  flight.coasting = !powered && flight.altitude > 90000 && !(stage.litAt > flight.time); // not while an upper stage is about to light
+  if ((landed || flight.altitude <= 0) && flight.time > 2 && (flight.liftoffTime || flight.time > 6)) return 'land';
+  if (flight.time > 5000) return 'land';
+  return separated ? 'sep' : 'tick';
 }
 
 // SCIENCE pays on landing (if recovered, or the telemetered share) or in orbit. Animal payloads make headlines either way.
@@ -461,7 +604,7 @@ function endFlightForProgramme(flight, ok, why) {
 
 // MERCURY BOOSTERS: one of your airframes flies its normal physics and failure model with a capsule aboard, from liftoff to burnout.
 // options.load: the propellant load the mission plan chose (rules/mercury.js boosterPlan), full by default.
-export const totalBurnTime = flight => flight.stages.reduce((sum, eachStage) => sum + eachStage.fuel / (eachStage.thrust / (eachStage.isp * GRAVITY)), 0);
+export const totalBurnTime = flight => flight.stages.reduce((sum, eachStage) => sum + burnSeconds(eachStage), 0);
 // Returns { flight, failure: the mode or null, short: it fell back before burnout, fraction: share of the burn flown, altitude, speed }.
 export function boosterRun(airframe, propellantName, stage, options = {}) {
   return withProgramme(programmeOf(airframe), () => boosterRunForProgramme(airframe, propellantName, stage, options));

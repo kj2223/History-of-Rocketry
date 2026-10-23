@@ -6,41 +6,55 @@ import { STATIONS } from '../data/launch-site.js';
 import { PAYLOADS } from '../data/launch.js';
 import { S } from '../core/state.js';
 import { stationLock } from '../rules/launch-site.js';
-import { airborne, formatAltitude } from '../rules/flight.js';
-import { partReading, warningLevel } from '../rules/telemetry.js';
+import { airborne, formatAltitude, burnSeconds, isPowered } from '../rules/flight.js';
+import { PART_CHANNELS, partReading, warningLevel } from '../rules/telemetry.js';
 import { predictedImpact, offPlanWords } from '../rules/callouts.js';
 import { reading } from '../rules/mission.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
-const GRAVITY = 9.81;
-const burnLeft = stage => Math.max(0, Math.round(stage.fuel / (stage.thrust / (stage.isp * GRAVITY))));
+const burnLeft = stage => Math.round(burnSeconds(stage));
+// Whether the stage burning now has lit at all (an upper stage waits out a short coast after separation).
+const lit = flight => flight.stages[flight.stageIndex].litAt != null && flight.stages[flight.stageIndex].litAt < flight.time;
 // A station's state for its tile: text (the readout), gauge (0 to 1, or null for none), level ('ok' | 'wn' | 'bad' | ''), work.
 const state = (text, work, gauge = null, level = '') => ({ text, work, gauge, level });
 
 // IN FLIGHT: what each station is watching right now.
 function flightState(id, flight) {
-  const watching = channel => (flight.watch || []).includes(channel), stage = flight.stages[flight.stageIndex], powered = stage.fuel > 0;
+  const watching = channel => (flight.watch || []).includes(channel), stage = flight.stages[flight.stageIndex], powered = isPowered(flight);
   const part = channel => partReading(flight, channel), alarm = channel => warningLevel(flight, channel) > .3;
   switch (id) {
     case 'tc': return state(`T+${flight.time}s · ${powered ? 'powered flight' : flight.verticalSpeed > 0 ? 'coasting up' : 'descent'}`, 'Running the clock. Abort is your call.', null, 'ok');
-    case 'prop':
-      if (!powered) return state('Cutoff', 'Logging the burn for the engineering file.', 0);
-      if (!watching('pc')) return state(`Burn: ${burnLeft(stage)} s left`, 'No chamber channel: timing the burn by the clock.', burnLeft(stage) / Math.max(1, flight.burnTime));
-      return state(`PC ${part('pc').text} · ${burnLeft(stage)} s left`, alarm('pc') ? 'Chamber pressure is wrong!' : 'Watching chamber pressure.', part('pc').value / 120, alarm('pc') ? 'bad' : 'ok');
-    case 'rso': return state(`${(flight.downrange / 1000).toFixed(1)} km downrange`, 'Plotting the track against the range limits.', null, 'ok');
-    case 'tlm': {
-      const channels = (flight.watch || []).length, trouble = (flight.watch || []).some(alarm);
-      return state(channels ? `${channels} channel${channels > 1 ? 's' : ''} reading` : 'No part telemetry', trouble ? 'A channel is out of family!' : channels ? 'Strip charts running.' : 'Radio beacon and radar only.', null, trouble ? 'bad' : 'ok');
+    case 'prop': {
+      // The engine: thrust against its sea-level rating (above 100% in thin air), building at ignition, tailing off at the end.
+      if (!powered) return state(lit(flight) ? 'Cutoff' : `Stage ${flight.stageIndex + 1} lights in a moment`, lit(flight) ? 'Logging the burn for the engineering file.' : 'Igniter armed.', 0);
+      const thrust = `Thrust ${Math.round(flight.thrustShare * 100)}%`, left = `${burnLeft(stage)} s left`;
+      const phase = flight.chamberShare < .9 ? (burnLeft(stage) < 2 ? 'Tailing off.' : 'Thrust building.') : null;
+      if (!watching('pc')) return state(`${thrust} · ${left}`, phase || 'No chamber channel: timing the burn by the clock.', flight.thrustShare / 1.3);
+      return state(`PC ${part('pc').text} · ${thrust} · ${left}`, alarm('pc') ? 'Chamber pressure is wrong!' : phase || 'Watching chamber pressure.', part('pc').value / 120, alarm('pc') ? 'bad' : 'ok');
     }
-    case 'bstr':
-      if (!watching('q')) return state(flight.stageIndex ? 'Booster separated' : 'Staging armed', 'No strain channel on this flight.');
-      return state(`Q ${part('q').text} of limit`, alarm('q') ? 'Loads out of family!' : 'Watching the strain gauges.', part('q').value / 100, alarm('q') ? 'bad' : part('q').value > 60 ? 'wn' : 'ok');
+    case 'rso': {
+      const impact = !powered && flight.verticalSpeed > 0 ? ` · impact ~${Math.round(predictedImpact(flight) / 1000)} km` : '';
+      return state(`${(flight.downrange / 1000).toFixed(1)} km downrange${impact}`, 'Plotting the track against the range limits.', null, 'ok');
+    }
+    case 'tlm': {
+      // The busiest channel on the strip charts: the one in trouble, or the first picked.
+      const picked = flight.watch || [], trouble = picked.find(alarm), shown = trouble || picked.find(channel => channel != 'rec') || picked[0];
+      const text = shown ? `${PART_CHANNELS[shown].label} ${part(shown).text}${picked.length > 1 ? ` · +${picked.length - 1}` : ''}` : 'No part telemetry';
+      return state(text, trouble ? 'A channel is out of family!' : picked.length ? 'Strip charts running.' : 'Radio beacon and radar only.', null, trouble ? 'bad' : 'ok');
+    }
+    case 'bstr': {
+      const booster = flight.stages.length > 1 && flight.stageIndex == 0;
+      if (!watching('q')) return booster
+        ? state(`Booster ${burnLeft(stage)} s to burnout`, 'Staging armed. No strain channel on this flight.', null, 'ok')
+        : state(flight.stageIndex ? 'Booster separated' : `Mach ${(flight.mach || 0).toFixed(1)}`, 'No strain channel: reading the loads off the track.');
+      return state(`Q ${part('q').text} of limit${booster ? ` · booster ${burnLeft(stage)} s` : ''}`, alarm('q') ? 'Loads out of family!' : 'Watching the strain gauges.', part('q').value / 100, alarm('q') ? 'bad' : part('q').value > 60 ? 'wn' : 'ok');
+    }
     case 'fido': {
-      // Against the plan while the prediction runs: on plan, or which way the track is off.
+      // Against the plan while the prediction runs: on plan, or which way the track is off. Mach off the tracking.
       const altitude = flight.lastReadings.alt, track = altitude ? formatAltitude(altitude.value, altitude.quality) : 'No track';
-      const off = offPlanWords(flight);
-      return state(off == null ? track : `${track} · ${off ? off.toUpperCase() : 'ON PLAN'}`, flight.verticalSpeed > 0 ? 'Projecting apogee.' : 'Projecting impact.', null, off ? 'wn' : 'ok');
+      const off = offPlanWords(flight), mach = flight.mach >= .3 ? ` · M${flight.mach.toFixed(1)}` : '';
+      return state(off == null ? track + mach : `${track}${mach} · ${off ? off.toUpperCase() : 'ON PLAN'}`, flight.verticalSpeed > 0 ? 'Projecting apogee.' : 'Projecting impact.', null, off ? 'wn' : 'ok');
     }
     case 'rec': {
       // The recovery force follows the flight: holding at the range edge under power, then off toward the predicted impact.
@@ -51,7 +65,11 @@ function flightState(id, flight) {
       if (flight.verticalSpeed > 0) return state(`Helos to ${impact}`, 'Flying out to the predicted impact area.', null, 'ok');
       return state(status || `Helos at ${impact}`, trouble ? 'Recovery in trouble.' : status ? 'Following the payload down.' : 'No recovery channel: waiting for the chute.', null, trouble ? 'bad' : 'ok');
     }
-    case 'fd': return state('Running the loop', 'Listening to every station.', null, 'ok');
+    case 'fd': {
+      // The last milestone the room passed.
+      const last = (flight.events || [])[flight.events.length - 1];
+      return state(last ? `${last.label} · T+${last.time}` : 'Running the loop', 'Listening to every station.', null, 'ok');
+    }
     default: return state('On the loop', 'Listening.');
   }
 }

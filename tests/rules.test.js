@@ -11,7 +11,8 @@ import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
 import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe } from '../js/rules/production.js';
-import { previewFlight, beginFlight, step } from '../js/rules/flight.js';
+import { previewFlight, beginFlight, step, hasEvent } from '../js/rules/flight.js';
+import { designSpec } from '../js/rules/design.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
@@ -249,6 +250,43 @@ test('no two airframes are built alike, but the pre-flight estimate uses the dra
   assert.notEqual(fly(first), fly(second));
 });
 
+test('the engine builds up, pushes harder as the air thins, and tails off leaving a little propellant unburned', () => {
+  const airframe = readyProgramme('viking');
+  S.b = 1e6;
+  const flight = withProgramme('viking', () => beginFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1));
+  flight.noFail = true;
+  step(flight);
+  assert.ok(flight.chamberShare < 1, 'still building up in the first second');
+  let peakShare = 0;
+  while (!hasEvent(flight, 'cutoff')) {
+    step(flight);
+    peakShare = Math.max(peakShare, flight.thrustShare);
+  }
+  assert.ok(peakShare > 1.05, 'thrust above its sea-level rating high up');
+  assert.equal(flight.stages[0].fuel, 0);
+  assert.ok(flight.stages[0].dry > withProgramme('viking', () => designSpec(airframe.pk).dry), 'the unburned residual rides as dead weight');
+  assert.deepEqual(flight.events.slice(0, 2).map(event => event.key), ['liftoff', 'mach1']);
+});
+
+test('staging: the booster separates a second after cutoff and the upper stage lights after a short coast', () => {
+  const airframe = readyProgramme('jupc');
+  S.b = 1e6;
+  const flight = withProgramme('jupc', () => beginFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 1, 1));
+  flight.noFail = true;
+  while (step(flight) != 'sep');
+  assert.equal(flight.time, flight.cutoffs[0] + 1);
+  assert.ok(hasEvent(flight, 'boco') && !hasEvent(flight, 'ign2'));
+  step(flight);
+  step(flight);
+  assert.ok(hasEvent(flight, 'ign2'));
+});
+
+test('an unguided rocket flies a gravity turn: only the rail steers it, not the pitch program', () => {
+  const airframe = readyProgramme('aerobee');
+  const predict = plan => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, 0, plan));
+  assert.equal(predict({ elevation: 85, program: 'lofted' }).peakAltitude, predict({ elevation: 85, program: 'flat' }).peakAltitude);
+});
+
 test('a flight plan steers the trajectory: no plan flies the default, a vertical rail stays over the range, a low rail goes long', () => {
   const airframe = readyProgramme('aerobee');
   const predict = plan => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, 0, plan));
@@ -332,7 +370,7 @@ test('a station calls the flight only when it is staffed, and only the parts it 
   const { logSink } = await import('../js/core/state.js');
   const heard = [];
   logSink.fn = text => heard.push(text);
-  const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
+  const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200, flow: 10, residual: 0, litAt: 0 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
   crewCallouts(flight([]));
   assert.equal(heard.length, 0, 'nobody on console');
   S.crew.prop = 1;
@@ -386,7 +424,7 @@ test('an engine failure shows on chamber pressure for a few seconds first, and a
   let result;
   do result = step(flight); while (result == 'tick' && !flight.pending);
   assert.ok(flight.pending && !flight.failure, 'the pump fault is showing, not yet struck');
-  const steady = flight.thrustShare * 100;
+  const steady = flight.chamberShare * 100;
   while (flight.time < flight.pending.at - 1) step(flight);
   assert.ok(partReading(flight, 'pc').value < steady * .75, 'chamber pressure falls away before the failure');
   const incidents = () => withProgramme('aerobee', () => S.inc.length), before = incidents();

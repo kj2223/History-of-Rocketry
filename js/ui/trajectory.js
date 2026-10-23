@@ -4,9 +4,10 @@
 // (launchForm.plan null) the rocket flies the default, as it always has. On a staged rocket FIDO can also aim the upper stage.
 // Trajectory analysts (Crew desk) search the candidate plans day by day and propose the best one found for a goal (rules/trajectory.js).
 import { PITCH_PROGRAMS, ELEVATION_RANGE, AIM_RANGE, PAYLOADS } from '../data/launch.js';
-import { S } from '../core/state.js';
+import { S, withProgramme } from '../core/state.js';
 import { roomLevel } from '../rules/launch-site.js';
-import { airborne, previewFlight } from '../rules/flight.js';
+import { airborne, previewFlight, defaultElevation } from '../rules/flight.js';
+import { designSpec } from '../rules/design.js';
 import { analysts, TRAJECTORY_GOALS, newSearch, workSearch } from '../rules/trajectory.js';
 import { launchForm } from './launch-panel.js';
 import { $, setHTML } from './dom.js';
@@ -15,12 +16,16 @@ import { $, setHTML } from './dom.js';
 // search: the team's search for the rocket on the launch form (rules/trajectory.js), or null.
 export const trajectoryPanel = { open: false, goal: null, search: null };
 const PLAN_FROM_LEVEL = 2; // the Plotting Board facility
-const DEFAULT_ELEVATION = 81; // the default rail lean (0.15 radians), to the nearest degree
 export const planUnlocked = () => roomLevel() >= PLAN_FROM_LEVEL;
-// The plan the panel's controls start from: the one set, or the default written out.
-export const currentPlan = () => launchForm.plan || { elevation: DEFAULT_ELEVATION, program: 'standard' };
-
 const readyAirframe = () => S.air.find(candidate => candidate.id == launchForm.af && candidate.st == 'r');
+// The default rail elevation for the rocket on the launch form: near vertical for an unguided rocket (rules/flight.js).
+const defaultRail = () => {
+  const airframe = readyAirframe();
+  return defaultElevation(airframe ? withProgramme(airframe.prog, () => designSpec(airframe.pk).tier) : 0);
+};
+// The plan the panel's controls start from: the one set, or the default written out.
+export const currentPlan = () => launchForm.plan || { elevation: defaultRail(), program: 'standard' };
+
 // The flight the launch form would make with a plan (the form's own by default), as the engineers predict it
 // (rules/flight.js previewFlight), or null with no rocket ready.
 export function plannedFlight(plan = launchForm.plan) {
@@ -60,11 +65,13 @@ export function renderTrajectory() {
   const profile = launchForm.st ? 'staged ascent' : 'sounding profile';
   let html = `<div class="ct">FLIGHT PLAN <span class="d">· FIDO</span></div>`;
   if (airborne.flight || airborne.mission) return setHTML(panel, html + '<div class="m">The plan is flying. The predicted arc stays on the board under the track.</div>');
-  html += `<div class="m">${plan ? `Planned: ${PITCH_PROGRAMS[plan.program].name.toLowerCase()} turn, rail at ${plan.elevation}°.` : `Default ${profile}: rail leans to about ${DEFAULT_ELEVATION}°, standard turn.`}</div>`;
+  html += `<div class="m">${plan ? `Planned: ${PITCH_PROGRAMS[plan.program].name.toLowerCase()} turn, rail at ${plan.elevation}°.` : `Default ${profile}: rail leans to about ${defaultRail()}°, standard turn.`}</div>`;
   html += `<div class="r"><span class="d">Launcher elevation</span><b id="tj-elevation">${shown.elevation}°</b></div>`
     + `<input type="range" data-tj="elevation" min="${ELEVATION_RANGE.min}" max="${ELEVATION_RANGE.max}" step="1" value="${shown.elevation}" style="width:100%">`;
-  html += `<div class="tjprog">${Object.keys(PITCH_PROGRAMS).map(key => `<button data-a="tjprog" data-id="${key}" class="${plan && plan.program == key ? 'on' : ''}" title="${PITCH_PROGRAMS[key].description}"${fido ? '' : ' disabled'}>${PITCH_PROGRAMS[key].name.toUpperCase()}</button>`).join('')}</div>`;
-  html += `<div class="m">${fido ? PITCH_PROGRAMS[shown.program].description : 'Pitch programs need a Flight Dynamics Officer (Crew desk).'}</div>`;
+  // An unguided rocket flies a pure gravity turn from the rail (rules/flight.js): a pitch program needs guidance to fly it.
+  const airframe = readyAirframe(), guided = !!airframe && withProgramme(airframe.prog, () => designSpec(airframe.pk).tier) > 0, steerable = fido && guided;
+  html += `<div class="tjprog">${Object.keys(PITCH_PROGRAMS).map(key => `<button data-a="tjprog" data-id="${key}" class="${plan && plan.program == key ? 'on' : ''}" title="${PITCH_PROGRAMS[key].description}"${steerable ? '' : ' disabled'}>${PITCH_PROGRAMS[key].name.toUpperCase()}</button>`).join('')}</div>`;
+  html += `<div class="m">${!fido ? 'Pitch programs need a Flight Dynamics Officer (Crew desk).' : !guided ? 'Unguided: the fins hold it to its own flight path, so only the rail angle steers it. A pitch program needs guidance (instrument research).' : PITCH_PROGRAMS[shown.program].description}</div>`;
   const preview = plannedFlight();
   if (preview && preview.flattestAim != null && fido) {
     const aim = shown.aim ?? preview.flattestAim;

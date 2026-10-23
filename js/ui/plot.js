@@ -2,7 +2,7 @@
 // radar tracked it, against the directive's altitude: altitude over distance downrange, both to the same scale, so the track
 // has the shape of the real flight path. A Mercury mission (no downrange track) is plotted against time instead.
 // Under the track, FIDO's predicted arc (ui/trajectory.js) is drawn dashed in a band for its uncertainty: the next flight's plan
-// on the ground, the flight's own prediction in the air.
+// on the ground, the flight's own prediction in the air. The flight's milestones (max Q, staging, cutoff, apogee) are marked on its track.
 // Before the room has a plotting board, the radar calls are only marked as dots, as an engineer would pencil them onto graph paper.
 import { DIRECTIVES } from '../data/history.js';
 import { S } from '../core/state.js';
@@ -60,6 +60,16 @@ export function renderPlot() {
   }
   if (plotted && trace.length) svg += `<polyline points="${trace.map((metres, index) => `${xOf(index).toFixed(1)},${y(metres).toFixed(1)}`).join(' ')}" class="trace${live ? '' : ' old'}"/>`;
   if (!plotted) svg += trace.map((metres, index) => index % 4 ? '' : `<circle cx="${xOf(index)}" cy="${y(metres)}" r="3" class="dot"/>`).join('');
+  // The flight's milestones, marked on the track where they happened (liftoff is left off: it is the origin).
+  const events = range ? (flight ? flight.events : launchView.lastEvents || []) : [];
+  // A label too close to the last one drawn is left off (on a long flight the early milestones bunch up near the pad).
+  let lastLabel = null;
+  if (plotted && trace.length) svg += events.filter(event => event.key != 'liftoff').map(event => {
+    const x = LEFT + event.downrange / span * plotWidth, height = y(event.altitude);
+    const crowded = lastLabel && Math.hypot(x - lastLabel.x, height - lastLabel.y) < 40;
+    if (!crowded) lastLabel = { x, y: height };
+    return `<circle cx="${x.toFixed(1)}" cy="${height.toFixed(1)}" r="3" class="mark"/>` + (crowded ? '' : `<text x="${(x + 6).toFixed(1)}" y="${(height + 12).toFixed(1)}" class="mark-t">${event.label}</text>`);
+  }).join('');
   if (trace.length) {
     const last = trace.length - 1, metres = trace[last], reading = flight && flight.lastReadings.alt;
     svg += `<circle cx="${xOf(last)}" cy="${y(metres)}" r="${live ? 5 : 4}" class="now${live ? ' bl' : ''}"/><text x="${xOf(last) + 9}" y="${y(metres) - 6}" class="now-t">${reading ? formatAltitude(reading.value, reading.quality) : kmLabel(metres)}</text>`;

@@ -27,7 +27,8 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 |---|---|
 | Research packages and milestones (cost, time, effects) | `data/research.js` |
 | Rockets: design figures, costs, propellants, flaws | `data/programmes.js` |
-| Propellants, payloads and pitch programs | `data/launch.js` |
+| Propellants (sea-level and vacuum Isp), payloads and pitch programs | `data/launch.js` |
+| Engine start and tail-off, residual propellant, drag through the sound barrier, gravity-turn steering, staging delays | the constants above `step()` in `rules/flight.js` |
 | Failure modes, symptoms and fixes | `data/failures.js` |
 | Facilities, control rooms, launch-crew stations, trajectory analysts | `data/launch-site.js` |
 | Directives, eras, historical firsts, Soviet dates, calendar speed | `data/history.js` |
@@ -48,7 +49,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/jobs.js` | Engineering-team jobs: investigations, fixes, design reviews, retrofits |
 | `rules/knowledge.js` | What the engineers know about each system |
 | `rules/launch-site.js` | Building facilities, hiring launch crew, the go/no-go poll, pad troubleshooting, ground tests |
-| `rules/flight.js` | Flight physics (including the flight plan's trajectory), failures, instrument readings, flight results |
+| `rules/flight.js` | Flight physics in tenths of a second (thrust rising with altitude, Mach drag, the gravity turn, staging, the flight's milestones), failures, instrument readings, flight results |
 | `rules/trajectory.js` | The trajectory team: hiring analysts, goals, and the search for the best flight plan |
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
 | `rules/auto.js` | The launch director flying the running campaign |

@@ -2,12 +2,14 @@
 // The names are also stored in saves (a launch campaign's propellant and payload), so rename one only with care.
 
 // Propellant cost = handlingCost + pricePerKg x (kilograms loaded) ^ 0.8, so it grows more slowly than the rocket (rules/design.js).
-//   isp: specific impulse (s), how hard the propellant pushes
+//   isp: specific impulse (s) at sea level, how hard the propellant pushes on the pad
+//   vacuumIsp: specific impulse (s) in vacuum: with no air pressing back on the nozzle exit the same engine pushes harder,
+//              so thrust climbs through the burn as the rocket leaves the atmosphere (rules/flight.js)
 //   reliability: the engine's base chance of a clean flight with this propellant
 //   density: kilograms loaded per kilogram of tank capacity (tank capacity is rated in alcohol-equivalent kg)
 export const PROPELLANTS = {
-  'Alcohol & LOX': { handlingCost: 1200, pricePerKg: 40, isp: 225, reliability: .9, density: 1 },
-  'Kerosene & LOX': { handlingCost: 2000, pricePerKg: 50, isp: 290, reliability: .85, density: 1.25 },
+  'Alcohol & LOX': { handlingCost: 1200, pricePerKg: 40, isp: 225, vacuumIsp: 250, reliability: .9, density: 1 },
+  'Kerosene & LOX': { handlingCost: 2000, pricePerKg: 50, isp: 290, vacuumIsp: 320, reliability: .85, density: 1.25 },
 };
 
 // Payloads.
@@ -30,13 +32,15 @@ export const PAYLOADS = {
 // PITCH PROGRAMS: how a single-stage rocket (or a booster stage) turns over toward the horizon on the way up, set on the
 // trajectory panel. The turn starts at start (m) and tips the rocket over across span (m) of climb. The keys are kept on the launch form.
 // Standard is the default every rocket flies without a plan; better guidance tightens a booster stage's turn (rules/flight.js).
+// Only a guided rocket (instrument tier 1 or more) can fly a program, and its autopilot steers hard only once the air is thin;
+// an unguided rocket flies a pure gravity turn from the rail.
 export const PITCH_PROGRAMS = {
   lofted: { name: 'Lofted', start: 20000, span: 90000, description: 'Holds the climb near vertical: the highest apogee, a short trip downrange.' },
   standard: { name: 'Standard', start: 5000, span: 40000, description: 'The usual turn: a balance of height and distance.' },
   flat: { name: 'Flat', start: 1500, span: 20000, description: 'Turns over early: the longest trip downrange, but fast through the thick air, so higher loads and heating.' },
 };
-// The launcher's elevation (degrees above the horizon) the trajectory panel allows. Without a plan the rail leans the rocket
-// 0.15 radians (about 81 degrees) two seconds after liftoff.
+// The launcher's elevation (degrees above the horizon) the trajectory panel allows. Without a plan the rail stands at about
+// 87 degrees for an unguided rocket and 81 for a guided one (rules/flight.js defaultElevation).
 export const ELEVATION_RANGE = { min: 75, max: 90 };
 // The upper stage's aim (degrees above the horizon) a staged rocket's plan allows. The guidance sets the flattest aim it can hold
 // (rules/flight.js flattestAim), so the range starts there; without a plan the upper stage flies at that flattest aim.
