@@ -99,7 +99,7 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .room-grid{display:grid;grid-template-rows:minmax(0,1fr);grid-template-columns:minmax(240px,300px) minmax(0,1fr) minmax(360px,440px);gap:12px;padding:12px;min-height:0}
 .col{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}.col>.p{margin:0}
 .col .p.fill{flex:1;min-height:0;display:flex;flex-direction:column}
-.left>.p:not(.fill){flex-shrink:0;max-height:34%;overflow:auto}
+.left>.p:not(.fill){flex-shrink:0;max-height:34%;overflow:auto}.left>.p:has(.nasa){max-height:none} /* the Space Act card is never cut off */
 .board{flex-shrink:0}.plot{width:100%;height:auto;max-height:34vh;display:block;background:var(--bg);border:1px solid var(--ln)}
 .plot .grid{stroke:var(--ln);opacity:.45}.plot .axis{fill:var(--dim);font-size:11px;font-family:inherit}
 .plot .goal{stroke:var(--wn);stroke-dasharray:8 5}.plot .goal-t{fill:var(--wn);font-size:11px;font-family:inherit}

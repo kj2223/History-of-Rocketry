@@ -36,7 +36,16 @@ const CHUTE_SAFE_LOAD = .75, CHUTE_CERTAIN_LOSS_LOAD = 1.35, RIGGING_FAILURE = .
 // radio beacon 12%, sea-dye marker 8% and so on), recovery force 20%, Recovery Controller 15%, tracking ship 5%.
 // A payload over 80 km downrange is 20% harder to find without the recovery force or the ship.
 // Each payload recovered teaches the search teams 2%, up to 20%. Never better than 97%.
+// On a planned flight the Recovery Controller puts the helicopters on station at the planned impact before liftoff:
+// a payload that comes down inside the planned footprint is 15% easier to find.
 const SEARCH_BASE = .2, SEARCH_EXPERIENCE_EACH = .02, SEARCH_EXPERIENCE_MAX = .2, SEARCH_BEST = .97;
+const ON_STATION_BONUS = .15;
+// THE PLANNED FOOTPRINT: how far from the planned impact still counts as on station. The prediction's own spread
+// (flight.prediction, set when a planned flight launches) either side, and never less than 2 km.
+const FOOTPRINT_MIN = 2000;
+export const plannedFootprint = flight => Math.max(FOOTPRINT_MIN, flight.prediction.downrange * flight.prediction.uncertainty);
+export const onPlannedStation = (flight, impact = flight.downrange) =>
+  !!(flight.plan && flight.prediction && S.crew.rec) && Math.abs(impact - flight.prediction.downrange) <= plannedFootprint(flight);
 
 const clamp = value => Math.max(0, Math.min(1, value));
 
@@ -60,7 +69,7 @@ export function recoveryPlan(flight) {
 
   const longRange = flight.downrange > 80000 && !S.fac.recov && !S.fac.ship;
   const search = Math.max(0, Math.min(SEARCH_BEST, SEARCH_BASE + spec.rc
-    + (S.fac.recov ? .2 : 0) + (S.crew.rec ? .15 : 0) + (S.fac.ship ? .05 : 0) - (longRange ? .2 : 0)
+    + (S.fac.recov ? .2 : 0) + (S.crew.rec ? .15 : 0) + (S.fac.ship ? .05 : 0) - (longRange ? .2 : 0) + (onPlannedStation(flight) ? ON_STATION_BONUS : 0)
     + Math.min(SEARCH_EXPERIENCE_MAX, (S.recn || 0) * SEARCH_EXPERIENCE_EACH)));
 
   return {

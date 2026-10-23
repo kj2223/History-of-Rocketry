@@ -19,6 +19,7 @@ import { $, option, setHTML, escapeHtml, percent } from './dom.js';
 // What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank),
 // ch: the part channels to watch (null until first shown, then every fitted channel the telemetry can carry).
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
+// fuelFor: the programme the propellant was last defaulted for.
 // plan: the trajectory panel's flight plan (ui/trajectory.js), or null to fly the default.
 export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null, plan: null };
 
@@ -38,6 +39,11 @@ export function renderLaunchForm() {
   const form = launchForm, ready = S.air.filter(airframe => airframe.st == 'r').reverse();
   if (!ready.find(airframe => airframe.id == form.af)) form.af = ready[0] && ready[0].id;
   const airframe = ready.find(candidate => candidate.id == form.af), propellants = airframe ? PROGRAMMES[airframe.prog].propellants : Object.keys(PROPELLANTS);
+  // A rocket from another programme starts on that programme's first-listed (preferred) propellant.
+  if (airframe && form.fuelFor != airframe.prog) {
+    form.fuel = propellants[0];
+    form.fuelFor = airframe.prog;
+  }
   if (!propellants.includes(form.fuel)) form.fuel = propellants[0];
   if (payloadLocked(form.pay, airframe)) form.pay = 'Inert Ballast';
   if (form.st && !hasBoosterStage(airframe)) form.st = 0;

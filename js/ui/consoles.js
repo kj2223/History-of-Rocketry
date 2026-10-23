@@ -8,7 +8,7 @@ import { S } from '../core/state.js';
 import { stationLock } from '../rules/launch-site.js';
 import { airborne, formatAltitude } from '../rules/flight.js';
 import { partReading, warningLevel } from '../rules/telemetry.js';
-import { predictedImpact } from '../rules/callouts.js';
+import { predictedImpact, offPlanWords } from '../rules/callouts.js';
 import { reading } from '../rules/mission.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -37,8 +37,10 @@ function flightState(id, flight) {
       if (!watching('q')) return state(flight.stageIndex ? 'Booster separated' : 'Staging armed', 'No strain channel on this flight.');
       return state(`Q ${part('q').text} of limit`, alarm('q') ? 'Loads out of family!' : 'Watching the strain gauges.', part('q').value / 100, alarm('q') ? 'bad' : part('q').value > 60 ? 'wn' : 'ok');
     case 'fido': {
-      const altitude = flight.lastReadings.alt;
-      return state(altitude ? formatAltitude(altitude.value, altitude.quality) : 'No track', flight.verticalSpeed > 0 ? 'Projecting apogee.' : 'Projecting impact.', null, 'ok');
+      // Against the plan while the prediction runs: on plan, or which way the track is off.
+      const altitude = flight.lastReadings.alt, track = altitude ? formatAltitude(altitude.value, altitude.quality) : 'No track';
+      const off = offPlanWords(flight);
+      return state(off == null ? track : `${track} · ${off ? off.toUpperCase() : 'ON PLAN'}`, flight.verticalSpeed > 0 ? 'Projecting apogee.' : 'Projecting impact.', null, off ? 'wn' : 'ok');
     }
     case 'rec': {
       // The recovery force follows the flight: holding at the range edge under power, then off toward the predicted impact.
