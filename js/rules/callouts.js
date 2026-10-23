@@ -83,7 +83,13 @@ export function crewCallouts(flight) {
   if (flight.time >= 2 && (flight.watch || []).length) call('tlm', 'link', `Telemetry good. ${flight.watch.length} channel${flight.watch.length > 1 ? 's' : ''} reading.`, 'ok', 'TLM GOOD');
   // PROPULSION: the burn clock, and the chamber when it is watched.
   if (powered && flight.time >= 3 && watching('pc')) call('prop', 'pc', `Chamber pressure steady, ${Math.round(flight.chamberShare * 100)} percent.`, '', `PC ${Math.round(flight.chamberShare * 100)}%`);
-  if (powered && burnSeconds(stage) <= 10 && flight.burnTime > 15) call('prop', 'ten' + flight.stageIndex, lastStage ? 'Ten seconds to cutoff.' : 'Ten seconds to booster burnout.', '', lastStage ? 'T-10 CUTOFF' : 'T-10 BURNOUT');
+  if (powered && burnSeconds(stage) <= 10 && flight.burnTime > 15) {
+    // Against the plan: when the burn will end, by the propellant left, next to when the drawings said it would.
+    const planned = flight.prediction && flight.prediction.cutoffs[flight.stageIndex];
+    const late = planned ? Math.round(flight.time + burnSeconds(stage) + 1 - planned) : 0;
+    const running = Math.abs(late) >= 2 ? ` Running ${Math.abs(late)} seconds ${late > 0 ? 'long' : 'short'}.` : '';
+    call('prop', 'ten' + flight.stageIndex, (lastStage ? 'Ten seconds to cutoff.' : 'Ten seconds to booster burnout.') + running, running ? 'wn' : '', lastStage ? 'T-10 CUTOFF' : 'T-10 BURNOUT');
+  }
   // Cutoff, timed against the plan: a hotter or cooler engine burns its propellant faster or slower than the drawings say.
   if (!powered && lastStage && event('cutoff')) {
     const index = flight.stages.length - 1, planned = flight.prediction && flight.prediction.cutoffs[index], late = planned ? flight.cutoffs[index] - planned : 0;

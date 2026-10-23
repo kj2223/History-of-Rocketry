@@ -109,13 +109,14 @@ const boosterStage = (programme, spec, modifiers, propellant, load = 1) => {
 const DAY_TO_DAY_THRUST = .015, DAY_TO_DAY_ISP = .01;
 const AS_DRAWN = { t: 1, m: 1, d: 1 };
 // RESIDUALS: the share of loaded propellant that never reaches the engine (lines, sumps, tank corners). It rides to the end as dead weight.
-const RESIDUAL_SHARE = .02;
+// Typically 2%, but it varies by a quarter either way from flight to flight, so a burn can end a little early or late.
+const RESIDUAL_SHARE = .02, RESIDUAL_SPREAD = .25;
 // One stage, ready to fly: its propellant flow (kg/s) is fixed by the rated sea-level thrust, so the burn time does not depend on altitude.
 // litAt: when its engine lights (the first stage at T+0; an upper stage after separation, rules below), out: burned out.
-const readyStage = (eachStage, build, onTheDay, efficiency) => {
+const readyStage = (eachStage, build, onTheDay, efficiency, residualShare) => {
   const thrust = eachStage.thrust * build.t * onTheDay;
   const flow = thrust / (eachStage.isp * GRAVITY);
-  return { ...eachStage, dry: eachStage.dry * build.m, thrust: thrust * efficiency, isp: eachStage.isp * efficiency, vacuumIsp: eachStage.vacuumIsp * efficiency, flow, residual: eachStage.fuel * RESIDUAL_SHARE, litAt: null, out: 0 };
+  return { ...eachStage, dry: eachStage.dry * build.m, thrust: thrust * efficiency, isp: eachStage.isp * efficiency, vacuumIsp: eachStage.vacuumIsp * efficiency, flow, residual: eachStage.fuel * residualShare, litAt: null, out: 0 };
 };
 const roll = spread => 1 + spread * Math.max(-2, Math.min(2, gaussian()));
 function makeFlightForProgramme(airframe, propellantName, payloadName, stage, load, options) {
@@ -124,14 +125,15 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   const propellant = PROPELLANTS[propellantName], payload = PAYLOADS[payloadName];
   const build = options.estimated ? AS_DRAWN : airframe.vr || AS_DRAWN;
   const onTheDay = options.estimated ? 1 : roll(DAY_TO_DAY_THRUST), efficiency = options.estimated ? 1 : roll(DAY_TO_DAY_ISP);
+  const residualShare = () => RESIDUAL_SHARE * (options.estimated ? 1 : roll(RESIDUAL_SPREAD / 2));
   const engineGain = 1 + .5 * (spec.t * modifiers.t - 1);
   const core = readyStage({
     dry: spec.dry + spec.d + modifiers.d,
     fuel: spec.f * propellant.density * load,
     thrust: spec.thr * spec.t * modifiers.t,
     isp: propellant.isp * engineGain, vacuumIsp: propellant.vacuumIsp * engineGain,
-  }, build, onTheDay, efficiency);
-  const stages = stage && programme.booster ? [readyStage(boosterStage(programme, spec, modifiers, propellant, load), build, onTheDay, efficiency), core] : [core];
+  }, build, onTheDay, efficiency, residualShare());
+  const stages = stage && programme.booster ? [readyStage(boosterStage(programme, spec, modifiers, propellant, load), build, onTheDay, efficiency, residualShare()), core] : [core];
   stages[0].litAt = 0;
   const coreBurnTime = burnSeconds(core);
   // Reliability: the propellant's base, up to +15 points of experience with it, the design's offset,
