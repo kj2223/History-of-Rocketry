@@ -329,6 +329,7 @@ export function step(flight) {
       stage.fuel -= stage.flow * share * DT;
       shareSum += share;
       thrustSum += thrust;
+      if (flight.stageIndex > 0) markEvent(flight, 'ign2');
       if (at - stage.litAt > IGNITION_SECONDS && engineShare(stage, at) < ENGINE_OUT_SHARE) engineOut(flight, stage);
     }
     const radius = EARTH_RADIUS + flight.altitude, density = SEA_LEVEL_DENSITY * Math.exp(-Math.max(0, flight.altitude) / SCALE_HEIGHT);

@@ -105,6 +105,7 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .plot .goal{stroke:var(--wn);stroke-dasharray:8 5}.plot .goal-t{fill:var(--wn);font-size:11px;font-family:inherit}
 .plot .trace{fill:none;stroke:var(--ac);stroke-width:2.5}.plot .trace.old{opacity:.55;stroke-dasharray:5 4}.plot .dot{fill:var(--ac)}
 .plot .now{fill:var(--ac)}.plot .now.bl{animation:blink .7s steps(2) infinite}.plot .now-t{fill:var(--ink);font-size:13px;font-weight:bold;font-family:inherit}
+.plot .mark{fill:none;stroke:var(--ink);stroke-width:1.5}.plot .mark-t{fill:var(--dim);font-size:10px;font-family:inherit;opacity:.8}
 /* The plotting board's header and FIDO's trajectory panel, which pops out beside the plot (ui/trajectory.js) */
 .plot .plan{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 4;opacity:.7}.plot .band{fill:var(--ac);opacity:.1}
 .boardhd{display:flex;align-items:flex-start;gap:8px}.boardhd h2{flex:1}.boardhd button{width:auto;margin:0;padding:3px 10px;font-size:.7rem;letter-spacing:.08em}.boardhd button.on{background:var(--ac);color:var(--bg)}

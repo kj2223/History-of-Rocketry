@@ -26,8 +26,8 @@ import { $, setHTML } from './dom.js';
 //   hold: why the clock is held ('' if not), userHold: held by the player, override: continuing over a NO-GO
 //   polling, pollTicks: the poll is being read out; mission: { vid, crew, af, fuel } for a Mercury flight; result: how it ended
 // countTimer, flightTimer: the interval timers. lastTrace, lastRangeTrace: the last flight's track, kept on the plotting board
-// (a Mercury mission has no downrange track: null). planned: the pre-flight prediction of the flight in the air, drawn under its track.
-export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null, planned: null };
+// (a Mercury mission has no downrange track: null), lastEvents: its milestones (rules/flight.js), marked on the board. planned: the pre-flight prediction of the flight in the air, drawn under its track.
+export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null, lastEvents: [], planned: null };
 export const isBusy = () => !!launchView.count;
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
@@ -236,13 +236,14 @@ function drawClockStrip(clock, phases, readouts) {
 
 // AN ORDINARY FLIGHT: its milestones, and the readings the range and the rocket's own telemetry can give.
 function flightPhases(flight) {
-  const ui = flight.clockMarks || (flight.clockMarks = { qPeak: 0 }), payload = PAYLOADS[flight.payload], last = flight.stages[flight.stages.length - 1];
-  ui.qPeak = Math.max(ui.qPeak, flight.aeroLoad || 0);
+  const payload = PAYLOADS[flight.payload], event = key => hasEvent(flight, key);
   const apogee = flight.time > 5 && flight.verticalSpeed <= 0;
   const phases = [
     { name: 'IGNITION', reached: flight.countdown <= 0 },
-    { name: 'MAX Q', reached: ui.qPeak > .05 && flight.aeroLoad < ui.qPeak * .7 },
-    { name: flight.stages.length > 1 ? 'STAGE 2 CUTOFF' : 'CUTOFF', reached: last.fuel <= 0 },
+    { name: 'LIFTOFF', reached: event('liftoff') },
+    { name: 'MAX Q', reached: event('maxq') },
+    ...(flight.stages.length > 1 ? [{ name: 'STAGING', reached: event('sep') }] : []),
+    { name: flight.stages.length > 1 ? 'STAGE 2 CUTOFF' : 'CUTOFF', reached: event('cutoff') },
   ];
   if (payload.satellite) return [...phases, { name: 'ORBIT', reached: false }];
   phases.push({ name: 'APOGEE', reached: apogee });
@@ -259,6 +260,8 @@ function drawFlightInstruments(flight) {
   readouts.push(CHANNELS.vel.quality(ground, vehicle)
     ? { label: vehicle >= 2 ? 'ACCEL VEL' : 'DOPPLER VEL', text: velocity ? approximate(velocity) + velocity.value + ' m/s' : '--', lost: lost.vel }
     : { label: 'VELOCITY', none: 1 });
+  // Mach, off the velocity the range or the rocket measures (so only where velocity is measured).
+  if (CHANNELS.vel.quality(ground, vehicle)) readouts.push({ label: 'MACH', text: velocity ? approximate(velocity) + (flight.mach || 0).toFixed(1) : '--', lost: lost.vel });
   const fuel = readings.fuel;
   readouts.push(vehicle >= 1
     ? { label: 'PROPELLANT', text: fuel ? approximate(fuel) + fuel.value + ' kg' : '--', lost: lost.fuel }
@@ -302,6 +305,7 @@ export function finishFlight(ok, why) {
   launchView.flightTimer = null;
   launchView.lastTrace = flight.trace.slice();
   launchView.lastRangeTrace = flight.rangeTrace.slice();
+  launchView.lastEvents = flight.events.slice();
   endFlight(flight, ok, why);
   airborne.flight = null;
   document.documentElement.classList.remove('flying');
