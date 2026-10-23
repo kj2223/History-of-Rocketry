@@ -38,3 +38,6 @@ export const PITCH_PROGRAMS = {
 // The launcher's elevation (degrees above the horizon) the trajectory panel allows. Without a plan the rail leans the rocket
 // 0.15 radians (about 81 degrees) two seconds after liftoff.
 export const ELEVATION_RANGE = { min: 75, max: 90 };
+// The upper stage's aim (degrees above the horizon) a staged rocket's plan allows. The guidance sets the flattest aim it can hold
+// (rules/flight.js flattestAim), so the range starts there; without a plan the upper stage flies at that flattest aim.
+export const AIM_RANGE = { max: 30 };

@@ -1,12 +1,13 @@
 // PERSONNEL tab: payroll, build and engineering teams, the press office, and the launch crew on console.
 // The launch director is hired and managed on the Launch tab (ui/launch-panel.js).
 import { formatMoney } from '../core/util.js';
-import { ROOMS, STATIONS } from '../data/launch-site.js';
+import { ROOMS, STATIONS, TRAJECTORY_ANALYSTS } from '../data/launch-site.js';
 import { S } from '../core/state.js';
 import { payroll } from '../rules/economy.js';
 import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost } from '../rules/factory.js';
 import { engineeringTeamCost, MAX_ENGINEERING_TEAMS, SPECIALISTS } from '../rules/game.js';
 import { roomLevel, consoleCount, crewOnConsole, stationLock } from '../rules/launch-site.js';
+import { analysts, analystLock } from '../rules/trajectory.js';
 import { $, setHTML } from './dom.js';
 
 const staffCard = (title, description, action) => `<div class="c"><div class="t">${title}</div><div class="m">${description}</div>${action}</div>`;
@@ -22,6 +23,7 @@ export function renderStaff() {
       S.staff.pr ? '<div class="ok">On staff.</div>' : `<button data-a="hire" data-id="pr"${S.b < SPECIALISTS.pr.cost ? ' disabled' : ''}>HIRE PR SPECIALIST (${formatMoney(SPECIALISTS.pr.cost)})</button>`));
 }
 // The launch crew: the Test Conductor is always on console; other stations are hired into free consoles.
+// Then FIDO's trajectory analysts, who need no console.
 export function renderLaunchCrew() {
   const box = $('#crew');
   if (!box) return;
@@ -33,5 +35,9 @@ export function renderLaunchCrew() {
       + (id == 'tc' ? '' : S.crew[id] ? `<button data-a="dismiss" data-id="${id}">RELEASE FROM CONSOLE</button>` : `<button data-a="crew" data-id="${id}"${lock ? ' disabled' : ''}>HIRE (${formatMoney(station.cost)})</button>${lock ? `<div class="m">${lock}</div>` : ''}`)
       + '</div>';
   }
+  const lock = analystLock();
+  html += `<div class="c"><div class="r"><b>TRAJECTORY ANALYSTS</b><span class="${analysts() ? 'ok' : 'd'}">${analysts()} / ${TRAJECTORY_ANALYSTS.max}</span></div><div class="m">FIDO's human computers. Each works through candidate flight plans, about one every ${Math.round(1 / TRAJECTORY_ANALYSTS.runsPerDay)} days, and the trajectory panel proposes the best found. No console needed. ${formatMoney(TRAJECTORY_ANALYSTS.salary)} per cycle each.</div>`
+    + (analysts() < TRAJECTORY_ANALYSTS.max ? `<button data-a="analyst"${lock ? ' disabled' : ''}>HIRE ANALYST (${formatMoney(TRAJECTORY_ANALYSTS.cost)})</button>${lock ? `<div class="m">${lock}</div>` : ''}` : '')
+    + (analysts() ? '<button data-a="unanalyst">RELEASE ONE ANALYST</button>' : '') + '</div>';
   setHTML(box, html);
 }

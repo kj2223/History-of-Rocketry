@@ -1,6 +1,6 @@
 // MONEY AND REPUTATION: appropriations, the Defense Department supplement, payroll, range data and reputation losses. No DOM.
 // Also the estimate of your progress in the race, which drives the supplement and the calendar catch-up.
-import { STATIONS } from '../data/launch-site.js';
+import { STATIONS, TRAJECTORY_ANALYSTS } from '../data/launch-site.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, isResearched } from '../core/state.js';
 
@@ -44,12 +44,13 @@ export function programmeProgress() {
   return Math.min(.99, .45 * S.dir / 5 + .3 * Math.min(1, (S.hs || 0) / 7000) + .25 * Math.min(1, generation / 4));
 }
 
-// PAYROLL per 30-second cycle: build teams beyond the first, active astronauts, engineering teams beyond two, specialists and launch crew.
+// PAYROLL per 30-second cycle: build teams beyond the first, active astronauts, engineering teams beyond two, specialists,
+// trajectory analysts and launch crew.
 export const BUILD_TEAM_SALARY = 800, ASTRONAUT_SALARY = 600, ENGINEERING_TEAM_SALARY = 1200, PR_SALARY = 1000, DIRECTOR_SALARY = 2500;
 export const payroll = () => Math.max(0, (S.bteams || 1) - 1) * BUILD_TEAM_SALARY
   + (S.p2 ? (S.p2.astros || []).filter(astronaut => astronaut.st == 'active' || astronaut.st == 'grounded').length * ASTRONAUT_SALARY : 0)
   + Math.max(0, S.teams - 2) * ENGINEERING_TEAM_SALARY
-  + (S.staff.pr ? PR_SALARY : 0) + (S.staff.director ? DIRECTOR_SALARY : 0)
+  + (S.staff.pr ? PR_SALARY : 0) + (S.staff.director ? DIRECTOR_SALARY : 0) + (S.staff.ta || 0) * TRAJECTORY_ANALYSTS.salary
   + Object.keys(S.crew).reduce((sum, station) => sum + (S.crew[station] && STATIONS[station] ? STATIONS[station].salary : 0), 0);
 
 // The Defense Department buys tracking data from every successful early flight: $2,500 plus $60 per km of peak altitude, up to $6,000.

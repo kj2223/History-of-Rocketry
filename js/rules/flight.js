@@ -5,7 +5,8 @@
 //   stages: [booster, core] or [core]; each { isBooster, dry, fuel, thrust, isp }. stageIndex: the stage burning now.
 //   time (s), altitude (m), verticalSpeed, horizontalSpeed (m/s), downrange (m), peakAltitude, peakSpeed, peakHorizontalSpeed
 //   latent: a fault the poll missed (a failure-mode key), wind (0 to 2), overNoGo: launched over a NO-GO call
-//   plan: the trajectory panel's { elevation (degrees), program (a PITCH_PROGRAMS key) }, or null to fly the default
+//   plan: the trajectory panel's { elevation (degrees), program (a PITCH_PROGRAMS key), aim (the upper stage's degrees above the
+//         horizon, or null for the guidance's own) }, or null to fly the default
 //   reliability, gLimit, aeroLimitScale, heatLimit, dragArea, deformation (heat damage), maxQ and maxHeat (shares of their limits)
 //   modeMultipliers: each failure mode's weight on this airframe (fixes lower it, traits raise it)
 //   tracking: { v: instrument tier, g: ground tracking tier }; lastReadings and lostChannels for the instruments; trace, rangeTrace: altitudes and downrange distances for the plot
@@ -35,6 +36,10 @@ const GRAVITY = 9.81, EARTH_RADIUS = 6371e3, SEA_LEVEL_DENSITY = 1.225, SCALE_HE
 const ORBIT_ALTITUDE = 120000, ORBIT_SPEED = 7000; // horizontal speed above 120 km that counts as orbit
 const LATENT_FAULT_CHANCE = .09; // chance per second that a latent fault strikes while its window is open
 const DEFAULT_LEAN = .15; // radians off vertical the rail leans a rocket flown without a plan, from T+2
+// The upper stage fires this far off vertical (radians): closer to horizontal with better guidance (instrument tier).
+const guidedPitch = tier => Math.min(1.5708, 1.35 + .08 * tier);
+// The flattest upper stage aim the guidance can hold, in whole degrees above the horizon: a plan may aim higher, never lower.
+export const flattestAim = tier => Math.ceil(90 - guidedPitch(tier) * 180 / Math.PI);
 
 // INCIDENTS: a failure opens one (or adds evidence to one already open). Incidents are saved:
 //   { id, mode, sym: symptoms seen, cand: modes that fit them, ev: failures on file, st: open | inv | diag | fixing | done,
@@ -164,6 +169,7 @@ export function previewFlight(airframe, propellantName, payloadName, stage, load
   return {
     thrustToWeight, burnoutG, gLimit: flight.gLimit, peakAltitude: flight.peakAltitude, peakSpeed: flight.peakSpeed,
     peakHorizontalSpeed: flight.peakHorizontalSpeed || 0, orbit: result == 'orbit', downrange: flight.downrange, burnTime: flight.burnTime,
+    flattestAim: flight.stages.length > 1 ? flattestAim(flight.tracking.v) : null, // null: no upper stage to aim
     maxQ: flight.maxQ, maxHeat: flight.maxHeat, recovery: recoveryPlan(flight), scienceMultiplier: flight.spec.sv, path,
     uncertainty: Math.max(.03, .2 * (1 - .1 * (tiers.g + tiers.v)) * (S.fac.comp ? .5 : 1) * (S.fac.wall ? .8 : 1) * (S.crew.fido ? .8 : 1)),
   };
@@ -303,12 +309,13 @@ export function step(flight) {
 
   // THE TRAJECTORY. On a staged flight the booster lofts the stack and the upper stage fires toward the horizon, as the real satellite
   // launchers did. Better guidance (instrument tier) flies a tighter turn and aims the upper stage closer to horizontal.
-  // The plan sets the launcher's lean and the pitch program; without one the rocket flies the default lean and the standard program.
+  // The plan sets the launcher's lean, the pitch program and the upper stage's aim; without one the rocket flies the default lean,
+  // the standard program and the guidance's aim.
   const radius = EARTH_RADIUS + flight.altitude, density = SEA_LEVEL_DENSITY * Math.exp(-flight.altitude / SCALE_HEIGHT);
   const staged = flight.stages.length > 1, plan = flight.plan, program = PITCH_PROGRAMS[plan ? plan.program : 'standard'];
   const lean = plan ? (90 - plan.elevation) * Math.PI / 180 : DEFAULT_LEAN;
   const pitch = staged && flight.stageIndex > 0
-    ? Math.min(1.5708, 1.35 + .08 * flight.tracking.v)
+    ? Math.min(guidedPitch(flight.tracking.v), plan && plan.aim != null ? (90 - plan.aim) * Math.PI / 180 : Infinity)
     : Math.max(flight.time > 2 ? lean : 0, Math.min(.97, Math.max(0, (flight.altitude - program.start) / (staged ? program.span - 3500 * flight.tracking.v : program.span))) * 1.5);
   const drag = .5 * density * flight.dragArea * (flight.stages[flight.stageIndex].isBooster ? 1.8 : 1) * flight.verticalSpeed * Math.abs(flight.verticalSpeed);
   const previousVerticalSpeed = flight.verticalSpeed;
@@ -367,7 +374,7 @@ function endFlightForProgramme(flight, ok, why) {
   const tracking = flight.tracking;
   if (S.dev) {
     S.dev.fl++;
-    recordRunEvent({ k: 'flight', n: S.dev.fl, af: flight.label, out: why, fail: flight.failure || undefined, peak: Math.round(flight.peakAltitude), spd: Math.round(flight.peakSpeed), dr: Math.round(flight.downrange), fuel: flight.propellant, load: +flight.load.toFixed(2), pay: flight.payload, stg: flight.stages.length, over: flight.overNoGo || undefined, plan: flight.plan ? `${flight.plan.elevation}° ${flight.plan.program}` : undefined });
+    recordRunEvent({ k: 'flight', n: S.dev.fl, af: flight.label, out: why, fail: flight.failure || undefined, peak: Math.round(flight.peakAltitude), spd: Math.round(flight.peakSpeed), dr: Math.round(flight.downrange), fuel: flight.propellant, load: +flight.load.toFixed(2), pay: flight.payload, stg: flight.stages.length, over: flight.overNoGo || undefined, plan: flight.plan ? `${flight.plan.elevation}° ${flight.plan.program}${flight.plan.aim != null ? ` aim ${flight.plan.aim}°` : ''}` : undefined });
   }
   log('=== FLIGHT TERMINATED ===', ok ? 'ok' : 'bad');
   // The peak as the range measured it (half the channel's usual error).
