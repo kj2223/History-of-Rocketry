@@ -26,7 +26,7 @@ export function renderLaunchCrew() {
   const box = $('#crew');
   if (!box) return;
   const consoles = consoleCount(), staffed = crewOnConsole().length;
-  let html = `<div class="r"><span class="d">Consoles staffed</span><b>${staffed} / ${consoles}</b></div><div class="m">${ROOMS[roomLevel()].name}. Control-room upgrades in Hangar & Base add consoles. Staffed stations can catch hidden faults during the countdown poll.</div>`;
+  let html = `<div class="r"><span class="d">Consoles staffed</span><b>${staffed} / ${consoles}</b></div><div class="m">${ROOMS[roomLevel()].name}. Control-room upgrades at the Base desk add consoles. Staffed stations can catch hidden faults during the countdown poll.</div>`;
   for (const id in STATIONS) {
     const station = STATIONS[id], lock = stationLock(id), onConsole = id == 'tc' || S.crew[id];
     html += `<div class="c"><div class="r"><b>${station.callSign} — ${station.name}</b><span class="${S.crew[id] || id == 'tc' ? 'ok' : 'd'}">${onConsole ? 'On console' : station.requires && !S.fac[station.requires] ? 'Locked' : 'Vacant'}</span></div><div class="m">${station.description}${station.salary ? ` ${formatMoney(station.salary)} per cycle.` : ''}</div>`

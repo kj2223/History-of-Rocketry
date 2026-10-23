@@ -74,7 +74,7 @@ export function renderAstronautOffice() {
     : `<div class="m">General training takes about ${QUALIFICATION_DAYS} days before an astronaut can be assigned; a flight then needs mission training. Simulator: <b>${SIMULATOR_NAMES[simulatorTier()]}</b>.</div><div class="cards">${state.astros.filter(astronaut => astronaut.st != 'lost').map(astronaut => astronautCard(astronaut, 0)).join('')}</div>`));
   const chimps = state.ch.t >= 1 ? '<b class="ok">Trained and ready</b>' : state.ch.on ? `<b>${percent(state.ch.t)} trained</b>` : `<button data-a="chimps"${S.b < CHIMP_TRAINING_COST ? ' disabled' : ''}>START TRAINING (${formatMoney(CHIMP_TRAINING_COST)})</button>`;
   setHTML(side, `<div class="t">ANIMAL PROGRAMME</div><div class="r"><span class="d">Chimpanzee colony, Holloman AFB</span>${chimps}</div><div class="m">About five months of lever and couch training before a chimpanzee can fly. Little Joe monkeys need no special training.</div>
-<div class="t" style="margin-top:10px">TRAINING FACILITIES</div>${TRAINING_FACILITIES.map(([id, name]) => `<div class="r"><span class="d">${name}</span><b class="${S.fac[id] ? 'ok' : 'd'}">${S.fac[id] ? 'Operational' : 'Not built (Hangar & Base)'}</b></div>`).join('')}
+<div class="t" style="margin-top:10px">TRAINING FACILITIES</div>${TRAINING_FACILITIES.map(([id, name]) => `<div class="r"><span class="d">${name}</span><b class="${S.fac[id] ? 'ok' : 'd'}">${S.fac[id] ? 'Operational' : 'Not built (Base desk)'}</b></div>`).join('')}
 <div class="t" style="margin-top:10px">FLIGHT CONTROLLERS</div>${['capcom', 'surg'].map(id => `<div class="r"><span class="d">${STATIONS[id].name}</span><b class="${S.crew[id] ? 'ok' : 'd'}">${S.crew[id] ? 'On console' : 'Vacant (Personnel)'}</b></div>`).join('')}
 ${state.mem.length ? `<div class="mem"><div class="t">IN MEMORIAM</div>${state.mem.map(entry => `<div><b>${escapeHtml(entry.name)}</b>, ${entry.svc}<div class="m">${entry.mission}, ${formatDate(entry.d)}</div></div>`).join('')}</div>` : ''}`);
 }
@@ -135,7 +135,7 @@ function flightPreparationHTML(state, capsules, boosters) {
   const propellants = booster ? PROGRAMMES[booster.prog].propellants : Object.keys(PROPELLANTS);
   const plan = booster && boosterPlan(booster, state.lf, capsule.mt), quote = booster && plan ? quoteLaunch(booster, state.lf, 'Mercury Capsule', plan.staged, plan.load) : null;
   const systems = capsuleSystems(capsule.cfg), shown = SYSTEMS_SHOWN[capsule.mt];
-  const lock = !booster ? 'No booster in the hangar. Order airframes in Hangar & Base.'
+  const lock = !booster ? 'No booster in the hangar. Order airframes at the Hangar desk.'
     : !plan.ok && plan.overLimit ? `${booster.label} would exceed its ${plan.preview.maxHeat >= 1 ? 'heating' : 'aerodynamic load'} limit with a capsule aboard (${Math.round(Math.max(plan.preview.maxHeat, plan.preview.maxQ) * 100)}% of limit).`
     : !plan.ok ? `${booster.label} cannot deliver ${needText(capsule.mt)} with a capsule aboard.`
     : quote.error ? quote.error
@@ -153,8 +153,8 @@ ${booster ? `<div class="m">With the capsule aboard, ${booster.label} ${plan.sta
 
 // THE MERCURY DIRECTIVE panel, with progress notes for the directive in hand.
 function sideNotesHTML(state) {
-  const network = S.fac.trknet ? '<b class="ok">in service</b>' : S.fb && S.fb.trknet ? `under construction, in service around ${formatDate(S.fb.trknet)}` : '<b class="wn">not started</b> (Hangar & Base)';
-  return `<div class="m">Tracking network: ${network}. Orbital qualification (optional): ${state.fl.maQual ? '<b class="ok">done</b>' : state.ma.n ? `${state.ma.n} flown, not yet successful` : 'not flown'}.</div>`;
+  const network = S.fac.trknet ? '<b class="ok">in service</b>' : S.fb && S.fb.trknet ? `under construction, in service around ${formatDate(S.fb.trknet)}` : '<b class="wn">not started</b> (Base desk)';
+  return `<div class="m">Mercury Worldwide Tracking Network (needed before a crew flies, not the radar): ${network}. Orbital qualification (optional): ${state.fl.maQual ? '<b class="ok">done</b>' : state.ma.n ? `${state.ma.n} flown, not yet successful` : 'not flown'}.</div>`;
 }
 export function mercuryDirectiveHTML() {
   const state = S.p2;
