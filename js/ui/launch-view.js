@@ -11,9 +11,9 @@ import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS, isPowered, hasEvent } from '../rules/flight.js';
 import { boosterPlan, crewLock } from '../rules/mercury.js';
-import { PART_CHANNELS, partReading, watchedChannels, warningLevel } from '../rules/telemetry.js';
+import { PART_CHANNELS, partReading, watchedChannels, warningLevel, availableChannels, canRetune, offLinkWarning } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
-import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName } from '../rules/mission.js';
+import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock } from '../rules/mission.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
@@ -250,7 +250,7 @@ function flightPhases(flight) {
   if (payload.science) phases.push({ name: 'CHUTE', reached: apogee && !!flight.descent && flight.altitude < 3000 });
   return [...phases, { name: 'IMPACT', reached: false }];
 }
-function drawFlightInstruments(flight) {
+export function drawFlightInstruments(flight) {
   const readings = flight.lastReadings, lost = flight.lostChannels || {}, ground = flight.tracking.g, vehicle = flight.tracking.v;
   const approximate = reading => reading && reading.quality.noise >= .05 ? '~' : '';
   const readouts = [];
@@ -273,6 +273,9 @@ function drawFlightInstruments(flight) {
   // The part channels picked before launch; a channel showing a failure building turns red.
   for (const id of flight.watch || []) readouts.push({ label: PART_CHANNELS[id].label, text: partReading(flight, id).text, warn: warningLevel(flight, id) > .3 });
   drawClockStrip(flight.countdown > 0 ? `T-00:0${flight.countdown}` : `T+${clockFormat(flight.time)}`, flightPhases(flight), readouts);
+  // The uplink: with the ground command link and an Uplink Engineer, one button per fitted part channel; lit ones are on the link.
+  setHTML($('#uplink'), canRetune(flight) ? '<span class="d">UPLINK · SWITCH THE LINK TO</span>' + availableChannels(flight.airframe)
+    .map(id => `<button data-a="retune" data-id="${id}"${(flight.watch || []).includes(id) ? ' class="on"' : ''}>${PART_CHANNELS[id].label}</button>`).join('') : '');
 }
 function launchFlight(override) {
   const count = launchView.count, poll = count.poll, form = launchForm;
@@ -334,7 +337,8 @@ function flightTick() {
   }
   phase.textContent = hasEvent(flight, 'boco') && !hasEvent(flight, 'ign2') ? 'STAGING' : isPowered(flight) ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
   // While a failure shows its warning on a watched channel, the flight runs in real time (one second every fourth tick), so there is time to abort.
-  const warning = flight.pending && (flight.watch || []).some(id => warningLevel(flight, id) > 0);
+  // With the uplink, so it does once TLM calls trouble on a channel off the link, so there is time to switch to it.
+  const warning = flight.pending && ((flight.watch || []).some(id => warningLevel(flight, id) > 0) || (S.crew.tlm && canRetune(flight) && offLinkWarning(flight)));
   if (warning && ++flight.warningTicks % 4) return drawFlightInstruments(flight);
   const steps = warning ? 1 : flight.coasting ? 25 : 2, bubbles = flight.bubbles;
   for (let n = 0; n < steps; n++) {
@@ -414,10 +418,13 @@ function drawMissionInstruments(mission) {
     { label: 'G-LOAD', text: `${now.g.toFixed(1)} g` },
     { label: 'CABIN TEMP', text: `${now.temp} °C` },
   ]);
+  setHTML($('#uplink'), '');
 }
 function decisionHTML(mission) {
   const key = mission.pending.key, options = decisionOptions(mission, key);
-  return `<div class="t bad">${mission.pending.question}</div><div class="m">${mission.pending.ground ? 'Your call as Test Conductor.' : `${mission.crew.name} has to choose. CAPCOM ${S.crew.capcom ? 'is on the loop' : 'is not staffed'}.`}</div><div class="padbtns">${options.map(choice => `<button data-a="mdec" data-id="${choice.index}"${choice.available ? '' : ' disabled'}>${choice.text.toUpperCase()}${choice.available ? ` (~${Math.round(decisionOdds(mission, key, choice) * 100)}%)` : choice.needs == 'man' ? ' (needs manual control fitted)' : ' (needs CAPCOM)'}</button>`).join('')}</div>`;
+  const who = mission.pending.uncrewed ? 'No one is aboard. Your call as Test Conductor: UPLINK can send a command to the capsule.' : mission.pending.ground ? 'Your call as Test Conductor.' : `${mission.crew.name} has to choose. CAPCOM ${S.crew.capcom ? 'is on the loop' : 'is not staffed'}.`;
+  const unavailable = choice => choice.needs == 'man' ? ' (needs manual control fitted)' : choice.needs == 'cmd' ? ` (${groundCommandLock(mission)})` : ' (needs CAPCOM)';
+  return `<div class="t bad">${mission.pending.question}</div><div class="m">${who}</div><div class="padbtns">${options.map(choice => `<button data-a="mdec" data-id="${choice.index}"${choice.available ? '' : ' disabled'}>${choice.text.toUpperCase()}${choice.available ? ` (~${Math.round(decisionOdds(mission, key, choice) * 100)}%)` : unavailable(choice)}</button>`).join('')}</div>`;
 }
 function finishMission() {
   clearInterval(launchView.flightTimer);

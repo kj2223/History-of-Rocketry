@@ -1,7 +1,9 @@
 // PART CHANNELS: telemetry from the parts of the rocket, beside the range's radar and tracking (CHANNELS in rules/flight.js).
 // Each channel needs its instrument aboard the airframe. The telemetry link carries only so many at once: one with the FM
-// telemetry transmitter, one more for each multiplexing package. Before launch you pick which parts to watch. No DOM.
+// telemetry transmitter, one more for each multiplexing package. Before launch you pick which parts to watch; with the ground
+// command link and an Uplink Engineer you can switch them in flight. No DOM.
 import { gaussian } from '../core/util.js';
+import { S, log, isResearched } from '../core/state.js';
 
 // The part channels. needs: the package that fits the instrument (any of a list); value: what it reads this second.
 //   q     aero load on the structure, % of the limit         (strain gauges)
@@ -47,6 +49,28 @@ export const channelCapacity = airframe => airframe && airframe.pk.includes('fm'
 export const availableChannels = airframe => airframe ? Object.keys(PART_CHANNELS).filter(id => PART_CHANNELS[id].needs.some(need => airframe.pk.includes(need))) : [];
 // The channels a flight will carry: the ones picked that the airframe has, up to its capacity.
 export const watchedChannels = (airframe, picked) => (picked || []).filter(id => availableChannels(airframe).includes(id)).slice(0, channelCapacity(airframe));
+
+// SWITCHING IN FLIGHT (data uplink): with the ground command link researched (data/research.js 'cmd') and an Uplink Engineer
+// on console, the link can be commanded to carry other channels mid-flight. Clicking a carried channel drops it; taking one on
+// when the link is full drops the one carried longest.
+export const canRetune = flight => isResearched('cmd') && !!S.crew.upl && channelCapacity(flight.airframe) > 0;
+export function retuneChannel(flight, id) {
+  if (!canRetune(flight) || !availableChannels(flight.airframe).includes(id)) return;
+  const carried = flight.watch || [], name = channel => PART_CHANNELS[channel].label.toLowerCase();
+  if (carried.includes(id)) {
+    flight.watch = carried.filter(other => other != id);
+    return log(`T+${flight.time}s | [UPLINK] Dropping ${name(id)} from the link.`, 'cyan');
+  }
+  flight.watch = [...carried, id].slice(-channelCapacity(flight.airframe));
+  const dropped = carried.filter(other => !flight.watch.includes(other));
+  log(`T+${flight.time}s | [UPLINK] Commanding the link to ${name(id)}${dropped.length ? `, dropping ${dropped.map(name).join(' and ')}` : ''}.`, 'cyan');
+}
+// A failure building on a part channel the link is not carrying, clear enough that the Telemetry Engineer can tell something
+// is wrong (but not where).
+export function offLinkWarning(flight) {
+  const warning = flight.pending && FAILURE_WARNINGS[flight.pending.mode];
+  return !!warning && !(flight.watch || []).includes(warning.channel) && availableChannels(flight.airframe).includes(warning.channel) && warningLevel(flight, warning.channel) > .3;
+}
 
 // A reading of a part channel this second: { value, text }. The recovery channel reports where the sequence has got to.
 export function partReading(flight, id) {

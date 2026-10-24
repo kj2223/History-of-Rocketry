@@ -450,3 +450,43 @@ test('crash programmes are not offered before NASA', () => {
   commission('inj');
   assert.ok(crashLock('inj'));
 });
+
+test('with the ground command link, the Uplink Engineer can switch telemetry channels in flight', async () => {
+  const { retuneChannel, offLinkWarning } = await import('../js/rules/telemetry.js');
+  const flight = { airframe: { pk: ['fm', 'str', 'xdc'] }, watch: ['q'], time: 3, pending: { mode: 'p', from: 0, at: 4 } };
+  assert.ok(offLinkWarning(flight), 'a pump fault builds on chamber pressure, which the link is not carrying');
+  retuneChannel(flight, 'pc');
+  assert.deepEqual(flight.watch, ['q'], 'no uplink research and no Uplink Engineer: the link stays as launched');
+  giveResearch(['cmd']);
+  S.crew.upl = 1;
+  retuneChannel(flight, 'pc');
+  assert.deepEqual(flight.watch, ['pc'], 'the link carries one channel, so aero load is dropped');
+  assert.ok(!offLinkWarning(flight));
+  retuneChannel(flight, 'g');
+  assert.deepEqual(flight.watch, ['pc'], 'no accelerometer aboard');
+});
+
+test('on an uncrewed Mercury flight the ground decides only when a command can reach the capsule', async () => {
+  const { stepMission, decisionOptions, chooseOption } = await import('../js/rules/mission.js');
+  const { capsuleSystems } = await import('../js/rules/mercury.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  giveResearch(['cmd']);
+  const failedRetros = config => ({
+    systems: capsuleSystems(config), missionType: 'mr', type: MISSION_TYPES.mr, crew: null, time: 0, events: [{ time: 1, kind: 'retro' }],
+    retroWillFail: 1, log: [], transcript: [], pending: null, outcome: {}, done: 0,
+  });
+  S.crew.upl = 1;
+  assert.equal(stepMission(failedRetros({ pk: [] }), 2), 'tick', 'no command receiver aboard: the automatics handle it');
+  S.crew.upl = 0;
+  assert.equal(stepMission(failedRetros({ pk: ['cmd'] }), 2), 'tick', 'no Uplink Engineer to send the command');
+  S.crew.upl = 1;
+  const mission = failedRetros({ pk: ['cmd'] });
+  assert.equal(stepMission(mission, 2), 'decide');
+  assert.ok(mission.pending.uncrewed);
+  const options = decisionOptions(mission, 'retro');
+  assert.deepEqual(options.map(option => !!option.automatic), [true, false], 'leave it to the automatics, or send the command');
+  chooseOption(mission, options[1].index);
+  assert.equal(mission.pending, null);
+  assert.match(mission.log.join(' '), /Test Conductor: "Command retrofire from the ground."/);
+});

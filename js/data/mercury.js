@@ -56,24 +56,30 @@ export const ELECTION_DAY = 5340, INAUGURATION_DAY = 5420; // November 1960 and 
 //   needs: 'man' (manual control fitted) or 'capcom' (a CAPCOM on the loop); soft: the safe choice, always works
 //   backup: 'tjb' = the backup sequencer (its chance depends on research); heli: waits for the helicopter
 //   crew, shoot: ground options for the pad emergency. ground: 1 = the Test Conductor decides, whoever is aboard.
+//   command: what the Test Conductor can send over the ground command link (research 'cmd'), and its baseChance. With a crew
+//            aboard it is one more option; with no one aboard the decision comes to the ground instead of the automatics.
 export const DECISIONS = {
   abort: { question: 'The booster is failing and the abort system has not fired.', options: [
     { text: 'Pull the abort handle', skill: 'com', baseChance: .75 },
-    { text: 'Hold on and trust the booster', baseChance: .04 }] },
+    { text: 'Hold on and trust the booster', baseChance: .04 }],
+    command: { text: 'Send the abort command from the ground', baseChance: .7 } },
   tj: { question: 'The escape tower failed to jettison after booster separation. The parachutes cannot deploy with it attached.', options: [
     { text: 'Fire the tower jettison by hand', skill: 'pil', baseChance: .6 },
-    { text: 'Wait for the backup sequencer', baseChance: .3, backup: 'tjb' }] },
+    { text: 'Wait for the backup sequencer', baseChance: .3, backup: 'tjb' }],
+    command: { text: 'Command tower jettison from the ground', baseChance: .75 } },
   att: { question: 'The capsule is drifting off attitude: the automatic stabilization is misbehaving.', options: [
     { text: 'Take manual control', skill: 'pil', baseChance: .6, needs: 'man' },
     { text: 'Let the automatics recover', baseChance: .45 },
-    { text: 'Follow CAPCOM through the backup procedure', skill: 'com', baseChance: .55, needs: 'capcom' }] },
+    { text: 'Follow CAPCOM through the backup procedure', skill: 'com', baseChance: .55, needs: 'capcom' }],
+    command: { text: 'Command the backup control mode from the ground', baseChance: .55 } },
   ecs: { question: 'Suit and cabin temperatures are climbing.', options: [
     { text: 'Turn up the suit coolant', skill: 'sys', baseChance: .6 },
     { text: 'Ride it out', skill: 'end', baseChance: .5 },
     { text: 'Cut the experiments and conserve', baseChance: .8, soft: 1 }] },
   retro: { question: 'The retrorockets did not fire on the timer.', options: [
     { text: 'Fire the retros manually', skill: 'pil', baseChance: .6, needs: 'man' },
-    { text: 'Leave them: they are not needed to come home on this arc', baseChance: 1, soft: 1 }] },
+    { text: 'Leave them: they are not needed to come home on this arc', baseChance: 1, soft: 1 }],
+    command: { text: 'Command retrofire from the ground', baseChance: .8 } },
   hatch: { question: 'The hatch has blown on the water and the capsule is flooding.', options: [
     { text: 'Get out through the hatch now', skill: 'end', baseChance: .55 },
     { text: 'Stay with the capsule until the helicopter hooks it', baseChance: .3, heli: 1 }] },

@@ -138,6 +138,7 @@ export function capsuleSystems(config) {
   return {
     reliability, spec, unproven,
     manual: spec.man > 0 || !!(S.p2 && S.p2.fl.ovr), // manual control: fly-by-wire research, or the astronauts' overrides
+    command: spec.cmd > 0, // a command receiver aboard: the ground can send commands (rules/mission.js groundCommandLock)
     explosiveHatch: isResearched('ms_hxp') && config.pk.includes('ms_hxp'),
     orbital: spec.orb > 0,
   };
