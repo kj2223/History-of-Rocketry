@@ -17,7 +17,8 @@ import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedes
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
 import { autoLaunch } from '../js/rules/auto.js';
-import { filedModes } from '../js/rules/knowledge.js';
+import { filedModes, systemOf } from '../js/rules/knowledge.js';
+import { startInvestigation, acceptFinding, nameCause, extendInvestigation } from '../js/rules/jobs.js';
 import { startCampaign, goAhead, directorMargin, recordCampaignFlight, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL } from '../js/rules/campaign.js';
 
 // The same small generator the balance bot uses.
@@ -460,4 +461,46 @@ test('a wrongly diagnosed incident is filed under the mode the engineers blame',
     assert.ok(filedModes('p').includes('c'), 'shown where the engineers think it belongs');
     assert.ok(!filedModes('s').includes('s'), 'the true cause stays hidden');
   });
+});
+
+// THE FINDINGS: records analysis ends with the team's lead and the player's call.
+// An Aerobee incident whose true cause (s) shares its signature with two other modes; the analysis is run to its end.
+const analysedIncident = (extend = false) => {
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.b = 200000;
+  S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c', 'p'], ev: 1, st: 'open', t: 30, lab: 'test' });
+  const finish = () => { S.jobs.forEach(job => job.t = 1); tickSecond(); };
+  startInvestigation(1);
+  finish();
+  if (extend) {
+    extendInvestigation(1);
+    finish();
+  }
+  return S.inc[0];
+};
+
+test('records analysis waits for the player with a lead and its odds', () => {
+  const incident = analysedIncident();
+  assert.equal(incident.st, 'found');
+  assert.ok(incident.cand.includes(incident.dx));
+  assert.ok(incident.p > 0 && incident.p < 1);
+  assert.ok(!filedModes(systemOf(incident.dx)).includes(incident.dx), 'not filed before the call');
+  acceptFinding(1);
+  assert.equal(incident.st, 'diag');
+});
+
+test('the player can overrule the team and name another suspect', () => {
+  const incident = analysedIncident(), other = incident.cand.find(mode => mode != incident.dx);
+  nameCause(1, other);
+  assert.equal(incident.st, 'diag');
+  assert.equal(incident.dx, other);
+  assert.equal(incident.conf, 'your call');
+});
+
+test('extending the analysis rules out a wrong suspect, never the true cause', () => {
+  const incident = analysedIncident(true);
+  assert.equal(incident.st, 'found');
+  assert.equal(incident.cand.length, 2);
+  assert.ok(incident.cand.includes('s'));
 });

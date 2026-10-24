@@ -142,7 +142,7 @@ const TRACKING_NAMES = ['Optical & radar tracking', 'Tracking radar network', 'R
 export const researchDesk = { view: 'research', pick: null };
 const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGINEERING FILE', incidents: 'UNEXPLAINED FAILURES' };
 export function renderResearchDesk() {
-  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv'), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length;
+  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv' || incident.st == 'found'), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length;
   // Rocket areas once the programme is ready; recovery always; the spacecraft areas after NASA.
   const areas = (bundle && bundle.ready ? ['p', 's', 'i', 'a'] : []).concat(['r'], S.nasa ? ['c', 'e'] : []);
   const view = researchDesk.view;
@@ -162,12 +162,24 @@ function incidentHTML(incident) {
   if (incident.st == 'open') {
     const lock = S.b < INVESTIGATION_COST ? 'Need funds.' : freeTeams() < 1 ? 'Teams busy.' : null;
     html += `<div>Cannot yet tell apart: ${incident.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div><div class="m">Evidence on file: ${incident.ev}</div><button data-a="inv" data-id="${incident.id}"${lock ? ' disabled' : ''}>RECORDS ANALYSIS (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)</button>`;
-  } else if (incident.st == 'inv') html += `<div class="wn">Investigating: <span data-j="inv${incident.id}">${(findJob(job => job.k == 'inv' && job.id == incident.id) || { t: 0 }).t}s</span></div>`;
+  } else if (incident.st == 'found') html += findingsHTML(incident);
+  else if (incident.st == 'inv') html += `<div class="wn">Investigating: <span data-j="inv${incident.id}">${(findJob(job => job.k == 'inv' && job.id == incident.id) || { t: 0 }).t}s</span></div>`;
   else if (incident.st == 'diag') {
-    html += `<div>${incident.review ? 'Risk' : 'Engineers conclude'}: ${FAILURE_MODES[incident.dx].name}${incident.review ? '' : ` (${incident.conf} confidence)`}</div>`
+    html += `<div>${incident.review ? 'Risk' : incident.conf == 'your call' ? 'You concluded' : 'Engineers conclude'}: ${FAILURE_MODES[incident.dx].name}${incident.review || incident.conf == 'your call' ? '' : ` (${incident.conf} confidence)`}</div>`
       + FAILURE_MODES[incident.dx].fixes.map(fix => `<div class="m">${fix.name}: ${fix.riskMultiplier <= .3 ? 'strong' : 'partial'} cure</div><button data-a="fix" data-id="${incident.id}" data-f="${fix.id}"${S.b < fix.cost || freeTeams() < 1 ? ' disabled' : ''}>${fix.name.toUpperCase()} (${formatMoney(fix.cost)}, ${fix.time}s)</button>`).join('');
   } else if (incident.st == 'fixing') html += `<div class="wn">Implementing: <span data-j="fix${incident.id}">${(findJob(job => job.k == 'fix' && job.id == incident.id) || { t: 0 }).t}s</span></div>`;
   return html + '</div>';
+}
+// THE FINDINGS CARD: the suspects ranked by the team's belief, and your call. The lead carries the team's chance of being right;
+// the rest share what is left evenly (that is how a wrong lead is picked, so the figures are honest).
+function findingsHTML(incident) {
+  const others = incident.cand.filter(mode => mode != incident.dx), rest = others.length ? (1 - incident.p) / others.length : 0;
+  const lock = S.b < INVESTIGATION_COST ? ' (need funds)' : freeTeams() < 1 ? ' (teams busy)' : '';
+  return `<div><b>Findings:</b> the team suspects <b>${FAILURE_MODES[incident.dx].name}</b> (${incident.conf} confidence).</div>`
+    + `<div class="m">${[incident.dx, ...others].map(mode => `${FAILURE_MODES[mode].name} ${Math.round((mode == incident.dx ? incident.p : rest) * 100)}%`).join(' · ')}</div>`
+    + `<button data-a="accept" data-id="${incident.id}">ACCEPT: ${FAILURE_MODES[incident.dx].name.toUpperCase()}</button>`
+    + (others.length ? `<button data-a="extend" data-id="${incident.id}"${lock ? ' disabled' : ''}>EXTEND THE ANALYSIS: RULE ONE OUT (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)${lock}</button>`
+      + `<div class="m">Or overrule the team and name the cause yourself:</div>${others.map(mode => `<button data-a="name" data-id="${incident.id}" data-f="${mode}">IT WAS ${FAILURE_MODES[mode].name.toUpperCase()}</button>`).join('')}` : '');
 }
 // THE ENGINEERING FILE: what the team knows about one system, what that knowledge buys, its failure modes and their status.
 function engineeringFile(area) {

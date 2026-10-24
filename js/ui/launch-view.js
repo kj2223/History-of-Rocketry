@@ -6,6 +6,7 @@ import { formatMoney, gaussian } from '../core/util.js';
 import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { MISSION_TYPES } from '../data/mercury.js';
 import { PAYLOADS } from '../data/launch.js';
+import { FAILURE_MODES, SYMPTOMS } from '../data/failures.js';
 import { S, log, logSink } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
@@ -123,9 +124,18 @@ function showMissionResult(result) {
 }
 function showFlightResult(result) {
   $('#padph').textContent = result.ok ? (result.why == 'orbit' ? 'ORBIT' : 'FLIGHT COMPLETE') : result.why == 'abort' ? 'ABORTED' : 'VEHICLE LOST';
-  $('#paddlg').innerHTML = `<div class="t ${result.ok ? 'ok' : 'bad'}">${result.ok ? (result.why == 'orbit' ? 'Orbital insertion confirmed.' : 'Impact recorded downrange.') : result.why == 'abort' ? 'Range safety terminated the flight.' : 'Track lost. The vehicle has failed.'}</div><div class="m">See the log for records, science and any incident report.</div><button data-a="closepad" class="big">RETURN TO OPERATIONS</button>`;
+  $('#paddlg').innerHTML = `<div class="t ${result.ok ? 'ok' : 'bad'}">${result.ok ? (result.why == 'orbit' ? 'Orbital insertion confirmed.' : 'Impact recorded downrange.') : result.why == 'abort' ? 'Range safety terminated the flight.' : 'Track lost. The vehicle has failed.'}</div>${result.report ? failureReportHTML(result.report) : '<div class="m">See the log for records and science.</div>'}<button data-a="closepad" class="big">RETURN TO OPERATIONS</button>`;
 }
 
+// What failed, without the log: what the records show, the suspects the team cannot yet tell apart, and the way to the incident.
+function failureReportHTML(report) {
+  if (!report.id) return `<div class="m">${report.note}</div>`;
+  const seen = report.sym.length ? report.sym.map(symptom => SYMPTOMS[symptom].text).join('; ') : 'carrier and track lost, nothing more';
+  return `<div class="m"><b>What we saw:</b> ${seen}.</div>`
+    + (report.cand.length > 1 ? `<div class="m"><b>Suspects:</b> ${report.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div>` : '')
+    + (report.note ? `<div class="m">${report.note}</div>` : '')
+    + `<button data-a="incident" data-id="${report.id}" data-f="${report.prog}">OPEN INCIDENT #${report.id}</button>`;
+}
 // THE COUNT. A new countdown runs the go/no-go poll at once (its results are read out from T-15).
 const newCount = (poll, target, label, mission) => ({
   poll, shown: 0, phase: 'count', fuel: 0, target, filling: false, label, clock: COUNT_FROM, running: true, hold: '', userHold: false, override: false, ...(mission ? { mission } : {}),
@@ -311,7 +321,7 @@ export function finishFlight(ok, why) {
   document.documentElement.classList.remove('flying');
   if (launchView.count) {
     launchView.count.phase = 'done';
-    launchView.count.result = { ok, why };
+    launchView.count.result = { ok, why, report: flight.report };
     launchView.count.lastCalls = { ...flight.lastCalls, tc: FLIGHT_VERDICTS[why] };
   }
   $('#fl').hidden = true;
