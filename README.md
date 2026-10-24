@@ -4,6 +4,8 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Run it:** `npm install` once, then `npm start` opens the game in its own desktop window (Electron, set up in `desktop/main.js`). It still runs in a browser too: serve the folder (for example `python3 -m http.server`) and open `index.html`. The game saves to localStorage every ten seconds; the desktop window and the browser keep separate saves.
 
+**Build for testers:** `npm run dist` builds a Windows installer and a portable .exe into `dist/` (run it on Windows). Every push to `dev` also builds them on GitHub (`.github/workflows/windows-build.yml`) and attaches them to the `dev-build` prerelease, so the links on the Releases page always point at the latest dev. The builds are unsigned: on first run Windows SmartScreen says it protected your PC; click **More info**, then **Run anyway**.
+
 **Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two Section 1 to the first American in space (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n; `PHASE_ONE_ONLY=1` stops at orbit.
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
