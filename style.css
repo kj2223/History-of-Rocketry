@@ -137,9 +137,16 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .rcard{margin:0;text-align:left;display:flex;flex-direction:column;gap:2px;padding:5px 7px;color:var(--ink);border-color:var(--ln);font-size:.78rem}
 .rcard .r{margin:0}.rcard b{font-weight:bold}.rcard .m{margin:0}.rcard .bar{margin:2px 0 0}
 .rcard.done{border-color:var(--ac);background:var(--pn)}.rcard.done .r span{color:var(--ac)}.rcard.flown .r span{color:var(--dim)}.rcard.work{border-color:var(--wn)}.rcard.work .bar i{background:var(--wn)}
+.rcard.chip{padding:2px 7px}.rcard.chip b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .rcard.exp{border-style:dashed}.rcard.exp .r span,.exp-t{color:#b493ff}.rcard.on{box-shadow:inset 0 0 0 2px var(--ac)}
 .rcard:hover:not(:disabled){color:var(--bg)}.rcard:hover:not(:disabled) .m{color:var(--bg)}
-.rdetail{position:sticky;bottom:-12px;display:flex;align-items:flex-start;gap:16px;padding:10px 12px;margin:0 -12px -12px;border-top:2px solid var(--ac);background:var(--pn)}.rdetail .grow{flex:1}.rdetail-act{width:340px}.rdetail-act>div{margin:0!important}
+/* The research dossier fills the drawer under the columns: the R&D pane stretches to the drawer's height and the columns take the slack. */
+[data-deskpane="rd"]:not([hidden]){min-height:100%;display:flex;flex-direction:column}#rdesk{flex:1;display:flex;flex-direction:column}#rdesk>.rcols{flex:1 0 auto}
+.dossier{position:sticky;bottom:-12px;height:290px;flex:none;box-sizing:border-box;display:grid;grid-template-columns:1.25fr 1fr 1.1fr 270px;gap:18px;padding:12px;margin:8px -12px -12px;border-top:2px solid var(--ac);background:var(--pn);font-size:.8rem;overflow:hidden}
+.dossier-part{min-width:0}.dossier-part .t{letter-spacing:.06em;border-bottom:1px solid var(--ln);padding-bottom:3px;margin-bottom:6px}.dossier-part p{margin:0 0 6px;line-height:1.35}
+.dossier-part .r{margin:2px 0}.dossier-part .r>span:first-child{color:var(--dim)}.dossier-part .r>:last-child{text-align:right}.dossier .gap{height:8px}
+.dossier .quote{border-left:2px solid var(--ac);padding-left:8px;margin:6px 0 8px;font-style:italic;line-height:1.35}.dossier .act button{width:100%;margin:0 0 4px}.dossier .act .bar{margin:0 0 6px}
+.dossier .wide:only-child{grid-column:1/-1;max-width:900px}
 #rdesk .pbar button{flex:0 0 auto;padding:4px 14px}
 /* The mission clock strip and the command loop, under the plotting board while a flight is up. */
 .clockstrip{display:flex;align-items:center;gap:20px;border:1px solid var(--ln);background:var(--pn);padding:10px 14px}.clockstrip .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
@@ -147,6 +154,7 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .clockstrip>button.big{width:auto;margin:0;padding:14px 22px}.clockstrip .m{margin:0}
 .phases{display:flex;gap:4px}.ph{flex:1;display:flex;flex-direction:column;gap:4px;font-size:.66rem;color:var(--dim);letter-spacing:.06em}.ph i{height:4px;background:var(--ln)}
 .ph.done{color:var(--ink)}.ph.done i{background:var(--ac)}.ph.now{color:var(--wn)}.ph.now i{background:var(--wn);animation:blink 1s steps(2) infinite}
+.uplink{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:.8rem}.uplink:empty{display:none}.uplink button{width:auto;margin:0;padding:2px 8px;font-size:.72rem}.uplink button.on{background:var(--ac);color:var(--bg)}
 .readouts{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:.85rem}.ro b{font-variant-numeric:tabular-nums}.ro.bad b{color:var(--bd);animation:blink .5s steps(2) infinite}
 #padlog{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:3px}
 .loopl{display:grid;grid-template-columns:56px 64px minmax(0,1fr);gap:8px;font-size:.8rem}.loopl b{letter-spacing:.05em}

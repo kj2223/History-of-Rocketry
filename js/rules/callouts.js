@@ -17,7 +17,7 @@ import { PAYLOADS } from '../data/launch.js';
 import { STATIONS } from '../data/launch-site.js';
 import { S, log } from '../core/state.js';
 import { rollDescent, onPlannedStation } from './recovery.js';
-import { FAILURE_WARNINGS, warningLevel } from './telemetry.js';
+import { FAILURE_WARNINGS, warningLevel, canRetune, offLinkWarning } from './telemetry.js';
 import { burnSeconds, isPowered, hasEvent } from './flight.js';
 
 const GRAVITY = 9.81;
@@ -120,6 +120,8 @@ export function crewCallouts(flight) {
     const [station, text, bubble] = WARNING_CALLS[warning.channel][warning.sign];
     call(station, 'warn', text, 'bad', bubble);
   }
+  // With the uplink, TLM can tell a channel off the link is out of family, and asks for the link to be switched.
+  if (canRetune(flight) && offLinkWarning(flight)) call('tlm', 'offlink', 'Something is out of family on a channel we are not carrying. Recommend we switch the link.', 'wn', 'SWITCH LINK?');
 
   // APOGEE: flight dynamics calls it, and the payload starts home.
   if (flight.time > 5 && flight.verticalSpeed <= 0 && !said.top) {

@@ -22,7 +22,7 @@ import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot } fr
 import { manRatingResearchDone, isManRated, isFamilyCertified } from '../js/rules/manrate.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
-const BUY = [['fac', 'trknet'], ['fac', 'centrifuge'], ['fac', 'ptrain'], ['fac', 'mcc'], ['crew', 'capcom'], ['crew', 'surg'], ['fac', 'egress'], ['fac', 'recov'], ['fac', 'clean'], ['fac', 'msim']];
+const BUY = [['fac', 'trknet'], ['fac', 'centrifuge'], ['fac', 'ptrain'], ['fac', 'mcc'], ['crew', 'capcom'], ['crew', 'surg'], ['fac', 'egress'], ['fac', 'recov'], ['fac', 'clean'], ['fac', 'msim'], ['crew', 'upl']];
 // Spacecraft and escape research: every package as it is proposed (cheapest first), and one approach for each milestone.
 // The bolted hatch never blows on its own; the ablative shield also works for orbit.
 const SPACECRAFT_MILESTONES = ['ms_ablh', 'ms_hbolt', 'ms_mqual', 'ms_mrman'];

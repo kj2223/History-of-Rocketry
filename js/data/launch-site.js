@@ -49,6 +49,7 @@ export const STATIONS = {
   rec: { name: 'Recovery Controller', callSign: 'REC', cost: 8000, salary: 500, requires: 'recov', catches: '', description: 'Coordinates recovery forces: search odds +15%.' },
   fd: { name: 'Flight Director', callSign: 'FLIGHT', cost: 20000, salary: 1200, requires: 'mcc', catches: '', description: 'Runs the go/no-go poll: every station catches faults 15% more often.' },
   capcom: { name: 'Capsule Communicator', callSign: 'CAPCOM', cost: 6000, salary: 500, requires: 'mcc', catches: '', nasa: 1, description: 'An astronaut on the ground who talks to the crew. Every crew decision in flight goes better.' },
+  upl: { name: 'Uplink Engineer', callSign: 'UPLINK', cost: 8000, salary: 500, requires: 'mcc', catches: '', nasa: 1, description: 'Sends commands up to the vehicle over the ground command link (Mercury Spacecraft research): switches telemetry channels in flight and sends ground commands to Mercury capsules.' },
   surg: { name: 'Flight Surgeon', callSign: 'SURG', cost: 8000, salary: 600, requires: null, catches: '', nasa: 1, description: 'Watches the crew\'s heart rate and breathing in flight and halves the time injured astronauts are grounded.' },
 };
 

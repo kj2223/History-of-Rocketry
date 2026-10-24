@@ -10,13 +10,16 @@ import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
 import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
-import { makeAirframe } from '../js/rules/production.js';
+import { makeAirframe, retrofitQuote } from '../js/rules/production.js';
+import { publishBlueprint } from '../js/rules/factory.js';
 import { previewFlight, beginFlight, step, hasEvent } from '../js/rules/flight.js';
 import { designSpec } from '../js/rules/design.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
 import { autoLaunch } from '../js/rules/auto.js';
+import { filedModes, systemOf } from '../js/rules/knowledge.js';
+import { startInvestigation, acceptFinding, nameCause, extendInvestigation } from '../js/rules/jobs.js';
 import { startCampaign, goAhead, directorMargin, recordCampaignFlight, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL } from '../js/rules/campaign.js';
 
 // The same small generator the balance bot uses.
@@ -449,4 +452,112 @@ test('crash programmes are not offered before NASA', () => {
   S.b = 200000;
   commission('inj');
   assert.ok(crashLock('inj'));
+});
+
+// Aaron's report: the R&D badge counted two incidents that were nowhere on the desk. A wrong diagnosis was filed under the true cause.
+test('a wrongly diagnosed incident is filed under the mode the engineers blame', () => {
+  readyProgramme('aerobee');
+  withProgramme('aerobee', () => {
+    S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c'], ev: 1, st: 'diag', dx: 'c', conf: 'low', t: 30, lab: 'test' });
+    assert.ok(filedModes('p').includes('c'), 'shown where the engineers think it belongs');
+    assert.ok(!filedModes('s').includes('s'), 'the true cause stays hidden');
+  });
+});
+
+// THE FINDINGS: records analysis ends with the team's lead and the player's call.
+// An Aerobee incident whose true cause (s) shares its signature with two other modes; the analysis is run to its end.
+const analysedIncident = (extend = false) => {
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.b = 200000;
+  S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c', 'p'], ev: 1, st: 'open', t: 30, lab: 'test' });
+  const finish = () => { S.jobs.forEach(job => job.t = 1); tickSecond(); };
+  startInvestigation(1);
+  finish();
+  if (extend) {
+    extendInvestigation(1);
+    finish();
+  }
+  return S.inc[0];
+};
+
+test('records analysis waits for the player with a lead and its odds', () => {
+  const incident = analysedIncident();
+  assert.equal(incident.st, 'found');
+  assert.ok(incident.cand.includes(incident.dx));
+  assert.ok(incident.p > 0 && incident.p < 1);
+  assert.ok(!filedModes(systemOf(incident.dx)).includes(incident.dx), 'not filed before the call');
+  acceptFinding(1);
+  assert.equal(incident.st, 'diag');
+});
+
+test('the player can overrule the team and name another suspect', () => {
+  const incident = analysedIncident(), other = incident.cand.find(mode => mode != incident.dx);
+  nameCause(1, other);
+  assert.equal(incident.st, 'diag');
+  assert.equal(incident.dx, other);
+  assert.equal(incident.conf, 'your call');
+});
+
+test('extending the analysis rules out a wrong suspect, never the true cause', () => {
+  const incident = analysedIncident(true);
+  assert.equal(incident.st, 'found');
+  assert.equal(incident.cand.length, 2);
+  assert.ok(incident.cand.includes('s'));
+});
+
+test('with a command receiver aboard, the Uplink Engineer can switch telemetry channels in flight', async () => {
+  const { retuneChannel, offLinkWarning } = await import('../js/rules/telemetry.js');
+  const flight = { airframe: { pk: ['fm', 'str', 'xdc'] }, payload: 'Inert Ballast', watch: ['q'], time: 3, pending: { mode: 'p', from: 0, at: 4 } };
+  assert.ok(offLinkWarning(flight), 'a pump fault builds on chamber pressure, which the link is not carrying');
+  S.crew.upl = 1;
+  retuneChannel(flight, 'pc');
+  assert.deepEqual(flight.watch, ['q'], 'an airframe built before the ground command link has no receiver');
+  flight.payload = 'Command Receiver Test Package';
+  retuneChannel(flight, 'pc');
+  assert.deepEqual(flight.watch, ['pc'], 'the link carries one channel, so aero load is dropped');
+  assert.ok(!offLinkWarning(flight));
+  retuneChannel(flight, 'g');
+  assert.deepEqual(flight.watch, ['pc'], 'no accelerometer aboard');
+});
+
+test('on an uncrewed Mercury flight the ground decides only when a command can reach the capsule', async () => {
+  const { stepMission, decisionOptions, chooseOption } = await import('../js/rules/mission.js');
+  const { capsuleSystems } = await import('../js/rules/mercury.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  giveResearch(['cmd']);
+  const failedRetros = config => ({
+    systems: capsuleSystems(config), missionType: 'mr', type: MISSION_TYPES.mr, crew: null, time: 0, events: [{ time: 1, kind: 'retro' }],
+    retroWillFail: 1, log: [], transcript: [], pending: null, outcome: {}, done: 0,
+  });
+  S.crew.upl = 1;
+  assert.equal(stepMission(failedRetros({ pk: [] }), 2), 'tick', 'no command receiver aboard: the automatics handle it');
+  S.crew.upl = 0;
+  assert.equal(stepMission(failedRetros({ pk: ['cmd'] }), 2), 'tick', 'no Uplink Engineer to send the command');
+  S.crew.upl = 1;
+  const mission = failedRetros({ pk: ['cmd'] });
+  assert.equal(stepMission(mission, 2), 'decide');
+  assert.ok(mission.pending.uncrewed);
+  const options = decisionOptions(mission, 'retro');
+  assert.deepEqual(options.map(option => !!option.automatic), [true, false], 'leave it to the automatics, or send the command');
+  chooseOption(mission, options[1].index);
+  assert.equal(mission.pending, null);
+  assert.match(mission.log.join(' '), /Test Conductor: "Command retrofire from the ground."/);
+});
+
+test('the ground command link goes into new blueprints; older airframes take it by retrofit or fly the test package', async () => {
+  const { endFlight } = await import('../js/rules/flight.js');
+  const airframe = readyProgramme('aerobee');
+  S.nasa = 1;
+  S.b = 1e6;
+  S.pk.cmd = { a: { cmd: 1 }, c: 0, m: null, dud: false };
+  withProgramme('aerobee', () => publishBlueprint());
+  assert.ok(S.progs.aerobee.bp.pk.includes('cmd'), 'new airframes are built with the receiver');
+  assert.equal(retrofitQuote(airframe).changes, 1, 'the old airframe can be retrofitted with it');
+  const flight = beginFlight(airframe, 'Alcohol & LOX', 'Command Receiver Test Package', 0, 1);
+  let result;
+  do result = step(flight); while (result == 'tick' || result == 'sep');
+  endFlight(flight, true, 'land');
+  assert.equal(S.pk.cmd.c, 1, 'a good flight with the test package confirms the ground command link');
 });

@@ -63,14 +63,19 @@ export function showDesk(name) {
   desk = name == desk ? '' : name;
   applyDesk();
 }
-// The R&D button counts incidents waiting for analysis or a fix.
+// Open a desk without toggling (the flight result's incident button).
+export function openDesk(name) {
+  desk = name;
+  applyDesk();
+}
+// The R&D button counts incidents waiting for you: records analysis, a call on the findings, or a fix.
 function applyDesk() {
   if (desk == 'astro' && !S.nasa) desk = '';
   $('#drawer').hidden = !desk;
   $('#drawer-t').textContent = DESK_TITLES[desk] || '';
   document.querySelectorAll('[data-deskpane]').forEach(pane => pane.hidden = pane.dataset.deskpane != desk);
   document.querySelectorAll('.rail [data-desk]').forEach(button => button.classList.toggle('on', button.dataset.desk == desk));
-  const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'diag').length, badge = $('#badge-rd');
+  const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag').length, badge = $('#badge-rd');
   badge.hidden = !waiting;
   badge.textContent = waiting;
 }

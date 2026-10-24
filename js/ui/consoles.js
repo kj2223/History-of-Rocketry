@@ -7,9 +7,9 @@ import { PAYLOADS } from '../data/launch.js';
 import { S } from '../core/state.js';
 import { stationLock } from '../rules/launch-site.js';
 import { airborne, formatAltitude, burnSeconds, isPowered } from '../rules/flight.js';
-import { PART_CHANNELS, partReading, warningLevel } from '../rules/telemetry.js';
+import { PART_CHANNELS, partReading, warningLevel, canRetune } from '../rules/telemetry.js';
 import { predictedImpact, offPlanWords } from '../rules/callouts.js';
-import { reading } from '../rules/mission.js';
+import { reading, groundCommandLock } from '../rules/mission.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -65,6 +65,7 @@ function flightState(id, flight) {
       if (flight.verticalSpeed > 0) return state(`Helos to ${impact}`, 'Flying out to the predicted impact area.', null, 'ok');
       return state(status || `Helos at ${impact}`, trouble ? 'Recovery in trouble.' : status ? 'Following the payload down.' : 'No recovery channel: waiting for the chute.', null, trouble ? 'bad' : 'ok');
     }
+    case 'upl': return canRetune(flight) ? state(`Link carrying ${(flight.watch || []).length}`, 'Ready to switch the telemetry channels on your word.', null, 'ok') : state('No uplink', 'No command link to this vehicle.');
     case 'fd': {
       // The last milestone the room passed.
       const last = (flight.events || [])[flight.events.length - 1];
@@ -81,6 +82,10 @@ function missionState(id, mission) {
     case 'fido': return state(`${now.alt.toFixed(1)} km · ${Math.round(now.v)} m/s`, 'Tracking the capsule.', null, 'ok');
     case 'surg': return state(`${now.g.toFixed(1)} g · cabin ${now.temp} °C`, 'Watching the pilot\'s heart rate and breathing.', now.g / 16, now.g > 9 ? 'wn' : 'ok');
     case 'capcom': return state(mission.pending ? 'Talking to the crew' : 'On the air-to-ground loop', 'Relaying advice to the capsule.', null, 'ok');
+    case 'upl': {
+      const lock = groundCommandLock(mission);
+      return lock ? state('No command', `Cannot reach the capsule: ${lock}.`) : state('Command link up', mission.pending ? 'Standing by to send a command.' : 'Command carrier on the capsule.', null, 'ok');
+    }
     default: return state('On the loop', 'Watching the capsule telemetry.', null, 'ok');
   }
 }

@@ -7,21 +7,22 @@ import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
 import { airborne } from '../rules/flight.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from '../rules/factory.js';
-import { startRetrofit, startInvestigation, chooseFix, startReview } from '../rules/jobs.js';
+import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { orderCapsule } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
+import { retuneChannel } from '../rules/telemetry.js';
 import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
 import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
-import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript } from './launch-view.js';
+import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
-import { researchDesk } from './design-bureau.js';
+import { researchDesk, renderResearchDesk } from './design-bureau.js';
 import { trajectoryPanel, currentPlan } from './trajectory.js';
 import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
-import { render, renderHeader, showDesk, markDirty, resetScreen } from './screen.js';
+import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
 import { $ } from './dom.js';
 
 let resetArmed = 0;
@@ -147,6 +148,9 @@ const GAME_ACTIONS = {
   fac: id => buildFacility(id),
   inv: id => startInvestigation(+id),
   fix: (id, button) => chooseFix(+id, button.dataset.f),
+  accept: id => acceptFinding(+id),
+  extend: id => extendInvestigation(+id),
+  name: (id, button) => nameCause(+id, button.dataset.f),
   publish: () => publishBlueprint(),
   upgrade: id => queueRetrofit(+id),
   cancelq: id => cancelQueueItem(+id),
@@ -199,13 +203,32 @@ const VIEW_ACTIONS = {
     }
   },
   txview: () => showLastTranscript(),
+  retune: id => {
+    if (airborne.flight) {
+      retuneChannel(airborne.flight, id);
+      drawFlightInstruments(airborne.flight);
+    }
+  },
   // The R&D desk: switch its view, or pick a research card for the detail bar.
   rview: id => {
     researchDesk.view = id;
     render();
   },
+  // The flight result's incident button: back to operations, with the R&D desk open on that incident's rocket and view.
+  incident: (id, button) => {
+    closePad();
+    if (S.progs[button.dataset.f]) S.cur = button.dataset.f;
+    const incident = S.inc.find(candidate => candidate.id == id);
+    researchDesk.view = incident && (incident.st == 'diag' || incident.st == 'fixing') ? 'file' : 'incidents';
+    openDesk('rd');
+    render();
+  },
   rpick: id => {
     researchDesk.pick = id;
+    render();
+  },
+  rfold: area => {
+    researchDesk.unfolded[area] = !researchDesk.unfolded[area];
     render();
   },
   // The trajectory panel: open or close it, pick a pitch program, or go back to the default plan.
@@ -236,6 +259,17 @@ const VIEW_ACTIONS = {
   },
 };
 
+// HOVERING a research card shows it in the R&D desk's dossier. Moving between cards keeps the last one; leaving the columns
+// goes back to the picked card.
+document.addEventListener('mouseover', event => {
+  const card = event.target.closest('#rdesk .rcard');
+  if (!card && event.target.closest('#rdesk .rcols')) return;
+  const id = card ? card.dataset.id : null;
+  if (researchDesk.hover == id) return;
+  researchDesk.hover = id;
+  renderResearchDesk();
+});
+
 document.addEventListener('click', event => {
   const deskButton = event.target.closest('[data-desk]');
   if (deskButton) return showDesk(deskButton.dataset.desk);
@@ -247,7 +281,7 @@ document.addEventListener('click', event => {
   const button = event.target.closest('button[data-a]');
   if (!button || button.disabled) return;
   const action = button.dataset.a, id = button.dataset.id;
-  if (VIEW_ACTIONS[action]) return VIEW_ACTIONS[action](id);
+  if (VIEW_ACTIONS[action]) return VIEW_ACTIONS[action](id, button);
   if (PAD_ACTIONS[action]) PAD_ACTIONS[action](launchView.count);
   else if (action == 'abort') {
     if (airborne.flight) finishFlight(0, 'abort');

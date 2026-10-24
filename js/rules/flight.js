@@ -50,16 +50,21 @@ const guidedPitch = tier => Math.min(1.5708, 1.35 + .08 * tier);
 export const flattestAim = tier => Math.ceil(90 - guidedPitch(tier) * 180 / Math.PI);
 
 // INCIDENTS: a failure opens one (or adds evidence to one already open). Incidents are saved:
-//   { id, mode, sym: symptoms seen, cand: modes that fit them, ev: failures on file, st: open | inv | diag | fixing | done,
-//     t: time of failure, lab: airframe, plot: last altitude, dx: the diagnosis, conf: confidence, review: 1 if from a design review }
+//   { id, mode, sym: symptoms seen, cand: modes that fit them, ev: failures on file, st: open | inv | found | diag | fixing | done,
+//     t: time of failure, lab: airframe, plot: last altitude, dx: the diagnosis (while found: the team's lead), conf: confidence,
+//     p: the team's belief in its lead (found), review: 1 if from a design review }
+// The flight keeps a short report for the result card: flight.report = { note: one sentence, and for an incident on file:
+//   id, prog: its programme, sym: symptoms seen, cand: suspects }.
 function openIncident(flight, tracking, lastPlot) {
   const mode = flight.failure, carried = flight.airframe.fix[mode];
   if (carried) {
     loseReputation('residual');
+    flight.report = { note: `${FAILURE_MODES[mode].name} struck despite the corrective design. Residual risk: nothing more to investigate.` };
     return log(`[INCIDENT] ${FAILURE_MODES[mode].name} struck despite the corrective design. Residual risk.`, 'wn');
   }
   if (S.fix[mode]) {
     loseReputation('obsolete');
+    flight.report = { note: `This airframe predates the fix for ${FAILURE_MODES[mode].name.toLowerCase()}. Retrofit older airframes.` };
     return log(`[INCIDENT] This airframe predates the fix for ${FAILURE_MODES[mode].name.toLowerCase()}. Retrofit older airframes.`, 'wn');
   }
   const existing = S.inc.find(incident => incident.mode == mode && incident.st != 'done');
@@ -69,8 +74,12 @@ function openIncident(flight, tracking, lastPlot) {
     if (existing.st == 'diag' && existing.dx != mode) {
       existing.st = 'open';
       existing.dx = null;
+      flight.report = { id: existing.id, prog: flight.programme, sym: existing.sym, cand: existing.cand, note: 'The same failure as before, so the earlier diagnosis was wrong. The incident is open again.' };
       log(`[INCIDENT #${existing.id}] The same failure recurred. The earlier diagnosis is ruled out.`, 'bad');
-    } else log(`[INCIDENT #${existing.id}] Another failure with the same signature adds evidence.`, 'wn');
+    } else {
+      flight.report = { id: existing.id, prog: flight.programme, sym: existing.sym, cand: existing.cand, note: 'The same signature as an incident already on file. This adds evidence to it.' };
+      log(`[INCIDENT #${existing.id}] Another failure with the same signature adds evidence.`, 'wn');
+    }
     return;
   }
   // Every mode whose visible symptoms look the same is a candidate.
@@ -78,14 +87,17 @@ function openIncident(flight, tracking, lastPlot) {
   const candidates = Object.keys(FAILURE_MODES).filter(other => visibleSymptoms(other, tracking).join() == signature);
   const incident = { id: S.inc.reduce((highest, other) => Math.max(highest, other.id), 0) + 1, mode, sym: symptoms, cand: candidates, ev: 1, st: 'open', t: flight.time, lab: flight.airframe.label, plot: lastPlot };
   S.inc.push(incident);
+  flight.report = { id: incident.id, prog: flight.programme, sym: symptoms, cand: candidates, note: candidates.length > 1 ? 'A new unexplained failure. Records analysis can narrow down the cause.' : '' };
   loseReputation(S.known[mode] ? 'known' : 'novel');
   log(`[INCIDENT #${incident.id}] Records show: ${symptoms.length ? symptoms.map(symptom => SYMPTOMS[symptom].text).join('; ') : 'carrier and track lost, nothing more'}.`, 'wn');
   if (candidates.length == 1) {
     incident.dx = mode; incident.conf = 'high'; incident.st = 'diag'; S.known[mode] = 1;
+    flight.report.note = `Telemetry is unambiguous: ${FAILURE_MODES[mode].name.toLowerCase()}. A fix can be chosen in the engineering file.`;
     log(`[INCIDENT #${incident.id}] Telemetry is unambiguous: ${FAILURE_MODES[mode].name.toLowerCase()}.`, 'wn');
   } else if (Math.random() < .7 * knowledgeFraction(systemOf(mode))) {
     incident.dx = mode; incident.conf = 'high'; incident.st = 'diag'; S.known[mode] = 1;
     learn(systemOf(mode), 4);
+    flight.report.note = `The engineers recognise the signature at once: ${FAILURE_MODES[mode].name.toLowerCase()}. A fix can be chosen in the engineering file.`;
     log(`[INCIDENT #${incident.id}] The engineers recognise the signature at once: ${FAILURE_MODES[mode].name.toLowerCase()}.`, 'wn');
   }
 }
@@ -593,7 +605,10 @@ function endFlightForProgramme(flight, ok, why) {
     checkFirsts({ ok: true, why, peak, spd: flight.peakSpeed, dr: flight.downrange, pay: flight.payload, rec: science.rec, got: science.got, staged: flight.stages.length > 1 });
   }
   // A flight confirms its packages if it worked, or if it flew at least 40% of its burn before failing.
-  if (ok || flight.time >= .4 * flight.burnTime) for (const id of flight.airframe.pk) confirmPackage(id, 'Flight');
+  if (ok || flight.time >= .4 * flight.burnTime) {
+    for (const id of flight.airframe.pk) confirmPackage(id, 'Flight');
+    if (PAYLOADS[flight.payload].uplink) confirmPackage('cmd', 'Flight');
+  }
   checkBreakthroughs();
   recordBoosterFlight(flight.airframe, ok && why != 'abort');
   learnFromFlight(flight, ok);
