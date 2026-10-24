@@ -623,14 +623,15 @@ function endFlightForProgramme(flight, ok, why) {
 }
 
 // MERCURY BOOSTERS: one of your airframes flies its normal physics and failure model with a capsule aboard, from liftoff to burnout.
-// options.load: the propellant load the mission plan chose (rules/mercury.js boosterPlan), full by default.
+// options.load: the propellant load the mission plan chose (rules/mercury.js boosterPlan), full by default; options.payload: the spacecraft
+// aboard, the Mercury capsule by default.
 export const totalBurnTime = flight => flight.stages.reduce((sum, eachStage) => sum + burnSeconds(eachStage), 0);
 // Returns { flight, failure: the mode or null, short: it fell back before burnout, fraction: share of the burn flown, altitude, speed }.
 export function boosterRun(airframe, propellantName, stage, options = {}) {
   return withProgramme(programmeOf(airframe), () => boosterRunForProgramme(airframe, propellantName, stage, options));
 }
 function boosterRunForProgramme(airframe, propellantName, stage, options) {
-  const flight = makeFlight(airframe, propellantName, 'Mercury Capsule', stage, options.load || 1, options), burn = totalBurnTime(flight);
+  const flight = makeFlight(airframe, propellantName, options.payload || 'Mercury Capsule', stage, options.load || 1, options), burn = totalBurnTime(flight);
   let result;
   // A failure already showing its warning at burnout still strikes.
   do result = step(flight); while ((result == 'tick' || result == 'sep') && (flight.stages[flight.stages.length - 1].fuel > 0 || flight.pending) && flight.time < 2000);

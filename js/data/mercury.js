@@ -24,6 +24,8 @@ export const BASE_ENDURANCE_ORBITS = 3;
 // FUEL_PER_ORBIT for each of the first three orbits; after that the capsule drifts and spends far less. Research cuts both.
 // A thruster fault costs THRUSTER_FAULT_FUEL; retrofire needs RETRO_FUEL to hold the capsule steady while the retros burn.
 export const FUEL_PER_ORBIT = 8, DRIFTING_FUEL_PER_ORBIT = 2.5, THRUSTER_FAULT_FUEL = 22, RETRO_FUEL = 15, LOW_FUEL = 35;
+// Gemini: the fuel an orbit change and a spacewalk (holding attitude while the hatch is open) cost.
+export const OAMS_BURN_FUEL = 8, EVA_FUEL = 5;
 // SPLASHDOWN: how far from the recovery ships the capsule comes down, in km. A good retrofire lands within a few km of the
 // ships; a late or crooked one hundreds of km away (Aurora 7 came down 400 km long). Beyond LONG_WAIT_KM the ships are hours away.
 export const SPLASH_SPREAD_KM = 25, LONG_WAIT_KM = 120;
@@ -62,9 +64,26 @@ export const MISSION_TYPES = {
     needs: { v: 7000 }, reference: { alt: 160, v: 7840 }, boostEnd: 300, sep: 300, gLoad: 7.7,
     why: 'Section 2. Your orbital-class booster puts the capsule into orbit (7,000 m/s with a capsule aboard). Choose how many orbits to fly; the capsule must fire its retrorockets to come home.',
   },
+  // PROJECT GEMINI (Section 2, after Mercury). Two crew, no escape tower (ejection seats, rules/mission.js geminiAbort), thrusters that
+  // change the orbit, and fuel cells for long flights. Flown like an orbital Mercury flight, with its own payload, orbits and fuel use.
+  //   payload: what the booster carries (data/launch.js); fuel: attitude fuel per orbit while holding attitude (the first three) and drifting
+  gt: {
+    name: 'Gemini', fullName: 'Gemini flight', capsuleName: 'Gemini spacecraft', cost: 100000, buildTime: 200, crewed: 2, orbital: 1, gemini: 1, payload: 'Gemini Spacecraft',
+    needs: { v: 7000 }, reference: { alt: 160, v: 7840 }, boostEnd: 300, sep: 300, gLoad: 4.5, fuel: { hold: 6, drift: .15 },
+    why: 'Project Gemini. Two astronauts in a spacecraft that can change its orbit, on a booster strong enough to lift it (7,000 m/s with the spacecraft aboard: Titan II). Spacewalks and flights of a week or two.',
+  },
 };
+// The orbit counts the planner offers a Gemini flight, and how long the spacecraft lasts: four days on batteries, eight with the
+// fuel cells, fourteen with the long-duration stores as well (Gemini 4, 5 and 7).
+export const GEMINI_ORBIT_CHOICES = [3, 16, 62, 120, 206];
+export const GEMINI_ENDURANCE = [[['gm_fc', 'gm_long'], 206], [['gm_fc'], 120], [[], 62]];
+// The two seats of a Gemini crew, as assignment keys: the command pilot flies 'gt', the pilot 'gtp'.
+export const GEMINI_SEATS = ['gt', 'gtp'];
+// The second astronaut group, who join when Gemini opens (the New Nine, September 1962).
+export const SECOND_GROUP_SIZE = 9;
 
 // PHASE TWO DIRECTIVES, in order. missionType: the mission that can meet it (rate is met by any flight record).
+// orbits: the fewest orbits that count; crew: astronauts aboard; manoeuvre: an orbit change; eva: a spacewalk.
 export const MERCURY_DIRECTIVES = [
   { key: 'bj', name: 'Big Joe', description: 'Prove the heat shield: fly a boilerplate capsule on your orbital-class booster and recover it.', reward: 60000, missionType: 'bj' },
   { key: 'lj', name: 'Little Joe series', description: 'Qualify the escape system across its envelope: three good aborts, at least one with a rhesus monkey aboard.', reward: 60000, missionType: 'lj' },
@@ -78,7 +97,14 @@ export const MERCURY_DIRECTIVES = [
   { key: 'orate', section: 2, name: 'Man-rate an orbital booster', description: 'Certify an orbital-class booster (Jupiter-C, Vanguard or Atlas) for crews: two clean flights in a row by one booster family, as Atlas managed before Glenn.', reward: 60000, missionType: null },
   { key: 'ocrew', section: 2, name: 'First American in orbit', description: 'Fly an astronaut for at least three orbits on a certified booster and bring them home.', reward: 250000, missionType: 'mo', orbits: 3 },
   { key: 'oday', section: 2, name: 'A day in orbit', description: 'Fly an astronaut for 22 orbits, a day and a half, and bring them home. Needs the long-duration capsule modifications.', reward: 200000, missionType: 'mo', orbits: 22 },
+  // PROJECT GEMINI (project: 'gemini'), after Mercury.
+  { key: 'g1', section: 2, project: 'gemini', name: 'Uncrewed Gemini', description: 'Put a Gemini spacecraft into orbit on its booster with no one aboard and recover it, as Gemini 1 and 2 did.', reward: 150000, missionType: 'gt', orbits: 3 },
+  { key: 'g3', section: 2, project: 'gemini', name: 'First two-man flight', description: 'Fly two astronauts for three orbits and fire the manoeuvring thrusters to change orbit, as Gemini 3 did. Needs the ejection seats, the manoeuvring system (OAMS) aboard and a man-rated Titan II.', reward: 250000, missionType: 'gt', orbits: 3, crew: 2, manoeuvre: 1 },
+  { key: 'g4', section: 2, project: 'gemini', name: 'American spacewalk', description: 'An astronaut leaves the spacecraft in orbit and comes back in, as Ed White did on Gemini 4. Needs the spacewalk suit and an altitude chamber to clear the spacecraft for depressurisation.', reward: 200000, missionType: 'gt', orbits: 16, crew: 2, eva: 1 },
+  { key: 'g5', section: 2, project: 'gemini', name: 'Eight days in orbit', description: 'Fly two astronauts for 120 orbits, the length of a trip to the Moon, as Gemini 5 did. Needs the fuel cells.', reward: 200000, missionType: 'gt', orbits: 120, crew: 2 },
 ];
+// The last Mercury directive's index: Mercury is complete once it is met, and Gemini opens.
+export const LAST_MERCURY_DIRECTIVE = MERCURY_DIRECTIVES.findIndex(directive => directive.key == 'oday');
 // Directives of a section: [first index, one past the last].
 export const sectionDirectives = section => {
   const indexes = MERCURY_DIRECTIVES.map((directive, index) => (directive.section || 1) == section ? index : -1).filter(index => index >= 0);
@@ -137,6 +163,15 @@ export const DECISIONS = {
   hatch: { question: 'The hatch has blown on the water and the capsule is flooding.', options: [
     { text: 'Get out through the hatch now', skill: 'end', baseChance: .55 },
     { text: 'Stay with the capsule until the helicopter hooks it', baseChance: .3, heli: 1 }] },
+  // GEMINI. The spacewalker in trouble (Gemini 4: a fogged visor, an overheating suit, a hatch that would not latch), and failing fuel cells (Gemini 5).
+  eva: { question: 'Outside the spacecraft, the spacewalker is overheating and his visor is fogging. The tasks are not finished.', options: [
+    { text: 'Get back in now', baseChance: 1, soft: 1 },
+    { text: 'Push on and finish the tasks', skill: 'end', baseChance: .55 },
+    { text: 'Slow down and follow CAPCOM\'s pace', skill: 'com', baseChance: .65, needs: 'capcom' }] },
+  cells: { question: 'Oxygen pressure to the fuel cells is falling. Without them the spacecraft runs on its small batteries.', options: [
+    { text: 'Come home early', baseChance: 1, soft: 1 },
+    { text: 'Power down and nurse the cells', skill: 'sys', baseChance: .6 },
+    { text: 'Follow the ground\'s power plan', skill: 'com', baseChance: .7, needs: 'capcom' }] },
   pad: { ground: 1, question: 'The booster is back on the pad, fuelled, with its destruct system armed and the parachutes draped down its side. Nobody can go near it while the capsule batteries are live.', options: [
     { text: 'Wait for the batteries to drain overnight', baseChance: 1, soft: 1 },
     { text: 'Send a pad crew out to make it safe now', baseChance: .7, crew: 1 },

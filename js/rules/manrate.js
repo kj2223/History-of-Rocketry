@@ -32,7 +32,9 @@ export const isFamilyCertified = (kind = S.cur) => {
 export const anyCertified = () => Object.keys(S.progs).some(kind => manRatingRecord(kind).cert.length > 0);
 // May this airframe carry a crew? Its revision must fall inside a certified range.
 export const isManRated = airframe => manRatingRecord(kindOf(airframe)).cert.some(([first, last]) => airframe.rev >= first && airframe.rev <= (last == null ? 1e9 : last));
-export const manRatingResearchDone = () => MAN_RATING_RESEARCH.every(isResearched);
+// The man-rating research a programme needs: the usual packages, and its own (Titan II's pogo cure).
+export const manRatingResearchFor = (kind = S.cur) => [...MAN_RATING_RESEARCH, ...(PROGRAMMES[kind] && PROGRAMMES[kind].manRatingResearch || [])];
+export const manRatingResearchDone = kind => manRatingResearchFor(kind).every(isResearched);
 // "Redstone Rev 3+, ..." for every programme with a certification.
 export const certifiedNames = () => Object.keys(S.progs).filter(kind => manRatingRecord(kind).cert.length)
   .map(kind => `${PROGRAMMES[kind].name} ${manRatingRecord(kind).cert.map(([first, last]) => last == null ? `Rev ${first}+` : `Rev ${first}–${last}`).join(', ')}`);
@@ -62,7 +64,7 @@ export function checkCertification(kind) {
   }
   const record = manRatingRecord(kind);
   if (isFamilyCertified(kind)) return false;
-  if (record.streak < cleanFlightsNeeded(kind) || !manRatingResearchDone()) return false;
+  if (record.streak < cleanFlightsNeeded(kind) || !manRatingResearchDone(kind)) return false;
   record.cert.push([record.base, null]);
   const name = PROGRAMMES[kind].name;
   addHistory(`${name} man-rated (Rev ${record.base} onward)`);

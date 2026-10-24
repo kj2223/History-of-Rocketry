@@ -149,6 +149,8 @@ function run(seed) {
   return {
     ...phaseOne, mercury, one, endMercury: one.at, budgetMercury: one.budget, sectionDate: one.date ? formatDate(one.date) : '-', gagarin: formatDate(S.rv.r_gagarin), human: one.human || '-',
     end: t, budgetEnd: S.b, mercuryDate: S.p2 && S.p2.mercDone ? formatDate(S.p2.mercDone) : '-', titov: S.rv.r_titov ? formatDate(S.rv.r_titov) : '-', dayInOrbit: S.fs.f_day || '-',
+    geminiDate: S.p2 && S.p2.gemDone ? formatDate(S.p2.gemDone) : '-', crew2: S.fs.f_crew2 || '-', eva: S.fs.f_eva || '-',
+    voskhod: S.rv.r_voskhod ? formatDate(S.rv.r_voskhod) : '-', leonov: S.rv.r_leonov ? formatDate(S.rv.r_leonov) : '-',
   };
 }
 const minutes = seconds => seconds === undefined ? '  -- ' : (seconds / 60).toFixed(1).padStart(5);
@@ -165,6 +167,8 @@ for (let i = 0; i < RUNS; i++) {
   // Section 2: times counted from the end of Section 1.
   if (mercury && mercury.sectionOne && !process.env.SECTION_ONE_ONLY) {
     const [first, end] = sectionDirectives(2), since = k => mercury.directiveTimes[k] === undefined ? undefined : mercury.directiveTimes[k] + mercury.nasaAt - r.endMercury;
-    console.log(`        section 2: ${mercury.sectionTwoDone ? 'done' : 'NOT DONE'} in ${minutes(r.end - r.endMercury)}m after Section 1 (play total ${minutes(r.end)}m) ${r.mercuryDate} (day in orbit: ${r.dayInOrbit}, Titov ${r.titov}) missions ${mercury.missions - r.one.missions} failed ${mercury.missionFails - r.one.missionFails} astronautsLost ${mercury.astronautsLost - r.one.astronautsLost} rating launches ${mercury.launches - r.one.launches} budget ${Math.round(r.budgetEnd)} | directives(min after Section 1) ${MERCURY_DIRECTIVES.slice(first, end).map((_, k) => minutes(since(first + k))).join(' ')}`);
+    const mercuryEnd = mercury.mercuryAt === null ? r.end : mercury.mercuryAt, atEnd = mercury.atMercury || { ...mercury, budget: r.budgetEnd };
+    console.log(`        section 2: ${mercury.sectionTwoDone ? 'done' : 'NOT DONE'} in ${minutes(mercuryEnd - r.endMercury)}m after Section 1 (play total ${minutes(mercuryEnd)}m) ${r.mercuryDate} (day in orbit: ${r.dayInOrbit}, Titov ${r.titov}) missions ${atEnd.missions - r.one.missions} failed ${atEnd.missionFails - r.one.missionFails} astronautsLost ${atEnd.astronautsLost - r.one.astronautsLost} rating launches ${atEnd.launches - r.one.launches} budget ${Math.round(atEnd.budget)} | directives(min after Section 1) ${MERCURY_DIRECTIVES.slice(first, end).map((_, k) => minutes(since(first + k))).join(' ')}`);
+    if (mercury.sectionTwoDone) console.log(`        gemini: ${mercury.geminiDone ? 'done' : 'NOT DONE'} in ${minutes(r.end - mercuryEnd)}m after Mercury (play total ${minutes(r.end)}m) ${r.geminiDate} (two-man crew: ${r.crew2}, Voskhod ${r.voskhod}; spacewalk: ${r.eva}, Leonov ${r.leonov}) missions ${mercury.missions - atEnd.missions} failed ${mercury.missionFails - atEnd.missionFails} astronautsLost ${mercury.astronautsLost - atEnd.astronautsLost} rating launches ${mercury.launches - atEnd.launches} budget ${Math.round(r.budgetEnd)}`);
   }
 }

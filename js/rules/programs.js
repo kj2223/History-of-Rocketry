@@ -72,7 +72,7 @@ export function createProgramme(kind, skipping = false) {
   for (const area of VEHICLE_AREAS) {
     const best = Math.max(0, ...earlier.map(other => other.kn[area] || 0));
     const parent = programme.derivedFrom && S.progs[programme.derivedFrom] ? S.progs[programme.derivedFrom].kn[area] || 0 : 0;
-    bundle.kn[area] = Math.max(best * (skipping ? programme.skip.headStart : HEAD_START.best), parent * HEAD_START.parent);
+    bundle.kn[area] = Math.max(best * (skipping ? programme.skip.headStart : programme.headStart || HEAD_START.best), parent * HEAD_START.parent);
   }
   S.progs[kind] = bundle;
   return bundle;
@@ -107,6 +107,7 @@ export function startLock(kind) {
   const closer = closedBy(kind);
   if (closer) return `Closed: the ${PROGRAMMES[closer].name} programme took the other route.`;
   if (programme.needsNasa && !S.nasa) return 'Needs NASA.';
+  if (programme.needsGemini && !(S.p2 && S.p2.fl.gem)) return 'Opens with Project Gemini, once Mercury is complete.';
   const met = requirementsMet(programme) || isShortcut(kind) && isMature(programme.skip.from);
   const needs = programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ');
   if (!met) return `Needs ${isShortcut(kind) ? `${PROGRAMMES[programme.skip.from].name} (to skip straight to it) or ${needs}` : needs} to mature (knowledge ${MATURE} and ${FLIGHTS_TO_MATURE} successful flights).`;

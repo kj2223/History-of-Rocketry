@@ -18,10 +18,11 @@ const PLOTS = {
   jigs: [96, 118, 64, 30, 'JIGS'], nc: [96, 160, 64, 30, 'NC SHOP'], clean: [172, 118, 72, 30, 'CLEAN ROOM'], stand: [172, 160, 72, 30, 'TEST STAND'],
   centrifuge: [96, 238, 70, 28, 'CENTRIFUGE'], ptrain: [174, 238, 70, 28, 'TRAINER'], msim: [252, 238, 70, 28, 'SIMULATOR'], egress: [252, 280, 70, 26, 'EGRESS TANK'],
   zerog: [96, 318, 226, 16, 'ZERO-G AIRCRAFT · SKID STRIP'],
-  lc12: [478, 96, 52, 28, 'LC-12'], lc14: [500, 150, 52, 28, 'LC-14'],
+  lc19: [456, 44, 52, 28, 'LC-19'], lc12: [478, 96, 52, 28, 'LC-12'], lc14: [500, 150, 52, 28, 'LC-14'],
+  altch: [170, 66, 80, 26, 'ALT. CHAMBER'], gsim: [330, 238, 82, 28, 'GEMINI SIM'],
 };
 // Areas of the plan, drawn as labels: [x, y, text].
-const AREAS = [[96, 108, 'INDUSTRIAL AREA'], [96, 228, 'TRAINING'], [286, 140, 'OPERATIONS'], [300, 52, 'RANGE'], [470, 84, 'MISSILE ROW']];
+const AREAS = [[96, 108, 'INDUSTRIAL AREA'], [96, 228, 'TRAINING'], [286, 140, 'OPERATIONS'], [300, 52, 'RANGE'], [516, 84, 'MISSILE ROW']];
 // The range's own pads, there from the start (rockets without a launch complex of their own fly from them).
 const RANGE_PADS = [[468, 214, 'LC-5/6'], [446, 258, 'LC-26']];
 

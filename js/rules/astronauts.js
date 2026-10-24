@@ -9,10 +9,12 @@
 //   tday   training days                           reh    simulator rehearsals done, { emergency: 1 }
 //   focus  a TRAINING_FOCUS key                    gd     days left grounded
 //   fat    fatigue, 0 to 100                       flights
-//   asg    the mission assigned ('mr' or 'mo'), or null    mt     mission training, 0 to 1      cap  capsule name, once flown
+//   asg    the mission assigned ('mr', 'mo', or a Gemini seat: 'gt' command pilot, 'gtp' pilot), or null
+//   mt     mission training, 0 to 1                cap  capsule name, once flown
 //   bk     the mission they back up, or null: a backup trains alongside the pilot and takes over the next flight
 import { gaussian } from '../core/util.js';
 import { FIRST_NAMES, LAST_NAMES, SERVICES, DEGREES, SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS, REHEARSAL_KEYS } from '../data/astronauts.js';
+import { MISSION_TYPES, GEMINI_SEATS, SECOND_GROUP_SIZE } from '../data/mercury.js';
 import { S, log, addHistory } from '../core/state.js';
 import { scheduleOffice } from './astronaut-office.js';
 
@@ -47,6 +49,24 @@ export function makePool(size = 16) {
     id++;
   }
   return pool;
+}
+
+// THE SECOND GROUP (Gemini): nine more astronauts join without a selection of your own, surnames not already in the office, and
+// start general training. As in 1962, NASA picked them from test pilots and the engineers' own candidates.
+export function joinSecondGroup() {
+  const astronauts = S.p2.astros, surnames = new Set(astronauts.map(astronaut => astronaut.name.split(' ')[1])), joined = [];
+  let id = Math.max(0, ...astronauts.map(astronaut => astronaut.id)) + 1;
+  while (joined.length < SECOND_GROUP_SIZE) {
+    const candidate = makeCandidate(id), surname = candidate.name.split(' ')[1];
+    if (surnames.has(surname)) continue;
+    surnames.add(surname);
+    candidate.st = 'active';
+    joined.push(candidate);
+    id++;
+  }
+  astronauts.push(...joined);
+  addHistory(`Second astronaut group selected (${joined.length})`);
+  log(`[ASTRONAUT OFFICE] The second astronaut group reports for training: ${joined.map(astronaut => astronaut.name).join(', ')}.`, 'hd');
 }
 
 // WHAT THE OFFICE BELIEVES: the estimate drifts toward the truth and the range shrinks with training days and testing.
@@ -129,8 +149,10 @@ export function trainingTick(days) {
       improve('end', .02 * egressTank);
       astronaut.reh.hatch = astronaut.reh.hatch || (Math.random() < .01 * days * egressTank ? 1 : 0);
     }
+    // Gemini crews train at half rate until the Gemini mission simulator is built.
     if (focus == 'msn' && (astronaut.asg || astronaut.bk)) {
-      astronaut.mt = Math.min(1, astronaut.mt + days / 110 * (.5 + .5 * simulator));
+      const geminiWithoutSimulator = GEMINI_SEATS.includes(astronaut.asg || astronaut.bk) && !S.fac.gsim ? .5 : 1;
+      astronaut.mt = Math.min(1, astronaut.mt + days / 110 * (.5 + .5 * simulator) * geminiWithoutSimulator);
       improve('sys', .02 * simulator);
       improve('pil', .02 * simulator);
     }
@@ -193,6 +215,8 @@ export function promoteBackup(missionType) {
   backup.bk = null;
   log(`[ASTRONAUT OFFICE] ${backup.name} moves up from backup to pilot for the next ${flightName(missionType)} flight (${Math.round(backup.mt * 100)}% through mission training).`, 'ok');
 }
-const flightName = missionType => missionType == 'mr' ? 'Mercury-Redstone' : missionType == 'mo' ? 'orbital Mercury' : missionType;
+const flightName = missionType => missionType == 'mr' ? 'Mercury-Redstone' : missionType == 'mo' ? 'orbital Mercury' : missionType == 'gt' ? 'Gemini (command pilot)' : missionType == 'gtp' ? 'Gemini (pilot)' : missionType;
+// What an assignment key is called on an astronaut's card.
+export const assignmentName = missionType => missionType == 'gt' ? 'Gemini flight, command pilot' : missionType == 'gtp' ? 'Gemini flight, pilot' : MISSION_TYPES[missionType].fullName;
 export const assignedPilot = missionType => (S.p2.astros || []).find(astronaut => astronaut.asg == missionType && astronaut.st == 'active');
 export const backupPilot = missionType => (S.p2.astros || []).find(astronaut => astronaut.bk == missionType && astronaut.st == 'active');

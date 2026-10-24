@@ -134,7 +134,7 @@ function applyEra() {
   const current = era(), level = roomLevel(), root = document.documentElement;
   root.dataset.era = current;
   root.dataset.room = level;
-  $('#era').textContent = `${S.nasa ? 'PROJECT MERCURY' : ERAS[current].name} • ${1946 + Math.floor(S.day / 360)}`;
+  $('#era').textContent = `${S.nasa ? (S.p2 && S.p2.fl.gem ? 'PROJECT GEMINI' : 'PROJECT MERCURY') : ERAS[current].name} • ${1946 + Math.floor(S.day / 360)}`;
   $('#site').textContent = ROOMS[level].name;
   // Labels that change with the era: data-l="early|middle|late".
   document.querySelectorAll('[data-l]').forEach(node => node.textContent = node.dataset.l.split('|')[current]);

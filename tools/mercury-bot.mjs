@@ -1,11 +1,11 @@
 // Phase Two bot: plays Project Mercury (Sections 1 and 2) with the real rules, after tools/balance.mjs has reached orbit.
 // It forms NASA, picks astronauts, researches the spacecraft, buys the training and tracking facilities, earns man-rating
 // and flies each Mercury directive in turn, the way a sensible player would. It reports when each directive was met.
-// Section 2 (orbital Mercury) is played after Section 1 unless game.sectionOneOnly is set; Section 1's figures are taken the
-// moment it completes, so they read the same either way.
+// Section 2 (orbital Mercury, then Gemini) is played after Section 1 unless game.sectionOneOnly is set; Section 1's figures are
+// taken the moment it completes, so they read the same either way.
 import { S, freeTeams, withProgramme } from '../js/core/state.js';
 import { PACKAGES, BY_ID, isMilestone } from '../js/data/research.js';
-import { MISSION_TYPES, MERCURY_DIRECTIVES, OFFICE_DECISIONS, TESTING_REGIMES, CHIMP_TRAINING_COST } from '../js/data/mercury.js';
+import { MISSION_TYPES, MERCURY_DIRECTIVES, OFFICE_DECISIONS, TESTING_REGIMES, CHIMP_TRAINING_COST, GEMINI_SEATS } from '../js/data/mercury.js';
 import { FACILITIES, STATIONS } from '../js/data/launch-site.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { PROGRAMMES } from '../js/data/programmes.js';
@@ -25,25 +25,28 @@ import { manRatingResearchDone, isManRated, isFamilyCertified } from '../js/rule
 import { setRequest, REQUEST_RANGE } from '../js/rules/budget.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
-const BUY = [['fac', 'trknet'], ['fac', 'centrifuge'], ['fac', 'ptrain'], ['fac', 'mcc'], ['crew', 'capcom'], ['crew', 'surg'], ['fac', 'egress'], ['fac', 'recov'], ['fac', 'clean'], ['fac', 'msim'], ['crew', 'upl']];
-// Spacecraft and escape research: every package as it is proposed (cheapest first), and one approach for each milestone.
-// The bolted hatch never blows on its own; the ablative shield also works for orbit.
+// The Gemini buildings open once Mercury is complete.
+const BUY = [['fac', 'trknet'], ['fac', 'centrifuge'], ['fac', 'ptrain'], ['fac', 'mcc'], ['crew', 'capcom'], ['crew', 'surg'], ['fac', 'egress'], ['fac', 'recov'], ['fac', 'clean'], ['fac', 'msim'], ['crew', 'upl'], ['fac', 'gsim'], ['fac', 'altch']];
+// Spacecraft and escape research: every package as it is proposed (cheapest first, the Gemini spacecraft design before the rest),
+// and one approach for each milestone. The bolted hatch never blows on its own; the ablative shield also works for orbit.
 const SPACECRAFT_MILESTONES = ['ms_ablh', 'ms_hbolt', 'ms_mqual', 'ms_mrman'];
 const spacecraftResearch = () => [...PACKAGES.filter(item => (item.area == 'c' || item.area == 'e') && !item.dud), ...SPACECRAFT_MILESTONES.map(id => BY_ID[id])]
-  .sort((first, second) => first.cost - second.cost).map(item => item.id);
+  .sort((first, second) => (first.id == 'gm_cap' ? 0 : first.cost) - (second.id == 'gm_cap' ? 0 : second.cost)).map(item => item.id);
 // The rocket's own research, as the Phase One bot does it.
 const boosterResearch = () => ['p', 's', 'i', 'a'].flatMap(itemsInArea).sort((first, second) => first.cost - second.cost).map(item => item.id);
 const readyProgrammes = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready);
 
 // game: { advance(seconds), now() in seconds, flyLaunch(airframe, ballastOnly), maxSeconds, sectionOneOnly }
-// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone }.
+// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone, mercuryAt, geminiDone }.
+// sectionTwoDone: Mercury is complete, at mercuryAt (seconds), with the counts and budget then in atMercury;
+// geminiDone: every Gemini directive built so far is met.
 // sectionOne: { at (seconds), budget, date day, missions, missionFails, astronautsLost, launches, human } when Section 1 completed.
 export function playMercury(game) {
-  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false };
+  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false };
   // Programmes known not to deliver a mission type: "mr:wac" and so on, so the bot does not keep building them.
   // For the orbital flight the blueprint revision is part of the key: research can make a rocket fast enough later.
   const tooSmall = {};
-  const shortKey = (missionType, kind, revision) => missionType == 'mo' ? `${missionType}:${kind}:${revision}` : missionType + ':' + kind;
+  const shortKey = (missionType, kind, revision) => MISSION_TYPES[missionType].orbital ? `${missionType}:${kind}:${revision}` : missionType + ':' + kind;
   // Programmes fast enough but over their heating or aero limits with a capsule aboard: their aerodynamics research comes first.
   const overLimit = {};
   const markDirectives = () => {
@@ -68,9 +71,10 @@ export function playMercury(game) {
     return null;
   };
   // Order one airframe of the cheapest programme not yet known to fall short (one airframe on order at a time).
+  // Gemini flies only on its own booster.
   const orderBoosterFor = (missionType, reserve) => {
     if (S.aq.some(item => item.k == 'build')) return;
-    const kinds = readyProgrammes().filter(kind => !tooSmall[shortKey(missionType, kind, S.progs[kind].bp.rev)] && !S.air.some(airframe => airframe.st == 'r' && airframe.prog == kind && airframe.rev == S.progs[kind].bp.rev)).sort((first, second) => PROGRAMMES[first].unitCost - PROGRAMMES[second].unitCost);
+    const kinds = readyProgrammes().filter(kind => !MISSION_TYPES[missionType].gemini || PROGRAMMES[kind].needsGemini).filter(kind => !tooSmall[shortKey(missionType, kind, S.progs[kind].bp.rev)] && !S.air.some(airframe => airframe.st == 'r' && airframe.prog == kind && airframe.rev == S.progs[kind].bp.rev)).sort((first, second) => PROGRAMMES[first].unitCost - PROGRAMMES[second].unitCost);
     if (!kinds.length) return;
     withProgramme(kinds[0], () => {
       if (S.b >= unitCost() + reserve) orderAirframes(1);
@@ -90,12 +94,13 @@ export function playMercury(game) {
     report.launches++;
     markDirectives();
   };
-  // Choose the option most likely to work, as a pilot (or the automatics) would. Short of fuel with orbits still needed for the
-  // directive, try to stretch the fuel before settling for coming home early.
+  // Choose the option most likely to work, as a pilot (or the automatics) would. Short of fuel or power with orbits still needed
+  // for the directive, try to stretch them before settling for coming home early; push on with a spacewalk the directive needs.
   const decide = mission => {
     const key = mission.pending.key, directive = MERCURY_DIRECTIVES[S.p2.dir];
     let options = decisionOptions(mission, key).filter(option => option.available);
-    if (key == 'fuel' && directive && mission.orbitsFlown < (directive.orbits || 0) && options.some(option => !option.soft)) options = options.filter(option => !option.soft);
+    const stillNeeded = directive && ((key == 'fuel' || key == 'cells') && mission.orbitsFlown < (directive.orbits || 0) || key == 'eva' && directive.eva);
+    if (stillNeeded && options.some(option => !option.soft)) options = options.filter(option => !option.soft);
     const best = options.sort((first, second) => decisionOdds(mission, key, second) - decisionOdds(mission, key, first))[0];
     chooseOption(mission, best.index);
   };
@@ -107,7 +112,8 @@ export function playMercury(game) {
       scrub(poll);
       return advance(3);
     }
-    const mission = beginMission(capsule.id, crew, { af: booster.airframe.id, fuel: booster.propellant, latent: poll.fault, wind: poll.wind, orbits });
+    const eva = !!(directive => directive && directive.eva)(MERCURY_DIRECTIVES[S.p2.dir]);
+    const mission = beginMission(capsule.id, crew, { af: booster.airframe.id, fuel: booster.propellant, latent: poll.fault, wind: poll.wind, orbits, eva });
     if (!mission) return advance(1);
     let steps = 0, decisions = 0, result;
     do {
@@ -144,12 +150,17 @@ export function playMercury(game) {
       report.sectionOne = { at: game.now(), budget: S.b, date: S.p2.secDone, missions: report.missions, missionFails: report.missionFails, astronautsLost: report.astronautsLost, launches: report.launches, human: S.fs.f_human };
       if (game.sectionOneOnly) break;
     }
-    if (state.mercDone) {
+    if (state.mercDone && !report.sectionTwoDone) {
       report.sectionTwoDone = true;
+      report.mercuryAt = game.now();
+      report.atMercury = { missions: report.missions, missionFails: report.missionFails, astronautsLost: report.astronautsLost, launches: report.launches, budget: S.b };
+    }
+    if (state.gemDone) {
+      report.geminiDone = true;
       break;
     }
     const reserve = 15000, key = directiveKey();
-    const directive = MERCURY_DIRECTIVES[state.dir], orbital = state.secDone;
+    const directive = MERCURY_DIRECTIVES[state.dir], orbital = state.secDone, gemini = state.fl.gem;
 
     // Blueprints, staff and facilities.
     // A booster milestone starts a new man-rating family, so a certified booster's blueprint only takes fixes and packages.
@@ -178,18 +189,17 @@ export function playMercury(game) {
     }
     if (!state.ch.on && state.dir >= 1 && S.b > CHIMP_TRAINING_COST + reserve) startChimpTraining();
     if (state.od) answerOfficeDecision(S.b > (OFFICE_DECISIONS[state.od].cost || 0) + reserve);
-    // Section 2 assigns the orbital pilot early, so mission training is done by the time a crew may fly.
-    const pilotFor = orbital ? 'mo' : 'mr';
-    if ((key == 'crew' || orbital) && !assignedPilot(pilotFor)) {
-      const skill = astronaut => astronaut.t.pil + astronaut.t.sys;
-      const best = state.astros.filter(isQualified).sort((first, second) => skill(second) - skill(first))[0];
-      if (best) assignPilot(best.id, pilotFor);
+    // Section 2 assigns the orbital pilot early, so mission training is done by the time a crew may fly. Gemini fills both seats.
+    const pilotFor = gemini ? 'gt' : orbital ? 'mo' : 'mr', seats = gemini ? GEMINI_SEATS : [pilotFor];
+    const skill = astronaut => astronaut.t.pil + astronaut.t.sys;
+    for (const seat of seats) if ((key == 'crew' || orbital) && !assignedPilot(seat)) {
+      const best = state.astros.filter(astronaut => isQualified(astronaut) && !(gemini && (seats.includes(astronaut.asg) || astronaut.bk))).sort((first, second) => skill(second) - skill(first))[0];
+      if (best) assignPilot(best.id, seat);
     }
     // In orbit a backup trains alongside, so the next pilot is ready when this one has flown.
-    if (orbital && assignedPilot(pilotFor) && !backupPilot(pilotFor)) {
-      const skill = astronaut => astronaut.t.pil + astronaut.t.sys;
-      const best = state.astros.filter(astronaut => isQualified(astronaut) && !astronaut.asg).sort((first, second) => skill(second) - skill(first))[0];
-      if (best) assignBackup(best.id, pilotFor);
+    for (const seat of seats) if (orbital && assignedPilot(seat) && !backupPilot(seat)) {
+      const best = state.astros.filter(astronaut => isQualified(astronaut) && !astronaut.asg && !(gemini && astronaut.bk)).sort((first, second) => skill(second) - skill(first))[0];
+      if (best) assignBackup(best.id, seat);
     }
 
     // Research: spacecraft first, then the newest rocket; ground-test spacecraft work so it counts toward breakthroughs.
@@ -215,7 +225,7 @@ export function playMercury(game) {
     });
 
     // MAN-RATING: three clean flights in a row by the booster family (suborbital in Section 1, orbital in Section 2), flown as ordinary launches.
-    const ratedFor = orbital ? 'mo' : 'mr', crewKey = key == 'crew' || key == 'ocrew' || key == 'oday';
+    const ratedFor = gemini ? 'gt' : orbital ? 'mo' : 'mr', crewKey = key == 'crew' || key == 'ocrew' || key == 'oday' || !!directive.crew;
     const needsRating = key == 'rate' || key == 'orate' || (crewKey && (booster => booster && !isManRated(booster.airframe))(boosterFor(ratedFor)));
     if (needsRating) {
       const booster = boosterFor(ratedFor);
@@ -224,7 +234,7 @@ export function playMercury(game) {
         advance(1);
         continue;
       }
-      if (!manRatingResearchDone()) {
+      if (!manRatingResearchDone(booster.airframe.prog)) {
         advance(2);
         continue;
       }
@@ -243,20 +253,23 @@ export function playMercury(game) {
       advance(2);
       continue;
     }
-    const lastsLongEnough = each => !orbits || capsuleSystems(each.cfg).endurance >= orbits;
-    if (orbits && orbits > capsuleSystems({ pk: Object.keys(S.g.pk), rev: S.g.bp.rev }).endurance) {
+    const lastsLongEnough = each => !orbits || capsuleSystems(each.cfg, missionType).endurance >= orbits;
+    // Gemini spacecraft need the manoeuvring system and the spacewalk suit aboard for the directives that use them.
+    const builtFor = each => lastsLongEnough(each) && (!directive.manoeuvre || each.cfg.pk.includes('gm_oams')) && (!directive.eva || each.cfg.pk.includes('gm_eva'));
+    const blueprint = { cfg: { pk: Object.keys(S.g.pk), rev: S.g.bp.rev } };
+    if (!builtFor(blueprint) || directive.eva && !S.fac.altch) {
       advance(2);
       continue;
     }
-    const capsule = state.veh.find(each => each.mt == missionType && lastsLongEnough(each));
-    if (!capsule && !S.aq.some(item => item.k == 'msn' && item.mt == missionType && lastsLongEnough(item)) && S.b >= MISSION_TYPES[missionType].cost + reserve) orderCapsule(missionType);
+    const capsule = state.veh.find(each => each.mt == missionType && builtFor(each));
+    if (!capsule && !S.aq.some(item => item.k == 'msn' && item.mt == missionType && builtFor(item)) && S.b >= MISSION_TYPES[missionType].cost + reserve) orderCapsule(missionType);
     const booster = boosterFor(missionType);
     if (!booster) orderBoosterFor(missionType, reserve);
     // In orbit there is money to spare, so keep the next booster and capsule coming while this one flies, as a player would.
     if (orbital && booster && !S.aq.some(item => item.k == 'build') && S.air.filter(each => each.st == 'r' && each.prog == booster.airframe.prog).length < 2) withProgramme(booster.airframe.prog, () => {
       if (S.b >= unitCost() + reserve) orderAirframes(1);
     });
-    if (orbital && capsule && state.veh.filter(each => each.mt == missionType && lastsLongEnough(each)).length < 2 && !S.aq.some(item => item.k == 'msn' && item.mt == missionType && lastsLongEnough(item)) && S.b >= MISSION_TYPES[missionType].cost + reserve) orderCapsule(missionType);
+    if (orbital && capsule && state.veh.filter(each => each.mt == missionType && builtFor(each)).length < 2 && !S.aq.some(item => item.k == 'msn' && item.mt == missionType && builtFor(item)) && S.b >= MISSION_TYPES[missionType].cost + reserve) orderCapsule(missionType);
     // No rocket fast enough for orbit with a capsule yet: test-fly the newest orbital-class rocket, so its research is confirmed
     // and the engineers propose more (a rocket that never flies never improves).
     if (!booster && orbital) {

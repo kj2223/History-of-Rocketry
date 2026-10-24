@@ -2,7 +2,7 @@
 //
 // Each row: research(id, area, name, cost in $, listed time in seconds, effects, extra)
 //   area     p propulsion, s structures & tankage, i instrumentation & telemetry, a aerodynamics & thermal,
-//            r payloads & recovery, c Mercury spacecraft, e escape & man-rating, x joint programme
+//            r payloads & recovery, c Mercury (then Gemini) spacecraft, e escape & man-rating, x joint programme
 //   time     the listed figure; play time is 75% of it, and Phase Two work (phase: 2) takes 2.5 times as long again
 //   effects  what the package adds to the rocket, as estimates; the real figure is rolled when it completes.
 //            The keys are explained in EFFECTS below (t thrust, r reliability, f propellant, d dry mass, ...).
@@ -131,6 +131,15 @@ export const PACKAGES = [
   research('mo_retro','c','Retrofire attitude and timing aids',9000,80,{rt:.5,rr:.04},{phase:2,hiddenUntil:'sec2'}),
   research('mo_long','c','Long-duration capsule modifications',16000,110,{du:16,ec:.04},{phase:2,hiddenUntil:'sec2'}),
   research('fx_sg','c','Landing-bag deploy switch rewiring',4500,50,{sg:1},{phase:2,hiddenUntil:'fx_sg'}),
+  // PROJECT GEMINI: proposed once Mercury is complete (the gem flag). gem = the Gemini spacecraft can be built, om = orbital
+  // manoeuvring thrusters, ev = spacewalk suit, es = ejection seats, pogo = Titan II's pogo cured.
+  research('gm_cap','c','Gemini two-man spacecraft design',18000,110,{gem:1,ec:.03},{phase:2,hiddenUntil:'gem'}),
+  research('gm_oams','c','Orbit attitude and manoeuvring system (OAMS)',14000,100,{om:.12,ac:.03},{phase:2,hiddenUntil:'gem'}),
+  research('gm_fc','c','Fuel cells for long flights',16000,110,{du:100},{phase:2,hiddenUntil:'gem'}),
+  research('gm_eva','c','Spacewalk suit, chest pack and umbilical',13000,100,{ev:.12},{phase:2,hiddenUntil:'gem'}),
+  research('gm_long','c','Fourteen-day stores and a lightweight suit',15000,110,{du:90,ec:.03},{phase:2,hiddenUntil:'gem'}),
+  research('gm_seat','e','Ejection seats',12000,100,{es:.12},{phase:2,hiddenUntil:'gem'}),
+  research('gm_pogo','e','Titan II pogo suppression',11000,100,{pogo:1},{phase:2,hiddenUntil:'gem'}),
 ];
 
 // MILESTONES: major programmes, each a big step in one area.
@@ -192,6 +201,8 @@ export const EFFECTS = {
   um: ['pad shutdown cured', 1, ''], mab: ['Atlas structural margin', 100, ' pts'],
   // Orbital Mercury
   du: ['endurance', 1, ' orbits'], af: ['thruster fuel saved', 100, '%'], rt: ['retrofire accuracy', 100, '%'], sg: ['heat-shield signal fixed', 1, ''],
+  // Gemini
+  gem: ['Gemini spacecraft', 1, ''], om: ['manoeuvring thrusters', 100, ' pts'], ev: ['spacewalk suit', 100, ' pts'], es: ['ejection seats', 100, ' pts'], pogo: ['Titan II pogo cured', 1, ''],
 };
 // One effect as text, e.g. "thrust +5%" or, with an uncertainty, "thrust +5% (±1)".
 export const formatEffect = (key, value, uncertainty) => {

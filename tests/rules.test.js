@@ -914,3 +914,67 @@ test('the second Atlas pad is earned by success: it opens once an uncrewed orbit
   S.p2.dir = 7;
   assert.equal(facilityLock('lc12'), null);
 });
+
+// GEMINI
+test('meeting the last Mercury directive completes Mercury and opens Gemini, with a second astronaut group', async () => {
+  const { fulfilDirective } = await import('../js/rules/mercury.js');
+  const { MERCURY_DIRECTIVES, LAST_MERCURY_DIRECTIVE, SECOND_GROUP_SIZE } = await import('../js/data/mercury.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.secDone = 1;
+  S.p2.astros = makePool(7).map(astronaut => ({ ...astronaut, st: 'active' }));
+  S.p2.dir = LAST_MERCURY_DIRECTIVE;
+  S.day = 6000;
+  assert.match(startLock('titan'), /Gemini/);
+  fulfilDirective(MERCURY_DIRECTIVES[LAST_MERCURY_DIRECTIVE]);
+  assert.ok(S.p2.mercDone);
+  assert.equal(S.p2.fl.gem, 1);
+  assert.equal(S.p2.astros.length, 7 + SECOND_GROUP_SIZE);
+  assert.equal(new Set(S.p2.astros.map(astronaut => astronaut.id)).size, S.p2.astros.length, 'every astronaut keeps a distinct id');
+  assert.equal(MERCURY_DIRECTIVES[S.p2.dir].key, 'g1');
+});
+
+test('a Gemini spacecraft lasts four days on batteries, eight with fuel cells and fourteen with the long-duration stores', async () => {
+  const { orbitChoices } = await import('../js/rules/mercury.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  assert.deepEqual(orbitChoices({ pk: [] }, 'gt'), [3, 16, 62]);
+  assert.deepEqual(orbitChoices({ pk: ['gm_fc'] }, 'gt'), [3, 16, 62, 120]);
+  assert.deepEqual(orbitChoices({ pk: ['gm_fc', 'gm_long'] }, 'gt'), [3, 16, 62, 120, 206]);
+});
+
+test('a Gemini crew needs an uncrewed Gemini first, the ejection seats, and a trained astronaut in both seats', async () => {
+  const { assignPilot } = await import('../js/rules/astronauts.js');
+  const { QUALIFICATION_DAYS } = await import('../js/data/astronauts.js');
+  const { LAST_MERCURY_DIRECTIVE } = await import('../js/data/mercury.js');
+  const titan = readyProgramme('titan');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  Object.assign(S.p2, { secDone: 1, dir: LAST_MERCURY_DIRECTIVE + 1 });
+  S.p2.fl.gem = 1;
+  S.fac.trknet = 1;
+  manRatingRecord('titan').cert.push([1, null]);
+  giveResearch(['ms_hbolt']);
+  S.p2.astros = [1, 2].map(id => ({ id, name: `Pilot ${id}`, st: 'active', tday: QUALIFICATION_DAYS, t: { pil: 60, sys: 60, end: 60, com: 60 }, reh: {}, fat: 0, mt: 0, asg: null, bk: null }));
+  assert.match(crewLock(1, titan, 'gt'), /uncrewed Gemini/);
+  S.p2.dir++;
+  assert.match(crewLock(1, titan, 'gt'), /Ejection seats/);
+  giveResearch(['gm_seat']);
+  assert.match(crewLock(1, titan, 'gt'), /command pilot/);
+  assignPilot(1, 'gt');
+  assert.match(crewLock(1, titan, 'gt'), /as pilot/);
+  assignPilot(2, 'gtp');
+  assert.match(crewLock(1, titan, 'gt'), /mission training/);
+  S.p2.astros.forEach(astronaut => astronaut.mt = 1);
+  assert.equal(crewLock(1, titan, 'gt'), null);
+});
+
+test('Titan II needs its pogo cured before it can be man-rated', async () => {
+  const { manRatingResearchDone } = await import('../js/rules/manrate.js');
+  S.nasa = 1;
+  giveResearch(MAN_RATING_RESEARCH);
+  assert.equal(manRatingResearchDone('atlas'), true);
+  assert.equal(manRatingResearchDone('titan'), false);
+  giveResearch(['gm_pogo']);
+  assert.equal(manRatingResearchDone('titan'), true);
+});

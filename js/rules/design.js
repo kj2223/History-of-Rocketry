@@ -33,7 +33,8 @@ export function designSpec(ids, estimated) {
   };
   for (const id of ids) {
     const done = S.pk[id];
-    if (done) for (const key in done.a) spec[key] += done.a[key];
+    // Keys not listed above (the later spacecraft work) start from zero.
+    if (done) for (const key in done.a) spec[key] = (spec[key] || 0) + done.a[key];
   }
   spec.tier = Math.max(0, Math.min(3, Math.floor(spec.i + 1e-9)));
   return spec;

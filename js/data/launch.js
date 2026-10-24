@@ -10,6 +10,8 @@
 export const PROPELLANTS = {
   'Alcohol & LOX': { handlingCost: 1200, pricePerKg: 40, isp: 225, vacuumIsp: 250, reliability: .9, density: 1 },
   'Kerosene & LOX': { handlingCost: 2000, pricePerKg: 50, isp: 290, vacuumIsp: 320, reliability: .85, density: 1.25 },
+  // Titan II's storable propellants: they ignite on contact, so no igniters to fail, and the Air Force has flown them for years.
+  'Aerozine & N2O4': { handlingCost: 2600, pricePerKg: 60, isp: 285, vacuumIsp: 316, reliability: .97, density: 1.2 },
 };
 
 // Payloads.
@@ -18,7 +20,7 @@ export const PROPELLANTS = {
 //   telemetryShare: share of the science that telemetry returns if the payload is NOT recovered
 //   needs: research package needed before it can fly
 //   animal: an animal passenger (headlines either way)     satellite: needs a satellite launcher
-//   mercury: carried only on Mercury flights; the capsule itself is built and paid for separately
+//   mercury: carried only on Mercury and Gemini flights; the spacecraft itself is built and paid for separately
 //   uplink: carries a command receiver, so any airframe can test the ground command link (rules/telemetry.js canRetune)
 //           and a good flight confirms the package, without retrofitting the airframe
 export const PAYLOADS = {
@@ -30,6 +32,7 @@ export const PAYLOADS = {
   'Explorer Satellite': { cost: 15000, mass: 20, science: 25000, satellite: 1 },
   'Command Receiver Test Package': { cost: 2500, mass: 15, science: 0, needs: 'cmd', uplink: 1 },
   'Mercury Capsule': { cost: 0, mass: 100, science: 0, mercury: 1 },
+  'Gemini Spacecraft': { cost: 0, mass: 260, science: 0, mercury: 1 },
 };
 
 // PITCH PROGRAMS: how a single-stage rocket (or a booster stage) turns over toward the horizon on the way up, set on the
