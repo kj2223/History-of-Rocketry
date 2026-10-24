@@ -14,7 +14,7 @@ import { unitCost, draftChanges } from '../js/rules/production.js';
 import { candidates, startLock, startProgramme, maturity } from '../js/rules/programs.js';
 import { tickSecond, hire, engineeringTeamCost, ensureStarter } from '../js/rules/game.js';
 import { orderAirframes, publishBlueprint } from '../js/rules/factory.js';
-import { startInvestigation, chooseFix, startReview, INVESTIGATION_COST } from '../js/rules/jobs.js';
+import { startInvestigation, chooseFix, startReview, acceptAllFindings, INVESTIGATION_COST } from '../js/rules/jobs.js';
 import { beginFlight, previewFlight, step, takeReadings, endFlight } from '../js/rules/flight.js';
 import { runPoll, scrub, facilityLock, buildFacility, stationLock, hireStation, troubleshoot, PAD_FIX_COST } from '../js/rules/launch-site.js';
 import { playMercury } from './mercury-bot.mjs';
@@ -40,6 +40,7 @@ function run(seed) {
   const advance = seconds => {
     for (let i = 0; i < seconds; i++) {
       tickSecond();
+      acceptAllFindings();
       t++;
       while (directiveTimes.length < S.dir) directiveTimes.push(t);
       for (const kind in S.progs) if (S.progs[kind].matured && !(kind in programmeMatured)) programmeMatured[kind] = t;

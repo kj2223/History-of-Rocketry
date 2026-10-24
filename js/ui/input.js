@@ -7,7 +7,7 @@ import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
 import { airborne } from '../rules/flight.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from '../rules/factory.js';
-import { startRetrofit, startInvestigation, chooseFix, startReview } from '../rules/jobs.js';
+import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { orderCapsule } from '../rules/mercury.js';
@@ -22,7 +22,7 @@ import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summarie
 import { researchDesk } from './design-bureau.js';
 import { trajectoryPanel, currentPlan } from './trajectory.js';
 import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
-import { render, renderHeader, showDesk, markDirty, resetScreen } from './screen.js';
+import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
 import { $ } from './dom.js';
 
 let resetArmed = 0;
@@ -148,6 +148,9 @@ const GAME_ACTIONS = {
   fac: id => buildFacility(id),
   inv: id => startInvestigation(+id),
   fix: (id, button) => chooseFix(+id, button.dataset.f),
+  accept: id => acceptFinding(+id),
+  extend: id => extendInvestigation(+id),
+  name: (id, button) => nameCause(+id, button.dataset.f),
   publish: () => publishBlueprint(),
   upgrade: id => queueRetrofit(+id),
   cancelq: id => cancelQueueItem(+id),
@@ -211,6 +214,15 @@ const VIEW_ACTIONS = {
     researchDesk.view = id;
     render();
   },
+  // The flight result's incident button: back to operations, with the R&D desk open on that incident's rocket and view.
+  incident: (id, button) => {
+    closePad();
+    if (S.progs[button.dataset.f]) S.cur = button.dataset.f;
+    const incident = S.inc.find(candidate => candidate.id == id);
+    researchDesk.view = incident && (incident.st == 'diag' || incident.st == 'fixing') ? 'file' : 'incidents';
+    openDesk('rd');
+    render();
+  },
   rpick: id => {
     researchDesk.pick = id;
     render();
@@ -254,7 +266,7 @@ document.addEventListener('click', event => {
   const button = event.target.closest('button[data-a]');
   if (!button || button.disabled) return;
   const action = button.dataset.a, id = button.dataset.id;
-  if (VIEW_ACTIONS[action]) return VIEW_ACTIONS[action](id);
+  if (VIEW_ACTIONS[action]) return VIEW_ACTIONS[action](id, button);
   if (PAD_ACTIONS[action]) PAD_ACTIONS[action](launchView.count);
   else if (action == 'abort') {
     if (airborne.flight) finishFlight(0, 'abort');
