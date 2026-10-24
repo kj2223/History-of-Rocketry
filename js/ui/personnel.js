@@ -32,7 +32,7 @@ function budgetHTML() {
   return `<div class="c"><div class="t">NASA BUDGET: FY${fy.yr} (ENDS JUN ${fy.yr})</div>`
     + row('Appropriation', `${formatMoney(fy.bud)} a year (${formatMoney(instalment())} a cycle)`)
     + row('Spent so far', `${formatMoney(spentThisYear())} (${Math.round(used * 100)}% of the budget to date)`, S.day - fy.st < EARLY_DAYS ? '' : used < .85 ? 'wn' : 'ok')
-    + row('Payroll for a year', formatMoney(operationsPerYear()))
+    + row('Payroll and upkeep for a year', formatMoney(operationsPerYear()))
     + row('Carry-over limit', formatMoney(CARRY_OVER * fy.bud))
     + `<div class="m">Spend the budget and Congress gives more next year; leave it unused and the next one is cut, and cash above the carry-over limit goes back to the Treasury when the year ends.${fy.q ? ` <b class="bad">No Mercury flight since ${formatDate(fy.lm)}: reputation is slipping.</b>` : ` Go ${QUIET_DAYS} days without a Mercury flight and reputation starts to slip.`}</div>`
     + `<select data-rq="1">${REQUEST_STEPS.map(step => `<option value="${step}"${Math.abs(step - fy.rq) < .01 ? ' selected' : ''}>Request ${Math.round(step * 100)}% of the ${formatMoney(automaticRequest())} the year's spending supports</option>`).join('')}</select>`

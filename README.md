@@ -33,7 +33,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | Propellants (sea-level and vacuum Isp), payloads and pitch programs | `data/launch.js` |
 | Engine start and tail-off, residual propellant, drag through the sound barrier, gravity-turn steering, staging delays | the constants above `step()` in `rules/flight.js` |
 | Failure modes, symptoms and fixes | `data/failures.js` |
-| Facilities, control rooms, launch-crew stations, trajectory analysts | `data/launch-site.js` |
+| Facilities, launch pads, control rooms, launch-crew stations, trajectory analysts; construction crews, build days, upkeep and pad turnaround (`SITE`) | `data/launch-site.js` |
 | Directives, eras, historical firsts, Soviet dates, calendar speed | `data/history.js` |
 | Mercury missions, directives, in-flight decisions, office decisions | `data/mercury.js` |
 | Astronaut names, skills, training focus | `data/astronauts.js` |
@@ -52,6 +52,8 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/jobs.js` | Engineering-team jobs: investigations, fixes, design reviews, retrofits |
 | `rules/knowledge.js` | What the engineers know about each system |
 | `rules/launch-site.js` | Building facilities, hiring launch crew, the go/no-go poll, pad troubleshooting, ground tests |
+| `rules/budget.js` | NASA's yearly budget: the appropriation, the request, what Congress grants, the carry-over and quiet spells |
+| `rules/site.js` | The site from NASA on: construction by contractor crews, upkeep, mothballing, launch pads and their turnaround |
 | `rules/flight.js` | Flight physics in tenths of a second (thrust rising with altitude, Mach drag, the gravity turn, staging, the flight's milestones), failures, instrument readings, flight results |
 | `rules/trajectory.js` | The trajectory team: hiring analysts, goals, and the search for the best flight plan |
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
@@ -77,7 +79,8 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `ui/consoles.js` | One live tile per launch-crew station: readout, gauge, what it is doing, its last call |
 | `ui/control-room.js` | The control-room picture |
 | `ui/design-bureau.js` | The R&D desk: research columns and the dossier under them, the rocket programme, the engineering file, incidents |
-| `ui/hangar.js` | The Hangar desk (blueprints, the factory queue, airframes) and the Base desk (facilities) |
+| `ui/hangar.js` | The Hangar desk: blueprints, the factory queue, airframes |
+| `ui/site-plan.js` | The Base desk: the drawn site plan, the selected building, construction and what can be ordered |
 | `ui/personnel.js` | The Crew desk: teams, specialists, launch crew |
 | `ui/race-and-summaries.js` | The race panel, the Phase One summary, the run log |
 | `ui/mercury-panels.js` | The Astronaut Office, mission planner, man-rating board, Mercury overlays |

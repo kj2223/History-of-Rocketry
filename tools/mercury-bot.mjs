@@ -162,6 +162,9 @@ export function playMercury(game) {
     // Short of money: ask Congress for more next year.
     if (S.fy && S.b < 150000) setRequest(REQUEST_RANGE[1]);
     if (orbital && buildTeams() < 3 && S.b > buildTeamCost() + reserve + 30000) hire('bteam');
+    // A rocket with launch complexes of its own needs its first pad as soon as the programme starts (construction takes months).
+    for (const id of Object.keys(FACILITIES).filter(each => FACILITIES[each].pad && S.progs[FACILITIES[each].pad] && !FACILITIES[each].requires))
+      if (!facilityLock(id) && S.b - FACILITIES[id].cost > reserve) buildFacility(id);
     for (const [kind, id] of BUY) {
       if (kind == 'fac' && !facilityLock(id) && S.b - FACILITIES[id].cost > reserve) buildFacility(id);
       if (kind == 'crew' && !stationLock(id) && S.b - STATIONS[id].cost > reserve) hireStation(id);

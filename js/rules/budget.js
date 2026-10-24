@@ -14,6 +14,7 @@ import { S, log, formatDate } from '../core/state.js';
 import { formatMoney } from '../core/util.js';
 import { DAYS_PER_SECOND_PHASE_TWO } from '../data/history.js';
 import { payroll, phaseOneGrant, sovietGap } from './economy.js';
+import { upkeep } from './site.js';
 
 // Tune here.
 export const REQUEST_RANGE = [1, 1.5];         // how far the player may scale the automatic request up
@@ -31,7 +32,7 @@ const QUIET_LOSS_PER_MONTH = 1;
 const fiscalYearOf = day => 1946 + Math.floor(day / 360) + (day % 360 >= 180 ? 1 : 0);
 const fiscalYearEnd = year => (year - 1946) * 360 + 180;
 // 30-second funding cycles in a game year at the Phase Two calendar.
-const CYCLES_PER_YEAR = 360 / (30 * DAYS_PER_SECOND_PHASE_TWO);
+export const CYCLES_PER_YEAR = 360 / (30 * DAYS_PER_SECOND_PHASE_TWO);
 
 // NASA's first budget carries on the Phase One grant rate for the rest of the fiscal year. Also starts the budget on older saves.
 export function openBudget() {
@@ -54,10 +55,10 @@ export function payAppropriation() {
 // So far this year: what was spent, and the share of the budget (for the days gone) that it used.
 export const spentThisYear = () => Math.max(0, S.fy.b0 + S.fy.paid + S.fy.inc - S.b);
 export const budgetUsed = () => spentThisYear() / Math.max(1, S.fy.bud * Math.max(1, S.day - S.fy.st) / 360);
-// Payroll for a year at today's staffing.
-export const operationsPerYear = () => Math.round(payroll() * CYCLES_PER_YEAR);
+// Payroll and site upkeep for a year at today's staffing and buildings.
+export const operationsPerYear = () => Math.round((payroll() + upkeep()) * CYCLES_PER_YEAR);
 // The automatic request: today's budget, or what was spent (yearly rate) after a year that left money unused, or more after one
-// that ran over; never less than the payroll. Too early in the year to tell, it is today's budget.
+// that ran over; never less than payroll and upkeep. Too early in the year to tell, it is today's budget.
 export const EARLY_DAYS = 60;
 export function automaticRequest() {
   if (S.day - S.fy.st < EARLY_DAYS) return S.fy.bud;

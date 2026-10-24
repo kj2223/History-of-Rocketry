@@ -1,16 +1,14 @@
-// HANGAR & BASE tab: the drawing office (blueprint revisions), the factory queue (new builds and upgrades, cancellable),
-// the hangar, and the base facilities.
+// HANGAR tab: the drawing office (blueprint revisions), the factory queue (new builds and upgrades, cancellable)
+// and the hangar. The base is on its own desk (ui/site-plan.js).
 import { formatMoney } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
 import { findFix } from '../data/failures.js';
-import { FACILITIES } from '../data/launch-site.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { MISSION_TYPES } from '../data/mercury.js';
-import { S, formatDate, findJob, withProgramme } from '../core/state.js';
+import { S, findJob, withProgramme } from '../core/state.js';
 import { designation } from '../rules/design.js';
 import { unitCost, batchCost, buildTime, draftChanges, experienceCarryover, lineLearning, lineExperience, retrofitQuote } from '../rules/production.js';
 import { buildTeams, buildRate, refundFor } from '../rules/factory.js';
-import { facilityLock } from '../rules/launch-site.js';
 import { programmeBar } from './design-bureau.js';
 import { $, setHTML } from './dom.js';
 
@@ -58,15 +56,4 @@ function airframeCard(airframe) {
     : quote ? `<div class="m">${quote.changes} change${quote.changes > 1 ? 's' : ''} behind Rev ${latest}.</div><button data-a="upgrade" data-id="${airframe.id}"${S.b < quote.cost ? ' disabled' : ''}>QUEUE UPGRADE TO REV ${latest} (${formatMoney(quote.cost)}, ${quote.time}s)</button>`
     : unpublishedNote(airframe);
   return `<div class="c"><div class="t">${airframe.label}, Rev ${airframe.rev || 1} | built ${airframe.built}</div>` + status + '</div>';
-}
-
-// BASE FACILITIES: control-room upgrades first, then range, test and recovery.
-function facilityCard(id) {
-  const facility = FACILITIES[id], lock = facilityLock(id), building = S.fb && S.fb[id];
-  return `<div class="c"><div class="r"><b>${facility.name}</b><span class="${S.fac[id] ? 'ok' : building ? 'wn' : 'd'}">${S.fac[id] ? 'Operational' : building ? 'Under construction' : 'Unbuilt'}</span></div><div class="m">${facility.description}${facility.consoles ? ` +${facility.consoles} console${facility.consoles > 1 ? 's' : ''}.` : ''}</div>${S.fac[id] ? '' : building ? `<div class="m">In service around ${formatDate(building)}.</div>` : `<button data-a="fac" data-id="${id}"${lock ? ' disabled' : ''}>BUILD (${formatMoney(facility.cost)}${facility.buildDays ? `, ${facility.buildDays} days` : ''})</button>${lock ? `<div class="m">${lock}</div>` : ''}`}</div>`;
-}
-export function renderFacilities() {
-  const ids = Object.keys(FACILITIES);
-  setHTML($('#fc'), `<div class="t">CONTROL ROOM</div><div class="m">Each upgrade moves you further from a military blockhouse and adds consoles for launch crew.</div>` + ids.filter(id => FACILITIES[id].controlRoom).map(facilityCard).join('')
-    + `<div class="t" style="margin-top:10px">RANGE, TEST & RECOVERY</div>` + ids.filter(id => !FACILITIES[id].controlRoom).map(facilityCard).join(''));
 }

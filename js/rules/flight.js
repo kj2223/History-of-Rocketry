@@ -29,6 +29,7 @@ import { confirmPackage, checkBreakthroughs } from './research.js';
 import { loseReputation, rangeDataPayment } from './economy.js';
 import { checkFirsts } from './race.js';
 import { recordBoosterFlight } from './manrate.js';
+import { usePad, damagePad } from './site.js';
 import { programmeOf, traitWeight, revealTraits, maturity } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
@@ -179,8 +180,10 @@ export function beginFlight(airframe, propellantName, payloadName, stage, load =
   if (quote.error) return null;
   S.b -= quote.cost;
   S.air.splice(S.air.indexOf(airframe), 1);
+  const pad = usePad(airframe);
   S.day += 7;
   const flight = makeFlight(airframe, propellantName, payloadName, stage, load, options);
+  flight.pad = pad;
   log(`--- LAUNCH SEQUENCE: ${airframe.label} (propellant ${Math.round(load * 100)}%) ---`, 'wn');
   log(`[DISPATCH] ${DIRECTIVE_NEWS[Math.min(4, S.dir)]}`, 'nar');
   if (flight.overNoGo) log('[TC] Proceeding over a NO-GO call.', 'bad');
@@ -538,6 +541,7 @@ function endFlightForProgramme(flight, ok, why) {
   let peak = Math.max(0, Math.round(flight.peakAltitude * (1 + altitudeQuality.noise / 2 * gaussian()) / altitudeQuality.rounding) * altitudeQuality.rounding);
   if (why == 'fail' || why == 'abort') {
     if (why == 'fail') {
+      damagePad(flight.pad, flight.time);
       const lastPlot = flight.lastReadings.alt ? formatAltitude(flight.lastReadings.alt.value, flight.lastReadings.alt.quality) : null;
       log(`T+${flight.time}s | TRACK LOST. Radio carrier lost.${lastPlot ? ' Last plot ' + lastPlot + '.' : ''}`, 'bad');
       if (S.crew.rso) log('[RSO] Destruct command sent. Debris fell inside the range.', 'wn');

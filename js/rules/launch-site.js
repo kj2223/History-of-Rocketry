@@ -8,6 +8,7 @@ import { rangeFee } from './design.js';
 import { knowledgeFraction, systemOf } from './knowledge.js';
 import { programmeOf, traitsOf } from './programs.js';
 import { traitByKey } from '../data/programmes.js';
+import { siteStatus, directiveLock, orderConstruction } from './site.js';
 
 // The control-room level, 0 to 5: how many of the control-room upgrades are built.
 export const roomLevel = () => CONTROL_ROOM_FACILITIES.filter(id => S.fac[id]).length;
@@ -22,37 +23,24 @@ export function facilityLock(id) {
   if (!facility) return 'Unknown.';
   if (S.fac[id]) return 'Built.';
   if (S.fb && S.fb[id]) return `Under construction: in service around ${formatDate(S.fb[id])}.`;
+  if (siteStatus(id) == 'waiting') return 'Ordered: waiting for a free contractor crew.';
+  if (siteStatus(id) == 'mothballed') return 'Mothballed.';
   if (facility.nasa && !S.nasa) return 'Opens when NASA is established.';
   if (facility.requires && !S.fac[facility.requires]) return `Requires ${FACILITIES[facility.requires].name}.`;
   if (S.dir < facility.fromDirective) return `Available from directive ${facility.fromDirective + 1}.`;
+  if (directiveLock(id)) return directiveLock(id);
   if (S.b < facility.cost) return `Need ${formatMoney(facility.cost - S.b)} more.`;
   return null;
 }
+// Pay for a facility. In Phase One it is in service at once; from NASA on it goes to the contractor crews (rules/site.js).
 export function buildFacility(id) {
   if (facilityLock(id)) return;
   const facility = FACILITIES[id];
   S.b -= facility.cost;
-  if (facility.buildDays) {
-    S.fb = S.fb || {};
-    S.fb[id] = Math.round(S.day + facility.buildDays);
-    log(`[BASE] Construction begins: ${facility.name}. In service around ${formatDate(S.fb[id])}.`, 'wn');
-    return;
-  }
+  if (S.nasa) return orderConstruction(id);
   S.fac[id] = 1;
   if (facility.controlRoom) addHistory(`Control room: ${facility.name}`);
   log(`[BASE] ${facility.name} operational.`, 'ok');
-}
-// Facilities with a construction time come on line when their date arrives. Returns true if any did.
-export function constructionTick() {
-  if (!S.fb) return false;
-  let changed = false;
-  for (const id in S.fb) if (S.day >= S.fb[id]) {
-    delete S.fb[id];
-    S.fac[id] = 1;
-    log(`[BASE] ${FACILITIES[id].name} is in service.`, 'hd');
-    changed = true;
-  }
-  return changed;
 }
 
 // Why a launch-crew station cannot be hired, or null.

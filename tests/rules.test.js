@@ -844,3 +844,73 @@ test('without a Mercury flight reputation slips, and a flight ends the quiet spe
   assert.equal(S.rep, 99);
   assert.equal(S.fy.q, 0);
 });
+
+// THE SITE (rules/site.js): construction crews, upkeep, mothballing and launch pads.
+test('in Phase One a building is in service at once; from NASA on it waits for a contractor crew and its construction days', async () => {
+  const { buildFacility } = await import('../js/rules/launch-site.js');
+  const { constructionTick, upkeep, buildDaysOf } = await import('../js/rules/site.js');
+  const { SITE } = await import('../js/data/launch-site.js');
+  S.b = 1e6;
+  buildFacility('wx');
+  assert.equal(S.fac.wx, 1);
+  assert.equal(upkeep(), 0, 'no upkeep before NASA');
+  S.day = S.nasa = 4400;
+  for (const id of ['centrifuge', 'egress', 'zerog']) buildFacility(id);
+  assert.equal(Object.keys(S.fb).length, SITE.contractorCrews);
+  assert.deepEqual(S.cq, ['zerog'], 'the third order waits its turn');
+  assert.ok(!S.fac.centrifuge);
+  S.day += buildDaysOf('egress');
+  constructionTick();
+  assert.equal(S.fac.egress, 1);
+  assert.equal(S.fb.zerog, Math.round(S.day + buildDaysOf('zerog')), 'the freed crew starts the waiting order');
+  assert.ok(upkeep() > 0, 'buildings in service cost upkeep under NASA');
+});
+
+test('a mothballed building stops costing upkeep and loses its effect until it is reopened', async () => {
+  const { mothball, mothballLock, reopen, constructionTick, upkeep } = await import('../js/rules/site.js');
+  const { SITE } = await import('../js/data/launch-site.js');
+  S.day = S.nasa = 4400;
+  S.fac.centrifuge = 1;
+  S.fac.tty = 1;
+  const running = upkeep();
+  assert.ok(mothballLock('tty'), 'the control room stays staffed');
+  mothball('centrifuge');
+  assert.ok(!S.fac.centrifuge);
+  assert.ok(upkeep() < running);
+  reopen('centrifuge');
+  S.day += SITE.reopenDays;
+  constructionTick();
+  assert.equal(S.fac.centrifuge, 1);
+  assert.ok(!S.mb.centrifuge);
+});
+
+test('an Atlas launches only from a free Atlas pad, which is refurbished after each launch and wrecked by a failure at liftoff', async () => {
+  const { padLock, usePad, damagePad } = await import('../js/rules/site.js');
+  const { quoteLaunch } = await import('../js/rules/design.js');
+  const { SITE } = await import('../js/data/launch-site.js');
+  S.day = S.nasa = 4400;
+  S.b = 1e6;
+  const atlas = readyProgramme('atlas'), redstone = readyProgramme('redstone');
+  assert.match(quoteLaunch(atlas, 'Kerosene & LOX', 'Inert Ballast', 1).error, /Launch Complex 14/);
+  assert.equal(padLock(redstone), null, 'rockets without a launch complex of their own fly from the range pads');
+  S.fac.lc14 = 1;
+  assert.equal(padLock(atlas), null);
+  assert.equal(usePad(atlas), 'lc14');
+  assert.match(padLock(atlas), /being readied/);
+  S.day += SITE.padTurnaround;
+  assert.equal(padLock(atlas), null);
+  damagePad(usePad(atlas), 3);
+  S.day += SITE.padTurnaround;
+  assert.ok(padLock(atlas), 'a damaged pad takes longer than a turnaround');
+});
+
+test('the second Atlas pad is earned by success: it opens once an uncrewed orbital flight has been made', async () => {
+  const { facilityLock } = await import('../js/rules/launch-site.js');
+  S.day = S.nasa = 4400;
+  S.b = 1e6;
+  S.p2 = newPhaseTwo();
+  S.fac.lc14 = 1;
+  assert.match(facilityLock('lc12'), /Opens after/);
+  S.p2.dir = 7;
+  assert.equal(facilityLock('lc12'), null);
+});

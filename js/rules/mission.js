@@ -10,7 +10,7 @@
 //   outcome: what went wrong or right (see newOutcome); latent: a fault the poll missed; overNoGo: launched over a NO-GO
 //   altitudeScale, speedScale: the profile scaled to the booster; callSign; boost: the booster run; rescued: the man-rating
 //   redundancy rode out a booster fault; retroWillFail; trace: altitudes for the plotting board; done
-//   faults: spacecraft systems that failed (keys of SYSTEM_FAULTS), investigated when the mission ends
+//   faults: spacecraft systems that failed (keys of SYSTEM_FAULTS), investigated when the mission ends; pad: the launch complex used (rules/site.js)
 //   In orbit (Section 2) also: fuel (attitude-control fuel, %), orbitsFlown, drifting (fuel-saving drift flight), retroTries,
 //   missKm (how far from the recovery ships the capsule will come down), shieldLoose, retropackKept, fuelAsked
 import { formatMoney, gaussian, clamp } from '../core/util.js';
@@ -27,6 +27,7 @@ import { learn, teachingValue } from './knowledge.js';
 import { phaseTwo, boosterPlan, capsuleSystems, fulfilDirective } from './mercury.js';
 import { astronautById, simulatorTier, promoteBackup } from './astronauts.js';
 import { recordMercuryFlight } from './budget.js';
+import { usePad, damagePad } from './site.js';
 import { checkFirsts } from './race.js';
 
 // Where the profile puts the capsule at a mission time: { alt (km), v (m/s), g }, interpolated between its points.
@@ -175,6 +176,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   S.b -= quote.cost;
   state.veh.splice(state.veh.indexOf(capsule), 1);
   S.air.splice(S.air.indexOf(booster), 1);
+  const pad = usePad(booster);
   S.day += 3;
   const crew = crewChoice == 'none' || !crewChoice ? null
     : crewChoice == 'chimp' ? { animalName: CHIMPANZEE_NAMES[state.chimp++ % CHIMPANZEE_NAMES.length], species: 'chimpanzee' }
@@ -182,7 +184,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
     : astronautById(crewChoice);
   const mission = {
     capsule, type, missionType: capsule.mt, systems, booster, propellant, staged: plan.staged, crew, crewChoice, time: 0, events: [], log: [], transcript: [], pending: null,
-    outcome: newOutcome(), latent: options.latent || null, overNoGo: !!options.over, done: 0, trace: [],
+    outcome: newOutcome(), latent: options.latent || null, overNoGo: !!options.over, done: 0, trace: [], pad,
     altitudeScale: clamp(plan.preview.peakAltitude / 1000 / type.reference.alt, .4, 2.5), speedScale: clamp(plan.preview.peakSpeed / type.reference.v, .4, 2.5),
   };
   // An orbit is an orbit: the profile is not scaled to the booster.
@@ -537,6 +539,7 @@ function towerFires(mission) {
 function boosterDown(mission) {
   const boost = mission.boost;
   mission.outcome.boosterFailed = 1;
+  damagePad(mission.pad, mission.time);
   boosterFailed(boost.flight);
   recordBoosterFlight(mission.booster, false);
   report(mission, `BOOSTER MALFUNCTION: ${boost.short ? 'the booster cannot hold the climb with the capsule aboard' : FAILURE_MODES[boost.failure] ? FAILURE_MODES[boost.failure].name.toLowerCase() : 'cause unknown'}.`, 'bad');
