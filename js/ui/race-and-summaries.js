@@ -5,13 +5,14 @@ import { programmeProgress } from '../rules/economy.js';
 import { intelligenceEstimate, sovietProgress } from '../rules/race.js';
 import { $, setHTML } from './dom.js';
 
+const SECTION_TWO_FIRSTS = ['f_day', 'f_crew2', 'f_eva'];
 const FIRST_STATUS = { us: ['ok', 'US FIRST'], second: ['wn', 'SECOND'], them: ['bad', 'SOVIET FIRST'] };
 export function renderRace() {
   const estimate = intelligenceEstimate(), ours = programmeProgress(), theirs = sovietProgress();
   const bars = `<div class="rbars"><div class="r"><span>Your programme <span class="d">(estimate)</span></span><b>${Math.round(ours * 100)}%</b></div><div class="bar us"><i style="width:${ours * 100}%"></i></div><div class="r"><span>Soviet programme <span class="d">(intelligence estimate)</span></span><b>${theirs.done ? (S.nasa ? 'COSMONAUT IN ORBIT' : 'SATELLITE IN ORBIT') : `${Math.round(theirs.lo * 100)}–${Math.round(theirs.hi * 100)}%`}</b></div><div class="bar su"><i style="width:${theirs.lo * 100}%"></i><u style="left:${theirs.lo * 100}%;width:${(theirs.hi - theirs.lo) * 100}%"></u></div><div class="m">Progress toward ${S.nasa ? 'a human in space' : 'an artificial satellite'}.</div></div>`;
-  // After NASA, only the orbit and the human-in-space firsts are still listed, and the day in orbit once Section 2 opens.
+  // After NASA, only the orbit and the human-in-space firsts are still listed, the Section 2 firsts once Section 2 opens.
   const sectionTwo = !!(S.p2 && S.p2.secDone);
-  const firsts = FIRSTS.filter(first => first.id == 'f_day' ? sectionTwo : !S.nasa || first.id == 'f_orbit' || first.id == 'f_human').map(first => {
+  const firsts = FIRSTS.filter(first => SECTION_TWO_FIRSTS.includes(first.id) ? sectionTwo : !S.nasa || first.id == 'f_orbit' || first.id == 'f_human').map(first => {
     const status = FIRST_STATUS[S.fs[first.id]];
     return `<div class="first"><span>${first.name}${first.rivalEvent ? ' <span class="d">(contested)</span>' : ''}</span><b class="${status ? status[0] : 'd'}">${status ? status[1] : 'open'}</b></div>`;
   }).join('');
@@ -26,7 +27,7 @@ export function showPhaseOneSummary() {
   };
   $('#sum').innerHTML = `<div class="sumbox"><h1>PHASE ONE COMPLETE</h1><div class="d">From sounding rockets to ${S.fs.f_orbit ? 'orbit' : 'the edge of space'} • ${today()}</div>
 <div class="sumg"><div><h2>YOUR PROGRAMME</h2>${S.hist.map(entry => `<div class="first"><span>${entry.t}</span><b class="d">${formatDate(entry.d)}</b></div>`).join('') || '<div class="m">No milestones recorded.</div>'}</div>
-<div><h2>FIRSTS: YOU, THE SOVIETS, HISTORY</h2><div class="tw"><table><tr><th>First</th><th>You</th><th>Soviets</th><th>Real US</th></tr>${FIRSTS.filter(first => first.id != 'f_day').map(first => `<tr><td>${first.name.replace(/^First /, '')}</td><td class="${S.fs[first.id] == 'us' ? 'ok' : S.fs[first.id] == 'second' ? 'wn' : 'd'}">${S.fsd[first.id] != null ? formatDate(S.fsd[first.id]) : '—'}</td><td>${sovietDate(first.id)}</td><td class="d">${HISTORICAL_US_FIRSTS[first.id] || ''}</td></tr>`).join('')}</table></div>
+<div><h2>FIRSTS: YOU, THE SOVIETS, HISTORY</h2><div class="tw"><table><tr><th>First</th><th>You</th><th>Soviets</th><th>Real US</th></tr>${FIRSTS.filter(first => !SECTION_TWO_FIRSTS.includes(first.id)).map(first => `<tr><td>${first.name.replace(/^First /, '')}</td><td class="${S.fs[first.id] == 'us' ? 'ok' : S.fs[first.id] == 'second' ? 'wn' : 'd'}">${S.fsd[first.id] != null ? formatDate(S.fsd[first.id]) : '—'}</td><td>${sovietDate(first.id)}</td><td class="d">${HISTORICAL_US_FIRSTS[first.id] || ''}</td></tr>`).join('')}</table></div>
 <div class="m">Records: ${Math.round(S.hi).toLocaleString()} m altitude, ${Math.round(S.hs).toLocaleString()} m/s, ${Math.round((S.hd || 0) / 1000)} km downrange. ${S.ok} successful flights.</div></div></div>
 <button data-a="closesum">CONTINUE PLAYING</button></div>`;
   $('#sum').hidden = false;

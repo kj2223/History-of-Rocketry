@@ -6,7 +6,7 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Build for testers:** `npm run dist` builds a Windows installer and a portable .exe into `dist/` (run it on Windows). Every push to `dev` also builds them on GitHub (`.github/workflows/windows-build.yml`) and publishes a numbered release (v0.1.1, v0.1.2, …); change `version` in `package.json` to 0.2.0 to start the v0.2 series. The newest build is always at `releases/latest/download/ProjectVanguard-Setup.exe` (or `-Portable.exe`), and the game's title bar shows its version. The builds are unsigned: on first run Windows SmartScreen says it protected your PC; click **More info**, then **Run anyway**.
 
-**Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two Section 1 to the first American in space (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n; `PHASE_ONE_ONLY=1` stops at orbit.
+**Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two: Section 1 to the first American in space, Section 2 through orbital Mercury and Gemini (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n; `PHASE_ONE_ONLY=1` stops at orbit.
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
 
@@ -35,7 +35,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | Failure modes, symptoms and fixes | `data/failures.js` |
 | Facilities, launch pads, control rooms, launch-crew stations, trajectory analysts; construction crews, build days, upkeep and pad turnaround (`SITE`) | `data/launch-site.js` |
 | Directives, eras, historical firsts, Soviet dates, calendar speed | `data/history.js` |
-| Mercury missions, directives, in-flight decisions, office decisions | `data/mercury.js` |
+| Mercury and Gemini missions, directives, in-flight decisions, office decisions | `data/mercury.js` |
 | Astronaut names, skills, training focus | `data/astronauts.js` |
 | Grants, payroll, reputation losses | `rules/economy.js` |
 
@@ -59,10 +59,10 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
 | `rules/auto.js` | The launch director flying the running campaign |
 | `rules/race.js` | American firsts, Soviet events, intelligence, forming NASA |
-| `rules/manrate.js` | Man-rating boosters for crews |
-| `rules/mercury.js` | Phase Two state, mission requirements, boosters for capsules, who may fly, capsules, directives |
-| `rules/mission.js` | A Mercury mission in flight: events, decisions, transcript, outcome |
-| `rules/astronauts.js` | The candidate pool, skill estimates, selection, training |
+| `rules/manrate.js` | Man-rating boosters for crews (Titan II also needs its pogo cured) |
+| `rules/mercury.js` | Phase Two state, mission requirements, boosters for capsules, who may fly, capsules, directives, opening Gemini |
+| `rules/mission.js` | A Mercury or Gemini mission in flight: events, decisions, transcript, outcome |
+| `rules/astronauts.js` | The candidate pool, skill estimates, selection, training, the second group |
 | `rules/astronaut-office.js` | Selection testing, office decisions, the chimpanzee colony, the election |
 
 ### The UI, file by file

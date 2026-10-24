@@ -11,23 +11,24 @@
 //   secDone  day Section 1 was completed         chimp, monk  animals flown (they pick the next name)
 //   lj       Little Joe record: { ok: good aborts, mk: a monkey has flown }
 //   fl       flags: office decisions taken (life, win, ovr, cock), failures investigated (four, maFail, fx_ + a capsule system), maQual,
-//            sec2 (Section 2 is open)
-//   mercDone day every Section 2 directive built so far was met
+//            sec2 (Section 2 is open), gem (Project Gemini is open)
+//   mercDone day Project Mercury was completed   gemDone  day every Gemini directive built so far was met
 //   oq       office decisions to come: [{ k, at }]   od   the office decision waiting for an answer
 //   gmul     appropriation multiplier            ch       chimpanzee colony: { on, t: training 0 to 1 }
 //   ma       orbital qualification flights: { ok, n }   elec  0, 1 after the election, 2 after the inauguration
 //   lastTx   the last flight's transcript: { n: mission name, call: call sign, tx: lines }
-//   The launch planner also keeps its choices here: lv capsule, lb booster, lf propellant, lc crew, lo orbits; secShown once the summary has shown.
+//   The launch planner also keeps its choices here: lv capsule, lb booster, lf propellant, lc crew, lo orbits, le spacewalk planned;
+//   secShown once the summary has shown.
 import { formatMoney } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
-import { MISSION_TYPES, MERCURY_DIRECTIVES, ORBIT_CHOICES, BASE_ENDURANCE_ORBITS, sectionDirectives } from '../data/mercury.js';
+import { MISSION_TYPES, MERCURY_DIRECTIVES, ORBIT_CHOICES, BASE_ENDURANCE_ORBITS, GEMINI_ORBIT_CHOICES, GEMINI_ENDURANCE, GEMINI_SEATS, LAST_MERCURY_DIRECTIVE, sectionDirectives } from '../data/mercury.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, addHistory, isResearched, isConfirmed, formatDate, earn } from '../core/state.js';
 import { designSpec, hasBoosterStage } from './design.js';
 import { hasFirstMilestone } from './research.js';
 import { previewFlight } from './flight.js';
 import { anyCertified, isManRated, manRatingRecord } from './manrate.js';
-import { assignedPilot } from './astronauts.js';
+import { assignedPilot, joinSecondGroup } from './astronauts.js';
 import { checkFirsts, openSovietSectionTwo } from './race.js';
 
 export const newPhaseTwo = () => ({
@@ -41,8 +42,9 @@ export const directiveKey = () => {
 };
 // Has the directive with this key been met?
 export const directiveDone = key => phaseTwo().dir > MERCURY_DIRECTIVES.findIndex(directive => directive.key == key);
-// The mission an astronaut is assigned to train for: the suborbital flight in Section 1, the orbital flight after it.
-export const pilotMissionType = () => phaseTwo().secDone ? 'mo' : 'mr';
+// The mission an astronaut is assigned to train for: the suborbital flight in Section 1, the orbital flight after it, then Gemini
+// (the command pilot's seat; the pilot's seat is 'gtp').
+export const pilotMissionType = () => phaseTwo().fl.gem ? 'gt' : phaseTwo().secDone ? 'mo' : 'mr';
 // Is any orbital-class booster (one that can launch a satellite) certified for crews?
 export const orbitalBoosterCertified = () => Object.keys(S.progs).some(kind => PROGRAMMES[kind] && PROGRAMMES[kind].canOrbit && manRatingRecord(kind).cert.length > 0);
 
@@ -59,6 +61,10 @@ export const requirementText = missionType => {
   if (missionType == 'mo') {
     if (!state.secDone) return 'Opens in Section 2, once an American has flown in space.';
     if (!isResearched('ms_ablh') && !isResearched('mo_shield')) return `Needs a heat shield for orbital re-entry: ${name('ms_ablh')} or ${name('mo_shield')}.`;
+  }
+  if (missionType == 'gt') {
+    if (!state.fl.gem) return 'Opens with Project Gemini, once Mercury is complete.';
+    if (!isResearched('gm_cap')) return `Needs ${name('gm_cap')}.`;
   }
   return null;
 };
@@ -84,7 +90,7 @@ export function boosterPlan(airframe, propellant, missionType) {
   for (const ascent of type.orbital ? [null, ...ORBITAL_ASCENTS] : [null]) {
     for (const staged of hasBoosterStage(airframe) ? [0, 1] : [0]) {
       for (let load = 1; load >= MIN_MERCURY_LOAD && !best; load = Math.round((load - loadStep) * 100) / 100) {
-        const preview = previewFlight(airframe, propellant, 'Mercury Capsule', staged, load, 0, ascent);
+        const preview = previewFlight(airframe, propellant, type.payload || 'Mercury Capsule', staged, load, 0, ascent);
         const overLimit = preview.maxHeat >= 1 || preview.maxQ >= 1;
         const enough = preview.thrustToWeight > 1.05 && (!type.needs.alt || preview.peakAltitude >= type.needs.alt) && (!type.needs.v || preview.peakSpeed >= type.needs.v);
         const plan = { staged, load, ascent, preview, ok: enough && !overLimit, overLimit };
@@ -109,7 +115,8 @@ export const needText = missionType => {
 export const readyBoosters = () => S.air.filter(airframe => airframe.st == 'r');
 
 // WHO MAY FLY, or why not. crew: 'none', 'monkey', 'chimp' or an astronaut id. Crews wait for the animal flight, a man-rated booster,
-// both first milestones, the tracking network and a trained pilot assigned to the mission type ('mr' suborbital, 'mo' orbital).
+// both first milestones, the tracking network and a trained pilot assigned to the mission type ('mr' suborbital, 'mo' orbital);
+// a Gemini crew waits for an uncrewed Gemini, the ejection seats and a trained astronaut in each seat.
 export function crewLock(crew, airframe, missionType = 'mr') {
   const state = phaseTwo();
   if (crew == 'none') return null;
@@ -122,13 +129,17 @@ export function crewLock(crew, airframe, missionType = 'mr') {
   if (state.stand > S.day) return `Crewed flights are stood down after the loss of a crew until ${formatDate(state.stand)}.`;
   if (state.dir < 4) return 'NASA will not fly a crew until an animal has flown and been recovered alive.';
   if (missionType == 'mo' && !directiveDone('oanimal')) return 'NASA will not fly a crew into orbit until a chimpanzee has orbited and been recovered alive.';
+  if (missionType == 'gt' && !directiveDone('g1')) return 'NASA will not fly a crew on Gemini until an uncrewed Gemini has flown and been recovered.';
+  if (missionType == 'gt' && !isResearched('gm_seat')) return `A Gemini crew needs ${BY_ID.gm_seat.name}: the spacecraft has no escape tower.`;
   if (!anyCertified()) return 'No booster is man-rated yet (see the man-rating board).';
   if (airframe && !isManRated(airframe)) return `${airframe.label} (Rev ${airframe.rev}) is outside the certified booster revisions.`;
   if (!S.fac.trknet) return S.fb && S.fb.trknet ? `The tracking network is still being built (in service around ${formatDate(S.fb.trknet)}).` : 'Needs the Mercury Worldwide Tracking Network (Base desk).';
   if (!hasFirstMilestone('e')) return 'Needs a hatch milestone (Escape & Man-Rating).';
-  const pilot = assignedPilot(missionType);
-  if (!pilot) return 'Assign a qualified astronaut in the Astronaut Office.';
-  if (pilot.mt < 1) return `${pilot.name} is ${Math.round(pilot.mt * 100)}% through mission training.`;
+  const seats = missionType == 'gt' ? GEMINI_SEATS : [missionType];
+  const empty = seats.find(seat => !assignedPilot(seat));
+  if (empty) return seats.length > 1 ? `Assign a qualified astronaut as ${empty == 'gt' ? 'command pilot' : 'pilot'} in the Astronaut Office.` : 'Assign a qualified astronaut in the Astronaut Office.';
+  const training = seats.map(assignedPilot).find(pilot => pilot.mt < 1);
+  if (training) return `${training.name} is ${Math.round(training.mt * 100)}% through mission training.`;
   return null;
 }
 
@@ -154,8 +165,9 @@ export function deliverCapsule(item) {
 
 // CAPSULE SYSTEMS: each system's reliability is 80% plus what the blueprint's packages add, less 1.2 points for each spacecraft package
 // not yet proven in flight, between 50% and 99.5%. Systems: hs heat shield, pc parachutes, et escape tower, as abort sensing,
-// tj tower jettison, ac attitude control, ec environmental control, lb landing bag, rr retrorockets.
-export function capsuleSystems(config) {
+// tj tower jettison, ac attitude control, ec environmental control, lb landing bag, rr retrorockets; on Gemini also om manoeuvring
+// thrusters, ev the spacewalk suit, es ejection seats.
+export function capsuleSystems(config, missionType = 'mo') {
   const spec = designSpec(config.pk), unproven = config.pk.filter(id => BY_ID[id] && BY_ID[id].phase == 2 && !isConfirmed(id)).length;
   const reliability = system => Math.max(.5, Math.min(.995, .8 + (spec[system] || 0) - .012 * unproven));
   return {
@@ -164,15 +176,16 @@ export function capsuleSystems(config) {
     command: spec.cmd > 0, // a command receiver aboard: the ground can send commands (rules/mission.js groundCommandLock)
     explosiveHatch: isResearched('ms_hxp') && config.pk.includes('ms_hxp'),
     orbital: spec.orb > 0,
-    endurance: enduranceOrbits(config), // the most orbits the consumables allow
+    endurance: enduranceOrbits(config, missionType), // the most orbits the consumables allow
   };
 }
 // ENDURANCE: three orbits as built, six with the extra consumables, 22 with the long-duration modifications on top (Sigma 7 and
-// Faith 7). Set by the packages aboard, not their rolled figures, so a capsule always reaches the next step.
+// Faith 7). Set by the packages aboard, not their rolled figures, so a capsule always reaches the next step. Gemini: GEMINI_ENDURANCE.
 const ENDURANCE_STEPS = [[['mo_cons', 'mo_long'], 22], [['mo_cons'], 6]];
-const enduranceOrbits = config => (ENDURANCE_STEPS.find(([ids]) => ids.every(id => config.pk.includes(id))) || [null, BASE_ENDURANCE_ORBITS])[1];
+const enduranceOrbits = (config, missionType) => missionType == 'gt' ? GEMINI_ENDURANCE.find(([ids]) => ids.every(id => config.pk.includes(id)))[1]
+  : (ENDURANCE_STEPS.find(([ids]) => ids.every(id => config.pk.includes(id))) || [null, BASE_ENDURANCE_ORBITS])[1];
 // The orbit counts a capsule can fly.
-export const orbitChoices = config => ORBIT_CHOICES.filter(orbits => orbits <= capsuleSystems(config).endurance);
+export const orbitChoices = (config, missionType = 'mo') => (missionType == 'gt' ? GEMINI_ORBIT_CHOICES : ORBIT_CHOICES).filter(orbits => orbits <= capsuleSystems(config, missionType).endurance);
 
 // A Mercury directive is met: the reward, the record, and the Section 1 finale on the last one.
 export function fulfilDirective(directive, astronaut) {
@@ -189,11 +202,25 @@ export function fulfilDirective(directive, astronaut) {
     log(`[NEWS] ${astronaut ? astronaut.name : 'An astronaut'} is the first American in space. Ticker-tape parades are planned.`, 'hd');
     log('[WASHINGTON] The President asks Congress to commit the nation to landing a man on the Moon and returning him safely to the Earth before this decade is out.', 'hd');
     openSectionTwo();
-  } else if (state.dir == MERCURY_DIRECTIVES.length) {
+  } else if (state.dir == LAST_MERCURY_DIRECTIVE + 1) {
     state.mercDone = Math.round(S.day);
     addHistory('Project Mercury complete');
     log('[NASA] Project Mercury is complete: an American has lived in orbit for more than a day. The two-man Gemini spacecraft is next.', 'hd');
+    openGemini();
+  } else if (state.dir == MERCURY_DIRECTIVES.length) {
+    state.gemDone = Math.round(S.day);
+    addHistory('Gemini: eight days in orbit');
+    log('[NASA] Gemini has flown two men for eight days, long enough for a trip to the Moon and back. Rendezvous and docking are next.', 'hd');
   }
+}
+// PROJECT GEMINI opens once Mercury is complete: its research is proposed, Titan II can be started, and the second astronaut group
+// reports for training. Also run for older saves.
+export function openGemini() {
+  const state = phaseTwo();
+  state.fl.gem = 1;
+  addHistory('Project Gemini begins');
+  log('[NASA] Project Gemini: a two-man spacecraft to learn what a Moon flight needs, from long flights to spacewalks. The engineers propose the Gemini work (R&D desk), and the Titan II missile programme can be started to launch it.', 'hd');
+  joinSecondGroup();
 }
 // SECTION 2 opens: orbital work is proposed to the engineers and the Soviet dates for it are set. Also run for older saves.
 export function openSectionTwo() {

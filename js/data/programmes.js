@@ -18,6 +18,8 @@
 //   traitRange: [fewest, most] hidden flaws it is born with
 //   propellants it can burn; hasMilestones: big enough for major programmes; canOrbit: a satellite launcher
 //   igyFunding: a one-off appropriation when it starts; contract: paid when it matures
+//   needsGemini: opens only with Project Gemini; manRatingResearch: research its own man-rating needs as well as the usual
+//   headStart: share of the best earlier knowledge its team starts with, instead of HEAD_START.best (a missile already flight-tested)
 //   booster: the booster stage under the core (staged rockets): dry mass, fuel (kg), thr thrust (N), isp
 export const PROGRAMMES = {
   wac: {
@@ -70,8 +72,16 @@ export const PROGRAMMES = {
     propellants: ['Kerosene & LOX'], hasMilestones: 1, canOrbit: 1, booster: { dry: 1900, fuel: 15000, thr: 250000, isp: 280 },
     why: 'An intercontinental missile with steel-balloon tanks thin as a coin. Enough power to put a man in orbit, if it can be tamed.',
   },
+  // Gemini's booster (Phase Two, Section 2). Opens with Project Gemini; a crew rides it only once its pogo is cured (manRatingResearch).
+  titan: {
+    name: 'Titan II', year: 1962, generation: 6, requires: ['atlas', 'vanguard', 'jupc'], anyRequirement: 1, needsNasa: 1, needsGemini: 1, manRatingResearch: ['gm_pogo'], headStart: .6,
+    design: { dry: 420, f: 900, thr: 33000, g: 9, h: 3, q: 2, c: .8, r: 0, i: 2.4 },
+    cost: 240000, designTime: 80, unitCost: 75000, unitTime: 52, sizeScale: 7, costScale: 3.2, timeScale: 1.2, packagesPerArea: 6, learningRate: 3, traitRange: [1, 2],
+    propellants: ['Aerozine & N2O4'], hasMilestones: 1, canOrbit: 1, booster: { dry: 2300, fuel: 26000, thr: 380000, isp: 285 },
+    why: 'An Air Force missile burning propellants that ignite on contact: no igniters, and it can sit fuelled for months. Strong enough to lift the two-man Gemini, but it shakes along its length (pogo) until that is cured.',
+  },
 };
-export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas'];
+export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas', 'titan'];
 export const MATURE = 45; // programme maturity (average team knowledge of the rocket) that opens the next programme
 export const FLIGHTS_TO_MATURE = 3; // and the rocket must also have flown this many successful flights of its own
 // What a new programme's team already knows: a share of the best knowledge on any earlier rocket, or of the rocket it grows out of.

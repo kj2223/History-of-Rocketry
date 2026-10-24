@@ -120,6 +120,13 @@ export const EXPLAINERS = {
   mo_fuel: 'The thrusters burn hydrogen peroxide, and every correction spends some. Smaller jets, a low-thrust mode and better gauges make a load last; Friendship 7 and Aurora 7 both came home short of fuel.',
   mo_retro: 'Horizon scanners and a better retrofire clock, so the capsule is pointed right and the retros fire on time. A few degrees off or a few seconds late moves the splashdown by hundreds of kilometres.',
   mo_long: 'Strip out what a long flight does not need and fill the space with oxygen, water and batteries. Faith 7 flew 22 orbits in May 1963 this way.',
+  gm_cap: 'A bigger spacecraft for two, with its systems in modules outside the cabin so they can be reached and replaced. Gemini was built to practise everything a Moon landing would need.',
+  gm_oams: 'Sixteen thrusters that can push the spacecraft forward, back and sideways, not just turn it. Gemini 3 used them to change its orbit, the first crewed spacecraft to do so.',
+  gm_fc: 'Fuel cells make electricity, and drinking water, from hydrogen and oxygen. They let Gemini 5 stay up eight days where batteries would have lasted four.',
+  gm_eva: 'A suit with extra layers against the cold and the sun, a chest pack and an umbilical to the spacecraft. Ed White walked in space for twenty minutes on Gemini 4.',
+  gm_long: 'Two weeks of food, water and oxygen, and a soft suit the crew could take off. Gemini 7 stayed up fourteen days, as long as a trip to the Moon and back.',
+  gm_seat: 'Gemini had no escape tower. Each pilot sat on a rocket-propelled seat that could throw him clear of a failing Titan low down, and the spacecraft could separate and fire its retros higher up.',
+  gm_pogo: 'Titan II shook along its length as it burned, enough to blur a pilot\'s vision. Surge chambers in the propellant lines and steadier tank pressure calmed it before a crew flew.',
   fx_sg: 'On Friendship 7 a faulty switch reported that the landing bag had deployed, which would have meant the heat shield was loose. Rewiring it ends the false alarms.',
 
   // ESCAPE & MAN-RATING

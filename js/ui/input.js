@@ -64,6 +64,10 @@ document.addEventListener('change', event => {
     S.p2.lo = +value;
     return render();
   }
+  if (data.me) {
+    S.p2.le = +value;
+    return render();
+  }
   if (data.rq) {
     setRequest(+value);
     save();
@@ -194,6 +198,8 @@ const GAME_ACTIONS = {
   },
   asg: id => assignPilot(+id, pilotMissionType()),
   bkp: id => assignBackup(+id, pilotMissionType()),
+  asgp: id => assignPilot(+id, 'gtp'),
+  bkpp: id => assignBackup(+id, 'gtp'),
   memok: () => {
     S.p2.memo = null;
     $('#sum').hidden = true;
