@@ -5,7 +5,7 @@
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, BY_ID } from '../data/research.js';
 import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
-import { S, log, addHistory, newBundle, recordRunEvent } from '../core/state.js';
+import { S, log, addHistory, newBundle, recordRunEvent, earn } from '../core/state.js';
 
 // The four research areas that belong to a rocket (the others are global: see core/state.js).
 export const VEHICLE_AREAS = ['p', 's', 'i', 'a'];
@@ -128,7 +128,7 @@ export function startProgramme(kind) {
   log(`[PROGRAMME] ${programme.name} programme approved (${formatMoney(programme.cost)}). Engineers begin the detailed design; the first drawings are ready in about ${designTime}s.`, 'hd');
   if (skipping) log(`[PROGRAMME] ${programme.name} skips the ${PROGRAMMES[programme.skip.past].name} generation: the ${PROGRAMMES[programme.skip.past].name} programme is closed, its research is folded into the ${programme.name}, and the team starts with little it already knows.`, 'wn');
   if (programme.igyFunding) {
-    S.b += programme.igyFunding;
+    earn(programme.igyFunding);
     log(`[CONGRESS] ${programme.name} is named the American satellite for the International Geophysical Year. A dedicated appropriation of ${formatMoney(programme.igyFunding)} comes with it.`, 'hd');
   }
   addHistory(`${programme.name} programme started`);

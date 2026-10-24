@@ -22,7 +22,7 @@ import { formatMoney } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
 import { MISSION_TYPES, MERCURY_DIRECTIVES, ORBIT_CHOICES, BASE_ENDURANCE_ORBITS, sectionDirectives } from '../data/mercury.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log, addHistory, isResearched, isConfirmed, formatDate } from '../core/state.js';
+import { S, log, addHistory, isResearched, isConfirmed, formatDate, earn } from '../core/state.js';
 import { designSpec, hasBoosterStage } from './design.js';
 import { hasFirstMilestone } from './research.js';
 import { previewFlight } from './flight.js';
@@ -174,7 +174,7 @@ export const orbitChoices = config => ORBIT_CHOICES.filter(orbits => orbits <= c
 // A Mercury directive is met: the reward, the record, and the Section 1 finale on the last one.
 export function fulfilDirective(directive, astronaut) {
   const state = phaseTwo();
-  S.b += directive.reward;
+  earn(directive.reward);
   S.rep = Math.min(100, S.rep + (directive.key == 'crew' || directive.key == 'ocrew' ? 20 : 8));
   addHistory(`Mercury directive met: ${directive.name}`);
   log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(directive.reward)}.`, 'hd');

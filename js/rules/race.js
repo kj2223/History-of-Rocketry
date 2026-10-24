@@ -1,7 +1,7 @@
 // THE RACE: historical firsts, the Soviet timeline, intelligence estimates, and NASA. No DOM.
 import { formatMoney } from '../core/util.js';
 import { FIRSTS, RIVAL, RIVAL_SECTION_TWO, NASA_DAY } from '../data/history.js';
-import { S, log, formatDate, addHistory } from '../core/state.js';
+import { S, log, formatDate, addHistory, earn } from '../core/state.js';
 
 // SOVIET EVENTS land on their (jittered) dates. A first they reach before you is lost: matching it later pays 40% and less reputation.
 // Section 2 events count only once their dates are set (openSovietSectionTwo). Returns true if anything happened.
@@ -53,7 +53,7 @@ export function checkFirsts(outcome) {
     S.fsd[first.id] = S.day;
     const shortName = first.name.replace(/^First /, '');
     addHistory(lost ? `Matched the Soviets: ${shortName}` : `First: ${shortName}`);
-    if (first.cash) S.b += Math.round(first.cash * share);
+    if (first.cash) earn(Math.round(first.cash * share));
     S.rep = Math.min(100, S.rep + (lost ? Math.ceil(first.reputation / 3) : first.reputation));
     log(lost
       ? `[PRESS] America answers the Soviets: ${shortName.toLowerCase()}.${first.cash ? ` Bonus +${formatMoney(first.cash * share)}.` : ''}`

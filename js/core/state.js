@@ -34,6 +34,7 @@
 //   nasa    day NASA was established (0 = not yet) cv      save version
 //   recn    payloads recovered (the search teams' experience, rules/recovery.js)
 //   p2      Phase Two (Mercury) state (see rules/mercury.js)
+//   fy      NASA's yearly budget (see rules/budget.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -164,6 +165,11 @@ export const log = (text, style = '') => {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const formatDate = day => `${MONTHS[Math.floor(day % 360 / 30) % 12]} ${1946 + Math.floor(day / 360)}`;
 export const today = () => formatDate(S.day);
+// Money coming in other than the appropriation: rewards, contracts, refunds. NASA's budget counts it (rules/budget.js).
+export const earn = amount => {
+  S.b += amount;
+  if (S.fy) S.fy.inc += amount;
+};
 
 // Programme history for the end-of-phase summaries. Keeps the latest 80 entries.
 export const addHistory = text => {

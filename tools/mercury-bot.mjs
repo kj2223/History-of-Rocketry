@@ -22,6 +22,7 @@ import { beginMission, stepMission, endMission, decisionOptions, decisionOdds, c
 import { chooseTestingRegime, startChimpTraining, answerOfficeDecision } from '../js/rules/astronaut-office.js';
 import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot } from '../js/rules/astronauts.js';
 import { manRatingResearchDone, isManRated, isFamilyCertified } from '../js/rules/manrate.js';
+import { setRequest, REQUEST_RANGE } from '../js/rules/budget.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
 const BUY = [['fac', 'trknet'], ['fac', 'centrifuge'], ['fac', 'ptrain'], ['fac', 'mcc'], ['crew', 'capcom'], ['crew', 'surg'], ['fac', 'egress'], ['fac', 'recov'], ['fac', 'clean'], ['fac', 'msim'], ['crew', 'upl']];
@@ -158,6 +159,8 @@ export function playMercury(game) {
       if (draft.packages.length + draft.fixes.length) publishBlueprint();
     });
     if (S.teams < 6 && S.b > engineeringTeamCost() + reserve + 30000) hire('team');
+    // Short of money: ask Congress for more next year.
+    if (S.fy && S.b < 150000) setRequest(REQUEST_RANGE[1]);
     if (orbital && buildTeams() < 3 && S.b > buildTeamCost() + reserve + 30000) hire('bteam');
     for (const [kind, id] of BUY) {
       if (kind == 'fac' && !facilityLock(id) && S.b - FACILITIES[id].cost > reserve) buildFacility(id);
