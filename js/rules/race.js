@@ -1,14 +1,14 @@
 // THE RACE: historical firsts, the Soviet timeline, intelligence estimates, and NASA. No DOM.
 import { formatMoney } from '../core/util.js';
-import { FIRSTS, RIVAL, NASA_DAY } from '../data/history.js';
+import { FIRSTS, RIVAL, RIVAL_SECTION_TWO, NASA_DAY } from '../data/history.js';
 import { S, log, formatDate, addHistory } from '../core/state.js';
 
 // SOVIET EVENTS land on their (jittered) dates. A first they reach before you is lost: matching it later pays 40% and less reputation.
-// Returns true if anything happened.
+// Section 2 events count only once their dates are set (openSovietSectionTwo). Returns true if anything happened.
 export function sovietEventsTick() {
   let changed = false;
-  for (const event of RIVAL) {
-    if (S.rvd[event.id] || S.day < S.rv[event.id]) continue;
+  for (const event of [...RIVAL, ...RIVAL_SECTION_TWO]) {
+    if (S.rvd[event.id] || !(event.id in S.rv) || S.day < S.rv[event.id]) continue;
     S.rvd[event.id] = 1;
     changed = true;
     const first = FIRSTS.find(candidate => candidate.rivalEvent == event.id);
@@ -36,6 +36,12 @@ export function sovietEventsTick() {
   return changed;
 }
 
+// Section 2 opens: the Soviet dates for it are set, running as early or as late as Vostok 1 did in this game (no new random draws).
+export function openSovietSectionTwo() {
+  const lateness = (S.rv.r_gagarin || 0) - RIVAL.find(event => event.id == 'r_gagarin').day;
+  for (const event of RIVAL_SECTION_TWO) if (!(event.id in S.rv)) S.rv[event.id] = event.day + lateness;
+}
+
 // AMERICAN FIRSTS: check a flight's outcome against every first not yet claimed.
 // outcome: { ok, why, peak, spd, dr, pay, rec, got, staged, human } (see FIRSTS in data/history.js).
 const MATCHED_CASH_SHARE = .4;
@@ -57,7 +63,7 @@ export function checkFirsts(outcome) {
 
 // What intelligence says about the next Soviet event: a date window (8% of the date either side) that is honest about its uncertainty.
 export function intelligenceEstimate() {
-  const next = RIVAL.find(event => !S.rvd[event.id]);
+  const next = [...RIVAL, ...RIVAL_SECTION_TWO].find(event => !S.rvd[event.id] && event.id in S.rv);
   if (!next) return null;
   const day = S.rv[next.id], width = Math.round(day * .08);
   return { what: next.short, lo: formatDate(Math.max(S.day, day - width)), hi: formatDate(day + width) };

@@ -655,3 +655,99 @@ test('the ground command link goes into new blueprints; older airframes take it 
   endFlight(flight, true, 'land');
   assert.equal(S.pk.cmd.c, 1, 'a good flight with the test package confirms the ground command link');
 });
+
+// SECTION 2: ORBITAL MERCURY
+test('orbital Mercury opens in Section 2, and needs a shield for orbital re-entry', () => {
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  assert.match(requirementText('mo'), /Section 2/);
+  S.p2.secDone = 1;
+  assert.match(requirementText('mo'), /orbital re-entry/);
+  giveResearch(['mo_shield']);
+  assert.equal(requirementText('mo'), null);
+});
+
+test('a capsule lasts three orbits, six with the extra consumables, and 22 with the long-duration work on top', async () => {
+  const { orbitChoices } = await import('../js/rules/mercury.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  assert.deepEqual(orbitChoices({ pk: [] }), [1, 2, 3]);
+  assert.deepEqual(orbitChoices({ pk: ['mo_cons'] }), [1, 2, 3, 6]);
+  assert.deepEqual(orbitChoices({ pk: ['mo_long'] }), [1, 2, 3], 'the long-duration work builds on the extra consumables');
+  assert.deepEqual(orbitChoices({ pk: ['mo_cons', 'mo_long'] }), [1, 2, 3, 6, 22]);
+});
+
+// An orbital flight already in orbit with no faults: only its orbits, retrofire and the descent to come.
+const orbitalFlight = async (orbits, extra = {}) => {
+  const { orbitalTimeline } = await import('../js/rules/mission.js');
+  const { capsuleSystems } = await import('../js/rules/mercury.js');
+  const { ORBIT_SECONDS } = await import('../js/data/mercury.js');
+  const type = orbitalTimeline(orbits);
+  const events = [...Array(orbits)].map((_, index) => ({ time: type.sep + (index + 1) * ORBIT_SECONDS, kind: 'orbit' }));
+  events.push({ time: type.retro, kind: 'retro' }, { time: type.reentry + 10, kind: 'reentry' }, { time: type.chute, kind: 'chute' }, { time: type.end - 2, kind: 'splash' });
+  return {
+    systems: capsuleSystems({ pk: [] }), missionType: 'mo', type, crew: null, time: type.sep + 30, events, booster: { label: 'Atlas' },
+    log: [], transcript: [], pending: null, outcome: {}, done: 0, fuel: 100, orbitsFlown: 0, ...extra,
+  };
+};
+const flyToTheEnd = async mission => {
+  const { stepMission, missionStepSeconds } = await import('../js/rules/mission.js');
+  let result, steps = 0;
+  do result = stepMission(mission, missionStepSeconds(mission));
+  while (result != 'end' && ++steps < 5000);
+  return { result, steps };
+};
+
+test('an orbital flight flies its orbits on a fast clock, spends attitude fuel, and comes down where retrofire puts it', async () => {
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  const mission = await orbitalFlight(3);
+  const { result, steps } = await flyToTheEnd(mission);
+  assert.equal(result, 'end');
+  assert.ok(steps < 700, `three orbits took ${steps} steps`);
+  assert.equal(mission.orbitsFlown, 3);
+  assert.ok(mission.fuel < 100 && mission.fuel > 0);
+  assert.ok(mission.missKm >= 0);
+  assert.match(mission.log.join(' '), /Splashdown, \d+ km from the recovery ships/);
+});
+
+test('with the retros dead an orbital flight waits an orbit for a second try, then is stranded', async () => {
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  const mission = await orbitalFlight(1, { retroWillFail: 1 });
+  const firstRetro = mission.type.retro;
+  Math.random = () => .99; // every attempt fails
+  const { result } = await flyToTheEnd(mission);
+  assert.equal(result, 'end');
+  assert.equal(mission.retroTries, 2);
+  assert.ok(mission.type.retro > firstRetro, 'the second try came an orbit later');
+  assert.equal(mission.outcome.lost, 1);
+  assert.match(mission.log.join(' '), /stranded in orbit/);
+});
+
+test('short of fuel, coming home early brings retrofire forward and the planned orbits are not flown', async () => {
+  const { chooseOption, decisionOptions } = await import('../js/rules/mission.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.astros = [{ id: 1, name: 'Test Pilot', t: { pil: 60, sys: 60, end: 60, com: 60 }, reh: {}, fat: 0 }];
+  const mission = await orbitalFlight(6, { fuel: 40, crew: S.p2.astros[0], callSign: 'Test 1' });
+  const { stepMission, missionStepSeconds } = await import('../js/rules/mission.js');
+  let result;
+  do result = stepMission(mission, missionStepSeconds(mission));
+  while (result == 'tick');
+  assert.equal(result, 'decide');
+  assert.equal(mission.pending.key, 'fuel');
+  const plannedRetro = mission.type.retro;
+  chooseOption(mission, decisionOptions(mission, 'fuel').find(option => option.soft).index);
+  assert.ok(mission.type.retro < plannedRetro);
+  await flyToTheEnd(mission);
+  assert.ok(mission.orbitsFlown < 6);
+});
+
+test('the Section 2 Soviet dates run as early or late as Vostok 1 did', async () => {
+  const { openSovietSectionTwo } = await import('../js/rules/race.js');
+  const lateness = S.rv.r_gagarin - 5502;
+  openSovietSectionTwo();
+  assert.equal(S.rv.r_titov, 5616 + lateness);
+  assert.equal(S.rv.r_woman, 6286 + lateness);
+});

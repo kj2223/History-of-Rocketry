@@ -1,5 +1,5 @@
 // PROJECT MERCURY: mission types, Phase Two directives, crew decisions, the Astronaut Office calendar. Tune Phase Two here.
-// Mission keys (bj, lj, mr, ma), directive keys and decision keys are stored in saves.
+// Mission keys (bj, lj, mr, ma, mo), directive keys and decision keys are stored in saves.
 
 // FLIGHT PROFILES: [mission seconds, altitude km, speed m/s, g]. Real figures, rounded: Freedom 7 peaked at 187 km and pulled 11 g on re-entry.
 // Each flight scales its profile to what your booster actually delivers with the capsule aboard.
@@ -7,6 +7,28 @@ const MERCURY_REDSTONE_PROFILE = [[0, 0, 0, 1], [30, 3, 250, 1.5], [60, 11, 600,
 const BIG_JOE_PROFILE = [[0, 0, 0, 1], [120, 60, 2500, 4], [260, 150, 5000, 6], [420, 153, 4900, 0], [600, 110, 5000, 0], [700, 60, 5100, .5], [730, 30, 2500, 16], [760, 12, 400, 3], [800, 3, 10, 1], [1000, 0, 0, 1]];
 const LITTLE_JOE_PROFILE = [[0, 0, 0, 1], [20, 3, 450, 5], [35, 9, 600, 3], [37, 9.5, 620, 15], [45, 10.5, 200, 1], [80, 4, 60, 1], [190, .1, 9, 1], [200, 0, 0, 1]];
 const MERCURY_ATLAS_PROFILE = [[0, 0, 0, 1], [150, 70, 3000, 5], [300, 180, 5500, 7], [500, 185, 5400, 0], [750, 120, 5500, 0], [860, 60, 5600, .5], [890, 30, 2800, 14], [920, 12, 400, 3], [960, 3, 10, 1], [1150, 0, 0, 1]];
+
+// ORBITAL FLIGHT (Section 2). An orbital flight's timeline depends on how many orbits it flies, so rules/mission.js builds its
+// profile from these figures: the climb to orbit, then the descent counted from retrofire. Friendship 7 (three orbits) fired its
+// retros 4 h 33 min after liftoff and splashed down 22 minutes later, after 7.7 g of re-entry.
+export const ORBIT_SECONDS = 5310; // one orbit: 88.5 minutes
+export const RETROFIRE_AFTER_ORBITS = 460; // retrofire comes this many seconds after the last planned orbit is complete
+export const ORBITAL_ASCENT = [[0, 0, 0, 1], [60, 11, 500, 1.6], [130, 58, 2600, 6.7], [190, 110, 4300, 2.2], [300, 160, 7840, 7.7]];
+// [seconds after retrofire, altitude km, speed m/s, g]
+export const ORBITAL_DESCENT = [[0, 160, 7840, 0], [30, 159, 7700, .4], [600, 90, 7650, .1], [690, 55, 6500, 7.7], [760, 30, 2000, 4], [1030, 6.4, 120, 1], [1080, 3, 10, 1.5], [1300, .1, 9, 1], [1336, 0, 0, 1]];
+export const ORBITAL_TIMES = { reentry: 600, drogue: 1030, chute: 1080, end: 1336 }; // seconds after retrofire
+// The orbit counts the planner offers. A capsule's endurance (capsuleSystems) decides which it can fly.
+export const ORBIT_CHOICES = [1, 2, 3, 6, 22];
+export const BASE_ENDURANCE_ORBITS = 3;
+// ATTITUDE-CONTROL FUEL (hydrogen peroxide for the thrusters), in % of a full load. Holding attitude on the automatics costs
+// FUEL_PER_ORBIT for each of the first three orbits; after that the capsule drifts and spends far less. Research cuts both.
+// A thruster fault costs THRUSTER_FAULT_FUEL; retrofire needs RETRO_FUEL to hold the capsule steady while the retros burn.
+export const FUEL_PER_ORBIT = 8, DRIFTING_FUEL_PER_ORBIT = 2.5, THRUSTER_FAULT_FUEL = 22, RETRO_FUEL = 15, LOW_FUEL = 35;
+// SPLASHDOWN: how far from the recovery ships the capsule comes down, in km. A good retrofire lands within a few km of the
+// ships; a late or crooked one hundreds of km away (Aurora 7 came down 400 km long). Beyond LONG_WAIT_KM the ships are hours away.
+export const SPLASH_SPREAD_KM = 25, LONG_WAIT_KM = 120;
+// The tracking stations an orbit passes over, in order. The network (Base desk) puts a CAPCOM at each one.
+export const TRACKING_STATIONS = ['Bermuda', 'the Canary Islands', 'Kano', 'Zanzibar', 'Muchea', 'Hawaii', 'Guaymas', 'Texas', 'the Cape'];
 
 // MISSION TYPES. Capsules are built in the factory; the booster is one of your airframes from the hangar.
 //   cost ($) and buildTime (factory seconds) of the capsule; crewed: can carry an astronaut
@@ -34,6 +56,12 @@ export const MISSION_TYPES = {
     needs: { v: 6500 }, reference: { alt: 185, v: 5600 }, boostEnd: 300, sep: 300, reentry: 860, chute: 920, end: 1150,
     why: 'Optional. A production capsule on your orbital-class booster (6,500 m/s with a capsule), proving the pair work together before Mercury goes to orbit. A success gives the next section a head start.',
   },
+  // Section 2. Its timeline (sep, retro, reentry, chute, end) and profile are built for each flight from the orbit count.
+  mo: {
+    name: 'Mercury orbital', fullName: 'Mercury orbital flight', capsuleName: 'Mercury capsule (orbital)', cost: 60000, buildTime: 170, crewed: 1, orbital: 1,
+    needs: { v: 7000 }, reference: { alt: 160, v: 7840 }, boostEnd: 300, sep: 300, gLoad: 7.7,
+    why: 'Section 2. Your orbital-class booster puts the capsule into orbit (7,000 m/s with a capsule aboard). Choose how many orbits to fly; the capsule must fire its retrorockets to come home.',
+  },
 };
 
 // PHASE TWO DIRECTIVES, in order. missionType: the mission that can meet it (rate is met by any flight record).
@@ -44,7 +72,18 @@ export const MERCURY_DIRECTIVES = [
   { key: 'animal', name: 'Animal flight', description: 'Fly a trained chimpanzee on a suborbital flight and recover it alive.', reward: 100000, missionType: 'mr' },
   { key: 'rate', name: 'Man-rate a booster', description: 'Three clean flights in a row by one booster design, with the booster man-rating modifications, abort sensing and the Man-Rated Booster Program complete. Any flight counts: Mercury or ordinary launches.', reward: 40000, missionType: null },
   { key: 'crew', name: 'First American in space', description: 'Fly an astronaut on a certified booster and bring them home. The tracking network must be in service.', reward: 200000, missionType: 'mr' },
+  // SECTION 2: Mercury goes to orbit. orbits: the fewest orbits that count.
+  { key: 'mo', section: 2, name: 'Uncrewed orbital flight', description: 'Put a Mercury capsule into orbit with no one aboard, fly at least one orbit and recover it.', reward: 120000, missionType: 'mo', orbits: 1 },
+  { key: 'oanimal', section: 2, name: 'Animal in orbit', description: 'Orbit a trained chimpanzee for at least two orbits and recover it alive.', reward: 120000, missionType: 'mo', orbits: 2 },
+  { key: 'orate', section: 2, name: 'Man-rate an orbital booster', description: 'Certify an orbital-class booster (Jupiter-C, Vanguard or Atlas) for crews: three clean flights in a row by one booster family.', reward: 60000, missionType: null },
+  { key: 'ocrew', section: 2, name: 'First American in orbit', description: 'Fly an astronaut for at least three orbits on a certified booster and bring them home.', reward: 250000, missionType: 'mo', orbits: 3 },
+  { key: 'oday', section: 2, name: 'A day in orbit', description: 'Fly an astronaut for 22 orbits, a day and a half, and bring them home. Needs the long-duration capsule modifications.', reward: 200000, missionType: 'mo', orbits: 22 },
 ];
+// Directives of a section: [first index, one past the last].
+export const sectionDirectives = section => {
+  const indexes = MERCURY_DIRECTIVES.map((directive, index) => (directive.section || 1) == section ? index : -1).filter(index => index >= 0);
+  return [indexes[0], indexes[indexes.length - 1] + 1];
+};
 
 export const CHIMPANZEE_NAMES = ['Jasper', 'Bongo', 'Duke', 'Rusty', 'Kip', 'Moe', 'Bertie'];
 export const MONKEY_NAMES = ['Pip', 'Dot', 'Tilly', 'Bo', 'Juno'];
@@ -56,6 +95,7 @@ export const ELECTION_DAY = 5340, INAUGURATION_DAY = 5420; // November 1960 and 
 //   needs: 'man' (manual control fitted) or 'capcom' (a CAPCOM on the loop); soft: the safe choice, always works
 //   backup: 'tjb' = the backup sequencer (its chance depends on research); heli: waits for the helicopter
 //   crew, shoot: ground options for the pad emergency. ground: 1 = the Test Conductor decides, whoever is aboard.
+//   retropack: what the heat-shield option does with the retropack (keep it on, or jettison it as planned).
 //   command: what the Test Conductor can send over the ground command link (research 'cmd'), and its baseChance. With a crew
 //            aboard it is one more option; with no one aboard the decision comes to the ground instead of the automatics.
 export const DECISIONS = {
@@ -80,6 +120,20 @@ export const DECISIONS = {
     { text: 'Fire the retros manually', skill: 'pil', baseChance: .6, needs: 'man' },
     { text: 'Leave them: they are not needed to come home on this arc', baseChance: 1, soft: 1 }],
     command: { text: 'Command retrofire from the ground', baseChance: .8 } },
+  // In orbit the retros are the only way home. A failed attempt waits a whole orbit for the next chance; two fail and the capsule is stranded.
+  oretro: { question: 'The retrorockets did not fire on the timer. Without them the capsule cannot leave orbit.', options: [
+    { text: 'Fire the retros manually', skill: 'pil', baseChance: .65, needs: 'man' },
+    { text: 'Fire on the backup retro timer', baseChance: .55, backup: 'timer' }],
+    command: { text: 'Command retrofire from the ground', baseChance: .8 } },
+  // Friendship 7's "Segment 51": a signal that the landing bag had deployed, which would mean the heat shield was loose.
+  shield: { question: 'Telemetry says the landing bag has deployed: the heat shield may be loose. If it is, it could fall away in re-entry.', options: [
+    { text: 'Keep the retropack strapped on through re-entry to hold the shield', skill: 'sys', baseChance: .8, retropack: 'keep' },
+    { text: 'Jettison the retropack as planned and trust the shield', baseChance: .7, retropack: 'jettison' }],
+    command: { text: 'Command the retropack to stay on from the ground', baseChance: .75, retropack: 'keep' } },
+  fuel: { question: 'Attitude-control fuel is running low with orbits still to fly. The capsule needs fuel to hold attitude for retrofire.', options: [
+    { text: 'Come home early: retrofire at the end of this orbit', baseChance: 1, soft: 1 },
+    { text: 'Power down and drift to stretch the fuel', skill: 'sys', baseChance: .55 },
+    { text: 'Follow CAPCOM\'s fuel plan from the ground', skill: 'com', baseChance: .65, needs: 'capcom' }] },
   hatch: { question: 'The hatch has blown on the water and the capsule is flooding.', options: [
     { text: 'Get out through the hatch now', skill: 'end', baseChance: .55 },
     { text: 'Stay with the capsule until the helicopter hooks it', baseChance: .3, heli: 1 }] },

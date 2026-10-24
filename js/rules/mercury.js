@@ -1,8 +1,8 @@
-// PROJECT MERCURY (Phase Two, Section 1): the Phase Two state, what each mission needs, boosters, crews, capsules and directives. No DOM.
+// PROJECT MERCURY (Phase Two, Sections 1 and 2): the Phase Two state, what each mission needs, boosters, crews, capsules and directives. No DOM.
 // The flight itself is in rules/mission.js; selection, the chimpanzees and the office calendar in rules/astronaut-office.js.
 //
 // Phase Two state, S.p2 (the field names are the save format):
-//   v        version (3)                         sec      section (1)          dir    Mercury directives met
+//   v        version (3)                         sec      section (1, 2 once the first American has flown)          dir    Mercury directives met
 //   pool     finalists during selection          astros   the astronaut group  selDone 1 once the group is chosen
 //   sel      selection: { st: 0 screening, 1 choose testing, 2 testing, 3 choose crew, 4 done; at: day of the next step; reg: regime }
 //   veh      capsules ready: { id, mt: mission type, cfg: { pk, rev }, built }     nv  next capsule id
@@ -10,22 +10,25 @@
 //   memo     the memorial overlay still to show  stand    crewed flights stood down until this day
 //   secDone  day Section 1 was completed         chimp, monk  animals flown (they pick the next name)
 //   lj       Little Joe record: { ok: good aborts, mk: a monkey has flown }
-//   fl       flags: office decisions taken (life, win, ovr, cock), failures investigated (four, maFail, fx_ + a capsule system), maQual
+//   fl       flags: office decisions taken (life, win, ovr, cock), failures investigated (four, maFail, fx_ + a capsule system), maQual,
+//            sec2 (Section 2 is open), mo3 (a crew has flown three orbits)
+//   mercDone day every Section 2 directive built so far was met
 //   oq       office decisions to come: [{ k, at }]   od   the office decision waiting for an answer
 //   gmul     appropriation multiplier            ch       chimpanzee colony: { on, t: training 0 to 1 }
 //   ma       orbital qualification flights: { ok, n }   elec  0, 1 after the election, 2 after the inauguration
 //   lastTx   the last flight's transcript: { n: mission name, call: call sign, tx: lines }
-//   The launch planner also keeps its choices here: lv capsule, lb booster, lf propellant, lc crew; secShown once the summary has shown.
+//   The launch planner also keeps its choices here: lv capsule, lb booster, lf propellant, lc crew, lo orbits; secShown once the summary has shown.
 import { formatMoney } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
-import { MISSION_TYPES, MERCURY_DIRECTIVES } from '../data/mercury.js';
+import { MISSION_TYPES, MERCURY_DIRECTIVES, ORBIT_CHOICES, BASE_ENDURANCE_ORBITS, sectionDirectives } from '../data/mercury.js';
+import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, addHistory, isResearched, isConfirmed, formatDate } from '../core/state.js';
 import { designSpec, hasBoosterStage } from './design.js';
 import { hasFirstMilestone } from './research.js';
 import { previewFlight } from './flight.js';
-import { anyCertified, isManRated } from './manrate.js';
+import { anyCertified, isManRated, manRatingRecord } from './manrate.js';
 import { assignedPilot } from './astronauts.js';
-import { checkFirsts } from './race.js';
+import { checkFirsts, openSovietSectionTwo } from './race.js';
 
 export const newPhaseTwo = () => ({
   v: 3, sec: 1, dir: 0, pool: [], astros: [], selDone: 0, sel: { st: 0, at: Math.round(S.day + 50), reg: null }, veh: [], flights: 0, mem: [], stand: 0, secDone: 0, memo: null, nv: 1, chimp: 0, monk: 0,
@@ -36,6 +39,12 @@ export const directiveKey = () => {
   const directive = MERCURY_DIRECTIVES[phaseTwo().dir];
   return directive ? directive.key : null;
 };
+// Has the directive with this key been met?
+export const directiveDone = key => phaseTwo().dir > MERCURY_DIRECTIVES.findIndex(directive => directive.key == key);
+// The mission an astronaut is assigned to train for: the suborbital flight in Section 1, the orbital flight after it.
+export const pilotMissionType = () => phaseTwo().secDone ? 'mo' : 'mr';
+// Is any orbital-class booster (one that can launch a satellite) certified for crews?
+export const orbitalBoosterCertified = () => Object.keys(S.progs).some(kind => PROGRAMMES[kind] && PROGRAMMES[kind].canOrbit && manRatingRecord(kind).cert.length > 0);
 
 // What a mission type still needs before its capsule can be ordered, or null.
 export const requirementText = missionType => {
@@ -46,6 +55,10 @@ export const requirementText = missionType => {
   if (missionType == 'ma') {
     if (state.dir < 1) return 'Opens once Big Joe has flown.';
     if (!isResearched('cap_ecs')) return `Needs ${name('cap_ecs')}.`;
+  }
+  if (missionType == 'mo') {
+    if (!state.secDone) return 'Opens in Section 2, once an American has flown in space.';
+    if (!isResearched('ms_ablh') && !isResearched('mo_shield')) return `Needs a heat shield for orbital re-entry: ${name('ms_ablh')} or ${name('mo_shield')}.`;
   }
   return null;
 };
@@ -87,8 +100,8 @@ export const needText = missionType => {
 export const readyBoosters = () => S.air.filter(airframe => airframe.st == 'r');
 
 // WHO MAY FLY, or why not. crew: 'none', 'monkey', 'chimp' or an astronaut id. Crews wait for the animal flight, a man-rated booster,
-// both first milestones, the tracking network and a trained, assigned pilot.
-export function crewLock(crew, airframe) {
+// both first milestones, the tracking network and a trained pilot assigned to the mission type ('mr' suborbital, 'mo' orbital).
+export function crewLock(crew, airframe, missionType = 'mr') {
   const state = phaseTwo();
   if (crew == 'none') return null;
   if (crew == 'monkey') return isResearched('cap_ecs') ? null : `A monkey passenger needs ${BY_ID.cap_ecs.name}.`;
@@ -99,11 +112,12 @@ export function crewLock(crew, airframe) {
   }
   if (state.stand > S.day) return `Crewed flights are stood down after the loss of a crew until ${formatDate(state.stand)}.`;
   if (state.dir < 4) return 'NASA will not fly a crew until an animal has flown and been recovered alive.';
+  if (missionType == 'mo' && !directiveDone('oanimal')) return 'NASA will not fly a crew into orbit until a chimpanzee has orbited and been recovered alive.';
   if (!anyCertified()) return 'No booster is man-rated yet (see the man-rating board).';
   if (airframe && !isManRated(airframe)) return `${airframe.label} (Rev ${airframe.rev}) is outside the certified booster revisions.`;
   if (!S.fac.trknet) return S.fb && S.fb.trknet ? `The tracking network is still being built (in service around ${formatDate(S.fb.trknet)}).` : 'Needs the Mercury Worldwide Tracking Network (Base desk).';
   if (!hasFirstMilestone('e')) return 'Needs a hatch milestone (Escape & Man-Rating).';
-  const pilot = assignedPilot('mr');
+  const pilot = assignedPilot(missionType);
   if (!pilot) return 'Assign a qualified astronaut in the Astronaut Office.';
   if (pilot.mt < 1) return `${pilot.name} is ${Math.round(pilot.mt * 100)}% through mission training.`;
   return null;
@@ -141,22 +155,42 @@ export function capsuleSystems(config) {
     command: spec.cmd > 0, // a command receiver aboard: the ground can send commands (rules/mission.js groundCommandLock)
     explosiveHatch: isResearched('ms_hxp') && config.pk.includes('ms_hxp'),
     orbital: spec.orb > 0,
+    endurance: enduranceOrbits(config), // the most orbits the consumables allow
   };
 }
+// ENDURANCE: three orbits as built, six with the extra consumables, 22 with the long-duration modifications on top (Sigma 7 and
+// Faith 7). Set by the packages aboard, not their rolled figures, so a capsule always reaches the next step.
+const ENDURANCE_STEPS = [[['mo_cons', 'mo_long'], 22], [['mo_cons'], 6]];
+const enduranceOrbits = config => (ENDURANCE_STEPS.find(([ids]) => ids.every(id => config.pk.includes(id))) || [null, BASE_ENDURANCE_ORBITS])[1];
+// The orbit counts a capsule can fly.
+export const orbitChoices = config => ORBIT_CHOICES.filter(orbits => orbits <= capsuleSystems(config).endurance);
 
 // A Mercury directive is met: the reward, the record, and the Section 1 finale on the last one.
 export function fulfilDirective(directive, astronaut) {
   const state = phaseTwo();
   S.b += directive.reward;
-  S.rep = Math.min(100, S.rep + (directive.key == 'crew' ? 20 : 8));
+  S.rep = Math.min(100, S.rep + (directive.key == 'crew' || directive.key == 'ocrew' ? 20 : 8));
   addHistory(`Mercury directive met: ${directive.name}`);
   log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(directive.reward)}.`, 'hd');
   state.dir++;
-  if (state.dir == MERCURY_DIRECTIVES.length) {
+  if (state.dir == sectionDirectives(1)[1]) {
     checkFirsts({ human: 1 });
     state.secDone = Math.round(S.day);
     addHistory('Section 1 complete');
     log(`[NEWS] ${astronaut ? astronaut.name : 'An astronaut'} is the first American in space. Ticker-tape parades are planned.`, 'hd');
     log('[WASHINGTON] The President asks Congress to commit the nation to landing a man on the Moon and returning him safely to the Earth before this decade is out.', 'hd');
+    openSectionTwo();
+  } else if (state.dir == MERCURY_DIRECTIVES.length) {
+    state.mercDone = Math.round(S.day);
+    addHistory('Project Mercury complete');
+    log('[NASA] Project Mercury is complete: an American has lived in orbit for more than a day. The two-man Gemini spacecraft is next.', 'hd');
   }
+}
+// SECTION 2 opens: orbital work is proposed to the engineers and the Soviet dates for it are set. Also run for older saves.
+export function openSectionTwo() {
+  const state = phaseTwo();
+  state.sec = 2;
+  state.fl.sec2 = 1;
+  openSovietSectionTwo();
+  log('[NASA] Section 2: Mercury goes to orbit. The engineers propose orbital work for the capsule (R&D desk), and an orbital flight can be ordered once the capsule has a shield for orbital re-entry.', 'hd');
 }
