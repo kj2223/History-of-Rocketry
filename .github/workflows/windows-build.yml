@@ -1,4 +1,5 @@
 # THE TEST BUILD: on every push to dev, builds the Windows installer and portable .exe for playtesters.
+# Pull requests into dev build too, to check the build still works, but leave the prerelease alone.
 # The builds are attached to the "dev-build" prerelease, which is replaced each time, so its download links never change:
 #   https://github.com/kj2223/history-of-rocketry/releases/download/dev-build/ProjectVanguard-Setup.exe
 #   https://github.com/kj2223/history-of-rocketry/releases/download/dev-build/ProjectVanguard-Portable.exe
@@ -8,13 +9,15 @@ name: Windows test build
 on:
   push:
     branches: [dev]
+  pull_request:
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: windows-build
+  group: windows-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,7 +38,9 @@ jobs:
           path: |
             dist/ProjectVanguard-Setup.exe
             dist/ProjectVanguard-Portable.exe
+      # Pull requests only build and upload the artifact; the prerelease always holds what is on dev.
       - name: Replace the dev-build prerelease
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
