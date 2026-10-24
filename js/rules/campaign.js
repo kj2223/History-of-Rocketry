@@ -10,6 +10,7 @@
 import { formatMoney } from '../core/util.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, formatDate } from '../core/state.js';
+import { successfulFlights } from './programs.js';
 
 // The targets you can set: reach an altitude (km, as measured), or prove the rocket with a number of successful flights.
 export const CAMPAIGN_TARGETS = {
@@ -22,6 +23,15 @@ export const targetText = (kind, goal) => kind == 'alt' ? `Reach ${goal} km` : `
 // sounding rockets become routine and your attention moves to developing the next rocket.
 export const AEROBEE_FLIGHTS_TO_UNLOCK = 3;
 export const directorUnlocked = () => !!S.staff.director || (S.progs.aerobee && S.progs.aerobee.okf || 0) >= AEROBEE_FLIGHTS_TO_UNLOCK;
+
+// THE PROVEN ROCKET: a new campaign stays on the newest rocket with this many successful flights, so a new generation
+// takes over only once it has shown it works (you can still pick the new one in the launch form).
+export const FLIGHTS_TO_PROVE = 3;
+export function provenProgramme() {
+  const ready = Object.keys(S.progs).filter(kind => S.progs[kind].ready && PROGRAMMES[kind])
+    .sort((first, second) => PROGRAMMES[second].generation - PROGRAMMES[first].generation);
+  return ready.find(kind => successfulFlights(kind) >= FLIGHTS_TO_PROVE) || ready[0] || S.cur;
+}
 
 // THE DIRECTOR'S EXPERIENCE grows with every flight it runs, reaching full skill after 10.
 // A rookie keeps well inside the rocket's limits (60% of the aero load, heating and structural limits), asks you for
