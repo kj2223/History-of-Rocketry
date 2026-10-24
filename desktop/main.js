@@ -14,8 +14,10 @@ protocol.registerSchemesAsPrivileged([
 function openWindow() {
   const window = new BrowserWindow({
     width: 1600, height: 900, minWidth: 1280, minHeight: 720,
-    backgroundColor: '#000000', title: 'Project Vanguard', autoHideMenuBar: true,
+    backgroundColor: '#000000', title: `Project Vanguard v${app.getVersion()}`, autoHideMenuBar: true,
   });
+  // Keep the version in the title bar (the page's own <title> would replace it), so testers can say which build they played.
+  window.on('page-title-updated', (event) => event.preventDefault());
   window.loadURL('app://game/index.html');
 }
 
