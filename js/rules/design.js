@@ -28,7 +28,7 @@ export function designSpec(ids, estimated) {
   const base = baseDesign(estimated);
   const spec = {
     f: base.f, t: 1, g: base.g, d: 0, r: base.r, i: base.i, c: base.c, h: base.h, q: base.q, dry: base.dry, thr: base.thr,
-    rc: 0, rv: 700, sv: 1, hs: 0, ec: 0, ac: 0, rr: 0, pc: 0, lb: 0, man: 0, et: 0, as: 0, tj: 0, mr: 0, rq: 0, eg: 0, hb: 0, orb: 0, um: 0, mab: 0,
+    rc: 0, rv: 700, sv: 1, hs: 0, ec: 0, ac: 0, rr: 0, pc: 0, lb: 0, man: 0, et: 0, as: 0, tj: 0, mr: 0, rq: 0, eg: 0, hb: 0, orb: 0, um: 0, mab: 0, cmd: 0,
   };
   for (const id of ids) {
     const done = S.pk[id];

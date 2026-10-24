@@ -75,7 +75,7 @@ export function renderAstronautOffice() {
   const chimps = state.ch.t >= 1 ? '<b class="ok">Trained and ready</b>' : state.ch.on ? `<b>${percent(state.ch.t)} trained</b>` : `<button data-a="chimps"${S.b < CHIMP_TRAINING_COST ? ' disabled' : ''}>START TRAINING (${formatMoney(CHIMP_TRAINING_COST)})</button>`;
   setHTML(side, `<div class="t">ANIMAL PROGRAMME</div><div class="r"><span class="d">Chimpanzee colony, Holloman AFB</span>${chimps}</div><div class="m">About five months of lever and couch training before a chimpanzee can fly. Little Joe monkeys need no special training.</div>
 <div class="t" style="margin-top:10px">TRAINING FACILITIES</div>${TRAINING_FACILITIES.map(([id, name]) => `<div class="r"><span class="d">${name}</span><b class="${S.fac[id] ? 'ok' : 'd'}">${S.fac[id] ? 'Operational' : 'Not built (Base desk)'}</b></div>`).join('')}
-<div class="t" style="margin-top:10px">FLIGHT CONTROLLERS</div>${['capcom', 'surg'].map(id => `<div class="r"><span class="d">${STATIONS[id].name}</span><b class="${S.crew[id] ? 'ok' : 'd'}">${S.crew[id] ? 'On console' : 'Vacant (Personnel)'}</b></div>`).join('')}
+<div class="t" style="margin-top:10px">FLIGHT CONTROLLERS</div>${['capcom', 'upl', 'surg'].map(id => `<div class="r"><span class="d">${STATIONS[id].name}</span><b class="${S.crew[id] ? 'ok' : 'd'}">${S.crew[id] ? 'On console' : 'Vacant (Personnel)'}</b></div>`).join('')}
 ${state.mem.length ? `<div class="mem"><div class="t">IN MEMORIAM</div>${state.mem.map(entry => `<div><b>${escapeHtml(entry.name)}</b>, ${entry.svc}<div class="m">${entry.mission}, ${formatDate(entry.d)}</div></div>`).join('')}</div>` : ''}`);
 }
 

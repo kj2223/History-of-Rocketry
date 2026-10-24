@@ -187,15 +187,36 @@ const PILOT_CALLS = {
   hatch: ['Hatch is gone! Water\'s coming in!', 'Helicopter is right over you!'],
 };
 export const isGroundDecision = key => !!DECISIONS[key].ground;
-// The options as offered: each with its index, and available unless it needs manual control or a CAPCOM that is not there.
+// THE GROUND COMMAND LINK (data uplink): a capsule built with a command receiver takes commands from the ground while a station
+// can reach it and the Uplink Engineer is on console to send it. The Cape and Bermuda cover a Little Joe or a suborbital arc; Big Joe and the orbital flights run far downrange,
+// out of their reach, so those need the worldwide tracking network. Returns why no command can be sent, or null.
+const NEAR_RANGE_MISSIONS = ['lj', 'mr'];
+export function groundCommandLock(mission) {
+  if (!mission.systems.command) return 'no command receiver aboard';
+  if (!S.crew.upl) return 'no Uplink Engineer on console';
+  if (!NEAR_RANGE_MISSIONS.includes(mission.missionType) && !S.fac.trknet) return 'no ground station in range';
+  return null;
+}
+// The options as offered: each with its index, and available unless it needs manual control, a CAPCOM that is not there,
+// or a ground command that cannot get through. With a crew aboard the ground command (once researched) is one more option;
+// with no one aboard the ground chooses between leaving it to the automatics and sending the command.
 export function decisionOptions(mission, key) {
-  return DECISIONS[key].options.map((option, index) => ({
+  const decision = DECISIONS[key];
+  const command = decision.command && { ...decision.command, needs: 'cmd', index: decision.options.length, available: !groundCommandLock(mission) };
+  if (mission.pending && mission.pending.uncrewed) return [{ text: 'Leave it to the automatic sequence', automatic: 1, index: -1, available: true }, command];
+  const options = decision.options.map((option, index) => ({
     ...option, index, available: !(option.needs == 'man' && !mission.systems.manual) && !(option.needs == 'capcom' && !S.crew.capcom),
   }));
+  return command && pilotAboard(mission) && isResearched('cmd') ? [...options, command] : options;
 }
+// What the automatic sequence does with no one aboard: the option most likely to work that needs no one's hands.
+const automaticChoice = (mission, key) => DECISIONS[key].options.map((option, index) => ({ ...option, index })).filter(option => !option.needs)
+  .sort((first, second) => decisionOdds(mission, key, second) - decisionOdds(mission, key, first))[0];
 // The chance an option works, between 4% and 97% (a soft ground option always works).
 export function decisionOdds(mission, key, option) {
   const bounded = chance => Math.max(.04, Math.min(.97, chance));
+  if (option.automatic) return decisionOdds(mission, key, automaticChoice(mission, key));
+  if (option.needs == 'cmd') return bounded(option.baseChance);
   if (DECISIONS[key].ground) return option.soft ? 1 : bounded(option.baseChance + (option.crew && S.crew.bstr ? .15 : 0));
   const pilot = pilotAboard(mission), state = phaseTwo();
   let chance = option.backup == 'tjb' ? (isResearched('esc_jett') ? .75 : .3) : option.baseChance;
@@ -209,8 +230,8 @@ export function decisionOdds(mission, key, option) {
   if (option.heli && S.fac.recov) chance += .25;
   return bounded(chance);
 }
-// A decision lands. With a person aboard (or on the ground) it waits for an answer and returns true;
-// with no one aboard the automatics take the best available option at once.
+// A decision lands. With a person aboard (or on the ground) it waits for an answer and returns true; with no one aboard it
+// waits for the Test Conductor if a ground command can reach the capsule, otherwise the automatics take the best option at once.
 const raiseDecision = (mission, key) => {
   if (DECISIONS[key].ground || pilotAboard(mission)) {
     mission.pending = { key, question: DECISIONS[key].question, ground: !!DECISIONS[key].ground };
@@ -221,8 +242,11 @@ const raiseDecision = (mission, key) => {
     }
     return true;
   }
-  const best = decisionOptions(mission, key).filter(option => option.available && !option.needs).sort((first, second) => decisionOdds(mission, key, second) - decisionOdds(mission, key, first))[0];
-  resolveDecision(mission, key, best, true);
+  if (DECISIONS[key].command && !groundCommandLock(mission)) {
+    mission.pending = { key, question: DECISIONS[key].question, ground: true, uncrewed: true };
+    return true;
+  }
+  resolveDecision(mission, key, automaticChoice(mission, key), true);
   return false;
 };
 const report = (mission, text, style = '') => {
@@ -233,18 +257,25 @@ const report = (mission, text, style = '') => {
 export function chooseOption(mission, index) {
   const pending = mission.pending;
   if (!pending) return;
-  mission.pending = null;
   const option = decisionOptions(mission, pending.key).find(candidate => candidate.index == index);
+  mission.pending = null;
+  if (option.automatic) {
+    announce(mission, 'Test Conductor', 'TC', option.text);
+    return resolveDecision(mission, pending.key, automaticChoice(mission, pending.key), true);
+  }
   resolveDecision(mission, pending.key, option, false);
+}
+// A choice said on the loop: in the mission log, the game log and the transcript.
+function announce(mission, who, speaker, text) {
+  mission.log.push(`${who}: "${text}."`);
+  log(`T+${Math.round(mission.time)}s | ${who}: "${text}."`, 'cyan');
+  transmit(mission, speaker, `${text}.`, 'cyan');
 }
 function resolveDecision(mission, key, option, automatic) {
   const worked = Math.random() < decisionOdds(mission, key, option), pilot = pilotAboard(mission), outcome = mission.outcome, state = phaseTwo();
-  const who = DECISIONS[key].ground ? 'Test Conductor' : pilot ? pilot.name.split(' ')[1] : 'The automatic sequence';
-  if (!automatic) {
-    mission.log.push(`${who}: "${option.text}."`);
-    log(`T+${Math.round(mission.time)}s | ${who}: "${option.text}."`, 'cyan');
-    transmit(mission, DECISIONS[key].ground ? 'TC' : 'P', `${option.text}.`, 'cyan');
-  }
+  const fromGround = DECISIONS[key].ground || option.needs == 'cmd';
+  const who = fromGround ? 'Test Conductor' : pilot ? pilot.name.split(' ')[1] : 'The automatic sequence';
+  if (!automatic) announce(mission, who, fromGround ? 'TC' : 'P', option.text);
   if (key == 'abort') {
     if (worked) towerFires(mission);
     else {
@@ -279,9 +310,9 @@ function resolveDecision(mission, key, option, automatic) {
   } else if (key == 'retro') {
     if (option.soft) report(mission, 'Retros left unfired. Re-entry continues on the ballistic arc.', 'wn');
     else if (worked) {
-      report(mission, 'Retros fired by hand.', 'ok');
-      if (pilot) transmit(mission, 'P', 'Retros fired on the manual switch. I felt all three.');
-    } else report(mission, 'The manual retro switch does nothing.', 'wn');
+      report(mission, fromGround ? 'Retros fired on the ground command.' : 'Retros fired by hand.', 'ok');
+      if (pilot) transmit(mission, 'P', fromGround ? 'There they go. All three fired on your command, Cape.' : 'Retros fired on the manual switch. I felt all three.');
+    } else report(mission, fromGround ? 'The retrofire command does not get through.' : 'The manual retro switch does nothing.', 'wn');
   } else if (key == 'hatch') {
     if (worked) {
       outcome.sank = 1;
