@@ -14,7 +14,7 @@ import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
-import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
+import { selectCrew, setTrainingFocus, assignPilot, assignBackup } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
 import { launchForm, campaignForm, campaignSettings } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
@@ -183,6 +183,7 @@ const GAME_ACTIONS = {
     if (selectCrew([...selectedFinalists])) selectedFinalists.clear();
   },
   asg: id => assignPilot(+id, pilotMissionType()),
+  bkp: id => assignBackup(+id, pilotMissionType()),
   memok: () => {
     S.p2.memo = null;
     $('#sum').hidden = true;

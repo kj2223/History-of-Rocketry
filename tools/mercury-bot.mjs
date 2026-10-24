@@ -13,14 +13,14 @@ import { researchLock, commission, itemsInArea } from '../js/rules/research.js';
 import { unitCost, draftChanges } from '../js/rules/production.js';
 import { candidates, startLock, startProgramme } from '../js/rules/programs.js';
 import { hire, engineeringTeamCost } from '../js/rules/game.js';
-import { orderAirframes, publishBlueprint } from '../js/rules/factory.js';
+import { orderAirframes, publishBlueprint, buildTeams, buildTeamCost } from '../js/rules/factory.js';
 import { startInvestigation, chooseFix, INVESTIGATION_COST } from '../js/rules/jobs.js';
 import { runPoll, scrub, facilityLock, buildFacility, stationLock, hireStation, troubleshoot, groundTest, groundTestLock, PAD_FIX_COST } from '../js/rules/launch-site.js';
 import { nasaReady, formNasa } from '../js/rules/race.js';
 import { directiveKey, boosterPlan, crewLock, orderCapsule, requirementText, capsuleSystems } from '../js/rules/mercury.js';
 import { beginMission, stepMission, endMission, decisionOptions, decisionOdds, chooseOption, missionStepSeconds } from '../js/rules/mission.js';
 import { chooseTestingRegime, startChimpTraining, answerOfficeDecision } from '../js/rules/astronaut-office.js';
-import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot } from '../js/rules/astronauts.js';
+import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot } from '../js/rules/astronauts.js';
 import { manRatingResearchDone, isManRated, isFamilyCertified } from '../js/rules/manrate.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
@@ -158,6 +158,7 @@ export function playMercury(game) {
       if (draft.packages.length + draft.fixes.length) publishBlueprint();
     });
     if (S.teams < 6 && S.b > engineeringTeamCost() + reserve + 30000) hire('team');
+    if (orbital && buildTeams() < 3 && S.b > buildTeamCost() + reserve + 30000) hire('bteam');
     for (const [kind, id] of BUY) {
       if (kind == 'fac' && !facilityLock(id) && S.b - FACILITIES[id].cost > reserve) buildFacility(id);
       if (kind == 'crew' && !stationLock(id) && S.b - STATIONS[id].cost > reserve) hireStation(id);
@@ -177,6 +178,12 @@ export function playMercury(game) {
       const skill = astronaut => astronaut.t.pil + astronaut.t.sys;
       const best = state.astros.filter(isQualified).sort((first, second) => skill(second) - skill(first))[0];
       if (best) assignPilot(best.id, pilotFor);
+    }
+    // In orbit a backup trains alongside, so the next pilot is ready when this one has flown.
+    if (orbital && assignedPilot(pilotFor) && !backupPilot(pilotFor)) {
+      const skill = astronaut => astronaut.t.pil + astronaut.t.sys;
+      const best = state.astros.filter(astronaut => isQualified(astronaut) && !astronaut.asg).sort((first, second) => skill(second) - skill(first))[0];
+      if (best) assignBackup(best.id, pilotFor);
     }
 
     // Research: spacecraft first, then the newest rocket; ground-test spacecraft work so it counts toward breakthroughs.
@@ -239,6 +246,11 @@ export function playMercury(game) {
     if (!capsule && !S.aq.some(item => item.k == 'msn' && item.mt == missionType && lastsLongEnough(item)) && S.b >= MISSION_TYPES[missionType].cost + reserve) orderCapsule(missionType);
     const booster = boosterFor(missionType);
     if (!booster) orderBoosterFor(missionType, reserve);
+    // In orbit there is money to spare, so keep the next booster and capsule coming while this one flies, as a player would.
+    if (orbital && booster && !S.aq.some(item => item.k == 'build') && S.air.filter(each => each.st == 'r' && each.prog == booster.airframe.prog).length < 2) withProgramme(booster.airframe.prog, () => {
+      if (S.b >= unitCost() + reserve) orderAirframes(1);
+    });
+    if (orbital && capsule && state.veh.filter(each => each.mt == missionType && lastsLongEnough(each)).length < 2 && !S.aq.some(item => item.k == 'msn' && item.mt == missionType && lastsLongEnough(item)) && S.b >= MISSION_TYPES[missionType].cost + reserve) orderCapsule(missionType);
     // No rocket fast enough for orbit with a capsule yet: test-fly the newest orbital-class rocket, so its research is confirmed
     // and the engineers propose more (a rocket that never flies never improves).
     if (!booster && orbital) {

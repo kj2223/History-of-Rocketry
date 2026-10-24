@@ -1,6 +1,7 @@
 // MAN-RATING: before a crew rides one of your boosters, the design needs a clean flight record and the man-rating research. No DOM.
 // Each rocket programme keeps its own record. A booster family is every blueprint revision since the programme's last booster
 // milestone (a major redesign). Three successful flights in a row by the family, with the research done, certify it.
+// In Section 2 an orbital-class booster needs two, as Atlas had before Glenn flew (MA-4 and MA-5).
 //
 // The record (saved in each programme's bundle as mrate):
 //   base    the first blueprint revision of the current family
@@ -11,7 +12,8 @@ import { S, log, addHistory, isResearched, recordRunEvent } from '../core/state.
 import { BY_ID, isMilestone } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
 
-export const CLEAN_FLIGHTS_NEEDED = 3;
+export const CLEAN_FLIGHTS_NEEDED = 3, ORBITAL_CLEAN_FLIGHTS_NEEDED = 2;
+export const cleanFlightsNeeded = (kind = S.cur) => S.p2 && S.p2.secDone && PROGRAMMES[kind] && PROGRAMMES[kind].canOrbit ? ORBITAL_CLEAN_FLIGHTS_NEEDED : CLEAN_FLIGHTS_NEEDED;
 export const MAN_RATING_RESEARCH = ['mr_mods', 'esc_asis', 'ms_mrman'];
 
 export function manRatingRecord(kind = S.cur) {
@@ -44,7 +46,7 @@ export function recordBoosterFlight(airframe, ok) {
   const name = PROGRAMMES[kind] ? PROGRAMMES[kind].name : 'Booster';
   if (ok) {
     record.streak++;
-    log(`[MAN-RATING] Clean flight for the ${name} Rev ${record.base}+ family: ${Math.min(record.streak, CLEAN_FLIGHTS_NEEDED)} of ${CLEAN_FLIGHTS_NEEDED} in a row.`, 'ok');
+    log(`[MAN-RATING] Clean flight for the ${name} Rev ${record.base}+ family: ${Math.min(record.streak, cleanFlightsNeeded(kind))} of ${cleanFlightsNeeded(kind)} in a row.`, 'ok');
   } else if (record.streak) {
     record.streak = 0;
     log(`[MAN-RATING] The ${name} failed. Its clean-flight count starts again.`, 'bad');
@@ -60,7 +62,7 @@ export function checkCertification(kind) {
   }
   const record = manRatingRecord(kind);
   if (isFamilyCertified(kind)) return false;
-  if (record.streak < CLEAN_FLIGHTS_NEEDED || !manRatingResearchDone()) return false;
+  if (record.streak < cleanFlightsNeeded(kind) || !manRatingResearchDone()) return false;
   record.cert.push([record.base, null]);
   const name = PROGRAMMES[kind].name;
   addHistory(`${name} man-rated (Rev ${record.base} onward)`);

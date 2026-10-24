@@ -25,7 +25,7 @@ import { boosterRun, boosterFailed, boosterSucceeded } from './flight.js';
 import { recordBoosterFlight, isManRated } from './manrate.js';
 import { learn, teachingValue } from './knowledge.js';
 import { phaseTwo, boosterPlan, capsuleSystems, fulfilDirective } from './mercury.js';
-import { astronautById, simulatorTier } from './astronauts.js';
+import { astronautById, simulatorTier, promoteBackup } from './astronauts.js';
 import { checkFirsts } from './race.js';
 
 // Where the profile puts the capsule at a mission time: { alt (km), v (m/s), g }, interpolated between its points.
@@ -207,9 +207,9 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   // The booster: your airframe's own physics and failure model. The man-rating modifications give a failing booster a chance to ride it out.
   const boostEnd = type.boostEnd, rocketSpec = designSpec(Object.keys(S.pk));
   const rescueChance = Math.min(.6, ((rocketSpec.mr || 0) + (capsule.mt == 'ma' || type.orbital ? rocketSpec.mab || 0 : 0)) * 2.5);
-  let boost = boosterRun(booster, propellant, plan.staged, { latent: mission.latent, wind: options.wind || 0, load: plan.load });
+  let boost = boosterRun(booster, propellant, plan.staged, { latent: mission.latent, wind: options.wind || 0, load: plan.load, plan: plan.ascent });
   if ((boost.failure || boost.short) && Math.random() < rescueChance) {
-    boost = boosterRun(booster, propellant, plan.staged, { wind: options.wind || 0, load: plan.load });
+    boost = boosterRun(booster, propellant, plan.staged, { wind: options.wind || 0, load: plan.load, plan: plan.ascent });
     mission.rescued = 1;
   }
   mission.boost = boost;
@@ -874,7 +874,7 @@ export function endMission(mission) {
       }
     }
   }
-  if (mission.type.orbital) orbitalRecords(mission, { ok, crewSafe, recovered, pilot, state });
+  if (mission.type.orbital) orbitalRecords(mission, { crewSafe, recovered, pilot });
   const directive = MERCURY_DIRECTIVES[state.dir];
   let met = false;
   if (directive && directive.missionType == mission.missionType) met = directiveMet(directive, mission, { ok, crewSafe, recovered, pilot, animal, state });
@@ -893,11 +893,13 @@ export function endMission(mission) {
   save();
   return { ok, met, lost: !!outcome.lost };
 }
-// The pilot comes home tired, or is lost (the memorial, a stand-down and a heavy reputation cost), or is grounded injured.
+// The pilot comes home tired (the backup moves up), or is lost (the memorial, a stand-down and a heavy reputation cost), or is grounded injured.
 function recordPilotFlight(mission, pilot, outcome, state) {
   pilot.flights++;
+  const missionType = pilot.asg;
   pilot.asg = null;
   pilot.mt = 0;
+  promoteBackup(missionType);
   pilot.focus = 'rest';
   pilot.fat = Math.min(100, pilot.fat + 30);
   if (outcome.lost) {
@@ -914,14 +916,10 @@ function recordPilotFlight(mission, pilot, outcome, state) {
     log(`[FLIGHT SURGEON] ${pilot.name} is injured and grounded for about ${S.crew.surg ? 'two' : 'four'} months.`, 'wn');
   }
 }
-// After an orbital flight: a crew home from three orbits opens the long-duration work, and a day in orbit is a contested first.
+// After an orbital flight: a day in orbit is a contested first.
 const ORBITS_IN_A_DAY = 16;
-function orbitalRecords(mission, { crewSafe, recovered, pilot, state }) {
+function orbitalRecords(mission, { crewSafe, recovered, pilot }) {
   if (!pilot || !crewSafe || !recovered) return;
-  if (mission.orbitsFlown >= 3 && !state.fl.mo3) {
-    state.fl.mo3 = 1;
-    log('[ENGINEERING] Three orbits flown and the astronaut is fine. The engineers propose stretching the capsule to a day in orbit: Long-duration capsule modifications.', 'hd');
-  }
   if (mission.orbitsFlown >= ORBITS_IN_A_DAY) checkFirsts({ dayInOrbit: 1 });
 }
 // Has this flight met the current directive? Little Joe counts good aborts toward three, one with a monkey; orbital directives
