@@ -58,6 +58,12 @@ export function queueAnalysis(incidentId) {
 }
 
 export const unqueue = index => { S.rq.splice(index, 1); };
+// Move an entry one place up the queue (the player's order wins over analyses going first).
+export function moveUpQueue(index) {
+  if (index < 1 || index >= S.rq.length) return;
+  [S.rq[index - 1], S.rq[index]] = [S.rq[index], S.rq[index - 1]];
+  startQueuedWork();
+}
 // Why an entry cannot start at all (it is dropped), or null.
 const entryLock = entry => {
   if (entry.prog && !S.progs[entry.prog]) return 'The programme is closed.';

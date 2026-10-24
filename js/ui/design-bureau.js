@@ -170,17 +170,18 @@ function commissionButton(item) {
 // Work not yet running: its place in the queue (and a way out), or a QUEUE button when it cannot be commissioned right now.
 function queueHTML(item) {
   const position = queuePosition(item.id);
-  if (position >= 0) return `<p class="wn">Queued #${position + 1}: ${position ? `starts after ${position} more` : queueWait() || 'starting'}</p><button data-a="unq" data-id="${position}">REMOVE FROM QUEUE</button>`;
+  if (position >= 0) return `<p class="wn">Queued #${position + 1}: ${position ? `starts after ${position} more` : queueWait() || 'starting'}</p>${position ? `<button data-a="qup" data-id="${position}">MOVE UP THE QUEUE</button>` : ''}<button data-a="unq" data-id="${position}">REMOVE FROM QUEUE</button>`;
   const commissionLock = researchLock(item.id), lock = queueLock(item.id);
   if (!commissionLock || lock == commissionLock) return '';
   return `<button data-a="rq" data-id="${item.id}"${lock ? ' disabled' : ''}>QUEUE FOR THE NEXT FREE TEAM</button>${lock ? `<div class="m">${lock}</div>` : ''}`;
 }
-// THE QUEUE ROW: the queued work in order, each with its rocket (if not the one in focus) and a button to take it out.
+// THE QUEUE ROW: the queued work in order, each with its rocket (if not the one in focus), a button to move it up one place
+// and a button to take it out.
 function queueRow() {
   const entries = queueEntries(), research = entries.filter(entry => !entry.analysis).length;
   if (!entries.length) return '';
   return `<div class="rqueue"><span class="t">QUEUE${research ? ` ${research}/${RESEARCH_QUEUE_LENGTH}` : ''}</span>`
-    + entries.map((entry, index) => `<span class="rq-item">${index + 1}. ${entry.name}${entry.prog && entry.prog != S.cur ? ` <span class="d">(${PROGRAMMES[entry.prog].name})</span>` : ''}<button data-a="unq" data-id="${index}" title="Remove from the queue">×</button></span>`).join('')
+    + entries.map((entry, index) => `<span class="rq-item">${index + 1}. ${entry.name}${entry.prog && entry.prog != S.cur ? ` <span class="d">(${PROGRAMMES[entry.prog].name})</span>` : ''}${index ? `<button data-a="qup" data-id="${index}" title="Move up the queue">▲</button>` : ''}<button data-a="unq" data-id="${index}" title="Remove from the queue">×</button></span>`).join('')
     + `<span class="m">${queueWait() || ''}</span></div>`;
 }
 // NASA era: a running job can be put on a crash schedule once, halving the time left.
@@ -264,7 +265,7 @@ function incidentHTML(incident) {
   if (incident.st == 'open') {
     const lock = S.b < INVESTIGATION_COST ? 'Need funds.' : freeTeams() < 1 ? 'Teams busy.' : null, queued = analysisPosition(incident.id);
     html += `<div>Cannot yet tell apart: ${incident.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div><div class="m">Evidence on file: ${incident.ev}</div><button data-a="inv" data-id="${incident.id}"${lock ? ' disabled' : ''}>RECORDS ANALYSIS (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)</button>`
-      + (queued >= 0 ? `<div class="wn">Queued #${queued + 1}: ${queued ? `starts after ${queued} more` : queueWait() || 'starting'}</div><button data-a="unq" data-id="${queued}">REMOVE FROM QUEUE</button>`
+      + (queued >= 0 ? `<div class="wn">Queued #${queued + 1}: ${queued ? `starts after ${queued} more` : queueWait() || 'starting'}</div>${queued ? `<button data-a="qup" data-id="${queued}">MOVE UP THE QUEUE</button>` : ''}<button data-a="unq" data-id="${queued}">REMOVE FROM QUEUE</button>`
         : lock && !queueAnalysisLock(incident.id) ? `<button data-a="qinv" data-id="${incident.id}">QUEUE FOR THE NEXT FREE TEAM</button>` : '');
   } else if (incident.st == 'found') html += findingsHTML(incident);
   else if (incident.st == 'inv') html += `<div class="wn">Investigating: <span data-j="inv${incident.id}">${(findJob(job => job.k == 'inv' && job.id == incident.id) || { t: 0 }).t}s</span></div>`;

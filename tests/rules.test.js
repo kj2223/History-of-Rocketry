@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID } from '../js/data/research.js';
 import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
-import { queueResearch, queueLock, queuePosition, unqueue, queueAnalysis, analysisPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
+import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
@@ -510,8 +510,11 @@ test('the queue waits for funds in order, and work is not queued twice', () => {
   tickSecond();
   assert.ok(S.jobs.some(job => job.id == 'inj'));
   assert.deepEqual(S.rq.map(entry => entry.id), ['bea']);
+  queueResearch('gauge');
+  moveUpQueue(1);
+  assert.deepEqual(S.rq.map(entry => entry.id), ['gauge', 'bea'], 'moved up one place');
   unqueue(0);
-  assert.equal(S.rq.length, 0);
+  assert.deepEqual(S.rq.map(entry => entry.id), ['bea']);
 });
 
 test('commissioning queued work by hand takes it out of the queue, and the queue has a limit', () => {
