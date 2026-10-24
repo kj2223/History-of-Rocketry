@@ -1,12 +1,39 @@
 {
+  "name": "project-vanguard",
+  "productName": "Project Vanguard",
+  "version": "0.1.0",
+  "description": "A management game about the American space programme",
   "type": "module",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/*.test.js",
-    "balance": "node tools/balance.mjs"
+    "balance": "node tools/balance.mjs",
+    "dist": "electron-builder --win --publish never"
   },
   "devDependencies": {
-    "electron": "^38.8.6"
+    "electron": "^38.8.6",
+    "electron-builder": "^26.18.0"
   },
-  "main": "desktop/main.js"
+  "build": {
+    "appId": "com.kj2223.projectvanguard",
+    "files": [
+      "desktop/**",
+      "js/**",
+      "index.html",
+      "style.css"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "ProjectVanguard-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "ProjectVanguard-Portable.${ext}"
+    }
+  }
 }

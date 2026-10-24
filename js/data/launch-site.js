@@ -51,3 +51,8 @@ export const STATIONS = {
   capcom: { name: 'Capsule Communicator', callSign: 'CAPCOM', cost: 6000, salary: 500, requires: 'mcc', catches: '', nasa: 1, description: 'An astronaut on the ground who talks to the crew. Every crew decision in flight goes better.' },
   surg: { name: 'Flight Surgeon', callSign: 'SURG', cost: 8000, salary: 600, requires: null, catches: '', nasa: 1, description: 'Watches the crew\'s heart rate and breathing in flight and halves the time injured astronauts are grounded.' },
 };
+
+// TRAJECTORY ANALYSTS: the human "computers" who work candidate trajectories for FIDO before a launch (rules/trajectory.js).
+// Hired at the Crew desk, they need no console. max: analysts on staff at once, cost to hire ($), salary per 30-second funding cycle,
+// runsPerDay: candidate trajectories each analyst works through per game day, requires: the facility and the station they work for.
+export const TRAJECTORY_ANALYSTS = { max: 3, cost: 10000, salary: 500, runsPerDay: .5, requires: 'comp', worksFor: 'fido' };

@@ -4,6 +4,8 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Run it:** `npm install` once, then `npm start` opens the game in its own desktop window (Electron, set up in `desktop/main.js`). It still runs in a browser too: serve the folder (for example `python3 -m http.server`) and open `index.html`. The game saves to localStorage every ten seconds; the desktop window and the browser keep separate saves.
 
+**Build for testers:** `npm run dist` builds a Windows installer and a portable .exe into `dist/` (run it on Windows). Every push to `dev` also builds them on GitHub (`.github/workflows/windows-build.yml`) and attaches them to the `dev-build` prerelease, so the links on the Releases page always point at the latest dev. The builds are unsigned: on first run Windows SmartScreen says it protected your PC; click **More info**, then **Run anyway**.
+
 **Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two Section 1 to the first American in space (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n; `PHASE_ONE_ONLY=1` stops at orbit.
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
@@ -27,9 +29,10 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 |---|---|
 | Research packages and milestones (cost, time, effects) | `data/research.js` |
 | Rockets: design figures, costs, propellants, flaws | `data/programmes.js` |
-| Propellants and payloads | `data/launch.js` |
+| Propellants (sea-level and vacuum Isp), payloads and pitch programs | `data/launch.js` |
+| Engine start and tail-off, residual propellant, drag through the sound barrier, gravity-turn steering, staging delays | the constants above `step()` in `rules/flight.js` |
 | Failure modes, symptoms and fixes | `data/failures.js` |
-| Facilities, control rooms, launch-crew stations | `data/launch-site.js` |
+| Facilities, control rooms, launch-crew stations, trajectory analysts | `data/launch-site.js` |
 | Directives, eras, historical firsts, Soviet dates, calendar speed | `data/history.js` |
 | Mercury missions, directives, in-flight decisions, office decisions | `data/mercury.js` |
 | Astronaut names, skills, training focus | `data/astronauts.js` |
@@ -40,7 +43,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | File | Covers |
 |---|---|
 | `rules/game.js` | The tick, the calendar catch-up, hiring staff, the starting position, run-log snapshots |
-| `rules/research.js` | What can be commissioned, breakthroughs, earmarks, finishing and confirming packages |
+| `rules/research.js` | What can be commissioned, breakthroughs, earmarks, crash programmes, finishing and confirming packages |
 | `rules/programs.js` | Starting a rocket programme, its hidden true design and flaws, maturity |
 | `rules/design.js` | What an airframe can do, launch quotes, recovery odds |
 | `rules/production.js` | Blueprint drafts, line learning, airframe and retrofit costs |
@@ -48,7 +51,8 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/jobs.js` | Engineering-team jobs: investigations, fixes, design reviews, retrofits |
 | `rules/knowledge.js` | What the engineers know about each system |
 | `rules/launch-site.js` | Building facilities, hiring launch crew, the go/no-go poll, pad troubleshooting, ground tests |
-| `rules/flight.js` | Flight physics, failures, instrument readings, flight results |
+| `rules/flight.js` | Flight physics in tenths of a second (thrust rising with altitude, Mach drag, the gravity turn, staging, the flight's milestones), failures, instrument readings, flight results |
+| `rules/trajectory.js` | The trajectory team: hiring analysts, goals, and the search for the best flight plan |
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
 | `rules/auto.js` | The launch director flying the running campaign |
 | `rules/race.js` | American firsts, Soviet events, intelligence, forming NASA |
@@ -66,10 +70,11 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `ui/screen.js` | The header, era theme, directive panel, opening and closing desks, and `render()` for the whole page |
 | `ui/input.js` | Every click and select: `data-a` on a button names its action |
 | `ui/launch-panel.js` | The control-room picture and the launch form |
-| `ui/launch-view.js` | The pad under the plotting board: countdown, poll, flight instruments, Mercury flights and transcript |
-| `ui/plot.js` | The plotting board: the flight's altitude against the directive |
+| `ui/launch-view.js` | The pad under the plotting board: countdown, poll, the mission clock strip, Mercury flights and transcript |
+| `ui/plot.js` | The plotting board: the flight's altitude over distance downrange, FIDO's predicted arc, and the directive |
+| `ui/trajectory.js` | The trajectory panel beside the plotting board: launcher elevation, pitch program, upper stage aim, the prediction and the team's best plan |
 | `ui/consoles.js` | One live tile per launch-crew station: readout, gauge, what it is doing, its last call |
-| `ui/control-room.js` | The control-room and instrument SVGs |
+| `ui/control-room.js` | The control-room picture |
 | `ui/design-bureau.js` | The R&D desk: research columns and detail bar, the rocket programme, the engineering file, incidents |
 | `ui/hangar.js` | The Hangar desk (blueprints, the factory queue, airframes) and the Base desk (facilities) |
 | `ui/personnel.js` | The Crew desk: teams, specialists, launch crew |

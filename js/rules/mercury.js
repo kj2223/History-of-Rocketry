@@ -101,7 +101,7 @@ export function crewLock(crew, airframe) {
   if (state.dir < 4) return 'NASA will not fly a crew until an animal has flown and been recovered alive.';
   if (!anyCertified()) return 'No booster is man-rated yet (see the man-rating board).';
   if (airframe && !isManRated(airframe)) return `${airframe.label} (Rev ${airframe.rev}) is outside the certified booster revisions.`;
-  if (!S.fac.trknet) return S.fb && S.fb.trknet ? `The tracking network is still being built (in service around ${formatDate(S.fb.trknet)}).` : 'Needs the Mercury Worldwide Tracking Network (Hangar & Base).';
+  if (!S.fac.trknet) return S.fb && S.fb.trknet ? `The tracking network is still being built (in service around ${formatDate(S.fb.trknet)}).` : 'Needs the Mercury Worldwide Tracking Network (Base desk).';
   if (!hasFirstMilestone('e')) return 'Needs a hatch milestone (Escape & Man-Rating).';
   const pilot = assignedPilot('mr');
   if (!pilot) return 'Assign a qualified astronaut in the Astronaut Office.';

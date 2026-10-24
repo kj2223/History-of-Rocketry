@@ -46,7 +46,10 @@
 
   <!-- CENTER: the plotting board, then the launch desk (or, from rollout to splashdown, the pad) -->
   <section class="col center">
-    <div class="p board"><h2 id="boardt">PLOTTING BOARD</h2><div id="plot"></div></div>
+    <div class="p board">
+      <div class="boardhd"><h2 id="boardt">PLOTTING BOARD</h2><button id="trajbtn" data-a="traj" hidden>TRAJECTORY</button></div>
+      <div class="boardbody"><div id="plot"></div><aside id="traj" class="traj" hidden></aside></div>
+    </div>
     <div id="home" class="home">
       <div class="p"><h2 data-l="LAUNCH FACILITY|LAUNCH COMPLEX & BLOCKHOUSE|LAUNCH CONTROL CENTER"></h2><div id="lc"></div></div>
       <div class="stack">
@@ -57,9 +60,13 @@
     <div id="pad" class="p pad" hidden>
       <div class="padhd"><b id="padt"></b><b id="padph" class="t"></b></div>
       <div id="paddlg"></div>
-      <div id="fl" hidden><div id="gpanel"></div><div class="m" id="ln"></div><button data-a="abort" class="danger big">MANUAL ABORT</button></div>
+      <div id="fl" class="clockstrip" hidden>
+        <div class="mclock"><span class="lbl">MISSION CLOCK</span><b id="mclock">T+00:00</b></div>
+        <div class="grow"><div id="phases" class="phases"></div><div id="readouts" class="readouts"></div><div class="m" id="ln"></div></div>
+        <button data-a="abort" class="danger big">MANUAL ABORT</button>
+      </div>
       <div id="comms" class="comms" hidden><div class="ct">AIR-TO-GROUND <span class="d">• transcript</span></div><div id="ctx" class="ctx"></div></div>
-      <div class="ct">THE LOOP</div><div id="padlog"></div>
+      <div class="ct">COMMAND LOOP <span class="d">· newest first</span></div><div id="padlog"></div>
     </div>
   </section>
 

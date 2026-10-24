@@ -2,7 +2,7 @@
 // saved and the screen redrawn, except where an action returns early.
 import { S, save, resetState, log } from '../core/state.js';
 import { formNasa } from '../rules/race.js';
-import { commission } from '../rules/research.js';
+import { commission, crashProgramme } from '../rules/research.js';
 import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
 import { airborne } from '../rules/flight.js';
@@ -19,6 +19,8 @@ import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight,
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
 import { researchDesk } from './design-bureau.js';
+import { trajectoryPanel, currentPlan } from './trajectory.js';
+import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, markDirty, resetScreen } from './screen.js';
 import { $ } from './dom.js';
 
@@ -26,6 +28,7 @@ let resetArmed = 0;
 
 document.addEventListener('input', event => {
   if (event.target.dataset.s == 'load') $('#ldv').textContent = event.target.value + '%';
+  if (event.target.dataset.tj) $('#tj-' + event.target.dataset.tj).textContent = event.target.value + '°';
 });
 
 // SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, the campaign form and the launch form.
@@ -50,6 +53,10 @@ document.addEventListener('change', event => {
   }
   if (data.mc) {
     S.p2.lc = isNaN(+value) ? value : +value;
+    return render();
+  }
+  if (data.tj) {
+    launchForm.plan = { ...currentPlan(), [data.tj]: +value };
     return render();
   }
   if (data.ch) {
@@ -127,6 +134,7 @@ const PAD_ACTIONS = {
 // Actions that change the game: id is the button's data-id; button is the element (for data-n and data-f).
 const GAME_ACTIONS = {
   com: id => commission(id),
+  crash: id => crashProgramme(id),
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),
@@ -165,6 +173,8 @@ const GAME_ACTIONS = {
   },
   crew: id => hireStation(id),
   dismiss: id => dismissStation(id),
+  analyst: () => hireAnalyst(),
+  unanalyst: () => releaseAnalyst(),
   gt: id => groundTest(id),
 };
 // Actions that only change what is shown: they return without saving or redrawing.
@@ -196,6 +206,28 @@ const VIEW_ACTIONS = {
   },
   rpick: id => {
     researchDesk.pick = id;
+    render();
+  },
+  // The trajectory panel: open or close it, pick a pitch program, or go back to the default plan.
+  traj: () => {
+    trajectoryPanel.open = !trajectoryPanel.open;
+    render();
+  },
+  tjprog: id => {
+    launchForm.plan = { ...currentPlan(), program: id };
+    render();
+  },
+  tjreset: () => {
+    launchForm.plan = null;
+    render();
+  },
+  // The trajectory team: the goal it searches for, and flying the best plan it has found.
+  tjgoal: id => {
+    trajectoryPanel.goal = id;
+    render();
+  },
+  tjbest: () => {
+    launchForm.plan = { ...trajectoryPanel.search.best.plan };
     render();
   },
   sec1: () => {

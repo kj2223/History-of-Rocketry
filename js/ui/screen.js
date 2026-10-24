@@ -2,7 +2,7 @@
 // The game clock marks the screen dirty when something changes; main.js redraws it then, and refreshes the timers otherwise.
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES, DIRECTIVE_NEWS, ERAS } from '../data/history.js';
-import { ROOMS } from '../data/launch-site.js';
+import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { S, load, logSink, today, formatDate, findJob } from '../core/state.js';
 import { era } from '../rules/design.js';
 import { grant } from '../rules/economy.js';
@@ -15,6 +15,7 @@ import { launchView, renderPad } from './launch-view.js';
 import { renderResearchDesk } from './design-bureau.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
+import { renderTrajectory } from './trajectory.js';
 import { renderHangar, renderFacilities } from './hangar.js';
 import { renderStaff, renderLaunchCrew } from './personnel.js';
 import { renderRace } from './race-and-summaries.js';
@@ -31,18 +32,29 @@ export const resetScreen = () => {
   shownEra = shownRoom = -1;
 };
 
-// Log lines go to the log panel, and the last six to the pad while a countdown is open.
+// Log lines go to the teleprinter log. While a countdown is open, the calls also go to the command loop under the
+// plotting board, newest first: a line's time and call sign ("T+12s | [PROP] ...") get their own columns, and the
+// radar's running plots ("T+12s | RADAR ~2.5 km"), payroll and the press stay on the teleprinter.
+const LOOP_LINES = 12;
+// Untimed lines reach the loop only from a voice on it: the stations, the pad crew and the range (not payroll or the press).
+const LOOP_VOICES = new Set([...Object.values(STATIONS).map(station => station.callSign), 'PAD', 'RANGE']);
 logSink.fn = (text, style) => {
   const line = document.createElement('div');
   line.className = style;
   line.textContent = text;
   $('#lg').append(line);
   $('#lg').scrollTop = 1e9;
-  const padLog = $('#padlog');
-  if (padLog && launchView.count) {
-    padLog.append(line.cloneNode(true));
-    while (padLog.children.length > 6) padLog.firstChild.remove();
-  }
+  const loop = $('#padlog'), call = text.match(/^(?:T\+(\d+)s \| )?(?:\[([A-Z]+)\] )?(.*)$/);
+  if (!loop || !launchView.count) return;
+  if (call[1] ? !call[2] && /^(RADAR|ACCEL|DOPPLER|INERTIAL|RANGE-RATE|PROP)\b/.test(call[3]) : !LOOP_VOICES.has(call[2])) return;
+  const entry = document.createElement('div');
+  entry.className = `loopl ${style || ''}`;
+  entry.innerHTML = '<span class="d"></span><b></b><span></span>';
+  entry.children[0].textContent = call[1] ? `T+${call[1]}s` : '';
+  entry.children[1].textContent = call[2] || (call[1] ? 'RANGE' : '');
+  entry.children[2].textContent = call[3];
+  loop.prepend(entry);
+  while (loop.children.length > LOOP_LINES) loop.lastChild.remove();
 };
 
 // THE DESKS: '' is the control room alone; any other desk opens its drawer over the room. Picking the open desk again closes it.
@@ -109,8 +121,9 @@ function directiveHTML() {
   let html = directive
     ? `<div class="t">Directive ${S.dir + 1}: ${directive.name}</div><div class="m">${directive.altitudeKm >= 120 ? 'Reach 120 km at orbital speed (7,000 m/s) with a satellite.' : `Reach ${directive.altitudeKm} km (as measured by your tracking).`} Reward ${formatMoney(directive.reward)}.</div><div class="m nar">${DIRECTIVE_NEWS[S.dir]}</div>`
     : '<div class="ok">All directives complete. First orbital flight achieved.</div>';
-  if (!S.nasa && S.fs.f_orbit && !nasaReady()) html += `<div class="c nasa"><div class="t">THE NATIONAL AERONAUTICS AND SPACE ACT</div><div class="m">Your satellite has Washington talking about a civilian space agency, but Congress moves at its own pace. The Act is expected around <b>${formatDate(SPACE_ACT_DAY)}</b>; the calendar runs fast until then. Keep flying: science payloads still pay.</div></div>`;
-  if (nasaReady()) html += `<div class="c nasa"><div class="t">THE NATIONAL AERONAUTICS AND SPACE ACT</div><div class="m">${S.fs.f_orbit ? 'With a satellite in orbit,' : 'Whatever your progress,'} Washington wants a civilian space agency, with your programme at its core. Establishing it closes Phase One and sets up crewed flight.</div><button data-a="nasa">ESTABLISH NASA</button></div>`;
+  const ourSatellite = S.fs.f_orbit == 'us' || S.fs.f_orbit == 'second'; // f_orbit is 'sov' when only the Soviets have one
+  if (!S.nasa && ourSatellite && !nasaReady()) html += `<div class="c nasa"><div class="t">THE NATIONAL AERONAUTICS AND SPACE ACT</div><div class="m">Your satellite has Washington talking about a civilian space agency, but Congress moves at its own pace. The Act is expected around <b>${formatDate(SPACE_ACT_DAY)}</b>; the calendar runs fast until then. Keep flying: science payloads still pay.</div></div>`;
+  if (nasaReady()) html += `<div class="c nasa"><div class="t">THE NATIONAL AERONAUTICS AND SPACE ACT</div><div class="m">${ourSatellite ? 'With a satellite in orbit,' : 'Whatever your progress,'} Washington wants a civilian space agency, with your programme at its core. Establishing it closes Phase One and sets up crewed flight.</div><button data-a="nasa">ESTABLISH NASA</button></div>`;
   else if (S.nasa) html += `<div class="c nasa"><div class="ok">NASA established ${formatDate(S.nasa)}. Project Mercury (crewed flight) is the next chapter.</div><button data-a="summary">VIEW PHASE ONE SUMMARY</button></div>`;
   if (S.nasa && S.p2) html = mercuryDirectiveHTML() + `<button data-a="summary">VIEW PHASE ONE SUMMARY</button>`;
   return html;
@@ -129,6 +142,7 @@ export function render() {
   renderControlRoom();
   renderConsoles();
   renderPlot();
+  renderTrajectory();
   renderRace();
   renderLaunchForm();
   renderCampaign();
@@ -140,12 +154,17 @@ export function render() {
   renderLaunchCrew();
   applyDesk();
 }
-// Between redraws, only the header and the countdown figures on jobs and the factory queue change.
+// Between redraws, only the header, the countdown figures and bars on jobs, and the factory queue change.
 export function refreshTimers() {
   renderHeader();
   document.querySelectorAll('[data-j]').forEach(node => {
     const job = findJob(candidate => candidate.k + candidate.id == node.dataset.j);
     if (job) node.textContent = job.t + 's';
+  });
+  // Research cards' progress bars (data-jb names the job).
+  document.querySelectorAll('[data-jb]').forEach(node => {
+    const job = findJob(candidate => candidate.k + candidate.id == node.dataset.jb);
+    if (job) node.style.width = Math.round((1 - job.t / Math.max(1, job.tot)) * 100) + '%';
   });
   document.querySelectorAll('[data-q]').forEach(node => {
     const item = S.aq[+node.dataset.q];

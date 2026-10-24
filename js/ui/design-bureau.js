@@ -10,9 +10,9 @@ import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
 import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
 import { trackingTiers, designation } from '../rules/design.js';
-import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, costAfterEarmark } from '../rules/research.js';
+import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds } from '../rules/knowledge.js';
-import { maturity, candidates, startLock, believedWindow, successfulFlights } from '../rules/programs.js';
+import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
 import { INVESTIGATION_COST, investigationTime } from '../rules/jobs.js';
 import { $, setHTML } from './dom.js';
@@ -48,8 +48,17 @@ function packageCard(entry, mark = '') {
   const tag = done ? (confirmed ? '■' : '□ unproven') : job ? '' : item.dud ? '◆' : '';
   const meta = done ? (confirmed ? 'confirmed' : 'finished, not yet confirmed') : job ? `in work: <span data-j="pk${item.id}">${job.t}s</span> left`
     : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}`;
-  const progress = job ? `<div class="bar"><i style="width:${Math.round((1 - job.t / Math.max(1, item.time)) * 100)}%"></i></div>` : '';
+  const progress = job ? `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '';
   return `<button data-a="rpick" data-id="${item.id}" class="rcard ${look}${researchDesk.pick == item.id ? ' on' : ''}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span><span class="m">${meta}</span>${progress}</button>`;
+}
+// A finished package not yet confirmed can be proven on the ground: a static firing (propulsion, with a test stand) or
+// qualification tests (areas c and e).
+function groundTestHTML(area, item) {
+  const qualification = area == 'c' || area == 'e';
+  if (!((area == 'p' && S.fac.stand) || qualification) || isConfirmed(item.id)) return '';
+  const job = findJob(candidate => candidate.k == 'gt' && candidate.id == item.id), lock = groundTestLock(item.id);
+  return job ? `<div class="m wn">${qualification ? 'Qualification tests' : 'Static firing'}: <span data-j="gt${item.id}">${job.t}s</span></div>`
+    : `<button data-a="gt" data-id="${item.id}"${lock ? ' disabled' : ''}>${qualification ? 'QUALIFICATION TEST ($4,000, 110s)' : 'GROUND TEST ($2,000, 30s)'}</button>`;
 }
 // THE DETAIL BAR: the picked package or milestone in full, with what can be done with it.
 function detailBar() {
@@ -69,9 +78,15 @@ function milestoneRow(milestone) {
 function commissionHTML(entry, showName) {
   const item = itemAsSeen(entry.id), job = researchJob(item), lock = researchLock(item.id);
   return `<div style="margin:6px 0">${showName ? `<div>${item.name}${item.dud ? ' <span class="d">(experimental)</span>' : ''}</div>` : ''}<div class="m">${describeResearch(item)}${item.contract ? ` Contract pays ${formatMoney(item.contract)} on completion.` : ''}</div>`
-    + (job ? `<div class="wn">In progress: <span data-j="pk${item.id}">${job.t}s</span></div>`
+    + (job ? `<div class="wn">In progress: <span data-j="pk${item.id}">${job.t}s</span>${job.cr ? ' (crash schedule)' : ''}</div>${crashHTML(item, job)}`
       : `<button data-a="com" data-id="${item.id}"${lock ? ' disabled' : ''}>COMMISSION (${costAfterEarmark(item) < item.cost ? `${formatMoney(costAfterEarmark(item))} after earmark` : formatMoney(item.cost)}, ${item.time}s)</button>${lock ? `<div class="m">${lock}</div>` : ''}`)
     + '</div>';
+}
+// NASA era: a running job can be put on a crash schedule once, halving the time left.
+function crashHTML(item, job) {
+  if (!S.nasa || job.cr) return '';
+  const lock = crashLock(item.id);
+  return `<button data-a="crash" data-id="${item.id}"${lock ? ' disabled' : ''}>CRASH PROGRAMME (${formatMoney(crashCost(item))}, halves the time left)</button>${lock ? `<div class="m">${lock}</div>` : ''}`;
 }
 // Joint programmes (milestones drawing on two areas). Not shown at present: it returns nothing before building its card.
 const SHOW_JOINT_PROGRAMMES = false;
@@ -112,8 +127,11 @@ function programmeCard() {
     + (found.length < bundle.traits.length ? '<div class="m">New rockets always hide flaws. Failures, investigations and design reviews bring them out.</div>' : '<div class="m ok">The engineers believe every flaw in the design is now known.</div>');
   const next = candidates();
   if (next.length) html += `<div class="t" style="margin-top:8px">NEXT PROGRAMMES</div>` + next.map(candidate => {
-    const proposed = PROGRAMMES[candidate], lock = startLock(candidate);
-    return `<div class="c"><div class="r"><b>${proposed.name}</b><span class="d">${proposed.year}</span></div><div class="m">${proposed.why}</div><button data-a="pstart" data-id="${candidate}"${lock ? ' disabled' : ''}>START THE ${proposed.name.toUpperCase()} PROGRAMME (${formatMoney(proposed.cost)}, ${proposed.designTime}s of design)</button>${lock ? `<div class="m">${lock}</div>` : ''}</div>`;
+    const proposed = PROGRAMMES[candidate], lock = startLock(candidate), skipped = isShortcut(candidate) && PROGRAMMES[proposed.skip.past].name;
+    const warning = skipped ? `<div class="m wn">Skips the ${skipped} generation: the ${skipped} closes for good, its research is folded into this rocket, the design takes longer, it hides more flaws and the team starts knowing little of it.</div>` : '';
+    const closes = (proposed.closes || []).filter(other => !S.progs[other]).map(other => PROGRAMMES[other].name);
+    const fork = !skipped && closes.length ? `<div class="m">Starting it closes the ${closes.join(' and ')}.</div>` : '';
+    return `<div class="c"><div class="r"><b>${proposed.name}</b><span class="d">${proposed.year}</span></div><div class="m">${proposed.why}</div>${warning}${fork}<button data-a="pstart" data-id="${candidate}"${lock ? ' disabled' : ''}>START THE ${proposed.name.toUpperCase()} PROGRAMME (${formatMoney(proposed.cost)}, ${designTimeFor(candidate)}s of design)</button>${lock ? `<div class="m">${lock}</div>` : ''}</div>`;
   }).join('');
   return html + '</div>';
 }

@@ -5,15 +5,15 @@
 import { formatMoney, gaussian } from '../core/util.js';
 import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { MISSION_TYPES } from '../data/mercury.js';
+import { PAYLOADS } from '../data/launch.js';
 import { S, log, logSink } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
-import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS } from '../rules/flight.js';
+import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS, isPowered, hasEvent } from '../rules/flight.js';
 import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
 import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName } from '../rules/mission.js';
-import { gaugesSVG } from './control-room.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
@@ -25,8 +25,9 @@ import { $, setHTML } from './dom.js';
 //   fuel / target: propellant on board / planned (shares of a full tank), filling, label, clock (count seconds left), running
 //   hold: why the clock is held ('' if not), userHold: held by the player, override: continuing over a NO-GO
 //   polling, pollTicks: the poll is being read out; mission: { vid, crew, af, fuel } for a Mercury flight; result: how it ended
-// countTimer, flightTimer: the interval timers. lastTrace: the last flight's altitudes, kept on the plotting board.
-export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [] };
+// countTimer, flightTimer: the interval timers. lastTrace, lastRangeTrace: the last flight's track, kept on the plotting board
+// (a Mercury mission has no downrange track: null), lastEvents: its milestones (rules/flight.js), marked on the board. planned: the pre-flight prediction of the flight in the air, drawn under its track.
+export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null, lastEvents: [], planned: null };
 export const isBusy = () => !!launchView.count;
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
@@ -104,7 +105,7 @@ export function renderPad() {
   if (count.shown && !pollDone) html += `<div class="m wn">${level >= 4 && S.crew.fd ? 'FLIGHT: "All stations, go/no-go for launch."' : 'Polling the stations…'}</div>`;
   if (pollDone && poll.lines.length == 1) html += '<div class="m">Nobody else is on the net. Launch crew hired in Personnel will catch faults before they fly.</div>';
   if (pollDone && poll.wk && poll.wind && airframe.pk) {
-    const windy = previewFlight(airframe, launchForm.fuel, launchForm.pay, launchForm.st, count.fuel, poll.wind);
+    const windy = previewFlight(airframe, launchForm.fuel, launchForm.pay, launchForm.st, count.fuel, poll.wind, launchForm.plan);
     html += `<div class="r"><span class="d">Aero load in these winds</span><b class="${windy.maxQ > .85 ? 'bad' : windy.maxQ > .6 ? 'wn' : 'ok'}">${Math.round(windy.maxQ * 100)}% of limit</b></div>`;
   }
   if (count.hold) html += `<div class="t bad">HOLD: ${count.hold}</div>`;
@@ -220,44 +221,66 @@ function liftoff(override) {
   launchFlight(override);
 }
 
-// AN ORDINARY FLIGHT: the instruments show what the tracking can see, four times a second.
-// Gauge scales start small and double as the flight outgrows them.
-const gaugeScale = (flight, channel, value, start) => {
-  flight.gaugeMax = flight.gaugeMax || {};
-  let scale = flight.gaugeMax[channel] || start;
-  while (value > scale * .95) scale *= 2;
-  return flight.gaugeMax[channel] = scale;
-};
-function drawFlightInstruments(flight) {
-  const readings = flight.lastReadings, lost = flight.lostChannels || {}, level = roomLevel(), ground = flight.tracking.g, vehicle = flight.tracking.v;
-  const approximate = reading => reading && reading.quality.noise >= .05 ? '~' : '';
-  const jitter = reading => reading && level < 4 ? gaussian() * reading.quality.noise * 60 : 0;
-  const channels = [];
-  const altitude = readings.alt;
-  channels.push({ label: 'RADAR ALT', value: altitude ? altitude.value : null, max: gaugeScale(flight, 'alt', altitude ? altitude.value : 0, 5000), text: altitude ? formatAltitude(altitude.value, altitude.quality) : '--', lost: lost.alt, jitter: jitter(altitude) });
-  const velocity = readings.vel;
-  channels.push(CHANNELS.vel.quality(ground, vehicle)
-    ? { label: vehicle >= 2 ? 'ACCEL VEL' : 'DOPPLER VEL', value: velocity ? Math.abs(velocity.value) : null, max: gaugeScale(flight, 'vel', velocity ? Math.abs(velocity.value) : 0, 500), text: velocity ? approximate(velocity) + velocity.value + ' m/s' : '--', lost: lost.vel, jitter: jitter(velocity) }
-    : { label: 'VELOCITY', none: 1 });
-  const fuel = readings.fuel;
-  channels.push(vehicle >= 1
-    ? { label: 'PROPELLANT', value: fuel ? fuel.value : null, max: flight.initialPropellant || (flight.initialPropellant = Math.max(1, flight.stages.reduce((sum, stage) => sum + stage.fuel, 0))), text: fuel ? approximate(fuel) + fuel.value + ' kg' : '--', lost: lost.fuel, jitter: jitter(fuel) }
-    : { label: 'BURN CLOCK', value: Math.min(flight.time, flight.burnTime), max: Math.max(1, flight.burnTime), text: flight.time < flight.burnTime ? `T+${flight.time}s of ${flight.burnTime}s` : 'BURNOUT' });
-  const horizontal = readings.hor;
-  channels.push(CHANNELS.hor.quality(ground, vehicle)
-    ? { label: vehicle >= 3 ? 'INERTIAL H-VEL' : 'RANGE RATE', value: horizontal ? horizontal.value : null, max: gaugeScale(flight, 'hor', horizontal ? horizontal.value : 0, 500), text: horizontal ? approximate(horizontal) + horizontal.value + ' m/s' : '--', lost: lost.hor, jitter: jitter(horizontal) }
-    : { label: 'DOWNRANGE', none: 1 });
-  // The part channels picked before launch, on a second row.
-  const parts = (flight.watch || []).map(id => ({ label: PART_CHANNELS[id].label, max: PART_CHANNELS[id].max || 1, ...partReading(flight, id) }));
-  setHTML($('#gpanel'), gaugesSVG(level, channels, true) + (parts.length ? gaugesSVG(level, parts, true) : ''));
+// THE MISSION CLOCK STRIP under the plotting board: the clock, the flight's milestones, and what the tracking can read now.
+// phases: [{ name, reached }], in order; the one after the last reached is coming up. readouts: [{ label, text, none, lost, warn }].
+const clockFormat = seconds => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+function drawClockStrip(clock, phases, readouts) {
+  $('#mclock').textContent = clock;
+  // A milestone counts as passed once any later one is (a slow rocket may never show a clear max Q).
+  const passed = phases.map(phase => phase.reached).lastIndexOf(true);
+  setHTML($('#phases'), phases.map((phase, index) => `<div class="ph ${index <= passed ? 'done' : index == passed + 1 ? 'now' : ''}"><i></i><span>${phase.name}</span></div>`).join(''));
+  setHTML($('#readouts'), readouts.map(item => `<span class="ro${item.warn ? ' bad' : ''}"><span class="d">${item.label}</span> <b>${item.none ? 'N/A' : item.lost ? 'NO TRACK' : item.text}</b></span>`).join(''));
   renderConsoles();
   renderPlot();
+}
+
+// AN ORDINARY FLIGHT: its milestones, and the readings the range and the rocket's own telemetry can give.
+function flightPhases(flight) {
+  const payload = PAYLOADS[flight.payload], event = key => hasEvent(flight, key);
+  const apogee = flight.time > 5 && flight.verticalSpeed <= 0;
+  const phases = [
+    { name: 'IGNITION', reached: flight.countdown <= 0 },
+    { name: 'LIFTOFF', reached: event('liftoff') },
+    { name: 'MAX Q', reached: event('maxq') },
+    ...(flight.stages.length > 1 ? [{ name: 'STAGING', reached: event('sep') }] : []),
+    { name: flight.stages.length > 1 ? 'STAGE 2 CUTOFF' : 'CUTOFF', reached: event('cutoff') },
+  ];
+  if (payload.satellite) return [...phases, { name: 'ORBIT', reached: false }];
+  phases.push({ name: 'APOGEE', reached: apogee });
+  if (payload.science) phases.push({ name: 'CHUTE', reached: apogee && !!flight.descent && flight.altitude < 3000 });
+  return [...phases, { name: 'IMPACT', reached: false }];
+}
+function drawFlightInstruments(flight) {
+  const readings = flight.lastReadings, lost = flight.lostChannels || {}, ground = flight.tracking.g, vehicle = flight.tracking.v;
+  const approximate = reading => reading && reading.quality.noise >= .05 ? '~' : '';
+  const readouts = [];
+  const altitude = readings.alt;
+  readouts.push({ label: 'RADAR ALT', text: altitude ? formatAltitude(altitude.value, altitude.quality) : '--', lost: lost.alt });
+  const velocity = readings.vel;
+  readouts.push(CHANNELS.vel.quality(ground, vehicle)
+    ? { label: vehicle >= 2 ? 'ACCEL VEL' : 'DOPPLER VEL', text: velocity ? approximate(velocity) + velocity.value + ' m/s' : '--', lost: lost.vel }
+    : { label: 'VELOCITY', none: 1 });
+  // Mach, off the velocity the range or the rocket measures (so only where velocity is measured).
+  if (CHANNELS.vel.quality(ground, vehicle)) readouts.push({ label: 'MACH', text: velocity ? approximate(velocity) + (flight.mach || 0).toFixed(1) : '--', lost: lost.vel });
+  const fuel = readings.fuel;
+  readouts.push(vehicle >= 1
+    ? { label: 'PROPELLANT', text: fuel ? approximate(fuel) + fuel.value + ' kg' : '--', lost: lost.fuel }
+    : { label: 'BURN', text: flight.time < flight.burnTime ? `${flight.burnTime - flight.time}s left` : 'BURNOUT' });
+  const horizontal = readings.hor;
+  readouts.push(CHANNELS.hor.quality(ground, vehicle)
+    ? { label: vehicle >= 3 ? 'INERTIAL H-VEL' : 'RANGE RATE', text: horizontal ? approximate(horizontal) + horizontal.value + ' m/s' : '--', lost: lost.hor }
+    : { label: 'DOWNRANGE', none: 1 });
+  // The part channels picked before launch; a channel showing a failure building turns red.
+  for (const id of flight.watch || []) readouts.push({ label: PART_CHANNELS[id].label, text: partReading(flight, id).text, warn: warningLevel(flight, id) > .3 });
+  drawClockStrip(flight.countdown > 0 ? `T-00:0${flight.countdown}` : `T+${clockFormat(flight.time)}`, flightPhases(flight), readouts);
 }
 function launchFlight(override) {
   const count = launchView.count, poll = count.poll, form = launchForm;
   const airframe = S.air.find(candidate => candidate.id == poll.af && candidate.st == 'r');
-  const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override });
+  const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
+  const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
   if (!flight) return;
+  launchView.planned = flight.prediction = planned;
   flight.watch = watchedChannels(airframe, form.ch);
   flight.bubbles = { tc: { t: 'LIFTOFF', c: 'go' } };
   flight.warningTicks = 0;
@@ -281,6 +304,8 @@ export function finishFlight(ok, why) {
   clearInterval(launchView.flightTimer);
   launchView.flightTimer = null;
   launchView.lastTrace = flight.trace.slice();
+  launchView.lastRangeTrace = flight.rangeTrace.slice();
+  launchView.lastEvents = flight.events.slice();
   endFlight(flight, ok, why);
   airborne.flight = null;
   document.documentElement.classList.remove('flying');
@@ -307,7 +332,7 @@ function flightTick() {
     }
     return;
   }
-  phase.textContent = flight.stages[flight.stageIndex].fuel > 0 ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
+  phase.textContent = hasEvent(flight, 'boco') && !hasEvent(flight, 'ign2') ? 'STAGING' : isPowered(flight) ? (flight.stageIndex ? 'STAGE 2 BURN' : 'POWERED ASCENT') : flight.coasting ? 'COASTING ABOVE THE ATMOSPHERE' : flight.verticalSpeed > 0 ? 'COASTING' : 'DESCENT';
   // While a failure shows its warning on a watched channel, the flight runs in real time (one second every fourth tick), so there is time to abort.
   const warning = flight.pending && (flight.watch || []).some(id => warningLevel(flight, id) > 0);
   if (warning && ++flight.warningTicks % 4) return drawFlightInstruments(flight);
@@ -315,7 +340,8 @@ function flightTick() {
   for (let n = 0; n < steps; n++) {
     const result = step(flight);
     if (result == 'sep') {
-      logSink.fn(flight.tracking.v >= 1 ? `T+${flight.time}s | [TLM] Booster separation confirmed.` : `T+${flight.time}s | [RANGE] Staging commanded. Separation not confirmed.`, 'ok');
+      // With a Structures & Booster Engineer on the loop, BSTR calls the separation (rules/callouts.js).
+      if (!S.crew.bstr) logSink.fn(flight.tracking.v >= 1 ? `T+${flight.time}s | [TLM] Booster separation confirmed.` : `T+${flight.time}s | [RANGE] Staging commanded. Separation not confirmed.`, 'ok');
       continue;
     }
     if (result == 'fail') return finishFlight(0, 'fail');
@@ -377,16 +403,17 @@ function missionTick() {
   if (result == 'end') finishMission();
 }
 function drawMissionInstruments(mission) {
-  const now = reading(mission), level = roomLevel();
-  const channels = [
-    { label: 'ALTITUDE', value: now.alt * 1000, max: Math.max(5000, ...mission.trace, 1) * 1.05, text: `${now.alt.toFixed(1)} km` },
-    { label: 'VELOCITY', value: now.v, max: mission.missionType == 'bj' ? 6000 : mission.missionType == 'lj' ? 800 : 2600, text: `${Math.round(now.v)} m/s` },
-    { label: 'G-LOAD', value: now.g, max: 16, text: `${now.g.toFixed(1)} g` },
-    { label: 'CABIN TEMP', value: now.temp, max: 60, text: `${now.temp} °C` },
-  ];
-  setHTML($('#gpanel'), gaugesSVG(Math.max(level, 2), channels, true));
-  renderConsoles();
-  renderPlot();
+  const now = reading(mission), type = mission.type, time = mission.time;
+  const phases = [{ name: 'LIFTOFF', reached: time > 0 }];
+  if (type.sep) phases.push({ name: 'BOOSTER SEP', reached: time >= type.sep });
+  if (type.reentry) phases.push({ name: 'RE-ENTRY', reached: time >= type.reentry });
+  phases.push({ name: 'CHUTE', reached: time >= type.chute }, { name: 'SPLASHDOWN', reached: false });
+  drawClockStrip(`T+${clockFormat(time)}`, phases, [
+    { label: 'ALTITUDE', text: `${now.alt.toFixed(1)} km` },
+    { label: 'VELOCITY', text: `${Math.round(now.v)} m/s` },
+    { label: 'G-LOAD', text: `${now.g.toFixed(1)} g` },
+    { label: 'CABIN TEMP', text: `${now.temp} °C` },
+  ]);
 }
 function decisionHTML(mission) {
   const key = mission.pending.key, options = decisionOptions(mission, key);
@@ -397,6 +424,7 @@ function finishMission() {
   launchView.flightTimer = null;
   const mission = airborne.mission, result = endMission(mission);
   launchView.lastTrace = mission.trace.slice();
+  launchView.lastRangeTrace = null;
   airborne.mission = null;
   document.documentElement.classList.remove('flying');
   if (launchView.count) {

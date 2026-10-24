@@ -19,7 +19,9 @@ import { $, option, setHTML, escapeHtml, percent } from './dom.js';
 // What the launch form has chosen: airframe id, propellant, payload, st (1 to fly the booster stage), load (percent of a full tank),
 // ch: the part channels to watch (null until first shown, then every fitted channel the telemetry can carry).
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
-export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null };
+// fuelFor: the programme the propellant was last defaulted for.
+// plan: the trajectory panel's flight plan (ui/trajectory.js), or null to fly the default.
+export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null, plan: null };
 
 const payloadLocked = (payload, airframe) => (PAYLOADS[payload].satellite && cannotOrbit(airframe)) || (PAYLOADS[payload].needs && !isResearched(PAYLOADS[payload].needs));
 
@@ -37,15 +39,20 @@ export function renderLaunchForm() {
   const form = launchForm, ready = S.air.filter(airframe => airframe.st == 'r').reverse();
   if (!ready.find(airframe => airframe.id == form.af)) form.af = ready[0] && ready[0].id;
   const airframe = ready.find(candidate => candidate.id == form.af), propellants = airframe ? PROGRAMMES[airframe.prog].propellants : Object.keys(PROPELLANTS);
+  // A rocket from another programme starts on that programme's first-listed (preferred) propellant.
+  if (airframe && form.fuelFor != airframe.prog) {
+    form.fuel = propellants[0];
+    form.fuelFor = airframe.prog;
+  }
   if (!propellants.includes(form.fuel)) form.fuel = propellants[0];
   if (payloadLocked(form.pay, airframe)) form.pay = 'Inert Ballast';
   if (form.st && !hasBoosterStage(airframe)) form.st = 0;
   if (airframe && hasBoosterStage(airframe) && !form.stageChosen) form.st = 1;
-  const quote = quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100), preview = airframe ? previewFlight(airframe, form.fuel, form.pay, form.st, form.load / 100) : null, payload = PAYLOADS[form.pay];
+  const quote = quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100), preview = airframe ? previewFlight(airframe, form.fuel, form.pay, form.st, form.load / 100, 0, form.plan) : null, payload = PAYLOADS[form.pay];
   const propellantKg = airframe ? Math.round(withProgramme(airframe.prog, () => designSpec(airframe.pk).f) * PROPELLANTS[form.fuel].density * form.load / 100) : 0;
   setHTML($('#lc'), `<select data-s="af">${ready.length ? ready.map(candidate => option(candidate.id, `${candidate.label} (built ${candidate.built})`, 0, form.af)).join('') : '<option>No airframe in the hangar</option>'}</select>
 <select data-s="st">${option(0, 'Upper stage alone', 0, form.st)}${option(1, hasBoosterStage(airframe) ? `Full stack: booster stage + upper stage (+${formatMoney(8000)})` : 'No booster stage on this rocket', !hasBoosterStage(airframe), form.st)}</select>
-<select data-s="fuel">${Object.keys(PROPELLANTS).map(name => option(name, `${name} (${airframe ? formatMoney(propellantCost(airframe, name, form.load / 100)) : '$' + PROPELLANTS[name].pricePerKg + '/kg'}, Isp ${PROPELLANTS[name].isp}s)${!propellants.includes(name) ? ' [not this rocket]' : ''}`, !propellants.includes(name), form.fuel)).join('')}</select>
+<select data-s="fuel">${Object.keys(PROPELLANTS).map(name => option(name, `${name} (${airframe ? formatMoney(propellantCost(airframe, name, form.load / 100)) : '$' + PROPELLANTS[name].pricePerKg + '/kg'}, Isp ${PROPELLANTS[name].isp}-${PROPELLANTS[name].vacuumIsp}s)${!propellants.includes(name) ? ' [not this rocket]' : ''}`, !propellants.includes(name), form.fuel)).join('')}</select>
 <select data-s="pay">${Object.keys(PAYLOADS).filter(name => !PAYLOADS[name].mercury).map(name => option(name, payloadLabel(name, airframe), payloadLocked(name, airframe), form.pay)).join('')}</select>
 <div class="r" style="margin-top:8px"><span class="d">Propellant load (${propellantKg} kg)</span><b id="ldv">${form.load}%</b></div><input type="range" data-s="load" min="10" max="100" step="5" value="${form.load}" style="width:100%">
 ${preview ? estimateHTML(preview, payload, airframe) : ''}

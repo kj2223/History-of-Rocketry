@@ -14,7 +14,7 @@ import { gaussian } from '../core/util.js';
 export const PART_CHANNELS = {
   q: { label: 'AERO LOAD', name: 'Aero load (strain gauges)', needs: ['str'], max: 100, value: flight => (flight.aeroLoad || 0) * 100, unit: '%' },
   skin: { label: 'SKIN TEMP', name: 'Skin temperature (thermocouples)', needs: ['fm'], max: 100, value: flight => (flight.heating || 0) * 100, unit: '%' },
-  pc: { label: 'CHAMBER PRESS', name: 'Chamber pressure (pressure transducers)', needs: ['xdc'], max: 120, value: flight => (flight.thrustShare || 0) * 100, unit: '%' },
+  pc: { label: 'CHAMBER PRESS', name: 'Chamber pressure (pressure transducers)', needs: ['xdc'], max: 120, value: flight => (flight.chamberShare || 0) * 100, unit: '%' },
   g: { label: 'PAYLOAD G', name: 'Payload g-load (accelerometer)', needs: ['acc'], max: 20, value: flight => flight.gLoad || 0, unit: ' g' },
   rec: { label: 'RECOVERY', name: 'Recovery sequence', needs: ['chute', 'ribbon', 'ms_rec', 'ms_disc'], max: 4 },
 };

@@ -4,13 +4,15 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID } from '../js/data/research.js';
+import { commission, crashProgramme, crashLock, crashCost } from '../js/rules/research.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
-import { createProgramme, isMature, startLock } from '../js/rules/programs.js';
+import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe } from '../js/rules/production.js';
-import { previewFlight, beginFlight, step } from '../js/rules/flight.js';
+import { previewFlight, beginFlight, step, hasEvent } from '../js/rules/flight.js';
+import { designSpec } from '../js/rules/design.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
@@ -138,6 +140,41 @@ test('a new programme starts well short of maturity, however well the last rocke
   for (const area of ['p', 's', 'i', 'a']) assert.ok(S.progs.viking.kn[area] < 35, `${area} starts at ${S.progs.viking.kn[area]}`);
 });
 
+// A programme marked mature without flying it.
+const matureProgramme = kind => {
+  readyProgramme(kind);
+  S.progs[kind].matured = 1;
+};
+
+test('Vanguard straight from Viking skips Redstone: Redstone closes and Vanguard pays for it', () => {
+  matureProgramme('viking');
+  for (const area of ['p', 's', 'i', 'a']) S.progs.viking.kn[area] = 100;
+  S.b = 1000000;
+  assert.deepEqual(candidates().filter(kind => kind != 'aerobee'), ['redstone', 'vanguard']);
+  assert.equal(startProgramme('vanguard'), true);
+  assert.equal(S.progs.vanguard.skip, 1);
+  assert.match(startLock('redstone'), /Closed/);
+  assert.ok(!candidates().includes('redstone'));
+  assert.equal(S.jobs.find(job => job.k == 'dev').tot, 96, 'a longer design phase');
+  assert.equal(S.progs.vanguard.traits.length, 4, 'one more hidden flaw');
+  for (const area of ['p', 's', 'i', 'a']) {
+    assert.ok(S.progs.vanguard.kn[area] <= 10, `${area} starts at ${S.progs.vanguard.kn[area]}`);
+    const redstoneWork = programmePackages('redstone', area).map(item => item.id), vanguardWork = programmePackages('vanguard', area).map(item => item.id);
+    assert.ok(redstoneWork.every(id => vanguardWork.includes(id)), 'Redstone research is folded into Vanguard');
+  }
+});
+
+test('after Redstone, Vanguard and Jupiter-C are a choice: starting one closes the other', () => {
+  matureProgramme('viking');
+  matureProgramme('redstone');
+  S.b = 1000000;
+  assert.deepEqual(candidates().filter(kind => kind != 'aerobee'), ['vanguard', 'jupc']);
+  assert.equal(startProgramme('vanguard'), true);
+  assert.equal(S.progs.vanguard.skip, undefined, 'no shortcut penalty on the full route');
+  assert.equal(S.jobs.find(job => job.k == 'dev').tot, 60);
+  assert.match(startLock('jupc'), /Closed/);
+});
+
 test('the launch director can be hired only after three successful Aerobee flights', () => {
   readyProgramme('aerobee');
   S.b = 100000;
@@ -213,6 +250,92 @@ test('no two airframes are built alike, but the pre-flight estimate uses the dra
   assert.notEqual(fly(first), fly(second));
 });
 
+test('the engine builds up, pushes harder as the air thins, and tails off leaving a little propellant unburned', () => {
+  const airframe = readyProgramme('viking');
+  S.b = 1e6;
+  const flight = withProgramme('viking', () => beginFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1));
+  flight.noFail = true;
+  step(flight);
+  assert.ok(flight.chamberShare < 1, 'still building up in the first second');
+  let peakShare = 0;
+  while (!hasEvent(flight, 'cutoff')) {
+    step(flight);
+    peakShare = Math.max(peakShare, flight.thrustShare);
+  }
+  assert.ok(peakShare > 1.05, 'thrust above its sea-level rating high up');
+  assert.equal(flight.stages[0].fuel, 0);
+  assert.ok(flight.stages[0].dry > withProgramme('viking', () => designSpec(airframe.pk).dry), 'the unburned residual rides as dead weight');
+  assert.deepEqual(flight.events.slice(0, 2).map(event => event.key), ['liftoff', 'mach1']);
+});
+
+test('staging: the booster separates a second after cutoff and the upper stage lights after a short coast', () => {
+  const airframe = readyProgramme('jupc');
+  S.b = 1e6;
+  const flight = withProgramme('jupc', () => beginFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 1, 1));
+  flight.noFail = true;
+  while (step(flight) != 'sep');
+  assert.equal(flight.time, flight.cutoffs[0] + 1);
+  assert.ok(hasEvent(flight, 'boco') && !hasEvent(flight, 'ign2'));
+  step(flight);
+  step(flight);
+  assert.ok(hasEvent(flight, 'ign2'));
+});
+
+test('an unguided rocket flies a gravity turn: only the rail steers it, not the pitch program', () => {
+  const airframe = readyProgramme('aerobee');
+  const predict = plan => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, 0, plan));
+  assert.equal(predict({ elevation: 85, program: 'lofted' }).peakAltitude, predict({ elevation: 85, program: 'flat' }).peakAltitude);
+});
+
+test('a flight plan steers the trajectory: no plan flies the default, a vertical rail stays over the range, a low rail goes long', () => {
+  const airframe = readyProgramme('aerobee');
+  const predict = plan => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, 0, plan));
+  const standard = predict(null), vertical = predict({ elevation: 90, program: 'lofted' }), long = predict({ elevation: 75, program: 'flat' });
+  assert.equal(standard.path.altitude.length, standard.path.downrange.length);
+  assert.ok(vertical.downrange < 1000 && vertical.peakAltitude > standard.peakAltitude);
+  assert.ok(long.downrange > standard.downrange && long.peakAltitude < standard.peakAltitude);
+  assert.ok(long.maxHeat > vertical.maxHeat, 'a flat climb spends longer fast in the thick air');
+});
+
+test('a staged plan can aim the upper stage higher than the guidance does, never flatter', () => {
+  const airframe = readyProgramme('vanguard');
+  const predict = plan => withProgramme('vanguard', () => previewFlight(airframe, 'Kerosene & LOX', 'Inert Ballast', 1, 1, 0, plan));
+  const guided = predict(null), flattest = guided.flattestAim;
+  assert.ok(flattest >= 0, 'a staged rocket has an upper stage to aim');
+  const steep = predict({ elevation: 81, program: 'standard', aim: 30 }), flatter = predict({ elevation: 81, program: 'standard', aim: flattest - 10 });
+  assert.ok(steep.peakAltitude > guided.peakAltitude, 'aiming the upper stage up climbs higher');
+  assert.equal(flatter.peakHorizontalSpeed, predict({ elevation: 81, program: 'standard' }).peakHorizontalSpeed, 'aimed flatter than the guidance holds, the upper stage flies the guidance\'s own aim');
+  assert.equal(withProgramme('aerobee', () => previewFlight(readyProgramme('aerobee'), 'Alcohol & LOX', 'Inert Ballast', 0, 1)).flattestAim, null);
+});
+
+test('trajectory analysts need the range computer and FIDO; their search finds the best plan the engineers can see', async () => {
+  const { analystLock, hireAnalyst, analysts, newSearch, workSearch, scorePlan, candidatePlans, SAFE_LOAD } = await import('../js/rules/trajectory.js');
+  const { TRAJECTORY_ANALYSTS } = await import('../js/data/launch-site.js');
+  const airframe = readyProgramme('aerobee');
+  S.b = 1e6;
+  assert.ok(analystLock(), 'no range computer yet');
+  S.fac.comp = 1;
+  assert.ok(analystLock(), 'no FIDO on console');
+  S.crew.fido = 1;
+  hireAnalyst();
+  assert.equal(analysts(), 1);
+  const predict = plan => withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1, 0, plan));
+  const search = newSearch('test', null);
+  assert.equal(search.total, candidatePlans(null).length);
+  workSearch(search, 2 / TRAJECTORY_ANALYSTS.runsPerDay, 'height', predict);
+  assert.equal(search.worked, 2, 'one analyst works runsPerDay candidates a day');
+  workSearch(search, 1e4, 'height', predict);
+  assert.equal(search.untried.length, 0);
+  const everyScore = candidatePlans(null).map(plan => scorePlan(predict(plan), 'height'));
+  assert.equal(search.best.score, Math.max(...everyScore), 'with every candidate worked, the team has the true best');
+  assert.ok(search.best.preview.maxQ <= SAFE_LOAD && search.best.preview.maxHeat <= SAFE_LOAD);
+  assert.ok(search.best.preview.peakAltitude >= predict(null).peakAltitude, 'the best for height beats the default');
+  S.crew.fido = 0;
+  const idle = newSearch('idle', null);
+  workSearch(idle, 1e4, 'height', predict);
+  assert.equal(idle.worked, 0, 'without FIDO the analysts do not work');
+});
+
 test('a payload is recovered step by step, and a stronger chute or a ballute fixes a chute that opens too fast', async () => {
   const { recoveryPlan } = await import('../js/rules/recovery.js');
   readyProgramme('aerobee');
@@ -247,7 +370,7 @@ test('a station calls the flight only when it is staffed, and only the parts it 
   const { logSink } = await import('../js/core/state.js');
   const heard = [];
   logSink.fn = text => heard.push(text);
-  const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
+  const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200, flow: 10, residual: 0, litAt: 0 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
   crewCallouts(flight([]));
   assert.equal(heard.length, 0, 'nobody on console');
   S.crew.prop = 1;
@@ -257,6 +380,38 @@ test('a station calls the flight only when it is staffed, and only the parts it 
   assert.ok(!heard.some(line => line.includes('[BSTR]')), 'the aero load is not being watched');
   crewCallouts(flight(['q']));
   assert.ok(heard.some(line => line.includes('[BSTR] Max Q.')));
+  S.crew.rec = 1;
+  crewCallouts(flight([]));
+  assert.ok(!heard.some(line => line.includes('[REC]')), 'nothing aboard to recover');
+  crewCallouts({ ...flight([]), payload: 'Sensor Suite' });
+  assert.ok(heard.some(line => line.includes('[REC] Recovery force standing by')), 'the recovery force needs no channel');
+  logSink.fn = null;
+});
+
+test('on a planned flight FIDO and RSO call the track against the plan, and REC waits on station at the planned impact', async () => {
+  const { crewCallouts } = await import('../js/rules/callouts.js');
+  const { onPlannedStation, recoveryPlan } = await import('../js/rules/recovery.js');
+  const { logSink } = await import('../js/core/state.js');
+  const heard = [];
+  logSink.fn = text => heard.push(text);
+  const airframe = readyProgramme('aerobee'), plan = { elevation: 85, program: 'standard' };
+  S.b = 1e6;
+  Object.assign(S.crew, { fido: 1, rso: 1, rec: 1 });
+  const flight = beginFlight(airframe, 'Alcohol & LOX', 'Sensor Suite', 0, 1, { plan });
+  flight.prediction = withProgramme('aerobee', () => previewFlight(airframe, 'Alcohol & LOX', 'Sensor Suite', 0, 1, 0, plan));
+  flight.noFail = true;
+  while (step(flight) == 'tick') crewCallouts(flight);
+  assert.ok(heard.some(line => /\[REC\] Recovery force on station at \d+ kilometres/.test(line)));
+  assert.ok(heard.some(line => /\[FIDO\] Trajectory (nominal|high|low|long|short)/.test(line)), 'FIDO calls the track against the plan at cutoff');
+  assert.ok(heard.some(line => /\[FIDO\] Apogee, .* Plan was/.test(line)));
+  assert.ok(heard.some(line => /\[RSO\] Impact predicted .* Plan was/.test(line)));
+  // The search: easier inside the planned footprint, no help far outside it.
+  const planned = flight.prediction.downrange;
+  assert.ok(onPlannedStation(flight, planned) && !onPlannedStation(flight, planned + 50000));
+  const withChute = { ...flight, airframe: { ...flight.airframe, pk: [...flight.airframe.pk, 'chute'] } };
+  const searchAt = downrange => recoveryPlan({ ...withChute, downrange }).search;
+  assert.ok(searchAt(planned) > searchAt(planned + 50000));
+  assert.ok(!onPlannedStation({ ...flight, plan: null }, planned), 'no plan, nobody on station');
   logSink.fn = null;
 });
 
@@ -269,11 +424,29 @@ test('an engine failure shows on chamber pressure for a few seconds first, and a
   let result;
   do result = step(flight); while (result == 'tick' && !flight.pending);
   assert.ok(flight.pending && !flight.failure, 'the pump fault is showing, not yet struck');
-  const steady = flight.thrustShare * 100;
+  const steady = flight.chamberShare * 100;
   while (flight.time < flight.pending.at - 1) step(flight);
   assert.ok(partReading(flight, 'pc').value < steady * .75, 'chamber pressure falls away before the failure');
   const incidents = () => withProgramme('aerobee', () => S.inc.length), before = incidents();
   endFlight(flight, false, 'abort');
   assert.equal(flight.failure, 'p');
   assert.equal(incidents(), before + 1);
+});
+
+test('a crash programme halves the time left on a NASA-era research job, once, for twice its cost', () => {
+  S.nasa = 1;
+  S.b = 200000;
+  commission('esc_tower');
+  const job = S.jobs.find(candidate => candidate.id == 'esc_tower'), before = job.t, budget = S.b;
+  crashProgramme('esc_tower');
+  assert.equal(job.t, Math.ceil(before / 2));
+  assert.equal(S.b, budget - crashCost(BY_ID.esc_tower));
+  assert.equal(crashCost(BY_ID.esc_tower), 2 * BY_ID.esc_tower.cost);
+  assert.ok(crashLock('esc_tower'), 'only once per job');
+});
+
+test('crash programmes are not offered before NASA', () => {
+  S.b = 200000;
+  commission('inj');
+  assert.ok(crashLock('inj'));
 });
