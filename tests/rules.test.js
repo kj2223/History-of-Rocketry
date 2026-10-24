@@ -4,7 +4,8 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID } from '../js/data/research.js';
-import { commission, crashProgramme, crashLock, crashCost, queueResearch, queueLock, queuePosition, unqueueResearch, itemAsSeen, RESEARCH_QUEUE_LENGTH } from '../js/rules/research.js';
+import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
+import { queueResearch, queueLock, queuePosition, unqueue, queueAnalysis, analysisPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
@@ -509,7 +510,7 @@ test('the queue waits for funds in order, and work is not queued twice', () => {
   tickSecond();
   assert.ok(S.jobs.some(job => job.id == 'inj'));
   assert.deepEqual(S.rq.map(entry => entry.id), ['bea']);
-  unqueueResearch(0);
+  unqueue(0);
   assert.equal(S.rq.length, 0);
 });
 
@@ -524,6 +525,24 @@ test('commissioning queued work by hand takes it out of the queue, and the queue
   for (const id of ['mix', 'vol', 'bea', 'fm', 'ogive']) queueResearch(id);
   assert.equal(S.rq.length, RESEARCH_QUEUE_LENGTH);
   assert.ok(queueLock('fins'));
+});
+
+test('a queued records analysis goes ahead of queued research and starts when a team comes free', () => {
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.b = 100000;
+  S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c'], ev: 1, st: 'open', t: 30, lab: 'test' });
+  commission('chute');
+  commission('bcn');
+  const next = itemsInArea('p').find(item => !queueLock(item.id)).id;
+  queueResearch(next);
+  queueAnalysis(1);
+  assert.equal(analysisPosition(1), 0, 'the analysis jumps the research');
+  S.jobs[0].t = 1;
+  tickSecond();
+  assert.equal(S.inc[0].st, 'inv');
+  assert.equal(analysisPosition(1), -1);
+  assert.equal(queuePosition(next), 0);
 });
 
 // Aaron's report: the R&D badge counted two incidents that were nowhere on the desk. A wrong diagnosis was filed under the true cause.

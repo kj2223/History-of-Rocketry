@@ -2,7 +2,8 @@
 //   research          one column per area: breakthrough progress, the milestone, and a compact card per package. Picking a card
 //                     (or hovering it) shows it in the dossier along the bottom: what it is, the numbers, what the engineers
 //                     expect, and its COMMISSION (or ground test) button. Work that cannot start yet can be QUEUED for the next
-//                     free team; the queue shows as a row above the columns while it holds anything.
+//                     free team (so can the records analysis of an unexplained failure); the queue shows as a row above the
+//                     columns while it holds anything.
 //   programme         the programme bar and the focused rocket's card: maturity, performance window, flaws, next programmes.
 //   engineering file  what the team knows about each system, its failure modes and design reviews.
 //   incidents         failures not yet explained.
@@ -13,7 +14,8 @@ import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
 import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
 import { trackingTiers, designation, designSpec } from '../rules/design.js';
-import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock, queueLock, queuePosition, queueWait, RESEARCH_QUEUE_LENGTH } from '../rules/research.js';
+import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
+import { queueLock, queuePosition, queueWait, queueEntries, analysisPosition, queueAnalysisLock, RESEARCH_QUEUE_LENGTH } from '../rules/queue.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
 import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
@@ -175,9 +177,10 @@ function queueHTML(item) {
 }
 // THE QUEUE ROW: the queued work in order, each with its rocket (if not the one in focus) and a button to take it out.
 function queueRow() {
-  if (!S.rq.length) return '';
-  return `<div class="rqueue"><span class="t">QUEUE ${S.rq.length}/${RESEARCH_QUEUE_LENGTH}</span>`
-    + S.rq.map((entry, index) => `<span class="rq-item">${index + 1}. ${BY_ID[entry.id].name}${entry.prog && entry.prog != S.cur ? ` <span class="d">(${PROGRAMMES[entry.prog].name})</span>` : ''}<button data-a="unq" data-id="${index}" title="Remove from the queue">×</button></span>`).join('')
+  const entries = queueEntries(), research = entries.filter(entry => !entry.analysis).length;
+  if (!entries.length) return '';
+  return `<div class="rqueue"><span class="t">QUEUE${research ? ` ${research}/${RESEARCH_QUEUE_LENGTH}` : ''}</span>`
+    + entries.map((entry, index) => `<span class="rq-item">${index + 1}. ${entry.name}${entry.prog && entry.prog != S.cur ? ` <span class="d">(${PROGRAMMES[entry.prog].name})</span>` : ''}<button data-a="unq" data-id="${index}" title="Remove from the queue">×</button></span>`).join('')
     + `<span class="m">${queueWait() || ''}</span></div>`;
 }
 // NASA era: a running job can be put on a crash schedule once, halving the time left.
@@ -259,8 +262,10 @@ export function renderResearchDesk() {
 function incidentHTML(incident) {
   let html = `<div class="c"><div class="t">${incident.review ? `Design review finding #${incident.id}` : `Incident #${incident.id} | ${incident.lab} | T+${incident.t}s${incident.plot ? ' | last plot ' + incident.plot : ''}`}</div>${incident.review ? '<div class="m">Found on the drawings before it ever failed in flight.</div>' : `<div class="m">Records show: ${incident.sym.length ? incident.sym.map(symptom => SYMPTOMS[symptom].text).join('; ') : 'radio carrier and radar track lost only'}</div>`}`;
   if (incident.st == 'open') {
-    const lock = S.b < INVESTIGATION_COST ? 'Need funds.' : freeTeams() < 1 ? 'Teams busy.' : null;
-    html += `<div>Cannot yet tell apart: ${incident.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div><div class="m">Evidence on file: ${incident.ev}</div><button data-a="inv" data-id="${incident.id}"${lock ? ' disabled' : ''}>RECORDS ANALYSIS (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)</button>`;
+    const lock = S.b < INVESTIGATION_COST ? 'Need funds.' : freeTeams() < 1 ? 'Teams busy.' : null, queued = analysisPosition(incident.id);
+    html += `<div>Cannot yet tell apart: ${incident.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div><div class="m">Evidence on file: ${incident.ev}</div><button data-a="inv" data-id="${incident.id}"${lock ? ' disabled' : ''}>RECORDS ANALYSIS (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)</button>`
+      + (queued >= 0 ? `<div class="wn">Queued #${queued + 1}: ${queued ? `starts after ${queued} more` : queueWait() || 'starting'}</div><button data-a="unq" data-id="${queued}">REMOVE FROM QUEUE</button>`
+        : lock && !queueAnalysisLock(incident.id) ? `<button data-a="qinv" data-id="${incident.id}">QUEUE FOR THE NEXT FREE TEAM</button>` : '');
   } else if (incident.st == 'found') html += findingsHTML(incident);
   else if (incident.st == 'inv') html += `<div class="wn">Investigating: <span data-j="inv${incident.id}">${(findJob(job => job.k == 'inv' && job.id == incident.id) || { t: 0 }).t}s</span></div>`;
   else if (incident.st == 'diag') {

@@ -15,7 +15,7 @@
 //           kinds: pk research package, inv investigation, fix corrective fix, rev design review,
 //                  gt ground test, retro hangar retrofit, dev programme design
 //   teams   engineering teams                      bteams  factory build teams (missing means 1)
-//   rq      research queue: [{ id, prog }], started in order as teams free up (rules/research.js)
+//   rq      work queue: research { id, prog } and records analyses { k: 'inv', id, prog }, started as teams free up (rules/queue.js)
 //   air     airframes in the hangar: { id, prog, pk, fix, rev, cost, st: r ready | queued | retro, built, label }
 //   aq      factory queue: { k: build | retro | msn, prog, cfg, cost, t: work left, tot: work in all, ... }
 //   fac     facilities in service, { id: 1 }       fb      facilities under construction, { id: day in service }
