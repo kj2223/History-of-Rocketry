@@ -19,6 +19,8 @@ export const PROPELLANTS = {
 //   needs: research package needed before it can fly
 //   animal: an animal passenger (headlines either way)     satellite: needs a satellite launcher
 //   mercury: carried only on Mercury flights; the capsule itself is built and paid for separately
+//   uplink: carries a command receiver, so any airframe can test the ground command link (rules/telemetry.js canRetune)
+//           and a good flight confirms the package, without retrofitting the airframe
 export const PAYLOADS = {
   'Inert Ballast': { cost: 500, mass: 10, science: 0 },
   'Sensor Suite': { cost: 2000, mass: 25, science: 4000, telemetryShare: .5 },
@@ -26,6 +28,7 @@ export const PAYLOADS = {
   'Film Camera': { cost: 3500, mass: 30, science: 9000, telemetryShare: 0, needs: 'film' },
   'Primate Capsule': { cost: 6000, mass: 45, science: 12000, telemetryShare: .3, animal: 1, needs: 'bio' },
   'Explorer Satellite': { cost: 15000, mass: 20, science: 25000, satellite: 1 },
+  'Command Receiver Test Package': { cost: 2500, mass: 15, science: 0, needs: 'cmd', uplink: 1 },
   'Mercury Capsule': { cost: 0, mass: 100, science: 0, mercury: 1 },
 };
 

@@ -605,7 +605,10 @@ function endFlightForProgramme(flight, ok, why) {
     checkFirsts({ ok: true, why, peak, spd: flight.peakSpeed, dr: flight.downrange, pay: flight.payload, rec: science.rec, got: science.got, staged: flight.stages.length > 1 });
   }
   // A flight confirms its packages if it worked, or if it flew at least 40% of its burn before failing.
-  if (ok || flight.time >= .4 * flight.burnTime) for (const id of flight.airframe.pk) confirmPackage(id, 'Flight');
+  if (ok || flight.time >= .4 * flight.burnTime) {
+    for (const id of flight.airframe.pk) confirmPackage(id, 'Flight');
+    if (PAYLOADS[flight.payload].uplink) confirmPackage('cmd', 'Flight');
+  }
   checkBreakthroughs();
   recordBoosterFlight(flight.airframe, ok && why != 'abort');
   learnFromFlight(flight, ok);

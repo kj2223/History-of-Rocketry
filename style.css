@@ -147,6 +147,7 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .clockstrip>button.big{width:auto;margin:0;padding:14px 22px}.clockstrip .m{margin:0}
 .phases{display:flex;gap:4px}.ph{flex:1;display:flex;flex-direction:column;gap:4px;font-size:.66rem;color:var(--dim);letter-spacing:.06em}.ph i{height:4px;background:var(--ln)}
 .ph.done{color:var(--ink)}.ph.done i{background:var(--ac)}.ph.now{color:var(--wn)}.ph.now i{background:var(--wn);animation:blink 1s steps(2) infinite}
+.uplink{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:.8rem}.uplink:empty{display:none}.uplink button{width:auto;margin:0;padding:2px 8px;font-size:.72rem}.uplink button.on{background:var(--ac);color:var(--bg)}
 .readouts{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:.85rem}.ro b{font-variant-numeric:tabular-nums}.ro.bad b{color:var(--bd);animation:blink .5s steps(2) infinite}
 #padlog{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:3px}
 .loopl{display:grid;grid-template-columns:56px 64px minmax(0,1fr);gap:8px;font-size:.8rem}.loopl b{letter-spacing:.05em}

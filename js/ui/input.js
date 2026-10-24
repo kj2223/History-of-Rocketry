@@ -12,10 +12,11 @@ import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { orderCapsule } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
+import { retuneChannel } from '../rules/telemetry.js';
 import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
 import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
-import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript } from './launch-view.js';
+import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
 import { researchDesk } from './design-bureau.js';
@@ -202,6 +203,12 @@ const VIEW_ACTIONS = {
     }
   },
   txview: () => showLastTranscript(),
+  retune: id => {
+    if (airborne.flight) {
+      retuneChannel(airborne.flight, id);
+      drawFlightInstruments(airborne.flight);
+    }
+  },
   // The R&D desk: switch its view, or pick a research card for the detail bar.
   rview: id => {
     researchDesk.view = id;

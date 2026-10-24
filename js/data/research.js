@@ -94,6 +94,9 @@ export const PACKAGES = [
   // c = Mercury Spacecraft: hs heat shield, ec environmental control, ac attitude control, rr retrorockets, pc parachutes, lb landing bag; man = manual control fitted
   research('cap_shape','c','Blunt-body capsule shape and heat studies',8000,110,{hs:.06,lb:.02},{phase:2}),
   research('cap_ecs','c','Environmental control system',9000,130,{ec:.10},{phase:2}),
+  // Data uplink: a command receiver in the capsule and transmitters on the ground (rules/mission.js groundCommandLock), and
+  // commandable telemetry on ordinary flights (rules/telemetry.js canRetune). Project SCORE took commands from the ground in Dec 1958.
+  research('cmd','c','Ground command link (command receiver and decoder)',8000,120,{cmd:1},{phase:2}),
   research('cap_chute','c','Drogue, main and reserve parachutes',8000,120,{pc:.10},{phase:2}),
   research('cap_asc','c','Automatic stabilization and control (ASCS)',10000,140,{ac:.08},{phase:2}),
   research('cap_retro','c','Retropack and posigrade rockets',9000,130,{rr:.10},{phase:2}),
@@ -173,7 +176,7 @@ export const EFFECTS = {
   rc: ['search odds', 100, '%'], rv: ['re-entry speed limit', 1, ' m/s'], sv: ['science return', 100, '%'],
   // Mercury spacecraft systems
   hs: ['heat shield', 100, ' pts'], ec: ['environmental control', 100, ' pts'], ac: ['attitude control', 100, ' pts'], rr: ['retrorockets', 100, ' pts'],
-  pc: ['parachutes', 100, ' pts'], lb: ['landing bag', 100, ' pts'], man: ['manual control', 1, ''],
+  pc: ['parachutes', 100, ' pts'], lb: ['landing bag', 100, ' pts'], man: ['manual control', 1, ''], cmd: ['ground command link', 1, ''],
   // Escape & man-rating
   et: ['escape tower', 100, ' pts'], as: ['abort sensing', 100, ' pts'], tj: ['tower jettison', 100, ' pts'], mr: ['booster reliability on Mercury flights', 100, ' pts'],
   rq: ['recovery speed', 100, '%'], eg: ['egress speed', 100, '%'], hb: ['hatch misfire risk', 100, '%'], orb: ['orbital re-entry capable', 1, ''],
