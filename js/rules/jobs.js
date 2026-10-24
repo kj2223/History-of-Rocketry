@@ -38,6 +38,7 @@ export function startInvestigation(id) {
   if (incident && incident.st == 'open' && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
     S.b -= INVESTIGATION_COST;
     incident.st = 'inv';
+    S.rq = S.rq.filter(entry => !(entry.k == 'inv' && entry.id == incident.id && entry.prog == S.cur));
     const time = investigationTime(incident);
     S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time });
     log(`[INCIDENT #${incident.id}] Records analysis under way.`, 'wn');

@@ -3,6 +3,7 @@
 import { S, save, resetState, log } from '../core/state.js';
 import { formNasa } from '../rules/race.js';
 import { commission, crashProgramme } from '../rules/research.js';
+import { queueResearch, queueAnalysis, unqueue, moveUpQueue } from '../rules/queue.js';
 import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
 import { airborne } from '../rules/flight.js';
@@ -139,6 +140,10 @@ const PAD_ACTIONS = {
 const GAME_ACTIONS = {
   com: id => commission(id),
   crash: id => crashProgramme(id),
+  rq: id => queueResearch(id),
+  unq: index => unqueue(+index),
+  qup: index => moveUpQueue(+index),
+  qinv: id => queueAnalysis(+id),
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),

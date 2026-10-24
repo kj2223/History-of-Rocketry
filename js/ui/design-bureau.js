@@ -1,7 +1,9 @@
 // THE R&D DESK (a drawer over the control room). Four views:
 //   research          one column per area: breakthrough progress, the milestone, and a compact card per package. Picking a card
 //                     (or hovering it) shows it in the dossier along the bottom: what it is, the numbers, what the engineers
-//                     expect, and its COMMISSION (or ground test) button.
+//                     expect, and its COMMISSION (or ground test) button. Work that cannot start yet can be QUEUED for the next
+//                     free team (so can the records analysis of an unexplained failure); the queue shows as a row above the
+//                     columns while it holds anything.
 //   programme         the programme bar and the focused rocket's card: maturity, performance window, flaws, next programmes.
 //   engineering file  what the team knows about each system, its failure modes and design reviews.
 //   incidents         failures not yet explained.
@@ -13,6 +15,7 @@ import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from 
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
 import { trackingTiers, designation, designSpec } from '../rules/design.js';
 import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
+import { queueLock, queuePosition, queueWait, queueEntries, analysisPosition, queueAnalysisLock, RESEARCH_QUEUE_LENGTH } from '../rules/queue.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
 import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
@@ -51,10 +54,11 @@ function milestoneSlot(area, needs, counts) {
 // A compact card. Picking it shows it in the dossier. mark: shown before the name (milestones). Confirmed work shrinks to a
 // one-line chip so long columns still fit above the dossier; hovering it shows it in full there.
 function packageCard(entry, mark = '') {
-  const item = itemAsSeen(entry.id), job = researchJob(item), done = isResearched(item.id), confirmed = done && isConfirmed(item.id);
-  const look = done ? (confirmed ? 'done' : 'flown') : job ? 'work' : item.dud ? 'exp' : 'open';
-  const tag = done ? (confirmed ? '■' : '□') : job ? '' : item.dud ? '◆' : '';
+  const item = itemAsSeen(entry.id), job = researchJob(item), done = isResearched(item.id), confirmed = done && isConfirmed(item.id), queued = queuePosition(item.id);
+  const look = done ? (confirmed ? 'done' : 'flown') : job ? 'work' : queued >= 0 ? 'queued' : item.dud ? 'exp' : 'open';
+  const tag = done ? (confirmed ? '■' : '□') : job ? '' : queued >= 0 ? `#${queued + 1}` : item.dud ? '◆' : '';
   const meta = done ? (confirmed ? 'confirmed' : 'finished, not yet confirmed') : job ? `in work: <span data-j="pk${item.id}">${job.t}s</span> left`
+    : queued >= 0 ? `queued · ${formatMoney(costAfterEarmark(item))} · ${item.time}s`
     : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}`;
   const progress = job ? `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '';
   if (confirmed) return `<button data-a="rpick" data-id="${item.id}" class="rcard done chip${researchDesk.pick == item.id ? ' on' : ''}" title="${item.name}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span></button>`;
@@ -141,7 +145,7 @@ function dossierActions(item) {
   let html = '<div class="dossier-part act"><div class="t">' + (isConfirmed(item.id) ? 'CONFIRMED' : isResearched(item.id) ? 'GROUND TEST' : job ? 'IN WORK' : 'COMMISSION') + '</div>';
   if (isResearched(item.id)) return html + (groundTestHTML(item.area, item) || `<p class="m">${isConfirmed(item.id) ? 'Nothing more to do: the work is confirmed.' : 'No ground test for this area. Fly it to confirm it.'}</p>`) + '</div>';
   if (job) html += `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div><p class="wn">In progress: <span data-j="pk${item.id}">${job.t}s</span> left${job.cr ? ' (crash schedule)' : ''}</p>${crashHTML(item, job)}`;
-  else html += commissionButton(item);
+  else html += commissionButton(item) + queueHTML(item);
   if (isVehicleArea(item.area)) html += '<p class="m">Finished work goes into airframes when you publish the next blueprint revision (Hangar desk).</p>';
   return html + '</div>';
 }
@@ -162,6 +166,23 @@ function commissionHTML(entry, showName) {
 function commissionButton(item) {
   const lock = researchLock(item.id);
   return `<button data-a="com" data-id="${item.id}"${lock ? ' disabled' : ''}>COMMISSION (${costAfterEarmark(item) < item.cost ? `${formatMoney(costAfterEarmark(item))} after earmark` : formatMoney(item.cost)}, ${item.time}s)</button>${lock ? `<div class="m">${lock}</div>` : ''}`;
+}
+// Work not yet running: its place in the queue (and a way out), or a QUEUE button when it cannot be commissioned right now.
+function queueHTML(item) {
+  const position = queuePosition(item.id);
+  if (position >= 0) return `<p class="wn">Queued #${position + 1}: ${position ? `starts after ${position} more` : queueWait() || 'starting'}</p>${position ? `<button data-a="qup" data-id="${position}">MOVE UP THE QUEUE</button>` : ''}<button data-a="unq" data-id="${position}">REMOVE FROM QUEUE</button>`;
+  const commissionLock = researchLock(item.id), lock = queueLock(item.id);
+  if (!commissionLock || lock == commissionLock) return '';
+  return `<button data-a="rq" data-id="${item.id}"${lock ? ' disabled' : ''}>QUEUE FOR THE NEXT FREE TEAM</button>${lock ? `<div class="m">${lock}</div>` : ''}`;
+}
+// THE QUEUE ROW: the queued work in order, each with its rocket (if not the one in focus), a button to move it up one place
+// and a button to take it out.
+function queueRow() {
+  const entries = queueEntries(), research = entries.filter(entry => !entry.analysis).length;
+  if (!entries.length) return '';
+  return `<div class="rqueue"><span class="t">QUEUE${research ? ` ${research}/${RESEARCH_QUEUE_LENGTH}` : ''}</span>`
+    + entries.map((entry, index) => `<span class="rq-item">${index + 1}. ${entry.name}${entry.prog && entry.prog != S.cur ? ` <span class="d">(${PROGRAMMES[entry.prog].name})</span>` : ''}${index ? `<button data-a="qup" data-id="${index}" title="Move up the queue">▲</button>` : ''}<button data-a="unq" data-id="${index}" title="Remove from the queue">×</button></span>`).join('')
+    + `<span class="m">${queueWait() || ''}</span></div>`;
 }
 // NASA era: a running job can be put on a crash schedule once, halving the time left.
 function crashHTML(item, job) {
@@ -230,7 +251,7 @@ export function renderResearchDesk() {
   const view = researchDesk.view;
   let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length ? ` (${unexplained.length})` : ''}${key == 'file' && awaitingFix ? ` (${awaitingFix})` : ''}</button>`).join('')}`
     + `<span class="m">${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev} · ${INSTRUMENT_NAMES[tiers.v]} · ${TRACKING_NAMES[tiers.g]} · <b>teams free ${freeTeams()} of ${S.teams}</b></span></div>`;
-  if (view == 'research') html += programmeBar() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + dossier();
+  if (view == 'research') html += programmeBar() + queueRow() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + dossier();
   else if (view == 'programme') html += programmeBar() + programmeCard() + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar desk), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}.</div>`;
   else if (view == 'file') html += `<div class="m">Each system's entry in the engineering file: what your team knows about it, the failure modes it has met and how they were cured. Knowledge carries from flight to flight.</div><div class="rcols" style="--areas:${areas.length}">${areas.map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`;
   else html += unexplained.length ? `<div class="cards">${unexplained.slice().reverse().map(incidentHTML).join('')}</div>` : '<div class="m">No unexplained failures on file.</div>';
@@ -242,8 +263,10 @@ export function renderResearchDesk() {
 function incidentHTML(incident) {
   let html = `<div class="c"><div class="t">${incident.review ? `Design review finding #${incident.id}` : `Incident #${incident.id} | ${incident.lab} | T+${incident.t}s${incident.plot ? ' | last plot ' + incident.plot : ''}`}</div>${incident.review ? '<div class="m">Found on the drawings before it ever failed in flight.</div>' : `<div class="m">Records show: ${incident.sym.length ? incident.sym.map(symptom => SYMPTOMS[symptom].text).join('; ') : 'radio carrier and radar track lost only'}</div>`}`;
   if (incident.st == 'open') {
-    const lock = S.b < INVESTIGATION_COST ? 'Need funds.' : freeTeams() < 1 ? 'Teams busy.' : null;
-    html += `<div>Cannot yet tell apart: ${incident.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div><div class="m">Evidence on file: ${incident.ev}</div><button data-a="inv" data-id="${incident.id}"${lock ? ' disabled' : ''}>RECORDS ANALYSIS (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)</button>`;
+    const lock = S.b < INVESTIGATION_COST ? 'Need funds.' : freeTeams() < 1 ? 'Teams busy.' : null, queued = analysisPosition(incident.id);
+    html += `<div>Cannot yet tell apart: ${incident.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div><div class="m">Evidence on file: ${incident.ev}</div><button data-a="inv" data-id="${incident.id}"${lock ? ' disabled' : ''}>RECORDS ANALYSIS (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)</button>`
+      + (queued >= 0 ? `<div class="wn">Queued #${queued + 1}: ${queued ? `starts after ${queued} more` : queueWait() || 'starting'}</div>${queued ? `<button data-a="qup" data-id="${queued}">MOVE UP THE QUEUE</button>` : ''}<button data-a="unq" data-id="${queued}">REMOVE FROM QUEUE</button>`
+        : lock && !queueAnalysisLock(incident.id) ? `<button data-a="qinv" data-id="${incident.id}">QUEUE FOR THE NEXT FREE TEAM</button>` : '');
   } else if (incident.st == 'found') html += findingsHTML(incident);
   else if (incident.st == 'inv') html += `<div class="wn">Investigating: <span data-j="inv${incident.id}">${(findJob(job => job.k == 'inv' && job.id == incident.id) || { t: 0 }).t}s</span></div>`;
   else if (incident.st == 'diag') {

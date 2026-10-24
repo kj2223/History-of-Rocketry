@@ -4,7 +4,8 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID } from '../js/data/research.js';
-import { commission, crashProgramme, crashLock, crashCost } from '../js/rules/research.js';
+import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
+import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
@@ -478,6 +479,73 @@ test('crash programmes are not offered before NASA', () => {
   S.b = 200000;
   commission('inj');
   assert.ok(crashLock('inj'));
+});
+
+// Aaron asked for a research queue so teams do not idle while he is launching.
+test('queued research starts, and is paid for, when a team comes free', () => {
+  S.b = 100000;
+  commission('inj');
+  commission('gauge');
+  queueResearch('bea');
+  assert.equal(queuePosition('bea'), 0);
+  assert.ok(!S.jobs.some(job => job.id == 'bea'), 'both teams are busy');
+  const inj = S.jobs.find(job => job.id == 'inj');
+  inj.t = 1;
+  S.gt = 99; // no appropriation this second
+  const budget = S.b;
+  tickSecond();
+  assert.ok(S.jobs.some(job => job.id == 'bea'), 'the freed team takes the queued work');
+  assert.equal(queuePosition('bea'), -1);
+  assert.equal(S.b, budget - itemAsSeen('bea').cost, 'paid when it starts');
+});
+
+test('the queue waits for funds in order, and work is not queued twice', () => {
+  S.b = 0;
+  queueResearch('inj');
+  queueResearch('bea');
+  assert.equal(S.rq.length, 2);
+  assert.ok(queueLock('inj'), 'already queued');
+  assert.equal(S.jobs.filter(job => job.k == 'pk').length, 0, 'nothing starts without money');
+  S.b = itemAsSeen('inj').cost;
+  tickSecond();
+  assert.ok(S.jobs.some(job => job.id == 'inj'));
+  assert.deepEqual(S.rq.map(entry => entry.id), ['bea']);
+  queueResearch('gauge');
+  moveUpQueue(1);
+  assert.deepEqual(S.rq.map(entry => entry.id), ['gauge', 'bea'], 'moved up one place');
+  unqueue(0);
+  assert.deepEqual(S.rq.map(entry => entry.id), ['bea']);
+});
+
+test('commissioning queued work by hand takes it out of the queue, and the queue has a limit', () => {
+  S.b = 0;
+  queueResearch('inj');
+  S.b = 100000;
+  S.rq.push({ id: 'gauge', prog: 'wac' });
+  commission('gauge');
+  assert.deepEqual(S.rq.map(entry => entry.id), ['inj']);
+  S.b = 0;
+  for (const id of ['mix', 'vol', 'bea', 'fm', 'ogive']) queueResearch(id);
+  assert.equal(S.rq.length, RESEARCH_QUEUE_LENGTH);
+  assert.ok(queueLock('fins'));
+});
+
+test('a queued records analysis goes ahead of queued research and starts when a team comes free', () => {
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.b = 100000;
+  S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c'], ev: 1, st: 'open', t: 30, lab: 'test' });
+  commission('chute');
+  commission('bcn');
+  const next = itemsInArea('p').find(item => !queueLock(item.id)).id;
+  queueResearch(next);
+  queueAnalysis(1);
+  assert.equal(analysisPosition(1), 0, 'the analysis jumps the research');
+  S.jobs[0].t = 1;
+  tickSecond();
+  assert.equal(S.inc[0].st, 'inv');
+  assert.equal(analysisPosition(1), -1);
+  assert.equal(queuePosition(next), 0);
 });
 
 // Aaron's report: the R&D badge counted two incidents that were nowhere on the desk. A wrong diagnosis was filed under the true cause.
