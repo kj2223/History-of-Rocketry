@@ -122,14 +122,14 @@ export const PACKAGES = [
   research('fx_lb','c','Landing bag strap reinforcement',4500,70,{lb:.07},{phase:2,hiddenUntil:'fx_lb'}),
   research('fx_tj','e','Redundant tower-jettison circuit',5000,70,{tj:.07},{phase:2,hiddenUntil:'fx_tj'}),
   research('fx_as','e','Abort-sensing circuit redesign',6000,80,{as:.07},{phase:2,hiddenUntil:'fx_as'}),
-  // PHASE TWO, SECTION 2: orbital Mercury. Proposed once Section 1 is complete (the sec2 flag); the long-duration work once a crew
-  // has flown three orbits (mo3), and the switch rewiring after a false heat-shield signal (fx_sg).
+  // PHASE TWO, SECTION 2: orbital Mercury. Proposed once Section 1 is complete (the sec2 flag); the switch rewiring after a false
+  // heat-shield signal (fx_sg).
   // du = extra orbits the consumables allow, af = thruster fuel saved, rt = retrofire accuracy, sg = heat-shield signal fixed
   research('mo_shield','c','Orbital re-entry heat-shield qualification',10000,80,{orb:1,hs:.04},{phase:2,hiddenUntil:'sec2'}),
   research('mo_cons','c','Extra oxygen, coolant and battery capacity',9000,80,{du:3,ec:.03},{phase:2,hiddenUntil:'sec2'}),
   research('mo_fuel','c','Thruster fuel economy and a low-thrust control mode',8000,70,{af:.3,ac:.03},{phase:2,hiddenUntil:'sec2'}),
   research('mo_retro','c','Retrofire attitude and timing aids',9000,80,{rt:.5,rr:.04},{phase:2,hiddenUntil:'sec2'}),
-  research('mo_long','c','Long-duration capsule modifications',16000,110,{du:16,ec:.04},{phase:2,hiddenUntil:'mo3'}),
+  research('mo_long','c','Long-duration capsule modifications',16000,110,{du:16,ec:.04},{phase:2,hiddenUntil:'sec2'}),
   research('fx_sg','c','Landing-bag deploy switch rewiring',4500,50,{sg:1},{phase:2,hiddenUntil:'fx_sg'}),
 ];
 

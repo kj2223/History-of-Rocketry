@@ -8,9 +8,9 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS } from '../data/astronauts.js';
 import { MISSION_TYPES, MERCURY_DIRECTIVES, TESTING_REGIMES, OFFICE_DECISIONS, CHIMP_TRAINING_COST, ORBIT_SECONDS, sectionDirectives } from '../data/mercury.js';
 import { S, formatDate, isResearched } from '../core/state.js';
-import { skillEstimate, isQualified, simulatorTier, activeAstronauts } from '../rules/astronauts.js';
+import { skillEstimate, isQualified, simulatorTier, activeAstronauts, assignedPilot } from '../rules/astronauts.js';
 import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters, pilotMissionType, orbitChoices, orbitalBoosterCertified } from '../rules/mercury.js';
-import { manRatingRecord, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
+import { manRatingRecord, cleanFlightsNeeded, MAN_RATING_RESEARCH, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
 import { quoteLaunch } from '../rules/design.js';
 import { $, escapeHtml, percent, setHTML } from './dom.js';
 
@@ -34,11 +34,13 @@ function astronautCard(astronaut, mode) {
   if (astronaut.st == 'medical') return html + '<div class="bad">Permanently grounded (heart condition). Works in the Astronaut Office.</div></div>';
   const status = astronaut.st == 'grounded' ? `Grounded (${Math.ceil(astronaut.gd / 30)} months)` : qualified ? 'Flight qualified' : `General training ${percent(training)}`;
   html += `<div class="r"><span class="d">${status}</span><b class="${astronaut.fat > 60 ? 'bad' : astronaut.fat > 35 ? 'wn' : 'ok'}">Fatigue ${Math.round(astronaut.fat)}</b></div><div class="bar"><i style="width:${training * 100}%"></i></div>`;
-  if (astronaut.asg) html += `<div class="r"><span class="d">Assigned: ${MISSION_TYPES[astronaut.asg].fullName}</span><b>${percent(astronaut.mt)} mission training</b></div><div class="bar"><i style="width:${astronaut.mt * 100}%"></i></div>`;
+  if (astronaut.asg || astronaut.bk) html += `<div class="r"><span class="d">${astronaut.asg ? 'Assigned' : 'Backup'}: ${MISSION_TYPES[astronaut.asg || astronaut.bk].fullName}</span><b>${percent(astronaut.mt)} mission training</b></div><div class="bar"><i style="width:${astronaut.mt * 100}%"></i></div>`;
   const rehearsed = Object.keys(astronaut.reh).filter(key => astronaut.reh[key]);
   if (rehearsed.length) html += `<div class="m">Rehearsed in the simulator: ${rehearsed.map(key => REHEARSALS[key].short).join(', ')}.</div>`;
-  html += `<div class="m">${astronaut.flights ? `${astronaut.flights} flight${astronaut.flights > 1 ? 's' : ''}. ` : ''}</div><select data-focus="${astronaut.id}">${Object.entries(TRAINING_FOCUS).filter(([key]) => key != 'msn' || astronaut.asg).map(([key, name]) => `<option value="${key}"${astronaut.focus == key ? ' selected' : ''}>Training: ${name}</option>`).join('')}</select>`;
-  if (qualified && !astronaut.asg) html += `<button data-a="asg" data-id="${astronaut.id}">ASSIGN AS PILOT FOR THE NEXT ${pilotMissionType() == 'mo' ? 'ORBITAL MERCURY FLIGHT' : 'MERCURY-REDSTONE'}</button>`;
+  html += `<div class="m">${astronaut.flights ? `${astronaut.flights} flight${astronaut.flights > 1 ? 's' : ''}. ` : ''}</div><select data-focus="${astronaut.id}">${Object.entries(TRAINING_FOCUS).filter(([key]) => key != 'msn' || astronaut.asg || astronaut.bk).map(([key, name]) => `<option value="${key}"${astronaut.focus == key ? ' selected' : ''}>Training: ${name}</option>`).join('')}</select>`;
+  const flight = pilotMissionType() == 'mo' ? 'ORBITAL MERCURY FLIGHT' : 'MERCURY-REDSTONE';
+  if (qualified && !astronaut.asg) html += `<button data-a="asg" data-id="${astronaut.id}">ASSIGN AS PILOT FOR THE NEXT ${flight}</button>`;
+  if (qualified && !astronaut.asg && !astronaut.bk && assignedPilot(pilotMissionType())) html += `<button data-a="bkp" data-id="${astronaut.id}">ASSIGN AS BACKUP (FLIES THE ${flight} AFTER)</button>`;
   return html + '</div>';
 }
 
@@ -83,9 +85,9 @@ ${state.mem.length ? `<div class="mem"><div class="t">IN MEMORIAM</div>${state.m
 export function manRatingBoardHTML() {
   const state = S.p2, booster = S.air.find(airframe => airframe.id == (state && state.lb)), kind = booster ? booster.prog : S.cur;
   const record = manRatingRecord(kind), tick = done => done ? '<b class="ok">✓</b>' : '<b class="d">○</b>', certified = isFamilyCertified(kind);
-  const name = PROGRAMMES[kind] ? PROGRAMMES[kind].name : 'Booster';
-  return `<div class="c"><div class="t">MAN-RATING BOARD</div><div class="m">A crew rides only a certified booster. Each rocket programme earns its own certification: ${CLEAN_FLIGHTS_NEEDED} clean flights in a row by one booster family (every revision since its last milestone) and the man-rating research. Any flight counts, Mercury or ordinary.</div>
-<div class="r"><span class="d">${name} family</span><b>Rev ${record.base} onward</b></div><div class="r"><span class="d">Clean flights in a row</span><b class="${record.streak >= CLEAN_FLIGHTS_NEEDED || certified ? 'ok' : ''}">${certified ? 'certified' : `${Math.min(record.streak, CLEAN_FLIGHTS_NEEDED)} of ${CLEAN_FLIGHTS_NEEDED}`}</b></div>
+  const name = PROGRAMMES[kind] ? PROGRAMMES[kind].name : 'Booster', needed = cleanFlightsNeeded(kind);
+  return `<div class="c"><div class="t">MAN-RATING BOARD</div><div class="m">A crew rides only a certified booster. Each rocket programme earns its own certification: ${needed} clean flights in a row by one booster family (every revision since its last milestone) and the man-rating research. Any flight counts, Mercury or ordinary.</div>
+<div class="r"><span class="d">${name} family</span><b>Rev ${record.base} onward</b></div><div class="r"><span class="d">Clean flights in a row</span><b class="${record.streak >= needed || certified ? 'ok' : ''}">${certified ? 'certified' : `${Math.min(record.streak, needed)} of ${needed}`}</b></div>
 ${MAN_RATING_RESEARCH.map(id => `<div class="r"><span class="d">${BY_ID[id].name}</span>${tick(isResearched(id))}</div>`).join('')}
 <div class="r"><span class="d">Certified boosters</span><b class="${anyCertified() ? 'ok' : 'd'}">${certifiedNames().join('; ') || 'none yet'}</b></div></div>`;
 }
@@ -179,7 +181,7 @@ export function mercuryDirectiveHTML() {
   if (key == 'animal' && state.ch.t < 1) progress = `<div class="m">${state.ch.on ? `Chimpanzee training ${percent(state.ch.t)}.` : 'Start chimpanzee training in the Astronaut Office.'}</div>`;
   if (key == 'rate') {
     const record = manRatingRecord();
-    progress = `<div class="m">Clean flights in a row: ${Math.min(record.streak, CLEAN_FLIGHTS_NEEDED)} of ${CLEAN_FLIGHTS_NEEDED} (${PROGRAMMES[S.cur] ? PROGRAMMES[S.cur].name : ''} Rev ${record.base}+ family). Research: ${MAN_RATING_RESEARCH.filter(isResearched).length} of ${MAN_RATING_RESEARCH.length}.</div>`;
+    progress = `<div class="m">Clean flights in a row: ${Math.min(record.streak, cleanFlightsNeeded())} of ${cleanFlightsNeeded()} (${PROGRAMMES[S.cur] ? PROGRAMMES[S.cur].name : ''} Rev ${record.base}+ family). Research: ${MAN_RATING_RESEARCH.filter(isResearched).length} of ${MAN_RATING_RESEARCH.length}.</div>`;
   }
   if (key == 'orate') progress = `<div class="m">Fly your orbital-class booster as ordinary launches or on orbital Mercury flights: every flight of its family counts. See the man-rating board.</div>`;
   return `${sectionOne}<div class="t">${directive.section ? `Section ${directive.section} directive` : 'Mercury directive'} ${state.dir - first + 1} of ${end - first}: ${directive.name}</div><div class="m">${directive.description} Reward ${formatMoney(directive.reward)}.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;

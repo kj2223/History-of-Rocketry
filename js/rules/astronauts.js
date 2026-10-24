@@ -10,6 +10,7 @@
 //   focus  a TRAINING_FOCUS key                    gd     days left grounded
 //   fat    fatigue, 0 to 100                       flights
 //   asg    the mission assigned ('mr' or 'mo'), or null    mt     mission training, 0 to 1      cap  capsule name, once flown
+//   bk     the mission they back up, or null: a backup trains alongside the pilot and takes over the next flight
 import { gaussian } from '../core/util.js';
 import { FIRST_NAMES, LAST_NAMES, SERVICES, DEGREES, SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS, REHEARSAL_KEYS } from '../data/astronauts.js';
 import { S, log, addHistory } from '../core/state.js';
@@ -128,7 +129,7 @@ export function trainingTick(days) {
       improve('end', .02 * egressTank);
       astronaut.reh.hatch = astronaut.reh.hatch || (Math.random() < .01 * days * egressTank ? 1 : 0);
     }
-    if (focus == 'msn' && astronaut.asg) {
+    if (focus == 'msn' && (astronaut.asg || astronaut.bk)) {
       astronaut.mt = Math.min(1, astronaut.mt + days / 110 * (.5 + .5 * simulator));
       improve('sys', .02 * simulator);
       improve('pil', .02 * simulator);
@@ -136,7 +137,7 @@ export function trainingTick(days) {
     // A heart condition missed in selection may surface; anyone may be grounded for a while, more likely when tired.
     if (astronaut.med && Math.random() < .0025 * days) {
       astronaut.st = 'medical';
-      astronaut.asg = null;
+      astronaut.asg = astronaut.bk = null;
       astronaut.mt = 0;
       log(`[FLIGHT SURGEON] A heart irregularity missed in selection has been found in ${astronaut.name}. Permanently grounded from flight; ${astronaut.name.split(' ')[0]} stays on in the Astronaut Office.`, 'bad');
       continue;
@@ -145,8 +146,8 @@ export function trainingTick(days) {
       astronaut.st = 'grounded';
       astronaut.gd = 60 + Math.random() * 180;
       log(`[FLIGHT SURGEON] ${astronaut.name} is grounded for about ${Math.round(astronaut.gd / 30)} months after a medical finding.`, 'wn');
-      if (astronaut.asg) {
-        astronaut.asg = null;
+      if (astronaut.asg || astronaut.bk) {
+        astronaut.asg = astronaut.bk = null;
         astronaut.mt = 0;
       }
     }
@@ -164,9 +165,34 @@ export function assignPilot(id, missionType) {
     other.asg = null;
     other.mt = 0;
   }
+  // The backup keeps the mission training done so far.
+  if (astronaut.bk != missionType) astronaut.mt = 0;
   astronaut.asg = missionType;
+  astronaut.bk = null;
+  astronaut.focus = 'msn';
+  log(`[ASTRONAUT OFFICE] ${astronaut.name} is assigned as pilot for the next ${flightName(missionType)} flight. Mission training begins.`, 'ok');
+}
+// Assign a qualified astronaut as backup pilot: they train for the same flight and take over the one after it.
+export function assignBackup(id, missionType) {
+  const astronaut = astronautById(id);
+  if (!astronaut || !isQualified(astronaut) || astronaut.asg) return;
+  for (const other of S.p2.astros) if (other.bk == missionType) {
+    other.bk = null;
+    other.mt = 0;
+  }
+  astronaut.bk = missionType;
   astronaut.mt = 0;
   astronaut.focus = 'msn';
-  log(`[ASTRONAUT OFFICE] ${astronaut.name} is assigned as pilot for the next ${missionType == 'mr' ? 'Mercury-Redstone' : missionType == 'mo' ? 'orbital Mercury' : missionType} flight. Mission training begins.`, 'ok');
+  log(`[ASTRONAUT OFFICE] ${astronaut.name} is backup pilot for the next ${flightName(missionType)} flight and will fly the one after it.`, 'ok');
 }
+// After a flight the backup becomes the pilot, with the mission training already done.
+export function promoteBackup(missionType) {
+  const backup = backupPilot(missionType);
+  if (!backup) return;
+  backup.asg = missionType;
+  backup.bk = null;
+  log(`[ASTRONAUT OFFICE] ${backup.name} moves up from backup to pilot for the next ${flightName(missionType)} flight (${Math.round(backup.mt * 100)}% through mission training).`, 'ok');
+}
+const flightName = missionType => missionType == 'mr' ? 'Mercury-Redstone' : missionType == 'mo' ? 'orbital Mercury' : missionType;
 export const assignedPilot = missionType => (S.p2.astros || []).find(astronaut => astronaut.asg == missionType && astronaut.st == 'active');
+export const backupPilot = missionType => (S.p2.astros || []).find(astronaut => astronaut.bk == missionType && astronaut.st == 'active');

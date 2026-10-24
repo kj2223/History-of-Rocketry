@@ -751,3 +751,35 @@ test('the Section 2 Soviet dates run as early or late as Vostok 1 did', async ()
   assert.equal(S.rv.r_titov, 5616 + lateness);
   assert.equal(S.rv.r_woman, 6286 + lateness);
 });
+
+test('in Section 2 an orbital-class booster is man-rated after two clean flights in a row; a suborbital one still needs three', () => {
+  const atlas = readyProgramme('atlas'), redstone = readyProgramme('redstone');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.secDone = 1;
+  giveResearch(MAN_RATING_RESEARCH);
+  for (let i = 0; i < 2; i++) {
+    recordBoosterFlight(atlas, true);
+    recordBoosterFlight(redstone, true);
+  }
+  assert.equal(isManRated(atlas), true);
+  assert.equal(isManRated(redstone), false);
+});
+
+test('a backup pilot trains alongside the pilot and moves up, training kept, once the pilot has flown', async () => {
+  const { assignPilot, assignBackup, promoteBackup, assignedPilot, backupPilot } = await import('../js/rules/astronauts.js');
+  const { QUALIFICATION_DAYS } = await import('../js/data/astronauts.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.astros = [1, 2].map(id => ({ id, name: `Pilot ${id}`, st: 'active', tday: QUALIFICATION_DAYS, t: { pil: 60, sys: 60, end: 60, com: 60 }, reh: {}, fat: 0, mt: 0, asg: null, bk: null }));
+  assignPilot(1, 'mo');
+  assignBackup(2, 'mo');
+  assignBackup(1, 'mo');
+  assert.equal(backupPilot('mo').id, 2, 'the pilot cannot also be the backup');
+  backupPilot('mo').mt = .6;
+  assignedPilot('mo').asg = null;
+  promoteBackup('mo');
+  assert.equal(assignedPilot('mo').id, 2);
+  assert.equal(assignedPilot('mo').mt, .6);
+  assert.equal(backupPilot('mo'), undefined);
+});

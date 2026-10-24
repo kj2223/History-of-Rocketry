@@ -75,7 +75,7 @@ export const MERCURY_DIRECTIVES = [
   // SECTION 2: Mercury goes to orbit. orbits: the fewest orbits that count.
   { key: 'mo', section: 2, name: 'Uncrewed orbital flight', description: 'Put a Mercury capsule into orbit with no one aboard, fly at least one orbit and recover it.', reward: 120000, missionType: 'mo', orbits: 1 },
   { key: 'oanimal', section: 2, name: 'Animal in orbit', description: 'Orbit a trained chimpanzee for at least two orbits and recover it alive.', reward: 120000, missionType: 'mo', orbits: 2 },
-  { key: 'orate', section: 2, name: 'Man-rate an orbital booster', description: 'Certify an orbital-class booster (Jupiter-C, Vanguard or Atlas) for crews: three clean flights in a row by one booster family.', reward: 60000, missionType: null },
+  { key: 'orate', section: 2, name: 'Man-rate an orbital booster', description: 'Certify an orbital-class booster (Jupiter-C, Vanguard or Atlas) for crews: two clean flights in a row by one booster family, as Atlas managed before Glenn.', reward: 60000, missionType: null },
   { key: 'ocrew', section: 2, name: 'First American in orbit', description: 'Fly an astronaut for at least three orbits on a certified booster and bring them home.', reward: 250000, missionType: 'mo', orbits: 3 },
   { key: 'oday', section: 2, name: 'A day in orbit', description: 'Fly an astronaut for 22 orbits, a day and a half, and bring them home. Needs the long-duration capsule modifications.', reward: 200000, missionType: 'mo', orbits: 22 },
 ];
