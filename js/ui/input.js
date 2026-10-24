@@ -15,7 +15,7 @@ import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
 import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
-import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
+import { launchForm, campaignForm, campaignSettings } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
@@ -78,7 +78,10 @@ document.addEventListener('change', event => {
   if (!field) return;
   launchForm[field] = field == 'st' || field == 'load' ? +value : value;
   if (field == 'st') launchForm.stageChosen = 1;
-  if (field == 'af') launchForm.stageChosen = 0;
+  if (field == 'af') {
+    launchForm.stageChosen = 0;
+    launchForm.afPicked = 1;
+  }
   render();
 });
 
@@ -140,7 +143,7 @@ const GAME_ACTIONS = {
   retro: id => startRetrofit(id),
   hire: id => hire(id),
   cstart: () => {
-    const error = startCampaign({ prog: campaignRocket(), fuel: launchForm.fuel, pay: launchForm.pay, st: launchForm.st, ...campaignForm });
+    const error = startCampaign({ ...campaignSettings(), ...campaignForm });
     if (error) log('[LAUNCH DIRECTOR] ' + error, 'bad');
   },
   cend: () => endCampaign('ended'),

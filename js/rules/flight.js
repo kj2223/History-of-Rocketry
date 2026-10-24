@@ -155,7 +155,8 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   const coreBurnTime = burnSeconds(core);
   // Reliability: the propellant's base, up to +15 points of experience with it, the design's offset,
   // up to -8 points for unproven packages, and up to +7 points as the programme matures.
-  const unproven = airframe.pk.filter(id => !isConfirmed(id)).length;
+  // Phase Two packages ride in the blueprint but belong to the capsule and the mission (rules/mercury.js counts them there).
+  const unproven = airframe.pk.filter(id => !isConfirmed(id) && !(BY_ID[id] && BY_ID[id].phase == 2)).length;
   const reliability = Math.min(.99, propellant.reliability + Math.min(.15, (S.fr[propellantName] || 0) * .015) + spec.r - Math.min(.08, unproven * .012) + .07 * maturity(programmeKey) / 100);
   return {
     airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over, plan: options.plan || null,

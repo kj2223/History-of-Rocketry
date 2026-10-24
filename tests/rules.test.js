@@ -20,7 +20,8 @@ import { selectCrew, makePool } from '../js/rules/astronauts.js';
 import { autoLaunch } from '../js/rules/auto.js';
 import { filedModes, systemOf } from '../js/rules/knowledge.js';
 import { startInvestigation, acceptFinding, nameCause, extendInvestigation } from '../js/rules/jobs.js';
-import { startCampaign, goAhead, directorMargin, recordCampaignFlight, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL } from '../js/rules/campaign.js';
+import { startCampaign, goAhead, directorMargin, recordCampaignFlight, provenProgramme, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL, FLIGHTS_TO_PROVE } from '../js/rules/campaign.js';
+import { runPoll } from '../js/rules/launch-site.js';
 
 // The same small generator the balance bot uses.
 const seeded = seed => () => {
@@ -229,6 +230,31 @@ test('flights you fly yourself count towards the campaign; the director learns o
   recordCampaignFlight({ programme: 'aerobee' }, true, 30000, false);
   assert.equal(S.auto.last.outcome, 'met');
   assert.equal(S.auto.xp, 0);
+});
+
+test('a new campaign stays on the proven rocket until the new one has three successful flights', () => {
+  readyProgramme('aerobee');
+  readyProgramme('viking');
+  S.progs.aerobee.okf = FLIGHTS_TO_PROVE;
+  S.progs.viking.okf = FLIGHTS_TO_PROVE - 1;
+  assert.equal(provenProgramme(), 'aerobee');
+  S.progs.viking.okf = FLIGHTS_TO_PROVE;
+  assert.equal(provenProgramme(), 'viking');
+});
+
+test('unconfirmed Phase Two (capsule) packages do not make the booster less reliable', () => {
+  S.b = 1e7;
+  const phaseTwo = ['cap_shape', 'cap_ecs', 'cmd', 'mr_mods'];
+  phaseTwo.forEach(id => S.pk[id] = { a: { ...BY_ID[id].effects }, c: 0, m: {}, dud: false });
+  const first = readyProgramme('aerobee');
+  const fly = pk => {
+    const airframe = { ...first, pk };
+    S.air.push(airframe);
+    Math.random = seeded(7);
+    const faults = [...Array(400)].filter(() => withProgramme('aerobee', () => runPoll(airframe, 'Alcohol & LOX', 0)).fault).length;
+    return { reliability: withProgramme('aerobee', () => beginFlight(airframe, 'Alcohol & LOX', 'Inert Ballast', 0, 1)).reliability, faults };
+  };
+  assert.deepEqual(fly(phaseTwo), fly([]));
 });
 
 test('an experienced director flies closer to the limits', () => {

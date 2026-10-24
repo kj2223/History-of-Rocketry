@@ -93,7 +93,8 @@ export function runPoll(airframe, propellant, stage) {
 }
 function runPollForProgramme(airframe, propellant, stage) {
   // The chance of a latent fault: more for unproven packages, staging and a little-flown propellant; less as the team knows the rocket.
-  const unproven = airframe.pk.filter(id => !isConfirmed(id)).length;
+  // Phase Two packages are the capsule's, not the booster's, so they do not count here.
+  const unproven = airframe.pk.filter(id => !isConfirmed(id) && !(BY_ID[id] && BY_ID[id].phase == 2)).length;
   const faultChance = Math.min(.55, .12 + .04 * unproven + (stage ? .08 : 0) + ((S.fr[propellant] || 0) < 3 ? .06 : 0)) * (1 - .35 * (knowledgeFraction('p') + knowledgeFraction('s') + knowledgeFraction('a')) / 3);
   // Which fault: each letter is a failure mode; repeats make it likelier. Staging adds separation, uncured traits add their own mode four times.
   const faultPool = 'ccpiivvsshf' + (stage ? 'xx' : '')
