@@ -1,0 +1,46 @@
+# THE TEST BUILD: on every push to dev, builds the Windows installer and portable .exe for playtesters.
+# The builds are attached to the "dev-build" prerelease, which is replaced each time, so its download links never change:
+#   https://github.com/kj2223/history-of-rocketry/releases/download/dev-build/ProjectVanguard-Setup.exe
+#   https://github.com/kj2223/history-of-rocketry/releases/download/dev-build/ProjectVanguard-Portable.exe
+# The builds are unsigned, so Windows SmartScreen warns on first run (More info, then Run anyway).
+name: Windows test build
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: project-vanguard-windows
+          path: |
+            dist/ProjectVanguard-Setup.exe
+            dist/ProjectVanguard-Portable.exe
+      - name: Replace the dev-build prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete dev-build --yes --cleanup-tag || true
+          gh release create dev-build dist/ProjectVanguard-Setup.exe dist/ProjectVanguard-Portable.exe \
+            --prerelease --target "$GITHUB_SHA" --title "Test build (dev)" \
+            --notes "Built from dev at ${GITHUB_SHA::7}. Unsigned: if Windows SmartScreen appears, click More info, then Run anyway."
