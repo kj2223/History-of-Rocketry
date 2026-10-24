@@ -91,6 +91,11 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .brand h1{font-size:1.3rem}.brand .d{font-size:.72rem}
 .stats{flex:1;display:flex;justify-content:flex-end;gap:22px;flex-wrap:wrap}.stats>div{display:flex;flex-direction:column}.stats .lbl{font-size:.62rem;color:var(--dim);letter-spacing:.1em}
 .spd{display:flex}.spd button{padding:6px 10px;font-size:.72rem}
+.hres{width:300px}.hres b{display:flex;white-space:pre}.hres #hres{min-width:0;overflow:hidden;text-overflow:ellipsis}.hres #hrest{flex-shrink:0}.hres .bar{margin:3px 0 0}
+.miniclock{display:flex;flex-direction:column;gap:6px;border:1px solid var(--ln);background:var(--pn);padding:8px 10px}
+.minihd{display:flex;align-items:baseline;gap:10px}.minihd .lbl{font-size:.62rem;color:var(--dim);letter-spacing:.1em}
+.minihd b{font-size:1.3rem;color:var(--ac);font-variant-numeric:tabular-nums}.minihd b.t{margin-left:auto;font-size:.72rem;color:var(--wn)}
+.miniclock>div:empty{display:none}.miniclock .ph{font-size:.56rem}.miniclock .readouts{gap:2px 12px;font-size:.72rem}
 .rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-right:1px solid var(--ln);background:var(--pn)}
 .rail button{width:62px;margin:0;padding:6px 0 5px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:.66rem;letter-spacing:.06em;color:var(--dim);border-color:var(--ln);position:relative}
 .rail button.on{color:var(--ac);border-color:var(--ac);background:var(--bg)}.rail button:hover:not(:disabled){color:var(--bg);background:var(--ac)}
