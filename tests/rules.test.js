@@ -17,6 +17,7 @@ import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedes
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
 import { autoLaunch } from '../js/rules/auto.js';
+import { filedModes } from '../js/rules/knowledge.js';
 import { startCampaign, goAhead, directorMargin, recordCampaignFlight, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL } from '../js/rules/campaign.js';
 
 // The same small generator the balance bot uses.
@@ -449,4 +450,14 @@ test('crash programmes are not offered before NASA', () => {
   S.b = 200000;
   commission('inj');
   assert.ok(crashLock('inj'));
+});
+
+// Aaron's report: the R&D badge counted two incidents that were nowhere on the desk. A wrong diagnosis was filed under the true cause.
+test('a wrongly diagnosed incident is filed under the mode the engineers blame', () => {
+  readyProgramme('aerobee');
+  withProgramme('aerobee', () => {
+    S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c'], ev: 1, st: 'diag', dx: 'c', conf: 'low', t: 30, lab: 'test' });
+    assert.ok(filedModes('p').includes('c'), 'shown where the engineers think it belongs');
+    assert.ok(!filedModes('s').includes('s'), 'the true cause stays hidden');
+  });
 });

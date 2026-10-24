@@ -11,7 +11,7 @@ import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from 
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
 import { trackingTiers, designation } from '../rules/design.js';
 import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
-import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds } from '../rules/knowledge.js';
+import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
 import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
 import { INVESTIGATION_COST, investigationTime } from '../rules/jobs.js';
@@ -142,11 +142,11 @@ const TRACKING_NAMES = ['Optical & radar tracking', 'Tracking radar network', 'R
 export const researchDesk = { view: 'research', pick: null };
 const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGINEERING FILE', incidents: 'UNEXPLAINED FAILURES' };
 export function renderResearchDesk() {
-  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv');
+  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv'), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length;
   // Rocket areas once the programme is ready; recovery always; the spacecraft areas after NASA.
   const areas = (bundle && bundle.ready ? ['p', 's', 'i', 'a'] : []).concat(['r'], S.nasa ? ['c', 'e'] : []);
   const view = researchDesk.view;
-  let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length ? ` (${unexplained.length})` : ''}</button>`).join('')}`
+  let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length ? ` (${unexplained.length})` : ''}${key == 'file' && awaitingFix ? ` (${awaitingFix})` : ''}</button>`).join('')}`
     + `<span class="m">${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev} · ${INSTRUMENT_NAMES[tiers.v]} · ${TRACKING_NAMES[tiers.g]} · <b>teams free ${freeTeams()} of ${S.teams}</b></span></div>`;
   if (view == 'research') html += programmeBar() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + detailBar();
   else if (view == 'programme') html += programmeBar() + programmeCard() + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar desk), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}.</div>`;
@@ -177,7 +177,7 @@ function engineeringFile(area) {
   if (modes.length) benefits.push(`poll +${Math.round(30 * value / 100)} pts on faults here`, `failures recognised on the spot ${Math.round(70 * value / 100)}%`, `investigations ${Math.round(40 * value / 100)}% faster`);
   html += `<div class="m">${benefits.join(' • ')}</div>`;
   if (modes.length) {
-    const seen = modes.filter(mode => S.fix[mode] || S.known[mode] || S.inc.some(incident => incident.mode == mode && incident.st != 'open' && incident.st != 'inv'));
+    const seen = filedModes(area);
     for (const mode of seen) {
       const incident = S.inc.find(candidate => candidate.dx == mode && (candidate.st == 'diag' || candidate.st == 'fixing'));
       if (incident) {

@@ -52,6 +52,11 @@ export function redesign(area) {
   log(`[ENGINEERING] ${SYSTEMS[area].name}: the new design means re-learning part of what the team knew.`, 'wn');
 }
 
+// The failure modes a system's engineering file lists: cured, diagnosed, or blamed for an incident that waits for (or is getting) a fix.
+// It goes by the engineers' diagnosis, not the true cause, so a wrong diagnosis is filed where they think it belongs and stays visible.
+export const filedModes = area => [...SYSTEMS[area].modes]
+  .filter(mode => S.fix[mode] || S.known[mode] || S.inc.some(incident => incident.dx == mode && (incident.st == 'diag' || incident.st == 'fixing')));
+
 // DESIGN REVIEWS: a team studies one system for failure modes that have not happened yet.
 export const REVIEW_COST = 3000;
 export const reviewOdds = area => Math.min(.9, .2 + .65 * knowledgeFraction(area));
