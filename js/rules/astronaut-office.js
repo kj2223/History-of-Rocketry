@@ -3,7 +3,7 @@
 import { formatMoney } from '../core/util.js';
 import { MERCURY_DIRECTIVES, ELECTION_DAY, INAUGURATION_DAY, TESTING_REGIMES, OFFICE_DECISIONS, CHIMP_TRAINING_COST, CHIMP_TRAINING_DAYS } from '../data/mercury.js';
 import { S, log, formatDate } from '../core/state.js';
-import { phaseTwo, newPhaseTwo, directiveKey, fulfilDirective } from './mercury.js';
+import { phaseTwo, newPhaseTwo, directiveKey, fulfilDirective, orbitalBoosterCertified, openSectionTwo } from './mercury.js';
 import { makePool } from './astronauts.js';
 import { anyCertified, checkCertification } from './manrate.js';
 
@@ -74,13 +74,17 @@ export function startChimpTraining() {
   log(`[HOLLOMAN] Six chimpanzees begin training at Holloman Air Force Base (${formatMoney(CHIMP_TRAINING_COST)}): couches, pressure suits and lever tasks on cue.`, 'wn');
 }
 
-// The office's day: the man-rating directive, selection steps, chimpanzee training, office decisions and the election.
+// The office's day: the man-rating directives, selection steps, chimpanzee training, office decisions and the election.
 // Returns true if anything happened.
 export function officeTick(days) {
   const state = phaseTwo();
   if (!state) return false;
   let changed = false;
   if (directiveKey() == 'rate' && (anyCertified() || checkCertification())) {
+    fulfilDirective(MERCURY_DIRECTIVES[state.dir]);
+    changed = true;
+  }
+  if (directiveKey() == 'orate' && (orbitalBoosterCertified() || (checkCertification() && orbitalBoosterCertified()))) {
     fulfilDirective(MERCURY_DIRECTIVES[state.dir]);
     changed = true;
   }
@@ -127,6 +131,7 @@ export function officeTick(days) {
 
 // Phase Two state appears the first tick after NASA is established. Older saves are brought up to date here:
 // version 2 had a skippable man-rating directive; version 1 had no selection steps, Little Joe record or chimpanzee colony.
+// Saves that finished Section 1 before Section 2 existed open it here.
 export function ensurePhaseTwo() {
   if (!S.p2) {
     S.p2 = newPhaseTwo();
@@ -134,6 +139,7 @@ export function ensurePhaseTwo() {
     return;
   }
   const state = S.p2;
+  if (state.secDone && !state.fl.sec2) openSectionTwo();
   if (state.v == 2) {
     state.v = 3;
     if (state.bd == 'skip' && state.dir == 5 && !anyCertified()) state.dir = 4;

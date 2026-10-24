@@ -1,10 +1,10 @@
 // Headless bot: plays the real rules in virtual time and prints pacing. Run: node tools/balance.mjs [runs] [maxMinutes]
-// Phase One runs to orbit; then tools/mercury-bot.mjs plays Phase Two Section 1 for up to maxMinutes more.
+// Phase One runs to orbit; then tools/mercury-bot.mjs plays Phase Two (Section 1, then Section 2) for up to maxMinutes more.
 // Seeded, so the same code prints the same report: diff the output before and after a balance change.
 import { S, resetState, formatDate, freeTeams } from '../js/core/state.js';
 import { PACKAGES, BY_ID } from '../js/data/research.js';
 import { DIRECTIVES } from '../js/data/history.js';
-import { MERCURY_DIRECTIVES } from '../js/data/mercury.js';
+import { MERCURY_DIRECTIVES, sectionDirectives } from '../js/data/mercury.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { FACILITIES, STATIONS } from '../js/data/launch-site.js';
 import { PROGRAMMES } from '../js/data/programmes.js';
@@ -43,7 +43,8 @@ function run(seed) {
       acceptAllFindings();
       t++;
       while (directiveTimes.length < S.dir) directiveTimes.push(t);
-      for (const kind in S.progs) if (S.progs[kind].matured && !(kind in programmeMatured)) programmeMatured[kind] = t;
+      // Programme maturity is reported up to the end of Section 1, as it was before Section 2 existed.
+      if (!(S.p2 && S.p2.secDone)) for (const kind in S.progs) if (S.progs[kind].matured && !(kind in programmeMatured)) programmeMatured[kind] = t;
     }
   };
   // ONE ORDINARY LAUNCH of an airframe from the hangar, flown the way a sensible player would. ballastOnly: no satellite attempt.
@@ -142,13 +143,17 @@ function run(seed) {
   };
   if (!phaseOne.orbit || process.env.PHASE_ONE_ONLY) return phaseOne;
   // Phase Two picks up where Phase One stopped, with the same clock and the same flying.
-  const mercury = playMercury({ advance, now: () => t, flyLaunch, maxSeconds: t + MAX_MINUTES * 60 });
+  // Section 1's figures are the ones taken when it completed (or the end of play, if it never did).
+  const mercury = playMercury({ advance, now: () => t, flyLaunch, maxSeconds: t + MAX_MINUTES * 60, sectionOneOnly: !!process.env.SECTION_ONE_ONLY });
+  const one = mercury.sectionOne || { at: t, budget: S.b, date: S.p2 && S.p2.secDone, missions: mercury.missions, missionFails: mercury.missionFails, astronautsLost: mercury.astronautsLost, launches: mercury.launches, human: S.fs.f_human };
   return {
-    ...phaseOne, mercury, endMercury: t, budgetMercury: S.b, sectionDate: S.p2 && S.p2.secDone ? formatDate(S.p2.secDone) : '-', gagarin: formatDate(S.rv.r_gagarin), human: S.fs.f_human || '-',
+    ...phaseOne, mercury, one, endMercury: one.at, budgetMercury: one.budget, sectionDate: one.date ? formatDate(one.date) : '-', gagarin: formatDate(S.rv.r_gagarin), human: one.human || '-',
+    end: t, budgetEnd: S.b, mercuryDate: S.p2 && S.p2.mercDone ? formatDate(S.p2.mercDone) : '-', titov: S.rv.r_titov ? formatDate(S.rv.r_titov) : '-', dayInOrbit: S.fs.f_day || '-',
   };
 }
 const minutes = seconds => seconds === undefined ? '  -- ' : (seconds / 60).toFixed(1).padStart(5);
 // "programmes" lists each rocket as kind@started>matured (minutes). SEED=n plays only run n (with TRACE=1, one line per launch and per mission).
+// SECTION_ONE_ONLY=1 stops Phase Two once Section 1 is complete.
 for (let i = 0; i < RUNS; i++) {
   if (process.env.SEED && +process.env.SEED != i) continue;
   const r = run(1000 + i * 7919);
@@ -156,5 +161,10 @@ for (let i = 0; i < RUNS; i++) {
   console.log(`seed ${i}: flights ${r.flights} fails ${r.fails} scrubs ${r.scrubs} crew ${r.crew} base ${r.facilities} pkgs ${r.packages} end ${minutes(r.t)}m budget ${Math.round(r.budget)} orbit ${r.orbit} ${r.date} (${r.race}, Sputnik ${r.sputnik}) lostFirsts ${r.sovietFirsts} | directives(min) ${DIRECTIVES.map((_, k) => minutes(r.directiveTimes[k])).join(' ')}`);
   console.log(`        lost to the Soviets in Phase One: ${r.lostFirstIds.join(' ') || 'none'}`);
   const mercury = r.mercury;
-  if (mercury) console.log(`        mercury: ${mercury.done ? 'done' : 'NOT DONE'} in ${minutes(r.endMercury - mercury.nasaAt)}m after NASA (play total ${minutes(r.endMercury)}m) ${r.sectionDate} (first human: ${r.human}, Gagarin ${r.gagarin}) missions ${mercury.missions} failed ${mercury.missionFails} astronautsLost ${mercury.astronautsLost} rating launches ${mercury.launches} budget ${Math.round(r.budgetMercury)} | directives(min after NASA) ${MERCURY_DIRECTIVES.map((_, k) => minutes(mercury.directiveTimes[k])).join(' ')}`);
+  if (mercury) console.log(`        mercury: ${mercury.done ? 'done' : 'NOT DONE'} in ${minutes(r.endMercury - mercury.nasaAt)}m after NASA (play total ${minutes(r.endMercury)}m) ${r.sectionDate} (first human: ${r.human}, Gagarin ${r.gagarin}) missions ${r.one.missions} failed ${r.one.missionFails} astronautsLost ${r.one.astronautsLost} rating launches ${r.one.launches} budget ${Math.round(r.budgetMercury)} | directives(min after NASA) ${MERCURY_DIRECTIVES.filter(directive => !directive.section).map((_, k) => minutes(mercury.directiveTimes[k])).join(' ')}`);
+  // Section 2: times counted from the end of Section 1.
+  if (mercury && mercury.sectionOne && !process.env.SECTION_ONE_ONLY) {
+    const [first, end] = sectionDirectives(2), since = k => mercury.directiveTimes[k] === undefined ? undefined : mercury.directiveTimes[k] + mercury.nasaAt - r.endMercury;
+    console.log(`        section 2: ${mercury.sectionTwoDone ? 'done' : 'NOT DONE'} in ${minutes(r.end - r.endMercury)}m after Section 1 (play total ${minutes(r.end)}m) ${r.mercuryDate} (day in orbit: ${r.dayInOrbit}, Titov ${r.titov}) missions ${mercury.missions - r.one.missions} failed ${mercury.missionFails - r.one.missionFails} astronautsLost ${mercury.astronautsLost - r.one.astronautsLost} rating launches ${mercury.launches - r.one.launches} budget ${Math.round(r.budgetEnd)} | directives(min after Section 1) ${MERCURY_DIRECTIVES.slice(first, end).map((_, k) => minutes(since(first + k))).join(' ')}`);
+  }
 }

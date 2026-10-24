@@ -115,6 +115,12 @@ export const EXPLAINERS = {
   ms_beh: 'The first Mercury capsules came home on a beryllium heat sink. Every kilogram of it has to be carried, which suits a short suborbital arc better than a return from orbit.',
   ms_ablh: 'The ablative shield flew on every orbital Mercury flight. Its resin chars into a layer that insulates the capsule while the outer surface burns away.',
   ms_mqual: 'Altitude chambers, drop tests and shake tables for every capsule system, before an astronaut is asked to trust it.',
+  mo_shield: 'Qualify the capsule\'s shield for the heat of a return from orbit, about four times what a suborbital arc puts into it. The beryllium heat sink was never flown back from orbit.',
+  mo_cons: 'More oxygen, more coolant water and bigger batteries, so the capsule can stay up beyond three orbits. Sigma 7 flew six in October 1962.',
+  mo_fuel: 'The thrusters burn hydrogen peroxide, and every correction spends some. Smaller jets, a low-thrust mode and better gauges make a load last; Friendship 7 and Aurora 7 both came home short of fuel.',
+  mo_retro: 'Horizon scanners and a better retrofire clock, so the capsule is pointed right and the retros fire on time. A few degrees off or a few seconds late moves the splashdown by hundreds of kilometres.',
+  mo_long: 'Strip out what a long flight does not need and fill the space with oxygen, water and batteries. Faith 7 flew 22 orbits in May 1963 this way.',
+  fx_sg: 'On Friendship 7 a faulty switch reported that the landing bag had deployed, which would have meant the heat shield was loose. Rewiring it ends the false alarms.',
 
   // ESCAPE & MAN-RATING
   esc_tower: 'A solid rocket on a lattice tower above the capsule that can pull it clear of an exploding booster in an instant.',

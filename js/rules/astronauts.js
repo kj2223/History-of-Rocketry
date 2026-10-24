@@ -9,7 +9,7 @@
 //   tday   training days                           reh    simulator rehearsals done, { emergency: 1 }
 //   focus  a TRAINING_FOCUS key                    gd     days left grounded
 //   fat    fatigue, 0 to 100                       flights
-//   asg    the mission assigned ('mr'), or null    mt     mission training, 0 to 1      cap  capsule name, once flown
+//   asg    the mission assigned ('mr' or 'mo'), or null    mt     mission training, 0 to 1      cap  capsule name, once flown
 import { gaussian } from '../core/util.js';
 import { FIRST_NAMES, LAST_NAMES, SERVICES, DEGREES, SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS, REHEARSAL_KEYS } from '../data/astronauts.js';
 import { S, log, addHistory } from '../core/state.js';
@@ -167,6 +167,6 @@ export function assignPilot(id, missionType) {
   astronaut.asg = missionType;
   astronaut.mt = 0;
   astronaut.focus = 'msn';
-  log(`[ASTRONAUT OFFICE] ${astronaut.name} is assigned as pilot for the next ${missionType == 'mr' ? 'Mercury-Redstone' : missionType} flight. Mission training begins.`, 'ok');
+  log(`[ASTRONAUT OFFICE] ${astronaut.name} is assigned as pilot for the next ${missionType == 'mr' ? 'Mercury-Redstone' : missionType == 'mo' ? 'orbital Mercury' : missionType} flight. Mission training begins.`, 'ok');
 }
 export const assignedPilot = missionType => (S.p2.astros || []).find(astronaut => astronaut.asg == missionType && astronaut.st == 'active');

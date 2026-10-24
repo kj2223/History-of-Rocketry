@@ -11,7 +11,7 @@ import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from
 import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
-import { orderCapsule } from '../rules/mercury.js';
+import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
 import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
@@ -33,7 +33,7 @@ document.addEventListener('input', event => {
   if (event.target.dataset.tj) $('#tj-' + event.target.dataset.tj).textContent = event.target.value + '°';
 });
 
-// SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, the campaign form and the launch form.
+// SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew, orbits), auto-publish, the campaign form and the launch form.
 document.addEventListener('change', event => {
   const data = event.target.dataset, value = event.target.value;
   if (data.focus) {
@@ -55,6 +55,10 @@ document.addEventListener('change', event => {
   }
   if (data.mc) {
     S.p2.lc = isNaN(+value) ? value : +value;
+    return render();
+  }
+  if (data.mo) {
+    S.p2.lo = +value;
     return render();
   }
   if (data.tj) {
@@ -178,7 +182,7 @@ const GAME_ACTIONS = {
   selok: () => {
     if (selectCrew([...selectedFinalists])) selectedFinalists.clear();
   },
-  asg: id => assignPilot(+id, 'mr'),
+  asg: id => assignPilot(+id, pilotMissionType()),
   memok: () => {
     S.p2.memo = null;
     $('#sum').hidden = true;

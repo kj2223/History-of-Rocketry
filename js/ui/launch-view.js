@@ -14,7 +14,7 @@ import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, fo
 import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel, availableChannels, canRetune, offLinkWarning } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
-import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock } from '../rules/mission.js';
+import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock, missionStepSeconds, currentOrbit } from '../rules/mission.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
@@ -233,7 +233,8 @@ function liftoff(override) {
 
 // THE MISSION CLOCK STRIP under the plotting board: the clock, the flight's milestones, and what the tracking can read now.
 // phases: [{ name, reached }], in order; the one after the last reached is coming up. readouts: [{ label, text, none, lost, warn }].
-const clockFormat = seconds => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+// mm:ss, or h:mm:ss once a flight (an orbital one) passes an hour.
+const clockFormat = seconds => `${seconds >= 3600 ? `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}` : String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 function drawClockStrip(clock, phases, readouts) {
   $('#mclock').textContent = clock;
   // A milestone counts as passed once any later one is (a slow rocket may never show a clear max Q).
@@ -373,14 +374,14 @@ export function startMissionCount() {
   const state = S.p2, capsule = state && state.veh.find(candidate => candidate.id == state.lv), booster = state && S.air.find(airframe => airframe.id == state.lb && airframe.st == 'r');
   if (!capsule || !booster) return;
   const crew = state.lc || 'none', propellant = state.lf || 'Alcohol & LOX', plan = boosterPlan(booster, propellant, capsule.mt);
-  if (!plan.ok || crewLock(crew, booster)) return;
-  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant });
+  if (!plan.ok || crewLock(crew, booster, capsule.mt)) return;
+  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo });
   openPad();
   runCount();
 }
 function launchMission(override) {
   const count = launchView.count, poll = count.poll;
-  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind });
+  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind, orbits: count.mission.orbits });
   if (!mission) return;
   airborne.mission = mission;
   mission.shownTranscript = 0;
@@ -398,7 +399,8 @@ function launchMission(override) {
   $('#ln').textContent = mission.crew && !mission.crew.species ? `${mission.crew.name} is aboard. Decisions in flight are theirs, with CAPCOM's help.` : 'Telemetry from the capsule.';
   launchView.flightTimer = setInterval(missionTick, 250);
 }
-// A quarter-second of the mission: five mission seconds with a pilot aboard, ten without. The clock stops for decisions.
+// A quarter-second of the mission: five mission seconds with a pilot aboard, ten without, faster in orbit (rules/mission.js
+// missionStepSeconds). The clock stops for decisions.
 function missionTick() {
   const mission = airborne.mission;
   if (!mission) return;
@@ -406,12 +408,13 @@ function missionTick() {
     $('#padph').textContent = 'DECISION';
     return;
   }
-  const result = stepMission(mission, mission.crew && !mission.crew.species ? 5 : 10);
+  const result = stepMission(mission, missionStepSeconds(mission));
   drawTranscript(mission);
   const now = reading(mission);
   mission.trace.push(Math.round(now.alt * 1000));
   const type = mission.type;
-  $('#padph').textContent = result == 'decide' ? 'DECISION' : `T+${Math.floor(mission.time / 60)}:${String(Math.floor(mission.time % 60)).padStart(2, '0')} ${mission.time < (type.sep || 40) ? 'POWERED FLIGHT' : mission.time < (type.reentry || type.chute) ? 'COAST' : mission.time < type.chute ? 'RE-ENTRY' : 'DESCENT AND RECOVERY'}`;
+  const coast = type.orbital && mission.time < type.retro ? `IN ORBIT (ORBIT ${currentOrbit(mission)} OF ${type.orbits})` : type.orbital && mission.time < type.reentry ? 'RETROFIRE' : 'COAST';
+  $('#padph').textContent = result == 'decide' ? 'DECISION' : `T+${Math.floor(mission.time / 60)}:${String(Math.floor(mission.time % 60)).padStart(2, '0')} ${mission.time < (type.sep || 40) ? 'POWERED FLIGHT' : mission.time < (type.reentry || type.chute) ? coast : mission.time < type.chute ? 'RE-ENTRY' : 'DESCENT AND RECOVERY'}`;
   drawMissionInstruments(mission);
   if (result == 'decide') renderPad();
   if (result == 'end') finishMission();
@@ -419,15 +422,18 @@ function missionTick() {
 function drawMissionInstruments(mission) {
   const now = reading(mission), type = mission.type, time = mission.time;
   const phases = [{ name: 'LIFTOFF', reached: time > 0 }];
-  if (type.sep) phases.push({ name: 'BOOSTER SEP', reached: time >= type.sep });
+  if (type.sep) phases.push({ name: type.orbital ? 'ORBIT' : 'BOOSTER SEP', reached: time >= type.sep });
+  if (type.orbital) phases.push({ name: 'RETROFIRE', reached: time >= type.retro });
   if (type.reentry) phases.push({ name: 'RE-ENTRY', reached: time >= type.reentry });
   phases.push({ name: 'CHUTE', reached: time >= type.chute }, { name: 'SPLASHDOWN', reached: false });
-  drawClockStrip(`T+${clockFormat(time)}`, phases, [
+  const readouts = [
     { label: 'ALTITUDE', text: `${now.alt.toFixed(1)} km` },
     { label: 'VELOCITY', text: `${Math.round(now.v)} m/s` },
     { label: 'G-LOAD', text: `${now.g.toFixed(1)} g` },
     { label: 'CABIN TEMP', text: `${now.temp} °C` },
-  ]);
+  ];
+  if (type.orbital) readouts.push({ label: 'ATT FUEL', text: `${Math.round(mission.fuel)}%`, warn: mission.fuel < 35 });
+  drawClockStrip(`T+${clockFormat(time)}`, phases, readouts);
   setHTML($('#uplink'), '');
 }
 function decisionHTML(mission) {
