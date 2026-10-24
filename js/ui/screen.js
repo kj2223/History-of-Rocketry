@@ -9,6 +9,7 @@ import { grant } from '../rules/economy.js';
 import { nasaReady, SPACE_ACT_DAY } from '../rules/race.js';
 import { roomLevel } from '../rules/launch-site.js';
 import { buildRate } from '../rules/factory.js';
+import { itemAsSeen } from '../rules/research.js';
 import { catchUp, ensureStarter } from '../rules/game.js';
 import { renderControlRoom, renderLaunchForm, renderCampaign } from './launch-panel.js';
 import { launchView, renderPad } from './launch-view.js';
@@ -78,6 +79,21 @@ function applyDesk() {
   const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag').length, badge = $('#badge-rd');
   badge.hidden = !waiting;
   badge.textContent = waiting;
+  renderMiniClock();
+}
+
+// THE SMALL MISSION CLOCK under the consoles: a copy of the pad's clock, phase, milestones and readouts, shown while a
+// desk drawer covers the pad. The pad's phase line (#padph) can start with the count or mission time ("T-00:10 COUNTING");
+// in flight the clock strip (#mclock) holds the time, so the phase is shown without it.
+function renderMiniClock() {
+  const box = $('#miniclock');
+  box.hidden = !launchView.count || !desk;
+  if (box.hidden) return;
+  const phase = $('#padph').textContent.match(/^(T[+-][\d:]+)?\s*(.*)$/), flying = !$('#fl').hidden;
+  $('#miniclockt').textContent = flying ? $('#mclock').textContent : phase[1] || '';
+  $('#miniclockph').textContent = phase[2];
+  setHTML($('#miniphases'), flying ? $('#phases').innerHTML : '');
+  setHTML($('#minireads'), flying ? $('#readouts').innerHTML : '');
 }
 
 // THE HEADER: speed, date (and catch-up), the next appropriation, budget, reputation and records.
@@ -93,6 +109,17 @@ export function renderHeader() {
   $('#ra').textContent = Math.round(S.hi || 0).toLocaleString() + ' m';
   $('#rv').textContent = Math.round(S.hs || 0).toLocaleString() + ' m/s';
   $('#rd').textContent = ((S.hd || 0) / 1000).toFixed(S.hd < 1e5 ? 1 : 0) + ' km';
+  renderHeaderResearch();
+}
+// THE HEADER RESEARCH BAR: the research package closest to finishing, and how many others are in work.
+function renderHeaderResearch() {
+  const research = S.jobs.filter(job => job.k == 'pk').sort((a, b) => a.t - b.t), nearest = research[0];
+  const others = research.length > 1 ? ` +${research.length - 1} more` : '';
+  // The name is cut short if it must be; the time left and the count of others always show.
+  $('#hres').textContent = nearest ? itemAsSeen(nearest.id).name : 'None in work';
+  $('#hres').title = $('#hres').textContent;
+  $('#hrest').textContent = nearest ? ` · ${nearest.t}s${others}` : '';
+  $('#hresbar').style.width = nearest ? Math.round((1 - nearest.t / Math.max(1, nearest.tot)) * 100) + '%' : '0';
 }
 function banner(subtitle, title, body) {
   const box = $('#bn');
@@ -202,6 +229,9 @@ export function initUI() {
   ensureStarter();
   $('#fl').hidden = true;
   $('#lc').hidden = false;
+  // The small clock follows the pad's clock strip as it changes, many times a second in flight.
+  const followPad = new MutationObserver(renderMiniClock);
+  for (const node of [$('#padph'), $('#mclock'), $('#phases'), $('#readouts')]) followPad.observe(node, { childList: true, characterData: true, subtree: true, attributes: true });
   logSink.fn('[SYSTEM] Radar tracking and a radio beacon are online. Expect approximate data only.', '');
   logSink.fn('[SYSTEM] Appropriations arrive every 30 seconds.', '');
   render();

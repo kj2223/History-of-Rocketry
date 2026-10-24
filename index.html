@@ -19,6 +19,7 @@
     <div><span class="lbl" data-l="TREASURY|BUREAU OF THE BUDGET|FUNDING OFFICE"></span><b id="bg" class="t"></b></div>
     <div><span class="lbl">GRANT IN</span><b><span id="gt"></span>s · <span id="ga"></span></b></div>
     <div><span class="lbl">REPUTATION</span><b id="rp"></b></div>
+    <div class="hres"><span class="lbl">RESEARCH</span><b><span id="hres"></span><span id="hrest"></span></b><div class="bar"><i id="hresbar"></i></div></div>
     <div><span class="lbl">RECORDS</span><b><span id="ra">0 m</span> · <span id="rv">0 m/s</span> · <span id="rd">0 km</span></b></div>
   </div>
   <div class="spd"><button data-spd="0">PAUSE</button><button data-spd="1">1×</button><button data-spd="2">2×</button><button data-spd="4">4×</button></div>
@@ -74,6 +75,11 @@
   <section class="col right">
     <div class="p roompic"><h2 id="crt">CONTROL ROOM</h2><div id="cr"></div><div class="m" id="crm"></div></div>
     <div id="cons" class="cons"></div>
+    <!-- A small copy of the mission clock strip, shown while a desk drawer covers the pad (screen.js renderMiniClock). -->
+    <div id="miniclock" class="miniclock" hidden>
+      <div class="minihd"><span class="lbl">MISSION CLOCK</span><b id="miniclockt"></b><b id="miniclockph" class="t"></b></div>
+      <div id="miniphases" class="phases"></div><div id="minireads" class="readouts"></div>
+    </div>
   </section>
 
   <!-- THE DRAWER: the desk picked on the rail. It covers the left and centre columns; the consoles stay in view. -->
