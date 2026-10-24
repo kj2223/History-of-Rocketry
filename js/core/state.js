@@ -15,6 +15,7 @@
 //           kinds: pk research package, inv investigation, fix corrective fix, rev design review,
 //                  gt ground test, retro hangar retrofit, dev programme design
 //   teams   engineering teams                      bteams  factory build teams (missing means 1)
+//   rq      research queue: [{ id, prog }], started in order as teams free up (rules/research.js)
 //   air     airframes in the hangar: { id, prog, pk, fix, rev, cost, st: r ready | queued | retro, built, label }
 //   aq      factory queue: { k: build | retro | msn, prog, cfg, cost, t: work left, tot: work in all, ... }
 //   fac     facilities in service, { id: 1 }       fb      facilities under construction, { id: day in service }
@@ -58,7 +59,7 @@ export const GLOBAL_AREAS = ['r', 'c', 'e'];
 export const newBundle = () => ({ pk: {}, bt: {}, fix: {}, inc: [], known: {}, kn: {}, ear: {}, bp: { rev: 1, pk: [], fix: {} }, line: { xp: 0 }, mrate: null });
 
 export const newGameState = () => ({
-  b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], teams: 2, air: [], aq: [], fac: {},
+  b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], rq: [], teams: 2, air: [], aq: [], fac: {},
   nid: 1, prod: 0, ok: 0, fr: {}, gt: 30, sg: 0, hs: 0, hd: 0, crew: {}, fs: {}, rvd: {},
   rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
   fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3,

@@ -3,7 +3,7 @@
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, MILESTONES, BY_ID, isMilestone, AREAS, formatEffect, breakthroughNeeds } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
+import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob, withProgramme } from '../core/state.js';
 import { learn, knowledgeFraction } from './knowledge.js';
 import { programmePackages, isInProgramme, scaledForProgramme, VEHICLE_AREAS, programmeData } from './programs.js';
 import { trackingTiers } from './design.js';
@@ -67,6 +67,14 @@ export function describeResearch(item) {
 
 // Why a package or milestone cannot be commissioned now, or null if it can.
 export function researchLock(id) {
+  const lock = availabilityLock(id), item = itemAsSeen(id);
+  if (lock) return lock;
+  if (S.b < costAfterEarmark(item)) return `Need ${formatMoney(costAfterEarmark(item) - S.b)} more.`;
+  if (freeTeams() < 1) return 'All teams busy.';
+  return null;
+}
+// Why a package or milestone is not open to commission at all (money and free teams aside), or null if it is.
+function availabilityLock(id) {
   const item = itemAsSeen(id);
   if (item.phase == 2 && !S.nasa) return 'Opens when NASA is established.';
   if (isVehicleArea(item.area) && !S.cur) return 'No rocket programme.';
@@ -79,8 +87,6 @@ export function researchLock(id) {
     if (lock) return lock;
   } else if (!isProposed(item)) return 'Not yet proposed by the engineers.';
   if (item.needsMilestone && !isVehicleArea(item.area) && !hasFirstMilestone(item.area)) return 'Unlocks after a first milestone in this area.';
-  if (S.b < costAfterEarmark(item)) return `Need ${formatMoney(costAfterEarmark(item) - S.b)} more.`;
-  if (freeTeams() < 1) return 'All teams busy.';
   return null;
 }
 export const commission = id => {
@@ -92,9 +98,65 @@ export const commission = id => {
     S.ear[item.area] = 0;
   }
   S.b -= cost;
+  S.rq = S.rq.filter(entry => !isQueueEntryFor(entry, item));
   S.jobs.push({ k: 'pk', id, prog: isVehicleArea(item.area) ? S.cur : null, t: item.time, tot: item.time });
   log(`[DESIGN] Started: ${item.name} (${formatMoney(item.cost)}).`, 'wn');
 };
+
+// THE RESEARCH QUEUE: work lined up for the next free engineering team, so teams do not sit idle while you are busy launching.
+// One queue for all teams, in order: whenever a team is free, the first entry starts and is paid for then (earmarks apply then too).
+// If the treasury cannot cover the first entry, the queue waits for the money rather than skipping ahead.
+// An entry that can no longer be started (another approach was chosen, for one) is dropped with a log line.
+// Rocket work is queued for the programme in focus when it is queued. Queued work cannot be crashed until it is running.
+export const RESEARCH_QUEUE_LENGTH = 6;
+const isQueueEntryFor = (entry, item) => entry.id == item.id && entry.prog == (isVehicleArea(item.area) ? S.cur : null);
+// The queue position of a package or milestone (0 = next), or -1 if it is not queued.
+export const queuePosition = id => S.rq.findIndex(entry => isQueueEntryFor(entry, itemAsSeen(id)));
+// Why a package or milestone cannot be queued, or null if it can. Unlike commissioning, it needs neither the money nor a free team yet.
+export function queueLock(id) {
+  const item = itemAsSeen(id), lock = availabilityLock(id);
+  if (lock) return lock;
+  if (queuePosition(id) >= 0) return 'Already queued.';
+  if (S.rq.length >= RESEARCH_QUEUE_LENGTH) return `The queue is full (${RESEARCH_QUEUE_LENGTH}).`;
+  if (isMilestone(id) && item.tier == 1 && S.rq.some(entry => entry.id != id && BY_ID[entry.id].area == item.area && BY_ID[entry.id].tier == 1 && entry.prog == (isVehicleArea(item.area) ? S.cur : null))) return 'Another approach is queued.';
+  return null;
+}
+export function queueResearch(id) {
+  const lock = queueLock(id);
+  if (lock) return log(lock, 'bad');
+  const item = itemAsSeen(id);
+  S.rq.push({ id, prog: isVehicleArea(item.area) ? S.cur : null });
+  log(`[DESIGN] Queued: ${item.name} (${S.rq.length} in the queue).`, 'wn');
+  startQueuedResearch();
+}
+export const unqueueResearch = index => { S.rq.splice(index, 1); };
+// Why the first entry in the queue is waiting, or null if it can start.
+export function queueWait() {
+  const entry = S.rq[0];
+  if (!entry) return null;
+  if (freeTeams() < 1) return 'Waiting for a free team.';
+  const cost = withProgramme(entry.prog, () => costAfterEarmark(itemAsSeen(entry.id)));
+  return S.b < cost ? `Waiting for funds (${formatMoney(cost - S.b)} more).` : null;
+}
+// Start queued work while teams are free and the money is there (each second, and whenever something is queued).
+// Returns true if the queue changed.
+export function startQueuedResearch() {
+  let changed = false;
+  while (S.rq.length && freeTeams() > 0) {
+    const entry = S.rq[0];
+    const lock = entry.prog && !S.progs[entry.prog] ? 'The programme is closed.' : withProgramme(entry.prog, () => availabilityLock(entry.id));
+    if (lock) {
+      S.rq.shift();
+      log(`[DESIGN] ${BY_ID[entry.id].name} dropped from the research queue: ${lock}`, 'bad');
+      changed = true;
+      continue;
+    }
+    if (queueWait()) break;
+    withProgramme(entry.prog, () => commission(entry.id));
+    changed = true;
+  }
+  return changed;
+}
 
 // CRASH PROGRAMMES (NASA era): overtime and outside contractors halve the time left on a running research job, once per job,
 // for twice the item's cost. Crash early: the price is the same however little work is left.

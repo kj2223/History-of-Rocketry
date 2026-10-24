@@ -9,7 +9,7 @@ import { grant, defenseSupplement, payroll, programmeProgress } from './economy.
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
 import { roomLevel, constructionTick } from './launch-site.js';
 import { createProgramme, isMature } from './programs.js';
-import { hasFirstMilestone, giveEarmark } from './research.js';
+import { hasFirstMilestone, giveEarmark, startQueuedResearch } from './research.js';
 import { makeAirframe } from './production.js';
 import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost, factoryTick, autoPublishDue, publishBlueprint } from './factory.js';
 import { finishJob } from './jobs.js';
@@ -64,6 +64,7 @@ export function tickSecond() {
     finishJob(job);
     changed = true;
   }
+  if (startQueuedResearch()) changed = true;
   if (autoPublishDue()) {
     publishBlueprint(true);
     changed = true;
