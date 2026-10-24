@@ -19,7 +19,7 @@ import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
-import { researchDesk } from './design-bureau.js';
+import { researchDesk, renderResearchDesk } from './design-bureau.js';
 import { trajectoryPanel, currentPlan } from './trajectory.js';
 import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
@@ -227,6 +227,10 @@ const VIEW_ACTIONS = {
     researchDesk.pick = id;
     render();
   },
+  rfold: area => {
+    researchDesk.unfolded[area] = !researchDesk.unfolded[area];
+    render();
+  },
   // The trajectory panel: open or close it, pick a pitch program, or go back to the default plan.
   traj: () => {
     trajectoryPanel.open = !trajectoryPanel.open;
@@ -254,6 +258,17 @@ const VIEW_ACTIONS = {
     $('#sum').hidden = false;
   },
 };
+
+// HOVERING a research card shows it in the R&D desk's dossier. Moving between cards keeps the last one; leaving the columns
+// goes back to the picked card.
+document.addEventListener('mouseover', event => {
+  const card = event.target.closest('#rdesk .rcard');
+  if (!card && event.target.closest('#rdesk .rcols')) return;
+  const id = card ? card.dataset.id : null;
+  if (researchDesk.hover == id) return;
+  researchDesk.hover = id;
+  renderResearchDesk();
+});
 
 document.addEventListener('click', event => {
   const deskButton = event.target.closest('[data-desk]');

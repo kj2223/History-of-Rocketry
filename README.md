@@ -28,6 +28,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | You want to change | Look in |
 |---|---|
 | Research packages and milestones (cost, time, effects) | `data/research.js` |
+| What the R&D desk says about a package (explainers, the engineers' confidence lines) | `data/research-notes.js` |
 | Rockets: design figures, costs, propellants, flaws | `data/programmes.js` |
 | Propellants (sea-level and vacuum Isp), payloads and pitch programs | `data/launch.js` |
 | Engine start and tail-off, residual propellant, drag through the sound barrier, gravity-turn steering, staging delays | the constants above `step()` in `rules/flight.js` |
@@ -75,7 +76,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `ui/trajectory.js` | The trajectory panel beside the plotting board: launcher elevation, pitch program, upper stage aim, the prediction and the team's best plan |
 | `ui/consoles.js` | One live tile per launch-crew station: readout, gauge, what it is doing, its last call |
 | `ui/control-room.js` | The control-room picture |
-| `ui/design-bureau.js` | The R&D desk: research columns and detail bar, the rocket programme, the engineering file, incidents |
+| `ui/design-bureau.js` | The R&D desk: research columns and the dossier under them, the rocket programme, the engineering file, incidents |
 | `ui/hangar.js` | The Hangar desk (blueprints, the factory queue, airframes) and the Base desk (facilities) |
 | `ui/personnel.js` | The Crew desk: teams, specialists, launch crew |
 | `ui/race-and-summaries.js` | The race panel, the Phase One summary, the run log |

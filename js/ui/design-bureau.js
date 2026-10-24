@@ -1,16 +1,18 @@
 // THE R&D DESK (a drawer over the control room). Four views:
 //   research          one column per area: breakthrough progress, the milestone, and a compact card per package. Picking a card
-//                     shows it in the bar along the bottom, with its COMMISSION (or ground test) button.
+//                     (or hovering it) shows it in the dossier along the bottom: what it is, the numbers, what the engineers
+//                     expect, and its COMMISSION (or ground test) button.
 //   programme         the programme bar and the focused rocket's card: maturity, performance window, flaws, next programmes.
 //   engineering file  what the team knows about each system, its failure modes and design reviews.
 //   incidents         failures not yet explained.
 import { formatMoney } from '../core/util.js';
-import { MILESTONES, AREAS, BY_ID } from '../data/research.js';
+import { MILESTONES, AREAS, BY_ID, EFFECTS, formatEffect } from '../data/research.js';
+import { EXPLAINERS, CONFIDENCE_LEVELS, EXPERIMENTAL_SAYS } from '../data/research-notes.js';
 import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
 import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
-import { trackingTiers, designation } from '../rules/design.js';
-import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
+import { trackingTiers, designation, designSpec } from '../rules/design.js';
+import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
 import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
@@ -20,6 +22,7 @@ import { $, setHTML } from './dom.js';
 // The job researching an item, for the programme it belongs to (vehicle areas) or the global bundle.
 const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id && job.prog == (isVehicleArea(item.area) ? S.cur : null));
 
+const FOLD_CONFIRMED_OVER = 3; // more confirmed packages than this in a column fold into one row
 // ONE AREA'S COLUMN: breakthrough progress, the milestone slot, then a card per package (finished, in work, or on offer).
 function researchColumn(area) {
   const counts = areaCounts(area), vehicle = isVehicleArea(area), needs = breakthroughNeedsHere(area)[0];
@@ -28,9 +31,13 @@ function researchColumn(area) {
   let html = `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}${vehicle ? '' : ' <span class="d">all rockets</span>'}</div>`;
   if (hasMilestones) html += `<div class="r m"><span>Breakthrough</span><span>${Math.min(counts.confirmed, needs)} of ${needs} confirmed</span></div><div class="bar"><i style="width:${Math.min(100, counts.confirmed / needs * 100)}%"></i></div>` + milestoneSlot(area, needs, counts);
   else html += `<div class="m">${counts.done} of ${counts.total} done · ${counts.confirmed} confirmed</div>`;
-  itemsInArea(area).filter(item => isResearched(item.id)).forEach(item => html += packageCard(item));
+  const finished = itemsInArea(area).filter(item => isResearched(item.id)), confirmed = finished.filter(item => isConfirmed(item.id));
+  // A long run of confirmed work folds into one row (click to unfold) so the column still fits above the dossier.
+  const folded = confirmed.length > FOLD_CONFIRMED_OVER && !researchDesk.unfolded[area];
+  if (confirmed.length > FOLD_CONFIRMED_OVER) html += `<button data-a="rfold" data-id="${area}" class="rcard done chip"><span class="r"><b>${confirmed.length} confirmed</b><span>${folded ? '▸' : '▾'}</span></span></button>`;
+  finished.filter(item => !(folded && confirmed.includes(item))).forEach(item => html += packageCard(item));
   offered.forEach(item => html += packageCard(item));
-  if (later) html += `<div class="m">${later} more idea${later > 1 ? 's' : ''} will be proposed as the engineers prove what they have.</div>`;
+  if (later) html += `<div class="m">${later} more idea${later > 1 ? 's' : ''} to come.</div>`;
   return html + '</div>';
 }
 // The milestone slot at the top of a column: locked, a choice to make (one card per approach), or the chosen programme.
@@ -41,14 +48,16 @@ function milestoneSlot(area, needs, counts) {
   if (S.bt[area]) return `<div class="ms-slot ready"><div class="t">BREAKTHROUGH: CHOOSE ONE</div>${options.map(milestone => packageCard(milestone, '★')).join('')}</div>`;
   return `<div class="ms-slot"><span class="d">Milestone opens after ${needs - Math.min(needs, counts.confirmed)} more confirmed</span></div>`;
 }
-// A compact card. Picking it shows it in the detail bar. mark: shown before the name (milestones).
+// A compact card. Picking it shows it in the dossier. mark: shown before the name (milestones). Confirmed work shrinks to a
+// one-line chip so long columns still fit above the dossier; hovering it shows it in full there.
 function packageCard(entry, mark = '') {
   const item = itemAsSeen(entry.id), job = researchJob(item), done = isResearched(item.id), confirmed = done && isConfirmed(item.id);
   const look = done ? (confirmed ? 'done' : 'flown') : job ? 'work' : item.dud ? 'exp' : 'open';
-  const tag = done ? (confirmed ? '■' : '□ unproven') : job ? '' : item.dud ? '◆' : '';
+  const tag = done ? (confirmed ? '■' : '□') : job ? '' : item.dud ? '◆' : '';
   const meta = done ? (confirmed ? 'confirmed' : 'finished, not yet confirmed') : job ? `in work: <span data-j="pk${item.id}">${job.t}s</span> left`
     : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}`;
   const progress = job ? `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '';
+  if (confirmed) return `<button data-a="rpick" data-id="${item.id}" class="rcard done chip${researchDesk.pick == item.id ? ' on' : ''}" title="${item.name}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span></button>`;
   return `<button data-a="rpick" data-id="${item.id}" class="rcard ${look}${researchDesk.pick == item.id ? ' on' : ''}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span><span class="m">${meta}</span>${progress}</button>`;
 }
 // A finished package not yet confirmed can be proven on the ground: a static firing (propulsion, with a test stand) or
@@ -60,14 +69,81 @@ function groundTestHTML(area, item) {
   return job ? `<div class="m wn">${qualification ? 'Qualification tests' : 'Static firing'}: <span data-j="gt${item.id}">${job.t}s</span></div>`
     : `<button data-a="gt" data-id="${item.id}"${lock ? ' disabled' : ''}>${qualification ? 'QUALIFICATION TEST ($4,000, 110s)' : 'GROUND TEST ($2,000, 30s)'}</button>`;
 }
-// THE DETAIL BAR: the picked package or milestone in full, with what can be done with it.
-function detailBar() {
-  const id = researchDesk.pick;
-  if (!id || !BY_ID[id]) return '<div class="rdetail m">Pick a card to see what the engineers expect from it and to commission it.</div>';
-  const item = itemAsSeen(id), milestone = item.tier != null;
-  let html = `<div class="rdetail"><div class="grow"><b>${item.name}</b>${item.dud ? ' <span class="exp-t">◆ experimental</span>' : ''}${milestone && item.why ? `<div class="m"><i>${item.why}</i></div>` : ''}`;
-  if (isResearched(id)) return html + `<div class="m">${describeResearch(item)}</div></div><div>${groundTestHTML(item.area, item)}</div></div>`;
-  return html + `</div><div class="rdetail-act">${commissionHTML(item)}</div></div>`;
+// THE DOSSIER: the card being hovered (or else the one picked) in full, filling the space under the columns in four parts:
+// what it is, the numbers, what the engineers expect, and what can be done with it. With nothing picked, how research works.
+const shownInDossier = () => researchDesk.hover || researchDesk.pick;
+function dossier() {
+  const id = shownInDossier();
+  if (!id || !BY_ID[id]) return `<div class="dossier"><div class="dossier-part wide"><div class="t">HOW RESEARCH WORKS</div>`
+    + '<p>Each card is a package of work the engineers propose, and more are proposed as they prove what they have. It improves the rocket in a small, uncertain step: the figures on the card are estimates, and the real ones are fixed when the work finishes.</p>'
+    + '<p>Finished work goes into airframes when you publish a blueprint revision on the Hangar desk, and its effect is measured, or confirmed, when an airframe carrying it flies. Enough confirmed packages in an area make a breakthrough, which opens a major programme.</p>'
+    + '<p class="m">Hover over a card to read about it here. Click it to keep it here while you look at others.</p></div></div>';
+  const item = itemAsSeen(id);
+  return `<div class="dossier">${dossierAbout(item)}${dossierNumbers(item)}${dossierExpectations(item)}${dossierActions(item)}</div>`;
+}
+// What it is: the name, the explainer, and what it counts toward.
+function dossierAbout(item) {
+  const milestone = item.tier != null, counts = areaCounts(item.area), needs = breakthroughNeedsHere(item.area)[0];
+  const hasMilestones = !isVehicleArea(item.area) || (PROGRAMMES[S.cur] && PROGRAMMES[S.cur].hasMilestones);
+  let html = `<div class="dossier-part wide"><div class="t">${item.name.toUpperCase()} <span class="d">· ${AREAS[item.area]}${item.dud ? ' · <span class="exp-t">◆ experimental</span>' : ''}</span></div>`;
+  if (milestone && item.why) html += `<p><i>${item.why}</i></p>`;
+  if (EXPLAINERS[item.id]) html += `<p>${EXPLAINERS[item.id]}</p>`;
+  if (milestone && item.tier == 1 && !isResearched(item.id)) html += '<p class="m">A major programme. Choosing it rules out the other approach in this area.</p>';
+  else if (!milestone && hasMilestones && !isConfirmed(item.id)) html += `<p class="m">Counts toward the ${AREAS[item.area].toLowerCase()} breakthrough once confirmed (${Math.min(counts.confirmed, needs)} of ${needs} confirmed so far).</p>`;
+  return html + '</div>';
+}
+// ON THE ROCKET: how an effect would change the figures the team believes for the rocket in focus. [formatStat key, the figure from a design spec]
+const ROCKET_FIGURES = {
+  t: ['thr', spec => spec.thr * spec.t], d: ['dry', spec => spec.dry + spec.d], f: ['f', spec => spec.f], g: ['g', spec => spec.g], c: ['c', spec => spec.c], h: ['h', spec => spec.h], q: ['q', spec => spec.q], rv: ['rv', spec => spec.rv],
+};
+// One effect's figure without its name, e.g. "+5% (±1.3)" from "thrust +5% (±1.3)".
+const effectFigure = (key, value, uncertainty) => formatEffect(key, value, uncertainty).slice(EFFECTS[key][0].length + 1);
+const capitalise = text => text[0].toUpperCase() + text.slice(1);
+// The numbers: each effect (estimated, or measured once confirmed) with what it means for the rocket, then cost and time.
+function dossierNumbers(item) {
+  const done = S.pk[item.id], measured = done && done.c, job = researchJob(item), spread = estimateSpread(item);
+  const effects = measured ? done.m : item.effects, now = designSpec(Object.keys(S.pk), true);
+  let html = `<div class="dossier-part"><div class="t">THE NUMBERS <span class="d">· ${measured ? 'measured' : 'estimate'}${S.cur && !done ? ` for the ${PROGRAMMES[S.cur].name}` : ''}</span></div>`;
+  for (const [key, value] of Object.entries(effects)) {
+    html += `<div class="r"><span>${capitalise(EFFECTS[key][0])}</span><b>${effectFigure(key, value, measured ? null : Math.abs(value) * spread)}</b></div>`;
+    const figure = ROCKET_FIGURES[key];
+    if (figure && !done && S.cur) {
+      const after = { ...now, [key]: now[key] + value };
+      html += `<div class="m">&nbsp; now ${formatStat(figure[0], figure[1](now))} → about ${formatStat(figure[0], figure[1](after))}</div>`;
+    }
+  }
+  html += '<div class="gap"></div>';
+  if (done) return html + `<div class="r"><span>Status</span><b class="${measured ? 'ok' : ''}">${measured ? 'Confirmed' : 'Finished, not yet confirmed'}</b></div></div>`;
+  const cost = costAfterEarmark(item);
+  html += `<div class="r"><span>Cost</span><b>${formatMoney(cost)}</b></div>${cost < item.cost ? `<div class="r d"><span>&nbsp; before the earmark</span><span>${formatMoney(item.cost)}</span></div>` : ''}`
+    + `<div class="r"><span>Time</span><b>${job ? `<span data-j="pk${item.id}">${job.t}s</span> left` : `${item.time}s`} · one team</b></div>`
+    + (item.dud ? `<div class="r"><span>Chance of a dead end</span><b class="exp-t">${Math.round(item.dud * 100)}%</b></div>` : '')
+    + (item.contract ? `<div class="r"><span>Contract pays</span><b>${formatMoney(item.contract)}</b></div>` : '');
+  if (!job) html += `<div class="r"><span>Treasury after</span><b class="${S.b < cost ? 'bad' : ''}">${formatMoney(S.b - cost)}</b></div>`;
+  return html + '</div>';
+}
+// What the engineers expect: how sure they are, in their words, and what the estimate rests on.
+function dossierExpectations(item) {
+  const done = S.pk[item.id], tiers = trackingTiers();
+  let html = '<div class="dossier-part"><div class="t">WHAT THE ENGINEERS EXPECT</div>';
+  if (done && done.c) return html + `<p>The results are in. Measured: ${describeResearch(item).replace(' (measured)', '')}.</p><p class="m">Estimated beforehand: ${Object.entries(item.effects).map(([key, value]) => formatEffect(key, value)).join(', ')}.</p></div>`;
+  if (done) return html + '<p>The work is finished and its real figures are fixed, but nobody has measured them yet.</p><p class="m">They are confirmed when an airframe carrying this work flies (publish a blueprint revision on the Hangar desk)'
+    + `${groundTestHTML(item.area, item) ? ', or sooner with a ground test' : ''}.</p></div>`;
+  const spread = estimateSpread(item), level = CONFIDENCE_LEVELS.find(candidate => spread < candidate.under);
+  html += `<div class="r"><span>Confidence</span><b>${level.name}, ±${Math.round(spread * 100)}%</b></div>`
+    + `<div class="quote">"${item.dud ? EXPERIMENTAL_SAYS : level.says}"</div>`
+    + `<p class="m">Working from: ${AREAS[item.area].toLowerCase()} knowledge ${levelName(knowledge(item.area)).toLowerCase()}, ${INSTRUMENT_NAMES[tiers.v].toLowerCase()}, ${TRACKING_NAMES[tiers.g].toLowerCase()}.</p>`;
+  return html + `<p class="m">${item.tier != null ? 'Major programmes are planned in detail, so their estimates are tighter. ' : item.dud ? 'Experimental work is the hardest to predict. ' : ''}Better instruments, tracking and knowledge of the area narrow every estimate.</p></div>`;
+}
+// What can be done: commission it (or speed it up), or ground test finished work.
+function dossierActions(item) {
+  const job = researchJob(item);
+  let html = '<div class="dossier-part act"><div class="t">' + (isConfirmed(item.id) ? 'CONFIRMED' : isResearched(item.id) ? 'GROUND TEST' : job ? 'IN WORK' : 'COMMISSION') + '</div>';
+  if (isResearched(item.id)) return html + (groundTestHTML(item.area, item) || `<p class="m">${isConfirmed(item.id) ? 'Nothing more to do: the work is confirmed.' : 'No ground test for this area. Fly it to confirm it.'}</p>`) + '</div>';
+  if (job) html += `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div><p class="wn">In progress: <span data-j="pk${item.id}">${job.t}s</span> left${job.cr ? ' (crash schedule)' : ''}</p>${crashHTML(item, job)}`;
+  else html += commissionButton(item);
+  if (isVehicleArea(item.area)) html += '<p class="m">Finished work goes into airframes when you publish the next blueprint revision (Hangar desk).</p>';
+  return html + '</div>';
 }
 function milestoneRow(milestone) {
   if (isResearched(milestone.id)) return `<div class="ok">★ ${milestone.name}</div><div class="m">${describeResearch(milestone)}</div>`;
@@ -76,11 +152,16 @@ function milestoneRow(milestone) {
 }
 // A package or milestone with its estimate and a COMMISSION button (or its progress). showName: print the item's name first.
 function commissionHTML(entry, showName) {
-  const item = itemAsSeen(entry.id), job = researchJob(item), lock = researchLock(item.id);
+  const item = itemAsSeen(entry.id), job = researchJob(item);
   return `<div style="margin:6px 0">${showName ? `<div>${item.name}${item.dud ? ' <span class="d">(experimental)</span>' : ''}</div>` : ''}<div class="m">${describeResearch(item)}${item.contract ? ` Contract pays ${formatMoney(item.contract)} on completion.` : ''}</div>`
     + (job ? `<div class="wn">In progress: <span data-j="pk${item.id}">${job.t}s</span>${job.cr ? ' (crash schedule)' : ''}</div>${crashHTML(item, job)}`
-      : `<button data-a="com" data-id="${item.id}"${lock ? ' disabled' : ''}>COMMISSION (${costAfterEarmark(item) < item.cost ? `${formatMoney(costAfterEarmark(item))} after earmark` : formatMoney(item.cost)}, ${item.time}s)</button>${lock ? `<div class="m">${lock}</div>` : ''}`)
+      : commissionButton(item))
     + '</div>';
+}
+// The COMMISSION button, with why it is locked if it is.
+function commissionButton(item) {
+  const lock = researchLock(item.id);
+  return `<button data-a="com" data-id="${item.id}"${lock ? ' disabled' : ''}>COMMISSION (${costAfterEarmark(item) < item.cost ? `${formatMoney(costAfterEarmark(item))} after earmark` : formatMoney(item.cost)}, ${item.time}s)</button>${lock ? `<div class="m">${lock}</div>` : ''}`;
 }
 // NASA era: a running job can be put on a crash schedule once, halving the time left.
 function crashHTML(item, job) {
@@ -104,7 +185,7 @@ function jointProgrammesCard() {
 export function programmeBar() {
   return `<div class="pbar">${Object.keys(S.progs).map(kind => `<button data-a="prog" data-id="${kind}" class="${kind == S.cur ? 'on' : ''}">${PROGRAMMES[kind].name}<span class="d"> ${S.progs[kind].ready ? Math.round(maturity(kind)) : 'design'}</span></button>`).join('')}</div>`;
 }
-const formatStat = (stat, value) => stat == 'thr' ? `${Math.round(value / 100) / 10} kN` : stat == 'dry' || stat == 'f' ? `${Math.round(value)} kg` : stat == 'g' ? `${value.toFixed(1)} g` : stat == 'r' ? `${value >= 0 ? '+' : ''}${Math.round(value * 100)} pts` : `${Math.round(value * 100)}%`;
+const formatStat = (stat, value) => stat == 'thr' ? `${Math.round(value / 100) / 10} kN` : stat == 'dry' || stat == 'f' ? `${Math.round(value)} kg` : stat == 'g' ? `${value.toFixed(1)} g` : stat == 'r' ? `${value >= 0 ? '+' : ''}${Math.round(value * 100)} pts` : stat == 'rv' ? `${Math.round(value).toLocaleString('en-US')} m/s` : `${Math.round(value * 100)}%`;
 function programmeCard() {
   const kind = S.cur, bundle = S.progs[kind];
   if (!bundle) return '';
@@ -138,8 +219,9 @@ function programmeCard() {
 
 const INSTRUMENT_NAMES = ['Radio beacon only', 'FM telemetry (few channels)', 'Instrumented airframe', 'Full telemetry + inertial platform'];
 const TRACKING_NAMES = ['Optical & radar tracking', 'Tracking radar network', 'Radar network + downrange ship'];
-// What the desk shows: view (research | programme | file | incidents), pick: the research card in the detail bar.
-export const researchDesk = { view: 'research', pick: null };
+// What the desk shows: view (research | programme | file | incidents), pick: the research card kept in the dossier, hover: the one
+// under the mouse, shown instead while it is there; unfolded: the areas whose folded confirmed packages are opened out.
+export const researchDesk = { view: 'research', pick: null, hover: null, unfolded: {} };
 const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGINEERING FILE', incidents: 'UNEXPLAINED FAILURES' };
 export function renderResearchDesk() {
   const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv' || incident.st == 'found'), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length;
@@ -148,7 +230,7 @@ export function renderResearchDesk() {
   const view = researchDesk.view;
   let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length ? ` (${unexplained.length})` : ''}${key == 'file' && awaitingFix ? ` (${awaitingFix})` : ''}</button>`).join('')}`
     + `<span class="m">${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev} · ${INSTRUMENT_NAMES[tiers.v]} · ${TRACKING_NAMES[tiers.g]} · <b>teams free ${freeTeams()} of ${S.teams}</b></span></div>`;
-  if (view == 'research') html += programmeBar() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + detailBar();
+  if (view == 'research') html += programmeBar() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + dossier();
   else if (view == 'programme') html += programmeBar() + programmeCard() + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar desk), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}.</div>`;
   else if (view == 'file') html += `<div class="m">Each system's entry in the engineering file: what your team knows about it, the failure modes it has met and how they were cured. Knowledge carries from flight to flight.</div><div class="rcols" style="--areas:${areas.length}">${areas.map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`;
   else html += unexplained.length ? `<div class="cards">${unexplained.slice().reverse().map(incidentHTML).join('')}</div>` : '<div class="m">No unexplained failures on file.</div>';

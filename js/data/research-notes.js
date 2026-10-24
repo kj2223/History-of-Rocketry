@@ -1,0 +1,144 @@
+// THE R&D DESK'S WORDS: what each package and milestone is, in plain language, and what the engineers say about an estimate.
+// Shown in the dossier at the bottom of the research view (ui/design-bureau.js). Text only: nothing here changes the game.
+//
+// EXPLAINERS: one or two lines per package or milestone, keyed by its id in data/research.js. Say what the work is and why it
+// helps; add a historical note where there is a good one. A missing entry simply shows no explainer.
+
+export const EXPLAINERS = {
+  // PROPULSION
+  inj: 'The injector is the plate at the head of the combustion chamber that sprays fuel and oxidiser together. Test-firing new hole patterns finds one that mixes them more evenly, for hotter and steadier burning.',
+  mix: 'Running the engine a little richer or leaner changes how hard it pushes. A series of firings maps the ratio of fuel to oxidiser that gives the most thrust without burning the chamber.',
+  noz: 'The bell of the nozzle turns hot gas into thrust. A better-shaped curve lets the gas expand more fully before it leaves, at the cost of a little extra metal.',
+  seal: 'Turbopumps spin at thousands of revolutions a minute with fuel on one side and liquid oxygen on the other. Better bearings and seals stop leaks that end flights.',
+  cool: 'Fuel flows through a jacket around the chamber before it is burned, carrying away heat. Reworking the jacket lets the chamber run hotter without burning through.',
+  imp: 'A new impeller design moves more propellant per turn and runs further from cavitation, the bubbling that can tear a pump apart.',
+  addv: 'Blending hydrazine into the fuel can give a hotter, more energetic burn. It can also make the engine rough and the fuel harder to handle, so the result may not be worth having.',
+  swirl: 'Injectors that spin the propellant as it enters the chamber atomise it into a finer spray. It works beautifully on some engines and not at all on others.',
+  abl: 'A chamber lining that slowly chars away carries heat out with it, like the heat shields later flown on capsules. Simpler than cooling, if the char wears evenly.',
+  monop: 'Drive the turbopump with a gas generator burning a single propellant, such as hydrogen peroxide, instead of tapping the main engine. Lighter if it works, temperamental if it does not.',
+  gimbal: 'Mount the whole thrust chamber on a pivot so the guidance can steer by swivelling it. Steadier flight than jet vanes in the exhaust, and a cleaner engine.',
+  regen: 'A second-generation cooling jacket, with the fuel routed through tubes brazed into the chamber wall itself. The basis of every large liquid engine that followed.',
+  hyprop: 'Propellants that ignite on contact, such as nitric acid and UDMH, need no igniter and can be stored for months. Hard on seals and on the people who handle them.',
+  ms_eng: 'A major programme to push chamber pressure up hard: bigger pumps, stronger chambers, more thrust from the same size of engine. Reliability comes along more slowly.',
+  ms_rel: 'Qualify every valve, seal and weld to a written standard and test each engine before it ships. Less glamorous than more thrust, and it pays back every flight.',
+  ms_tp: 'A production missile engine burning kerosene and liquid oxygen, built in numbers for the Air Force. Its descendants flew on Thor, Delta and Atlas.',
+
+  // STRUCTURES & TANKAGE
+  gauge: 'Measure the tank walls and find where metal can be shaved away without losing strength. Every kilogram saved is a kilogram more propellant.',
+  vol: 'Stretch the tanks within the same airframe for more propellant. A heavier rocket at lift-off, but a longer burn.',
+  weld: 'Most structural failures start at a seam. X-raying welds and tightening the procedures makes the whole airframe stronger and less likely to split.',
+  ring: 'Stiffening rings inside the tank keep its skin from buckling under thrust and wind loads. Adding them in the right places raises the load the rocket can take.',
+  alloy: 'Trial lighter aluminium alloys for the tanks and frames. Lighter and stronger, if the new metal welds as well as the old.',
+  prs: 'Keep the tanks pressurised in flight so their own gas holds them rigid and pushes propellant into the pumps. More usable propellant from the same tanks.',
+  mono: 'Build the airframe as a single load-bearing shell instead of a skin hung on a frame. Strong and light, but dents and cracks matter more.',
+  tankint: 'Make the tank walls the outside of the rocket rather than tanks carried inside a body. A large saving in weight, and a lot of new problems sealing it.',
+  magn: 'Magnesium is far lighter than aluminium, but it is weaker and it burns. Worth trying on the skin, where loads are light.',
+  bulk: 'Separate the fuel and oxidiser with one shared dome instead of two tanks and a gap. Saves length and weight; a leak through the bulkhead is a disaster.',
+  chem: 'Etch tank panels in acid baths so the walls are thick only where the loads need it. The method Atlas and the later Saturn stages used.',
+  lattice: 'An open truss between the stages instead of a solid skirt. Lighter, and it lets the upper stage light its engine while still attached.',
+  sepr: 'Small solid rockets that push the spent stage backwards at separation, so the stages cannot collide or hang up.',
+  ms_stg: 'The Vanguard route: a new second stage burning nitric acid and UDMH on its own engine and guidance. A powerful stage once it works, and nothing in it has flown before.',
+  ms_clu: 'Bundle small, proven solid motors into upper stages, as the Jupiter-C did with its tub of Sergeant rockets.',
+  ms_balloon: 'Stainless steel tanks as thin as a coin, held rigid by their own pressure. On the ground they had to stay pressurised or they would collapse.',
+
+  // INSTRUMENTATION & TELEMETRY
+  bea: 'A better radio beacon gives the trackers on the ground a steadier signal to follow, so more of the flight is on record.',
+  fm: 'An FM transmitter carries readings from instruments aboard the rocket down to the ground as the flight happens. The first real look inside a flight.',
+  xdc: 'Pressure transducers in the tanks and chamber show how the engine is running and where it went wrong when it fails.',
+  str: 'Strain gauges glued to the structure measure how much it bends and stretches in flight, so the engineers know how close it came to breaking.',
+  acc: 'Accelerometers record the vibration and the push of the engine through the flight. They show what a payload will have to survive.',
+  mux: 'Multiplexing shares one radio link between many instruments by sampling each in turn, so more readings come home at once.',
+  tape: 'Record the instruments on tape aboard the rocket and recover the tape afterwards. Nothing is lost to a weak signal, if the tape survives.',
+  subc: 'Stack several instruments on separate sub-carrier tones inside one transmission. More channels, more weight and more chances of crosstalk.',
+  gyro: 'Rate gyros measure how fast the rocket is turning. They show what the guidance is doing and can help steady the flight.',
+  cam: 'A small film camera aboard the rocket, recovered after landing. Pictures of the Earth from altitude are popular with the press and useful to the engineers.',
+  trans: 'Transistors in place of vacuum tubes: lighter, cooler and less fragile under vibration. Early transistors were temperamental.',
+  pcm: 'Pulse-code modulation sends the readings as numbers rather than as tones. Cleaner data, and the start of digital telemetry.',
+  antp: 'Study how the antennas radiate as the rocket rolls and climbs, and place them so the signal does not drop out at the wrong moment.',
+  ms_in: 'A platform of gyros and accelerometers aboard the rocket that knows where it is without help from the ground, with full telemetry to report it.',
+  ms_rg: 'Early Atlas flights were steered this way: a radar station tracks the rocket and a computer on the ground radios corrections up to it. Cheaper and lighter than a platform aboard, but tied to the ground station.',
+  ms_tran: 'Transistors use a fraction of the power of vacuum tubes and weigh far less, which leaves room and battery for more instruments in the same box.',
+
+  // AERODYNAMICS & THERMAL
+  ogive: 'The ogive is the curved nose shape. A better profile slips through the air with less drag.',
+  fins: 'Fins keep the rocket pointing nose-first. Getting their size and shape right cuts drag and lets them take more load.',
+  flush: 'Rivets with heads set flush with the skin smooth the surface and cut drag a little. Slower to build.',
+  wt: 'Test scale models in a wind tunnel before flying them. Less drag and a better idea of the loads at speed.',
+  ablnose: 'A nose tip that chars and erodes away, carrying the heat of friction with it.',
+  insul: 'A coating on the skin that slows the heat of fast flight soaking into the structure underneath.',
+  flut: 'At speed, fins can begin to vibrate in the airflow until they tear off. Testing finds and stiffens the ones at risk.',
+  area: 'Shape the body so its cross-section changes smoothly from nose to tail, as Whitcomb found for jet aircraft. Less drag through the sound barrier, if it carries over to rockets.',
+  hsink: 'A thick copper nose that soaks up heat rather than resisting it. Heavy, but simple.',
+  blunt: 'A blunt nose pushes a shock wave ahead of it that keeps much of the heat away from the skin. Much more drag.',
+  boat: 'Taper the tail of the rocket to cut the drag of the wake behind it.',
+  fairing: 'Redesign the shroud over the payload for a cleaner shape and an easier separation.',
+  ablfair: 'An ablative coat on the payload fairing, for the fastest and hottest parts of the climb.',
+  ms_aero: 'A complete programme for a slender, stiff, heat-protected airframe that can drive through the dense lower air at supersonic speed.',
+  ms_blunt: 'The blunt-body discovery of H. Julian Allen at NACA Ames in 1951: a blunt shape survives re-entry far better than a sharp one. More drag, much more heat tolerance.',
+  ms_hyp: 'Test shapes at Mach 7 on the ground in a new hypersonic tunnel, instead of learning from flights.',
+
+  // PAYLOADS & RECOVERY
+  chute: 'A parachute in the nose cone brings the instruments down slowly enough to survive. Without it, the recovery crews dig fragments out of the desert.',
+  bcn: 'A radio beacon in the payload that keeps transmitting after landing, so the recovery crews can find it.',
+  dye: 'For landings at sea: a dye marker that colours the water around the payload and a bag that keeps it afloat until a ship arrives.',
+  psep: 'Separate the payload from the spent rocket before it falls, so it can come down on its own parachute instead of with the wreckage.',
+  hs1: 'An ablative heat shield on the nose cone, so the payload survives a faster return from altitude.',
+  cosm: 'Geiger counters to measure cosmic rays above the atmosphere. Among the first real science done by rockets, and the scientists will pay for the data.',
+  film: 'A film camera in a canister built to survive the fall. Photographs of the curve of the Earth make headlines.',
+  bio: 'A sealed capsule that keeps a small animal alive through the flight. Biologists want to know what weightlessness and acceleration do to a body.',
+  ball: 'A cross between a balloon and a parachute that inflates at high speed to slow the payload before the main chute opens. Not yet proven.',
+  snatch: 'Catch the payload on its parachute with a hook trailed under an aircraft, as the Air Force later did with Discoverer capsules. Spectacular when it works.',
+  beryl: 'A beryllium shield soaks up far more heat for its weight than copper, and the metal is costly and toxic to machine.',
+  biotel: 'A harness of sensors that reports an animal passenger\'s heartbeat and breathing as the flight happens.',
+  ribbon: 'A parachute made of ribbons with gaps between them. It opens at higher speed without tearing itself apart.',
+  sofar: 'A small charge set to explode deep in the sea, in the sound channel where noise travels thousands of miles. Listening stations fix where it went off.',
+  ms_rec: 'A complete capsule designed to come home: heat shield, parachutes, flotation and beacons, built as one system.',
+  ms_bio: 'Mice, monkeys and later chimpanzees flew before any astronaut. Each flight tells the doctors more about what a body can take, and the newspapers follow every one.',
+  ms_disc: 'Catch a film capsule falling back from orbit, in mid-air, with a hook trailed under an aircraft. The Discoverer programme first did it in August 1960.',
+
+  // MERCURY SPACECRAFT
+  cap_shape: 'Wind tunnel and arc-jet studies of the capsule shape: blunt end first, so the heat shield takes the re-entry and the capsule lands right way up.',
+  cap_ecs: 'Oxygen, cooling and pressure for the astronaut: a suit circuit and a cabin circuit, either of which can keep him alive.',
+  cmd: 'A receiver and decoder in the capsule that accepts commands radioed from the ground, so the flight controllers can act when the crew cannot.',
+  cap_chute: 'A small drogue to steady the capsule, a main parachute to land on, and a reserve in case the main fails to open.',
+  cap_asc: 'The automatic system that holds the capsule\'s attitude with small hydrogen-peroxide thrusters through the whole flight.',
+  cap_retro: 'Three small solid rockets strapped over the heat shield to slow the capsule for re-entry, and posigrade rockets to push it clear of the booster.',
+  cap_bag: 'A skirt of fabric that drops below the heat shield before splashdown and cushions the landing with air.',
+  cap_fbw: 'A hand controller for the astronaut, flying the thrusters directly or through the automatic system. The astronauts insisted on it.',
+  cap_peri: 'A window and a periscope so the astronaut can see where he is pointing. Early capsule designs had neither.',
+  fx_hs: 'Inspect how the heat shield is bonded and cured, so it does not separate or crack in flight.',
+  fx_pc: 'Redesign the reefing lines and risers that let the parachute open in stages, so it does not tear at full speed.',
+  fx_rr: 'Rewire the retropack and replace its igniters so all three rockets fire when commanded.',
+  fx_ec: 'Redesign the coolant loop in the pressure suit so it does not freeze or overheat the astronaut.',
+  fx_ac: 'Fit screens in the thruster fuel lines to stop debris from clogging the small jets.',
+  fx_lb: 'Reinforce the straps that hold the landing bag to the capsule so it survives a rough sea.',
+  ms_beh: 'The first Mercury capsules came home on a beryllium heat sink. Every kilogram of it has to be carried, which suits a short suborbital arc better than a return from orbit.',
+  ms_ablh: 'The ablative shield flew on every orbital Mercury flight. Its resin chars into a layer that insulates the capsule while the outer surface burns away.',
+  ms_mqual: 'Altitude chambers, drop tests and shake tables for every capsule system, before an astronaut is asked to trust it.',
+
+  // ESCAPE & MAN-RATING
+  esc_tower: 'A solid rocket on a lattice tower above the capsule that can pull it clear of an exploding booster in an instant.',
+  mr_mods: 'Changes to the booster for a crew: simpler propellant, more instruments, and margins left generous rather than trimmed.',
+  esc_asis: 'Sensors on the booster that watch for a failure coming and fire the escape tower before it happens, faster than any person could.',
+  esc_jett: 'Jettison the escape tower once it is no longer needed, with a backup sequencer in case the first signal fails.',
+  esc_sea: 'Help the recovery forces find a capsule at sea: a radio beacon, a dye marker and a SOFAR bomb.',
+  mr_tank: 'Lengthen the booster\'s tanks for a longer burn and a higher arc, as was done to the Mercury-Redstone.',
+  mr_umb: 'Fix the order in which the umbilical cables leave the booster at lift-off, so a stray electrical path cannot shut the engine down on the pad.',
+  ma_band: 'A steel band around the top of the Atlas, where it meets the capsule adapter, so the thin tank does not buckle under the load.',
+  fx_tj: 'A second, independent circuit to fire the tower jettison, so one broken wire cannot leave the tower on.',
+  fx_as: 'Redesign the abort-sensing circuits so they neither miss a failing booster nor fire on a healthy one.',
+  ms_hxp: 'The explosive hatch came from the astronauts asking for a faster way out. On Liberty Bell 7 in July 1961 it blew after splashdown and the capsule sank.',
+  ms_hbolt: 'The original Mercury hatch, bolted on from outside by the pad crew. Safe from accidents, but an astronaut in trouble in the water cannot get out quickly.',
+  ms_mrman: 'Man-rating means proving a booster safe enough to carry a person: extra sensors, redundant circuits, generous margins and a review of every system before it flies a crew.',
+};
+
+// THE ENGINEERS' VERDICT on an estimate, by how wide it is (rules/research.js estimateSpread, a share of each effect).
+// Read top to bottom: the first row whose limit the spread is under is the one shown.
+export const CONFIDENCE_LEVELS = [
+  { under: .1, name: 'High', says: 'We have done this kind of work before. The figures should come in close to the estimate.' },
+  { under: .18, name: 'Good', says: 'We know roughly what this will give us. The test results will settle the last few points.' },
+  { under: .3, name: 'Fair', says: 'It will help, no question. How much depends on what the tests show us.' },
+  { under: 9, name: 'Low', says: 'Honestly, this could come in well above or well below the estimate. We will know when it flies.' },
+];
+// What the engineers add about experimental work (packages with a dud chance).
+export const EXPERIMENTAL_SAYS = 'This is new ground. If it pans out it is worth a lot, but it may turn out a dead end and even make things worse.';
