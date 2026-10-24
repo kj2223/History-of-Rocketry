@@ -35,6 +35,7 @@
 //   recn    payloads recovered (the search teams' experience, rules/recovery.js)
 //   p2      Phase Two (Mercury) state (see rules/mercury.js)
 //   fy      NASA's yearly budget (see rules/budget.js)
+//   cq      construction orders waiting for a crew    mb   mothballed buildings    pt   pads being readied (see rules/site.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -63,7 +64,7 @@ export const newGameState = () => ({
   b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], rq: [], teams: 2, air: [], aq: [], fac: {},
   nid: 1, prod: 0, ok: 0, fr: {}, gt: 30, sg: 0, hs: 0, hd: 0, crew: {}, fs: {}, rvd: {},
   rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
-  fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3,
+  fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3, pt: {},
   staff: { pr: 0, director: 0, ta: 0 },
   auto: { xp: 0, camp: null, cd: 15, last: null },
 });
@@ -134,6 +135,8 @@ export const load = () => {
       // Saves from before launch campaigns hold the director's old standing orders: replace them with an empty campaign record.
       if ('on' in S.auto) S.auto = newGameState().auto;
       for (const event of RIVAL) if (!(event.id in S.rv)) S.rv[event.id] = jitterSovietDate(event.day);
+      // Saves from before launch pads that already have an Atlas get its pad, so their next launch is not held up.
+      if (!saved.pt && saved.progs && saved.progs.atlas) S.fac.lc14 = 1;
     }
   } catch (e) {}
 };

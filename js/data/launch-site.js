@@ -4,7 +4,10 @@
 // Base upgrades.
 //   cost ($), requires: another facility needed first, fromDirective: available once this many Phase One directives are met,
 //   consoles: launch-crew consoles it adds, controlRoom: 1 if it is a step up in control room (see ROOMS),
-//   nasa: 1 if it opens only with NASA, buildDays: construction time in game days (ordered now, in service later).
+//   nasa: 1 if it opens only with NASA, buildDays: construction time in game days (ordered now, in service later),
+//   pad: the rocket programme a launch complex serves (its launches need a free pad of their own),
+//   afterDirective: the Mercury directive (key) that must be met before it can be ordered: upgrades are earned by success.
+// From NASA's founding every building takes time to build and costs upkeep (see SITE below and rules/site.js).
 export const FACILITIES = {
   tty: { name: 'Teleprinter & Range Communications', cost: 12000, description: 'Teleprinters link the blockhouse to the range. Unlocks the Telemetry Engineer.', requires: null, fromDirective: 0, consoles: 1, controlRoom: 1 },
   plot: { name: 'Plotting Board', cost: 18000, description: 'A live trajectory plot on the wall. Unlocks the Structures & Booster Engineer.', requires: 'tty', fromDirective: 0, consoles: 1, controlRoom: 1 },
@@ -25,7 +28,17 @@ export const FACILITIES = {
   msim: { name: 'Mercury Mission Simulator', cost: 60000, description: 'Simulator tier 2: digital computers drive a flight-faithful cockpit. Full training value and more rehearsed failures.', requires: 'ptrain', fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1 },
   clean: { name: 'Spacecraft Clean Room', cost: 40000, description: 'A dust-free hall for capsule assembly and checkout. Capsules build 30% faster.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1 },
   trknet: { name: 'Mercury Worldwide Tracking Network', cost: 150000, description: 'Eighteen ground stations and two ships around the world, linked to the Cape by teleprinter. Required before a crew flies. With full coverage, CAPCOM advice in flight is better. Construction takes about ten months.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 300 },
+  lc14: { name: 'Launch Complex 14', cost: 90000, description: 'An Atlas pad on Missile Row: a concrete launch stand, a service tower and its own blockhouse. Every Atlas launches from an Atlas pad.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 60, pad: 'atlas' },
+  lc12: { name: 'Launch Complex 12', cost: 80000, description: 'A second Atlas pad, so one Atlas can be readied while the other pad is refurbished after a launch.', requires: 'lc14', fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 120, pad: 'atlas', afterDirective: 'mo' },
 };
+
+// THE SITE from NASA's founding (rules/site.js). Phase One buildings go up the moment they are paid for, as before.
+//   contractorCrews: buildings under construction at once (more orders wait their turn)
+//   daysPerThousand: construction days per $1,000 of cost, for buildings without their own buildDays, and at least minimumDays
+//   upkeepPerYear: running cost a year as a share of a building's price; reopenDays: to bring a mothballed building back
+//   padTurnaround: days to refurbish a pad after a launch; padRepair: days to rebuild one after a vehicle fails close to it,
+//   within padDamageSeconds of liftoff
+export const SITE = { contractorCrews: 2, daysPerThousand: 1, minimumDays: 20, upkeepPerYear: .08, reopenDays: 20, padTurnaround: 20, padRepair: 75, padDamageSeconds: 15 };
 // The control-room upgrades in order; the number built is the room level (0 to 5), an index into ROOMS.
 export const CONTROL_ROOM_FACILITIES = ['tty', 'plot', 'comp', 'mcc', 'wall'];
 export const ROOMS = [

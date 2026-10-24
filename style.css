@@ -133,7 +133,7 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 .drawer-hd{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--ln)}.drawer-hd h2{margin:0;border:0;padding:0}
 .drawer-hd .close{width:auto;margin:0;padding:4px 10px}.drawer-body{flex:1;min-height:0;overflow:auto;padding:12px}
 .drawer-body .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.drawer-body .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.drawer-body .p{margin:0}#fc{columns:3 300px;column-gap:12px}#fc>*{break-inside:avoid}
+.drawer-body .p{margin:0}
 /* The R&D desk */
 .rtabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}.rtabs button{width:auto;margin:0;padding:5px 10px;color:var(--dim);border-color:var(--ln)}.rtabs button.on{color:var(--bg);background:var(--ac);border-color:var(--ac)}.rtabs .m{margin-left:auto}
 .rcols{display:grid;grid-template-columns:repeat(var(--areas,5),minmax(0,1fr));gap:10px;align-items:start;margin:8px 0}
@@ -167,3 +167,19 @@ header.top{grid-column:1/-1;display:flex;align-items:center;gap:24px;padding:8px
 #padlog{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:3px}
 .loopl{display:grid;grid-template-columns:56px 64px minmax(0,1fr);gap:8px;font-size:.8rem}.loopl b{letter-spacing:.05em}
 .loopl:first-child{animation:pop .25s ease-out}.loopl.bad{color:var(--bd)}.loopl.ok{color:var(--ac)}.loopl.wn{color:var(--wn)}
+/* The site plan on the Base desk (ui/site-plan.js). */
+.site-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:12px;align-items:start}@media(max-width:860px){.site-grid{grid-template-columns:1fr}}
+.site{width:100%;height:auto;display:block;border:1px solid var(--ln);border-radius:var(--rad)}
+.site .sea{fill:var(--ln);opacity:.35}.site .road{fill:none;stroke:var(--ln);stroke-width:3;stroke-dasharray:6 4}
+.site text{font:10px var(--ft);fill:var(--ink);text-anchor:middle;pointer-events:none}.site .area{fill:var(--dim);font-size:9px;letter-spacing:.12em;text-anchor:start}
+.site [data-plot]{cursor:pointer}.site rect,.site circle{stroke-width:1.5}
+.site .plot-built rect,.site .plot-built circle{fill:var(--ac);fill-opacity:.25;stroke:var(--ac)}
+.site .plot-building rect{fill:var(--wn);fill-opacity:.15;stroke:var(--wn);stroke-dasharray:5 3}
+.site .plot-waiting rect{fill:none;stroke:var(--wn);stroke-dasharray:2 3}
+.site .plot-mothballed rect{fill:var(--ln);fill-opacity:.3;stroke:var(--dim);stroke-dasharray:1 3}
+.site .plot-open rect{fill:transparent;stroke:var(--ac)}.site .plot-locked rect{fill:transparent;stroke:var(--ln)}.site .plot-locked text{fill:var(--dim)}
+.site .busy rect{stroke:var(--wn)}.site .sel rect{stroke-width:3}.site [data-plot]:hover rect{fill-opacity:.4}
+.site .pip{fill:var(--ln);stroke:none}.site .pip.on{fill:var(--ac)}
+.site-key{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.7rem;color:var(--dim);margin-top:4px}.site-key i{display:inline-block;width:10px;height:8px;margin-right:4px;border:1px solid var(--ln)}
+.site-key .plot-built i{background:var(--ac);border-color:var(--ac)}.site-key .plot-building i{border:1px dashed var(--wn)}.site-key .plot-waiting i{border:1px dotted var(--wn)}
+.site-key .plot-mothballed i{background:var(--ln)}.site-key .plot-open i{border-color:var(--ac)}

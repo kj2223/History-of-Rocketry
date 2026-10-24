@@ -8,7 +8,8 @@ import { S, log, earn } from '../core/state.js';
 import { grant, defenseSupplement, payroll, programmeProgress } from './economy.js';
 import { budgetTick, payAppropriation } from './budget.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
-import { roomLevel, constructionTick } from './launch-site.js';
+import { roomLevel } from './launch-site.js';
+import { constructionTick, upkeep } from './site.js';
 import { createProgramme, isMature } from './programs.js';
 import { hasFirstMilestone, giveEarmark } from './research.js';
 import { startQueuedWork } from './queue.js';
@@ -88,6 +89,11 @@ function payDay() {
   if (salaries) {
     S.b = Math.max(0, S.b - salaries);
     log(`[PAYROLL] Salaries paid: -${formatMoney(salaries)}`, 'wn');
+  }
+  const running = upkeep();
+  if (running) {
+    S.b = Math.max(0, S.b - running);
+    log(`[BASE] Site upkeep: -${formatMoney(running)}`, 'wn');
   }
   if (S.staff.pr) S.rep = Math.min(100, S.rep + .5);
 }

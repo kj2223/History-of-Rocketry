@@ -69,6 +69,8 @@ export const requirementText = missionType => {
 // Returns { staged, load, preview, ok, overLimit }: the first plan that meets the mission's needs, or else the fastest at full load.
 // Cached per airframe, revision, propellant, mission and (roughly) what the team knows.
 export const MIN_MERCURY_LOAD = .5;
+// The off-loading step for an orbital flight, which has little speed to spare.
+const ORBITAL_LOAD_STEP = .05;
 // Lofted climbs an orbital booster may fly when the usual ascent overheats with a capsule aboard (see rules/flight.js plans).
 const ORBITAL_ASCENTS = [80, 85].map(elevation => ({ elevation, program: 'lofted', aim: null }));
 const planCache = new Map();
@@ -77,10 +79,11 @@ export function boosterPlan(airframe, propellant, missionType) {
   const key = [airframe.id, airframe.rev, propellant, missionType, Math.round(Object.values(bundle.kn).reduce((sum, value) => sum + value, 0) / 5)].join('|');
   if (planCache.has(key)) return planCache.get(key);
   let best = null, fallback = null;
+  const loadStep = type.orbital ? ORBITAL_LOAD_STEP : .1;
   // The usual ascent first; an orbital flight that overheats on it tries a lofted climb that leaves the thick air sooner.
   for (const ascent of type.orbital ? [null, ...ORBITAL_ASCENTS] : [null]) {
     for (const staged of hasBoosterStage(airframe) ? [0, 1] : [0]) {
-      for (let load = 1; load >= MIN_MERCURY_LOAD && !best; load = Math.round((load - .1) * 10) / 10) {
+      for (let load = 1; load >= MIN_MERCURY_LOAD && !best; load = Math.round((load - loadStep) * 100) / 100) {
         const preview = previewFlight(airframe, propellant, 'Mercury Capsule', staged, load, 0, ascent);
         const overLimit = preview.maxHeat >= 1 || preview.maxQ >= 1;
         const enough = preview.thrustToWeight > 1.05 && (!type.needs.alt || preview.peakAltitude >= type.needs.alt) && (!type.needs.v || preview.peakSpeed >= type.needs.v);

@@ -7,6 +7,7 @@ import { commission, crashProgramme } from '../rules/research.js';
 import { queueResearch, queueAnalysis, unqueue, moveUpQueue } from '../rules/queue.js';
 import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
+import { mothball, reopen } from '../rules/site.js';
 import { airborne } from '../rules/flight.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from '../rules/factory.js';
 import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
@@ -23,6 +24,7 @@ import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
 import { researchDesk, renderResearchDesk } from './design-bureau.js';
 import { trajectoryPanel, currentPlan } from './trajectory.js';
+import { siteView, renderFacilities } from './site-plan.js';
 import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
 import { $ } from './dom.js';
@@ -164,6 +166,8 @@ const GAME_ACTIONS = {
   cend: () => endCampaign('ended'),
   cgo: () => goAhead(),
   fac: id => buildFacility(id),
+  mothball: id => mothball(id),
+  reopen: id => reopen(id),
   inv: id => startInvestigation(+id),
   fix: (id, button) => chooseFix(+id, button.dataset.f),
   accept: id => acceptFinding(+id),
@@ -296,6 +300,11 @@ document.addEventListener('click', event => {
   if (speedButton) {
     S.speed = +speedButton.dataset.spd;
     return renderHeader();
+  }
+  const plot = event.target.closest('[data-plot]');
+  if (plot) {
+    siteView.selected = plot.dataset.plot;
+    return renderFacilities();
   }
   const button = event.target.closest('button[data-a]');
   if (!button || button.disabled) return;
