@@ -3,11 +3,14 @@
 import { STATIONS, TRAJECTORY_ANALYSTS } from '../data/launch-site.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, isResearched } from '../core/state.js';
+import { instalment } from './budget.js';
 
 // THE APPROPRIATION, paid every 30 seconds: a base, a bonus for the altitude record (up to $9,000), the science bonus,
 // $5,000 with the downrange ship; scaled by reputation (never below 20%), +10% per directive met, the Phase Two multiplier,
 // and the Soviet scares (+10% after their ICBM test, +30% after Sputnik until America has a satellite up).
-export const grant = () => baseGrant() + defenseSupplement();
+// Once NASA has a yearly budget (rules/budget.js), this is that budget's instalment.
+export const grant = () => S.fy ? instalment() : phaseOneGrant();
+export const phaseOneGrant = () => baseGrant() + defenseSupplement();
 const baseGrant = () => Math.round(
   (10000 + Math.min(9000, Math.floor(S.hi / 1000) * 150) + S.pb + (S.fac.ship ? 5000 : 0))
   * Math.max(.2, S.rep / 100)

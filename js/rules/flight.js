@@ -21,7 +21,7 @@ import { DIRECTIVES, DIRECTIVE_NEWS } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES, SYMPTOMS, visibleSymptoms, findFix } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log, save, isConfirmed, addHistory, recordRunEvent, withProgramme } from '../core/state.js';
+import { S, log, save, isConfirmed, addHistory, recordRunEvent, withProgramme, earn } from '../core/state.js';
 import { designSpec, fixModifiers, trackingTiers, quoteLaunch } from './design.js';
 import { recoveryPlan, recoverPayload } from './recovery.js';
 import { FAILURE_WARNINGS, WARNING_SECONDS } from './telemetry.js';
@@ -505,7 +505,7 @@ function scienceReturn(flight, peak, why) {
   if (earned > 0) {
     // Half the value is paid now; 30% becomes the science bonus in every grant, if it beats the current one.
     const cash = Math.round(earned * .5);
-    S.b += cash;
+    earn(cash);
     S.pb = Math.max(S.pb, Math.round(earned * .3));
     log(`[SCIENCE] ${recovered || why == 'orbit' ? 'Full data return' : 'Telemetered data only'} from the ${flight.payload}: research contract +${formatMoney(cash)}.`, 'ok');
   } else if (!recovered && why != 'orbit') log(`[SCIENCE] The ${flight.payload} returned no usable data.`, 'wn');
@@ -588,7 +588,7 @@ function endFlightForProgramme(flight, ok, why) {
     S.fr[flight.propellant] = (S.fr[flight.propellant] || 0) + 1;
     const rangeData = rangeDataPayment(peak);
     if (rangeData) {
-      S.b += rangeData;
+      earn(rangeData);
       log(`[DOD] Range data contract for the flight: +${formatMoney(rangeData)}.`, 'ok');
     }
     const science = scienceReturn(flight, peak, why);
@@ -596,7 +596,7 @@ function endFlightForProgramme(flight, ok, why) {
     const directive = DIRECTIVES[S.dir];
     if (directive && (why == 'orbit' || (peak >= directive.altitudeKm * 1000 && directive.altitudeKm < 120))) {
       const reward = why == 'orbit' ? Math.round(directive.reward * (S.rvd.r_sat ? .6 : 1.3)) : directive.reward;
-      S.b += reward;
+      earn(reward);
       S.rep = Math.min(100, S.rep + 10);
       addHistory(`Directive met: ${directive.name}`);
       log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(reward)}${why == 'orbit' ? (S.rvd.r_sat ? ' (cut: the Soviets were first)' : ' (bonus: first in orbit)') : ''}.`, 'hd');

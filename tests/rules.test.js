@@ -783,3 +783,64 @@ test('a backup pilot trains alongside the pilot and moves up, training kept, onc
   assert.equal(assignedPilot('mo').mt, .6);
   assert.equal(backupPilot('mo'), undefined);
 });
+
+// THE NASA BUDGET
+const openNasaBudget = async () => {
+  const { budgetTick } = await import('../js/rules/budget.js');
+  S.day = S.nasa = 4400; // March 1958: FY1958 ends on 1 July 1958, day 4500
+  S.p2 = newPhaseTwo();
+  budgetTick(0);
+  return budgetTick;
+};
+
+test('NASA\'s first budget carries on the Phase One grant rate and is paid as the days pass', async () => {
+  const { payAppropriation } = await import('../js/rules/budget.js');
+  const { phaseOneGrant } = await import('../js/rules/economy.js');
+  const rate = phaseOneGrant();
+  await openNasaBudget();
+  assert.equal(S.fy.yr, 1958);
+  assert.ok(Math.abs(S.fy.bud - rate * 360 / 13.5) < 1000, 'the same money a year as the Phase One grant');
+  const before = S.b;
+  S.day += 36;
+  assert.equal(payAppropriation(), Math.round(S.fy.bud / 10));
+  assert.equal(S.b, before + Math.round(S.fy.bud / 10));
+});
+
+test('a year that leaves money unspent brings a smaller budget, and cash above the carry-over goes back to the Treasury', async () => {
+  const budgetTick = await openNasaBudget();
+  const { CARRY_OVER } = await import('../js/rules/budget.js');
+  const budget = S.fy.bud;
+  S.day = 4500;
+  budgetTick(0);
+  assert.equal(S.fy.yr, 1959);
+  assert.ok(S.fy.bud < budget, 'nothing was spent, so next year is cut');
+  assert.ok(S.fy.bud >= .75 * budget, 'but by no more than a quarter');
+  assert.equal(S.b, Math.round(CARRY_OVER * budget));
+  assert.ok(S.fy.last.lapsed > 0);
+});
+
+test('a year that spends more than its budget earns a bigger one', async () => {
+  const budgetTick = await openNasaBudget();
+  const budget = S.fy.bud;
+  S.day = 4500;
+  S.b = -budget; // spent the year's appropriation and as much again
+  budgetTick(0);
+  assert.ok(S.fy.bud > budget);
+  assert.ok(S.fy.bud <= 1.35 * budget);
+});
+
+test('without a Mercury flight reputation slips, and a flight ends the quiet spell', async () => {
+  const budgetTick = await openNasaBudget();
+  const { recordMercuryFlight, QUIET_DAYS } = await import('../js/rules/budget.js');
+  S.day += QUIET_DAYS - 1;
+  budgetTick(30);
+  assert.equal(S.rep, 100);
+  S.day += 2;
+  budgetTick(30);
+  assert.equal(S.rep, 99);
+  assert.equal(S.fy.q, 1);
+  recordMercuryFlight();
+  budgetTick(30);
+  assert.equal(S.rep, 99);
+  assert.equal(S.fy.q, 0);
+});

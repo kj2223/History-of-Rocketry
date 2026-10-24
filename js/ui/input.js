@@ -1,6 +1,7 @@
 // INPUT: every button, select and slider on the page. Buttons carry data-a (the action) and data-id; after an action the game is
 // saved and the screen redrawn, except where an action returns early.
 import { S, save, resetState, log } from '../core/state.js';
+import { setRequest } from '../rules/budget.js';
 import { formNasa } from '../rules/race.js';
 import { commission, crashProgramme } from '../rules/research.js';
 import { queueResearch, queueAnalysis, unqueue, moveUpQueue } from '../rules/queue.js';
@@ -59,6 +60,11 @@ document.addEventListener('change', event => {
   }
   if (data.mo) {
     S.p2.lo = +value;
+    return render();
+  }
+  if (data.rq) {
+    setRequest(+value);
+    save();
     return render();
   }
   if (data.tj) {

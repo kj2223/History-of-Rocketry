@@ -3,7 +3,7 @@
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, MILESTONES, BY_ID, isMilestone, AREAS, formatEffect, breakthroughNeeds } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
+import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob, earn } from '../core/state.js';
 import { learn, knowledgeFraction } from './knowledge.js';
 import { programmePackages, isInProgramme, scaledForProgramme, VEHICLE_AREAS, programmeData } from './programs.js';
 import { trackingTiers } from './design.js';
@@ -155,7 +155,7 @@ export function finishResearch(id) {
   log(`[DESIGN] Complete: ${item.name}${isVehicleArea(item.area) && S.cur ? ` for the ${PROGRAMMES[S.cur].name}` : ''}. Publish a new blueprint revision to build it into airframes; its real effect is confirmed when one flies.`, 'ok');
   if (isMilestone(id)) addHistory(`Milestone: ${item.name}`);
   if (item.contract) {
-    S.b += item.contract;
+    earn(item.contract);
     log(`[CONTRACT] ${item.name} delivered. Contract payment +${formatMoney(item.contract)}.`, 'hd');
   }
   checkBreakthroughs();

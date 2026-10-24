@@ -18,7 +18,7 @@ import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { MISSION_TYPES, MERCURY_DIRECTIVES, CHIMPANZEE_NAMES, MONKEY_NAMES, CAPSULE_NAMES, DECISIONS, ORBIT_SECONDS, RETROFIRE_AFTER_ORBITS, ORBITAL_ASCENT, ORBITAL_DESCENT,
   ORBITAL_TIMES, FUEL_PER_ORBIT, DRIFTING_FUEL_PER_ORBIT, THRUSTER_FAULT_FUEL, RETRO_FUEL, LOW_FUEL, SPLASH_SPREAD_KM, LONG_WAIT_KM, TRACKING_STATIONS } from '../data/mercury.js';
-import { S, log, addHistory, save, isResearched, isConfirmed, recordRunEvent } from '../core/state.js';
+import { S, log, addHistory, save, isResearched, isConfirmed, recordRunEvent, earn } from '../core/state.js';
 import { designSpec, quoteLaunch } from './design.js';
 import { loseReputation } from './economy.js';
 import { boosterRun, boosterFailed, boosterSucceeded } from './flight.js';
@@ -26,6 +26,7 @@ import { recordBoosterFlight, isManRated } from './manrate.js';
 import { learn, teachingValue } from './knowledge.js';
 import { phaseTwo, boosterPlan, capsuleSystems, fulfilDirective } from './mercury.js';
 import { astronautById, simulatorTier, promoteBackup } from './astronauts.js';
+import { recordMercuryFlight } from './budget.js';
 import { checkFirsts } from './race.js';
 
 // Where the profile puts the capsule at a mission time: { alt (km), v (m/s), g }, interpolated between its points.
@@ -829,6 +830,7 @@ export function manualAbort(mission) {
 export function endMission(mission) {
   const state = phaseTwo(), outcome = mission.outcome, pilot = pilotAboard(mission), animal = isAnimal(mission.crew) ? mission.crew : null;
   state.flights++;
+  recordMercuryFlight();
   const crewSafe = !outcome.lost, recovered = outcome.recovered || (mission.crew && crewSafe && !outcome.parachuteFailed);
   const ok = !outcome.boosterFailed && !outcome.aborted && !outcome.heatDamage && !outcome.parachuteFailed && !outcome.lost && !outcome.padShutdown && !outcome.strayLaunch && recovered;
   log('=== MISSION COMPLETE ===', ok ? 'ok' : 'wn');
@@ -867,7 +869,7 @@ export function endMission(mission) {
       state.ma.ok++;
       if (!state.fl.maQual) {
         state.fl.maQual = 1;
-        S.b += 50000;
+        earn(50000);
         S.rep = Math.min(100, S.rep + 3);
         addHistory('Orbital booster qualified with a capsule');
         log('[MERCURY] Capsule and orbital booster fly together and the capsule is recovered. Orbital Mercury has a head start. Bonus +$50,000.', 'hd');

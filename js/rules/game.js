@@ -4,8 +4,9 @@ import { formatMoney } from '../core/util.js';
 import { AREAS } from '../data/research.js';
 import { DAYS_PER_SECOND, DAYS_PER_SECOND_PHASE_TWO } from '../data/history.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log } from '../core/state.js';
+import { S, log, earn } from '../core/state.js';
 import { grant, defenseSupplement, payroll, programmeProgress } from './economy.js';
+import { budgetTick, payAppropriation } from './budget.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
 import { roomLevel, constructionTick } from './launch-site.js';
 import { createProgramme, isMature } from './programs.js';
@@ -56,6 +57,7 @@ export function tickSecond() {
   }
   if (S.nasa) {
     ensurePhaseTwo();
+    if (budgetTick(days)) changed = true;
     trainingTick(days);
     if (officeTick(days)) changed = true;
   }
@@ -73,12 +75,15 @@ export function tickSecond() {
   if (matureTick()) changed = true;
   return changed;
 }
-// The appropriation arrives, salaries go out, and the press office rebuilds a little reputation.
+// The appropriation arrives (NASA's from its yearly budget), salaries go out, and the press office rebuilds a little reputation.
 function payDay() {
-  const amount = grant();
-  S.b += amount;
-  const supplement = defenseSupplement();
-  log(`[FISCAL] Appropriation deposited: +${formatMoney(amount)}${supplement ? ` (includes a ${formatMoney(supplement)} Defense Department supplement: the Soviets are judged to be ahead)` : ''}`, 'ok');
+  if (S.fy) log(`[FISCAL] FY${S.fy.yr} appropriation paid: +${formatMoney(payAppropriation())}`, 'ok');
+  else {
+    const amount = grant();
+    S.b += amount;
+    const supplement = defenseSupplement();
+    log(`[FISCAL] Appropriation deposited: +${formatMoney(amount)}${supplement ? ` (includes a ${formatMoney(supplement)} Defense Department supplement: the Soviets are judged to be ahead)` : ''}`, 'ok');
+  }
   const salaries = payroll();
   if (salaries) {
     S.b = Math.max(0, S.b - salaries);
@@ -103,7 +108,7 @@ function matureTick() {
     const programme = PROGRAMMES[kind];
     log(`[PROGRAMME] ${programme.name} is mature: the team understands this rocket well. New programmes can be proposed in the Design Bureau.`, 'hd');
     if (programme.contract) {
-      S.b += programme.contract;
+      earn(programme.contract);
       log(`[CONTRACT] ${(CONTRACT_NEWS[kind] || OTHER_CONTRACT_NEWS)(programme.name)}. Contract payment +${formatMoney(programme.contract)}.`, 'hd');
     }
   }
