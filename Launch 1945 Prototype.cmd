@@ -1,4 +1,2 @@
 @echo off
-cd /d "%~dp0"
-python -m per_aspera --pioneers %*
-pause
+call "%~dp0Launch Per Aspera.cmd" --pioneers %*
