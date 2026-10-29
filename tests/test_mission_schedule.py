@@ -97,13 +97,14 @@ class MissionScheduleTests(TestCase):
         self.assertEqual(p['obligations']['review'],20000000)
         self.assertFalse(p['held']);validate(sim.state)
 
-    def test_test_findings_are_outside_delegated_authority_and_not_repaired_by_approval(self):
+    def test_teams_choose_funded_correction_without_repair_by_approval(self):
         sim=self.ready_campaign();sim.state['hardware']['csm']['evidence'][-1]['observations']['cabin']=.9
         faults=deepcopy(sim.state['hardware']['csm']['faults'])
         sim.authorise_missions(['apollo7'])
-        self.assertTrue(sim.state['plans']['apollo7']['held'])
+        self.assertFalse(sim.state['plans']['apollo7']['held'])
         self.assertEqual(faults,sim.state['hardware']['csm']['faults'])
-        now=sim.state['time'];sim.advance(100*DAY);self.assertEqual(now,sim.state['time'])
+        self.assertTrue(any(j['kind']=='rework' and j.get('sponsor')=='apollo7' for j in sim.state['jobs']))
+        sim.next_report();self.assertNotEqual(faults,sim.state['hardware']['csm']['faults'])
 
     def test_deferral_stops_future_execution_without_refunding_committed_contracts(self):
         sim=self.ready_campaign();sim.authorise_missions(['apollo5']);sim.defer_mission('apollo5')
@@ -143,7 +144,7 @@ class MissionScheduleTests(TestCase):
         for key in ('plans','schedule_pauses','standdown_mission'):old.pop(key)
         with tempfile.TemporaryDirectory(dir='tmp') as folder:
             path=Path(folder)/'campaign.json';path.write_text(json.dumps(old),encoding='utf-8')
-            migrated=load(path);self.assertEqual(migrated['version'],2);self.assertEqual(migrated['content'],CONTENT)
+            migrated=load(path);self.assertEqual(migrated['version'],3);self.assertEqual(migrated['content'],CONTENT)
             self.assertTrue(all(not p['authority'] for p in migrated['plans'].values()))
             self.assertEqual(old['ledger'],migrated['ledger']);save(migrated,path)
             self.assertEqual(json.loads(path.with_suffix('.v1-backup.json').read_text()),json.loads(json.dumps(old)))

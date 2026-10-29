@@ -1,0 +1,5 @@
+{
+  "proposals": {"booster":"growth","csm":"service","lander":"service","ground":"service","operations":"service"},
+  "corrective_cycles": 1,
+  "description": "Programme engineering recommends access-oriented spacecraft and future lunar payload allowance. This is an authored planning policy using public requirements, not knowledge of hidden faults. Unqualified work includes one funded corrective cycle and re-test allowance."
+}

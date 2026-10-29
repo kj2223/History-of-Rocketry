@@ -16,12 +16,20 @@ Updated 29 October 2026. The modern 1961–1969 campaign is now the default exec
 
 See [CAMPAIGN_MODEL.md](CAMPAIGN_MODEL.md) for launch instructions, actual financial assumptions and all current simplifications. The larger campaign plan remains a roadmap beyond these implemented mechanics.
 
-### Delegated mission portfolio and release candidate
+### Funded technical delegation — current development build
+
+- Implemented: engineering leads choose and commission existing development/procurement packages, missing tests, evidence-led corrective work and re-tests under approved account allowances. The Administrator approves scope, programme budgets and exceptions rather than selecting routine tests.
+- Implemented: shared-work sponsorship, no duplicate procurement/test funding, separate engineering/readiness caps, one initial corrective/re-test contingency, per-mission paid/contracted/available/released accounts and mission-tagged ledger reconciliation.
+- Implemented: version-2 migration preserves original mandates without silently expanding authority; technical extensions are explicitly funded. The normal UI removes test/rework buttons and leads from Overview to the mission portfolio.
+- Validation: nine new technical-delegation tests, including a complete seed-11 campaign without player-selected technical packages, hidden-state-independent planning, shared procurement, exhaustion, save/resume, accounting and migration. All 155 tests pass.
+- Limits: procurement is the existing fixed-price development model and research uses a limited engineering/investigation library. Contractor markets, individual vehicle inventories and broad technology-research trees remain deferred. Published RC1 predates this development update.
+
+### Delegated mission portfolio and RC1 history
 
 - Implemented: batch mandates with named managers and fixed funded scope; three parallel preparation teams, one assurance team and one flight/test operations slot. Preparation can proceed ahead of dependency flight results. Routine execution is delegated and can run while the Administrator uses other workspace views.
 - Implemented: configuration/evidence exceptions, persistent executive holds, accident standdown, explicit priced amendments, retained obligations, deferral and causal authority records. No delegate can bypass flight gates or spend outside its recorded envelope.
-- Implemented: version-1 modern-save migration with a preserved backup, version-2 per-mission state, public mission board with status/costs/dependencies, save-and-quit and separate writable storage for portable/installed builds.
-- Validation: 146 unit tests pass, including 13 new scheduling/migration tests; source and packaged application lifecycle smoke tests exercise delegation, command security and autosave. Windows CI builds and tests both the portable executable and per-user Inno installer before candidate publication.
+- Implemented: version-1 modern-save migration with a preserved backup, version-3 per-mission and technical-budget state, public mission board with status/costs/dependencies, save-and-quit and separate writable storage for portable/installed builds.
+- Validation: 155 unit tests pass, including 13 new scheduling/migration tests; source and packaged application lifecycle smoke tests exercise delegation, command security and autosave. Windows CI builds and tests both the portable executable and per-user Inno installer before candidate publication.
 - Deferred: simultaneous flights, a detailed resource/launch-window calendar, individual vehicle production inventory, contractor procurement and editable mission objectives. The default mission dependency graph is a documented gameplay abstraction.
 
 

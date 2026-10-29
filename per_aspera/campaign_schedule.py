@@ -3,9 +3,10 @@ from copy import deepcopy
 
 from .campaign_catalog import MISSIONS,SCHEDULE,PEOPLE,DAY,new_plan
 from .engine import RuleError
+from .campaign_technical import TechnicalDelegation
 
 
-class MissionSchedule:
+class MissionSchedule(TechnicalDelegation):
     def definition(self,mission=None):
         if mission is None:return self.mission
         if mission not in MISSIONS:raise RuleError('Choose a listed mission.')
@@ -36,22 +37,28 @@ class MissionSchedule:
         for mid in missions:
             if mid in self.completed() or s['plans'][mid]['authority'] or any(j.get('mission')==mid for j in s['jobs']) or s['flight'] and s['flight']['mission']==mid:raise RuleError('A selected mission is already completed, authorised or in work. Amend its existing mandate instead.')
         quotes={mid:self.quote_mandate(mid) for mid in missions}
-        if sum(q['prepare']+q['execute'] for q in quotes.values())>self.available('operations') or sum(q['review'] for q in quotes.values())>self.available('readiness'):raise RuleError('The selected campaign exceeds uncommitted programme funds. Select fewer missions, defer commitments or explicitly release available reserve. No funding has been committed.')
+        claimed=set();technical={}
+        for mid in missions:
+            technical[mid]=self.quote_technical(mid,claimed);claimed.update(technical[mid]['projects'])
+        if sum(q['prepare']+q['execute'] for q in quotes.values())>self.available('operations') or sum(q['review'] for q in quotes.values())+sum(q['readiness'] for q in technical.values())>self.available('readiness') or sum(q['engineering'] for q in technical.values())>self.available('engineering'):raise RuleError('The selected campaign exceeds uncommitted programme funds. Select fewer missions, defer commitments or explicitly release available reserve. No funding has been committed.')
         for mid in missions:
             p=s['plans'][mid];p['manager']=manager
+            self.reserve_technical(mid,technical[mid])
             for stage,cost in quotes[mid].items():
                 if cost:self._money('readiness' if stage=='review' else 'operations',cost,MISSIONS[mid]['name']+' / delegated '+stage,'commit');p['obligations'][stage]=cost
-            p['authority']=self.event('mandate',MISSIONS[mid]['name']+' delegated',PEOPLE[manager]['name']+' is authorised to prepare, obtain independent review and execute this scope within its committed work-package envelope. Flight permission still requires evidence and dependencies; changes and overruns return to the Administrator.',mission=mid)
+            p['authority']=self.event('mandate',MISSIONS[mid]['name']+' delegated',PEOPLE[manager]['name']+' is authorised to arrange scoped procurement, engineering investigation, component and integration testing, corrective work, preparation, independent review and execution within the recorded account allowances. Shared work is funded once; the teams choose technical packages from observed evidence. Flight permission still requires evidence and dependencies; changes and overruns return to the Administrator.',mission=mid)
             self.remember(manager,p['authority'])
         self.dispatch()
 
     def amend_mission(self,mission):
         self._active();m=self.definition(mission);p=self.state['plans'][m['id']]
-        if not p['authority'] or not p['held'] or mission in self.completed():raise RuleError('Only an existing held mandate needs amendment.')
+        if not p['authority'] or (not p['held'] and p['technical_enabled']) or mission in self.completed():raise RuleError('Only an existing held mandate needs amendment.')
         if self.state['standdown']:raise RuleError('Complete the accident investigation before renewing mission authority.')
-        if any(j.get('mission')==mission for j in self.state['jobs']) or self.state['flight'] and self.state['flight']['mission']==mission:raise RuleError('Let the already committed mission work finish before amending its scope.')
-        quote=self.quote_mandate(mission)
-        if quote['prepare']+quote['execute']>self.available('operations') or quote['review']>self.available('readiness'):raise RuleError('There are insufficient uncommitted funds for this amendment. Retained execution and review commitments are not charged again.')
+        extension=not p['technical_enabled'] and not p['held']
+        if not extension and any(j.get('mission')==mission or j.get('sponsor')==mission for j in self.state['jobs']) or self.state['flight'] and self.state['flight']['mission']==mission:raise RuleError('Let the already committed mission work finish before amending its scope.')
+        quote=self.quote_mandate(mission);technical=self.quote_technical(mission)
+        if quote['prepare']+quote['execute']>self.available('operations') or quote['review']+technical['readiness']>self.available('readiness') or technical['engineering']>self.available('engineering'):raise RuleError('There are insufficient uncommitted funds for this amendment. Retained execution and review commitments are not charged again.')
+        self.reserve_technical(mission,technical)
         for stage,cost in quote.items():
             if cost:self._money('readiness' if stage=='review' else 'operations',cost,m['name']+' / mandate amendment '+stage,'commit');p['obligations'][stage]=cost
         if p['prepared']!=self.fingerprint(mission):p['prepared']=None;p['clearance']=None
@@ -68,7 +75,7 @@ class MissionSchedule:
         p=self.state['plans'][mission]
         if not p['authority'] or p['held'] or mission in self.completed():return
         p['held']=True;p['issue']=reason
-        e=self.event('escalation',MISSIONS[mission]['name']+' / authority exception',reason+' The manager has held further execution. Review the evidence, commission any correction and explicitly amend the mandate.',PEOPLE[p['manager']]['name'],[p['authority']]+([cause] if cause else []),mission=mission)
+        e=self.event('escalation',MISSIONS[mission]['name']+' / authority exception',reason+' The manager has held further execution. Review the resource or scope exception and explicitly amend the mandate; the technical team selects the work.',PEOPLE[p['manager']]['name'],[p['authority']]+([cause] if cause else []),mission=mission)
         self.state['schedule_pauses'].append(e)
 
     def invalidate_plans(self,component,cause):
@@ -95,6 +102,8 @@ class MissionSchedule:
             if s['schedule_pauses']:break
             p=s['plans'][mid]
             if not p['authority'] or p['held'] or mid in self.completed() or s['flight'] and s['flight']['mission']==mid or any(j.get('mission')==mid for j in s['jobs']):continue
+            if p['technical_enabled']:
+                if not self.plan_technical(mid):continue
             finding=next((key for key in m['requires'] if self.findings(key)),None)
             if finding:
                 self.hold_plan(mid,'An observed qualification excursion on '+self.project_name(finding)+' is outside the delegated readiness boundary.',self.findings(finding)[0]['event']);continue
@@ -145,6 +154,7 @@ class MissionSchedule:
             elif s['flight'] and s['flight']['mission']==mid:status='In operations'
             elif p['held']:status='Executive hold'
             elif active:status='Preparing' if active['kind']=='prepare' else 'Independent review'
+            elif any(j.get('sponsor')==mid for j in s['jobs']):status='Engineering team at work'
             elif not p['authority']:status='Not delegated'
             elif p['prepared'] and p['clearance']:status='Awaiting shared operations slot'
             elif p['prepared']:status='Awaiting readiness evidence'
@@ -152,5 +162,5 @@ class MissionSchedule:
             else:status='Awaiting preparation team'
             board.append({'id':mid,'name':m['name'],'vehicle':m['vehicle'],'crew':m['crew'],'ground':m.get('ground',False),'objective':m['objective'],'reference':m['reference'],'requires':m['requires'],'prepare_days':m['prepare_days'],
                           'dependencies':SCHEDULE['dependencies'][mid],'status':status,'manager':p['manager'],'authority':p['authority'],'held':p['held'],'issue':p['issue'],'prepared':p['prepared']==self.fingerprint(mid),'clearance':p['clearance']==self.fingerprint(mid),
-                          'obligations':deepcopy(p['obligations']),'quote':self.quote_mandate(mid),'blocks':blockers,'preparation_blocks':self.preparation_blocks(mid),'mass':self.mass(mid),'job':deepcopy(active)})
+                          'technical_enabled':p['technical_enabled'],'technical':deepcopy(p['technical']),'technical_accounts':self.technical_accounts(mid),'technical_authorised':deepcopy(p['technical_authorised']),'technical_claims':list(p['technical_claims']),'technical_quote':self.quote_technical(mid),'obligations':deepcopy(p['obligations']),'quote':self.quote_mandate(mid),'blocks':blockers,'preparation_blocks':self.preparation_blocks(mid),'mass':self.mass(mid),'job':deepcopy(active)})
         return board

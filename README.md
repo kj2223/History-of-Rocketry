@@ -2,6 +2,8 @@
 
 The default prototype now covers **25 May 1961 through Apollo 11**, with a modern Administrator workspace. Develop the rocket and spacecraft, assign leads, plan concurrent work, qualify revisions and carry the same hardware and team history through Apollo 1, 4, 5, 6, 7, 8, 9, 10 and 11. Flight Control and the crew retain operational authority.
 
+The current development build extends delegation to funded procurement/development, engineering investigation, test selection and corrective work. The team chooses routine technical packages; you approve scope, budgets and exceptions. Existing saves migrate with backups and retain their original spending authority until you explicitly extend it. The RC1 downloads below predate this update.
+
 ## Windows release candidate
 
 The rebuilt Python game is **Per Aspera v0.2.0-rc.1**. Download **PerAspera-Portable.exe** or **PerAspera-Setup.exe** from the matching GitHub prerelease. Python is bundled; no Python installation is needed. The interface opens in your default browser and the simulation runs locally.
@@ -27,7 +29,7 @@ python -m per_aspera --fresh --seed 11
 
 You can also use **Launch Per Aspera.cmd**. Leave its server window open while playing. Stop that server before starting another; only one modern campaign writer is allowed. Within the game, **Save & settings → Start fresh campaign** creates another save without deleting the previous one. The clock resumes paused after loading.
 
-Start on **Overview** with the architecture study, then visit **Programme** to assign leads and authorise development. Schedule parallel work before using **Next report**, which advances directly to the next completion. Readiness is tied to the actual hardware revision, not a generic score. Mission opens the portfolio: select several missions, approve a manager and combined envelope, and let preparation proceed in parallel. Independent reviews and actual flights still obey configuration, evidence and resource gates. Run works while you browse the office; routine delegated work needs no repeat sign-off. **Funding** shows allocation, commitments, expenditure and the transaction ledger; money does not appear each year.
+Start on **Overview** with the architecture study, then visit **Programme** to assign leads and authorise development. Schedule parallel work before using **Next report**, which advances directly to the next completion. The engineering team selects tests and corrective packages within the approved allowance. Readiness is tied to the actual hardware revision, not a generic score. Mission opens the portfolio: select several missions, approve a manager and combined envelope, and let preparation proceed in parallel. Independent reviews and actual flights still obey configuration, evidence and resource gates. Run works while you browse the office; routine delegated work needs no repeat sign-off. **Funding** shows allocation, commitments, expenditure and the transaction ledger; money does not appear each year.
 
 New autosaves are `saves/apollo-1961-*.json`; `saves/current-apollo-campaign.txt` selects the default resume file. Original 1969 saves remain separate. Keep backups before editing game data: saves check the catalogue fingerprint.
 

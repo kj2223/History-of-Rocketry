@@ -62,7 +62,7 @@ class Controller:
     def public(self):
         public=self.sim.briefing()
         public.update(version_label=VERSION,running=self.running,speed=self.speed,location=self.location,pending=list(self.pending),save_name=self.path.name,error=self.error)
-        public['saves']=[p.name for p in sorted(SAVES.glob('apollo-1961-*.json'),key=lambda p:p.stat().st_mtime,reverse=True) if not p.name.endswith('.v1-backup.json')][:30]
+        public['saves']=[p.name for p in sorted(SAVES.glob('apollo-1961-*.json'),key=lambda p:p.stat().st_mtime,reverse=True) if not p.name.endswith(('.v1-backup.json','.v2-backup.json'))][:30]
         return public
 
     def rate(self):
@@ -117,7 +117,7 @@ class Controller:
         if action=='save':self.persist();return
         if action=='load':
             name=body.get('name','')
-            if not isinstance(name,str) or Path(name).name!=name or not name.startswith('apollo-1961-') or not name.endswith('.json') or name.endswith('.v1-backup.json'):raise RuleError('Choose a listed campaign save; migration backups are kept read-only by the interface.')
+            if not isinstance(name,str) or Path(name).name!=name or not name.startswith('apollo-1961-') or not name.endswith('.json') or name.endswith(('.v1-backup.json','.v2-backup.json')):raise RuleError('Choose a listed campaign save; migration backups are kept read-only by the interface.')
             candidate=Campaign(load(SAVES/name));self.persist();self.sim=candidate;self.path=SAVES/name;self.running=False;self.pending=list(candidate.state['schedule_pauses']);self.fraction=0.;self.persist();return
         if action=='fresh':
             self.persist();candidate=Campaign.new(body.get('seed',s['seed']));self.sim=candidate;self.path=fresh_path();self.pending=[];self.running=False;self.fraction=0.;self.persist();return

@@ -11,7 +11,7 @@ from .engine import RuleError,tuples
 from .persistence import SaveError
 from .trajectory import PROFILE,trajectory
 
-from .campaign_catalog import CATALOG,CONTENT,OLD_CONTENT,DAY,PEOPLE,PROJECTS,MISSIONS,SCHEDULE,new_plan
+from .campaign_catalog import CATALOG,CONTENT,OLD_CONTENT,SCHEDULE_CONTENT,DAY,PEOPLE,PROJECTS,MISSIONS,SCHEDULE,new_plan
 from .campaign_schedule import MissionSchedule
 
 
@@ -30,7 +30,7 @@ class Campaign(MissionSchedule):
         rng=random.Random(seed)
         hardware={key:{'revision':1,'status':'concept','design':None,'lead':p['lead'],'mass':0,'capacity':0,
                        'faults':{h:rng.uniform(.18,.48) for h in p['hazards']},'evidence':[],'lineage':[]} for key,p in PROJECTS.items()}
-        state={'campaign':'apollo_1961','version':2,'content':CONTENT,'seed':seed,'time':0,'rng':rng.getstate(),'sequence':0,
+        state={'campaign':'apollo_1961','version':3,'content':CONTENT,'seed':seed,'time':0,'rng':rng.getstate(),'sequence':0,
                'architecture':'unselected','study':False,'capacity':2,'hardware':hardware,'jobs':[],
                'staff':{key:{'memories':[],'work':[]} for key in PEOPLE},'funds':{key:{'allocation':amount,'committed':0,'paid':0} for key,amount in CATALOG['funding'].items()},
                'ledger':[],'events':[],'mission_index':0,'prepared':None,'clearance':None,'flight':None,'results':[],
@@ -65,17 +65,20 @@ class Campaign(MissionSchedule):
         if key not in PROJECTS:raise RuleError('Choose a listed workstream.')
         return self.state['hardware'][key]
 
-    def _money(self,account,amount,purpose,operation):
+    def _money(self,account,amount,purpose,operation,mission=None):
         fund=self.state['funds'][account]
         if operation=='commit':
             if fund['allocation']-fund['paid']-fund['committed']<amount:
                 raise RuleError('Insufficient uncommitted '+account+' funds. Defer new work or explicitly release reserve to this account; authorised work keeps its funding.')
             fund['committed']+=amount
+        elif operation=='release':
+            if amount>fund['committed']:raise RuleError('Release exceeds the recorded obligation.')
+            fund['committed']-=amount
         elif operation=='settle':
             if amount>fund['committed']:raise RuleError('Settlement exceeds the recorded obligation.')
             fund['committed']-=amount;fund['paid']+=amount
         self.state['ledger'].append({'time':self.state['time'],'date':self.date(),'account':account,'amount':amount,'purpose':purpose,'operation':operation,
-                                    'available':fund['allocation']-fund['paid']-fund['committed']})
+                                    'available':fund['allocation']-fund['paid']-fund['committed'],**({'mission':mission} if mission else {})})
 
     def release_reserve(self,account,amount,rationale):
         self._active()
@@ -98,7 +101,7 @@ class Campaign(MissionSchedule):
         e=self.event('appointment','Responsibility assigned',PEOPLE[lead]['name']+' takes '+PROJECTS[component]['name']+' from '+previous+'. Existing work and evidence remain attributed to their original authors.',component=component)
         self.remember(lead,e)
 
-    def commission(self,kind,component=None,design=None,mission=None):
+    def commission(self,kind,component=None,design=None,mission=None,sponsor=None):
         self._active();s=self.state
         if kind in ('prepare','review'):
             self.start_mission_job(kind,self.definition(mission)['id']);return
@@ -134,10 +137,14 @@ class Campaign(MissionSchedule):
         if s['flight'] and kind in ('prepare','review','investigation'):raise RuleError('Flight Control is executing the current attempt.')
         if sum(not j.get('mission') for j in s['jobs'])>=s['capacity']:raise RuleError('All aggregate teams are committed. Wait for a report or expand capacity.')
         if any(j['lead']==lead and (not j.get('mission') or lead=='ortiz') for j in s['jobs']):raise RuleError(PEOPLE[lead]['name']+' already leads an active package. Wait or assign a different lead before commissioning work.')
-        self._money(account,cost,title,'commit')
-        e=self.event('decision','Work authorised',title+f'. ${cost:,} obligated from {account}; estimated {int(days)} days.',links=self.state['hardware'][component]['lineage'][-1:] if component else (),component=component)
+        if sponsor is not None:
+            p=s['plans'].get(sponsor)
+            if not p or not p['authority'] or not p['technical_enabled'] or p['held'] or component not in p['technical_claims'] or kind not in ('develop','component','integration','rework') or p['technical'][account]<cost:raise RuleError('Technical work exceeds its recorded delegated scope or funding.')
+            p['technical'][account]-=cost;self._money(account,cost,title+' / assigned from delegated allowance','assign',mission=sponsor)
+        else:self._money(account,cost,title,'commit')
+        e=self.event('technical_decision' if sponsor else 'decision','Work authorised',title+f'. ${cost:,} obligated from {account}; estimated {int(days)} days.',actor=PEOPLE[lead]['name'] if sponsor else 'Administrator',links=([s['plans'][sponsor]['authority']] if sponsor else [])+(self.state['hardware'][component]['lineage'][-1:] if component else []),component=component,mission=sponsor)
         s['jobs'].append({'id':e,'kind':kind,'component':component,'design':design,'lead':lead,'due':s['time']+int(days)*DAY,'cost':cost,'account':account,'title':title,
-                          'seed':self.rng.getrandbits(32),'revision':s['hardware'][component]['revision'] if component else None,'fingerprint':self.fingerprint()})
+                          'seed':self.rng.getrandbits(32),'revision':s['hardware'][component]['revision'] if component else None,'fingerprint':self.fingerprint(),**({'sponsor':sponsor} if sponsor else {})})
         s['rng']=self.rng.getstate();self.remember(lead,e)
 
     def endorse(self,architecture='lor'):
@@ -192,7 +199,7 @@ class Campaign(MissionSchedule):
     def _finish(self,job):
         s=self.state;key=job['component'];kind=job['kind'];lead=job['lead'];rng=random.Random(job['seed']);mid=job.get('mission');p=s['plans'].get(mid)
         if p and p['authority']:p['obligations'][kind]=0
-        self._money(job['account'],job['cost'],job['title'],'settle')
+        self._money(job['account'],job['cost'],job['title'],'settle',mission=job.get('sponsor'))
         detail='The authorised package is complete. Payment settles the existing obligation.'
         if kind=='study':
             s['study']=True
@@ -229,7 +236,7 @@ class Campaign(MissionSchedule):
         elif kind=='review':
             if job['fingerprint']==self.fingerprint(mid) and not self.blocks(include_clearance=False,mission=mid,ignore_active=True):p['clearance']=job['fingerprint'];detail='Independent readiness disposition granted for this mission and configuration. It is not a guarantee of safety.'
             else:detail='Readiness disposition withheld: the configuration, evidence, dependencies or preparation no longer match the scope.'
-        e=self.event('mission_report' if mid and p['authority'] else 'report',job['title'],detail,PEOPLE[lead]['name'],[job['id']],key,mission=mid)
+        e=self.event('mission_report' if job.get('sponsor') or mid and p['authority'] else 'report',job['title'],detail,PEOPLE[lead]['name'],[job['id']],key,mission=mid or job.get('sponsor'))
         if mid and (kind=='prepare' and p['prepared']!=self.fingerprint(mid) or kind=='review' and p['clearance']!=self.fingerprint(mid)):
             self.hold_plan(mid,detail,e)
         if kind=='investigation':
@@ -312,6 +319,7 @@ class Campaign(MissionSchedule):
         for person in PEOPLE:self.remember(person,e)
         p=s['plans'][m['id']];p['prepared']=None;p['clearance']=None;s['flight']=None
         if outcome=='objective_complete':
+            self.release_technical(m['id'])
             if m['id']=='apollo11':s['status']='complete';self.event('programme','The lunar campaign concludes','The landing and return are recorded. Review the teams, commitments and evidence that led here. Finishing after the deadline remains visible; history is not rewritten.',mission=m['id'])
             else:self.event('programme',m['name']+' evidence recorded','This attempt contributes evidence to dependent dossiers. Other authorised teams continue within their scope.',mission=m['id'])
         else:
@@ -381,7 +389,7 @@ class Campaign(MissionSchedule):
                 elif person['id']=='bennett' and evidence:
                     assessment='Keep the next dependency and remaining work visible; the available reports do not substitute for an independent readiness disposition.'
                 assessments.append({'person':person['name'],'text':assessment+' '+person['view']})
-            projects.append({'id':key,'name':p['name'],'description':p['description'],'revision':h['revision'],'status':h['status'],'design':h['design'],'lead':h['lead'],'mass':h['mass'],'capacity':h['capacity'],'designs':[{**{k:v for k,v in d.items() if k!='factors'},'estimated_days':math.ceil(d['days']*(1.18-.28*PEOPLE[h['lead']]['skills'][key]))} for d in p['designs']],
+            projects.append({'technical':self.technical_projection(key),'id':key,'name':p['name'],'description':p['description'],'revision':h['revision'],'status':h['status'],'design':h['design'],'lead':h['lead'],'mass':h['mass'],'capacity':h['capacity'],'designs':[{**{k:v for k,v in d.items() if k!='factors'},'estimated_days':math.ceil(d['days']*(1.18-.28*PEOPLE[h['lead']]['skills'][key]))} for d in p['designs']],
                              'tests':{method:{**definition,'estimated_days':math.ceil(definition['days']*(1.18-.28*PEOPLE[h['lead']]['skills'][key]))} for method,definition in CATALOG['tests'].items()},
                              'rework':{'cost':240000000 if key=='booster' else 160000000,'days':math.ceil(150*(1.18-.28*PEOPLE[h['lead']]['skills'][key]))},
                              'evidence':deepcopy(h['evidence']),'findings':deepcopy(self.findings(key)),'lineage':list(h['lineage']),'assessments':assessments})
@@ -405,7 +413,7 @@ class Campaign(MissionSchedule):
 
 def _validate(state,legacy=False):
     try:
-        if state['campaign']!='apollo_1961' or state['version']!=(1 if legacy else 2) or state['content']!=(OLD_CONTENT if legacy else CONTENT):raise ValueError('Unsupported campaign catalogue or version.')
+        if state['campaign']!='apollo_1961' or state['version'] not in ((1,) if legacy else (2,3)) or state['content']!=(OLD_CONTENT if legacy else SCHEDULE_CONTENT if state['version']==2 else CONTENT):raise ValueError('Unsupported campaign catalogue or version.')
         if type(state['time']) is not int or not 0<=state['time']<=30*366*DAY or type(state['seed']) is not int or not 0<=state['seed']<2**32:raise ValueError('Invalid campaign time or seed.')
         if state['status'] not in ('active','complete') or type(state['mission_index']) is not int or not 0<=state['mission_index']<len(CATALOG['missions']):raise ValueError('Invalid programme state.')
         if state['architecture'] not in ('unselected','lor') or type(state['study']) is not bool or state['capacity'] not in (2,3):raise ValueError('Invalid programme commitment.')
@@ -438,6 +446,7 @@ def _validate(state,legacy=False):
             obligations=sum(j['cost'] for j in state['jobs'] if j['account']==account and not j.get('delegated'))
             if not legacy:
                 obligations+=sum(p['obligations']['review'] if account=='readiness' else p['obligations']['prepare']+p['obligations']['execute'] if account=='operations' else 0 for p in state['plans'].values())
+                if state['version']==3:obligations+=sum(p['technical'].get(account,0) for p in state['plans'].values())
             if account=='operations' and state['flight'] and not state['flight'].get('delegated'):obligations+=35000000 if (CATALOG['missions'][state['mission_index']] if legacy else MISSIONS[state['flight']['mission']]).get('ground') else 70000000
             if obligations!=fund['committed']:raise ValueError('Commitments differ from authorised work.')
         if sum(f['allocation'] for f in state['funds'].values())!=sum(CATALOG['funding'].values()):raise ValueError('Funding was created or lost.')
@@ -448,6 +457,8 @@ def _validate(state,legacy=False):
             ledger_time=entry['time'];fund=replay[entry['account']];amount=entry['amount']
             if entry['operation']=='commit':fund['committed']+=amount
             elif entry['operation']=='settle':fund['committed']-=amount;fund['paid']+=amount
+            elif state['version']==3 and entry['operation']=='assign':pass
+            elif state['version']==3 and entry['operation']=='release':fund['committed']-=amount
             elif entry['operation']=='reserve release':
                 if entry['account']=='reserve':raise ValueError('Invalid reserve transfer.')
                 replay['reserve']['allocation']-=amount;fund['allocation']+=amount
@@ -488,6 +499,17 @@ def validate_schedule(state,seen):
     if set(state['plans'])!=set(MISSIONS) or any(e not in seen for e in state['schedule_pauses']) or len(set(state['schedule_pauses']))!=len(state['schedule_pauses']):raise ValueError('Invalid mission dossiers or exception cursor.')
     if state['standdown_mission'] is not None and state['standdown_mission'] not in MISSIONS:raise ValueError('Invalid investigation scope.')
     for mid,p in state['plans'].items():
+        if state['version']==3:
+            if type(p['technical_enabled']) is not bool or set(p['technical'])!={'engineering','readiness'} or set(p['technical_authorised'])!=set(p['technical']) or set(p['technical_released'])!=set(p['technical']):raise ValueError('Invalid technical remit.')
+            if any(type(v) is not int or v<0 or v>p['technical_authorised'][account] for account,v in p['technical'].items()) or any(type(v) is not int or v<0 for v in p['technical_authorised'].values()):raise ValueError('Invalid technical allowance.')
+            if any(type(v) is not int or v<0 or v+p['technical'][account]>p['technical_authorised'][account] for account,v in p['technical_released'].items()):raise ValueError('Invalid released allowance.')
+            for account in p['technical']:
+                entries=[e for e in state['ledger'] if e.get('mission')==mid and e['account']==account]
+                amounts={operation:sum(e['amount'] for e in entries if e['operation']==operation) for operation in ('commit','settle','release')}
+                contracted=sum(j['cost'] for j in state['jobs'] if j.get('sponsor')==mid and j['account']==account)
+                if amounts['commit']!=p['technical_authorised'][account] or amounts['release']!=p['technical_released'][account] or amounts['commit']!=p['technical'][account]+contracted+amounts['settle']+amounts['release']:raise ValueError('Mission technical accounts differ from their transaction ledger.')
+            if len(set(p['technical_claims']))!=len(p['technical_claims']) or not set(p['technical_claims']).issubset(MISSIONS[mid]['requires']):raise ValueError('Technical work is outside mission scope.')
+            if not p['technical_enabled'] and (p['technical_claims'] or any(p['technical'].values()) or any(p['technical_authorised'].values())) or p['technical_enabled'] and not p['authority']:raise ValueError('Technical authority is missing.')
         if p['manager'] not in PEOPLE or p['manager']=='ortiz' or type(p['held']) is not bool or not isinstance(p['issue'],str) or p['authority'] is not None and p['authority'] not in seen:raise ValueError('Invalid mission authority.')
         if set(p['obligations'])!={'prepare','review','execute'} or any(type(v) is not int or v<0 for v in p['obligations'].values()) or not p['authority'] and any(p['obligations'].values()):raise ValueError('Invalid delegated envelope.')
         for flag in ('prepared','clearance'):
@@ -506,6 +528,10 @@ def validate_schedule(state,seen):
     if state['flight']:
         f=state['flight'];p=state['plans'][f['mission']]
         if f.get('delegated') and (not p['authority'] or p['obligations']['execute']==0):raise ValueError('Active mission is not funded by its mandate.')
+    for job in state['jobs']:
+        if job.get('sponsor'):
+            p=state['plans'][job['sponsor']]
+            if not p['technical_enabled'] or job['component'] not in p['technical_claims'] or job['kind'] not in ('develop','component','integration','rework'):raise ValueError('Technical package has no matching authority.')
 
 
 def validate(state):
@@ -513,18 +539,21 @@ def validate(state):
 
 
 def upgrade(state):
-    if state.get('version')!=1:return state
-    _validate(state,legacy=True);state=deepcopy(state)
-    state.update(version=2,content=CONTENT,plans={mid:new_plan() for mid in MISSIONS},schedule_pauses=[],standdown_mission=None)
-    mid=CATALOG['missions'][state['mission_index']]['id'];p=state['plans'][mid]
-    p['prepared']=deepcopy(state['prepared']);p['clearance']=deepcopy(state['clearance'])
-    if state['standdown']:state['standdown_mission']=mid
-    if state['flight']:state['flight'].update(mission=mid,delegated=False)
-    for job in state['jobs']:
-        if job['kind'] in ('prepare','review'):job.update(mission=mid,delegated=False)
+    version=state.get('version')
+    if version not in (1,2):return state
+    _validate(state,legacy=version==1);state=deepcopy(state)
+    if version==1:
+        state.update(plans={mid:new_plan() for mid in MISSIONS},schedule_pauses=[],standdown_mission=None)
+        mid=CATALOG['missions'][state['mission_index']]['id'];p=state['plans'][mid]
+        p['prepared']=deepcopy(state['prepared']);p['clearance']=deepcopy(state['clearance'])
+        if state['standdown']:state['standdown_mission']=mid
+        if state['flight']:state['flight'].update(mission=mid,delegated=False)
+        for job in state['jobs']:
+            if job['kind'] in ('prepare','review'):job.update(mission=mid,delegated=False)
+    for p in state['plans'].values():
+        for key in ('technical_enabled','technical_claims','technical','technical_authorised','technical_released'):p[key]=deepcopy(new_plan()[key])
+    state.update(version=3,content=CONTENT)
     validate(state);return state
-
-
 
 
 
@@ -532,10 +561,10 @@ def save(state,path):
     import os
     import tempfile
     validate(state);destination=Path(path);destination.parent.mkdir(parents=True,exist_ok=True);temporary=None
-    if destination.exists() and state['version']==2:
+    if destination.exists() and state['version']==3:
         previous=json.loads(destination.read_text(encoding='utf-8'))
-        if previous.get('campaign')=='apollo_1961' and previous.get('version')==1:
-            backup=destination.with_suffix('.v1-backup.json')
+        if previous.get('campaign')=='apollo_1961' and previous.get('version') in (1,2):
+            backup=destination.with_suffix('.v'+str(previous['version'])+'-backup.json')
             if not backup.exists():
                 with backup.open('x',encoding='utf-8') as stream:json.dump(previous,stream,indent=2)
     try:
