@@ -31,6 +31,7 @@ jobs:
         run: |
           python tools/smoke_windows.py
           python tools/smoke_founding.py
+          python tools/smoke_pioneers.py
       - name: Install build tools
         run: |
           python -m pip install -r requirements-build.txt
@@ -41,6 +42,7 @@ jobs:
         run: |
           python tools/smoke_windows.py --exe dist/PerAspera-Portable.exe --installer dist/PerAspera-Setup.exe
           python tools/smoke_founding.py --exe dist/PerAspera-1958-Portable.exe
+          python tools/smoke_pioneers.py --exe dist/PerAspera-1945-Portable.exe
       - name: Record hashes and source revision
         shell: pwsh
         run: |

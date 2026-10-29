@@ -209,3 +209,7 @@ python tools/smoke_founding.py --exe dist/PerAspera-1958-Portable.exe
 ```
 
 The dev workflow runs all tests, builds both executables, tests installation/startup/uninstall with temporary data and uploads hashes plus the source commit. Release candidates are explicitly published from that verified commit; a dev push does not overwrite a published release or mark a candidate as the stable latest release.
+
+## Standalone 1945–1949 playtest
+
+Run `python -m per_aspera --pioneers` or double-click `Launch 1945 Prototype.cmd`. The dedicated portable is `PerAspera-1945-Portable.exe`. This starts a small experimental programme with actual Tiny Tim, WAC and Bumper flight objectives, recruitment, funded delegation and evidence-driven repeat attempts. It uses separate saves and does not yet merge into 1958 or Apollo. Read [the play guide](docs/PIONEERS_1945_1949.md) for controls, costs and simplifications.

@@ -12,7 +12,7 @@ from per_aspera.version import VERSION
 
 def main():
     if os.name!='nt':raise SystemExit('Build Windows releases on Windows.')
-    for name,entry in (('PerAspera-Portable','desktop_entry.py'),('PerAspera-1958-Portable','desktop_founding_entry.py')):
+    for name,entry in (('PerAspera-Portable','desktop_entry.py'),('PerAspera-1958-Portable','desktop_founding_entry.py'),('PerAspera-1945-Portable','desktop_pioneers_entry.py')):
         command=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onefile','--windowed','--name',name]
         for folder in ('data','campaign_data','web'):
             command+=['--add-data',str(ROOT/'per_aspera'/folder)+';per_aspera/'+folder]

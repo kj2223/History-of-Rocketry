@@ -1,5 +1,19 @@
 # Feature coverage — Per Aspera prototypes
 
+**Campaign target expanded to 1945–1969:** a standalone 1945–49 flight chapter is now implemented. The continuous merged campaign remains **planned, not implemented**. See [the roadmap](CAMPAIGN_1945_1969_ROADMAP.md). Playable scenarios remain separate; Mercury flights are still pending.
+
+## Early rocketry, 1945–1949 — standalone playtest
+
+- Modern browser workspace, separate CLI/portable entry and versioned deterministic saves; fresh restart preserves the previous save. No mutation of Apollo/1958 saves.
+- Four inherited fictional colleagues, three optional specialist recruits, parallel recruitment and a shared preparation/range stream. Broad priorities and funded one-to-three-round remits; specialist-selected preparation and optional delegated release.
+- Seven data-driven flight objectives from Tiny Tim through improved WAC to inert-interface and powered Bumper attempts; scoped evidence prerequisites and calendar opportunities. Repeated failures and inconclusive records remain possible.
+- Real funded preparation changes underlying engineering state; specialist effects apply to future work. Expendable hardware/labour included in per-round packages. No technical gain from recording an opinion or merely changing the date.
+- Integer-second milestone engine, adaptive release/flight playback, manual pause/speed, unexpected observation pauses, independent range authority, append-only live transcript and evidence-grounded archived engineer briefings.
+- Three truths: underlying engineering/outcome draws remain private; imperfect measurements and staff judgements appear publicly; the player records a separate interpretation. Phase animation is illustrative, not detailed physical telemetry.
+- Finite $1.2m research allocation, committed envelopes/contracts, settlement once, unused-authority release, complete ledger and cost/duration/source previews. Two eligible one-shot sponsor proposals can be declined; committed work survives funding exhaustion.
+- Tests cover replay speed/chunk invariance, pause/report boundaries, save/resume, corruption, financial reconciliation, recruitment, repeat attempts, evidence/privacy, sponsor refusal and a seed-11 route through 1949. Real source/frozen HTTP lifecycle smoke included in CI.
+- Deferred: full physics, every historical flight, detailed V-2 procurement, expanded relationships, multiple range streams and integration into subsequent chapters. See [play guide and abstractions](PIONEERS_1945_1949.md).
+
 Updated 29 October 2026. The new NASA-formation chapter is separate from the modern Apollo campaign. The default Apollo executable remains unchanged in scenario selection.
 
 ## NASA formation, 1958–1961 — implemented standalone prototype
