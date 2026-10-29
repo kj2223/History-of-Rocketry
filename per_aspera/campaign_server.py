@@ -156,6 +156,7 @@ def _run(sim,path,port=0,open_browser=True,controller=None,html_path=None,metada
         def do_GET(self):
             if self.headers.get('Host')!='127.0.0.1:'+str(self.server.server_port):self.send(403,{'error':'Use the local game address.'});return
             if self.path=='/':self.send(200,html,'text/html; charset=utf-8')
+            elif self.path=='/pioneers-observation.js':self.send(200,(web/'pioneers-observation.js').read_text(encoding='utf-8'),'text/javascript; charset=utf-8')
             elif self.path=='/api/state':
                 with controller.lock:self.send(200,controller.public())
             elif self.path=='/api/export':

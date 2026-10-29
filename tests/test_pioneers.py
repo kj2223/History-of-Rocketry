@@ -161,5 +161,5 @@ class PioneersTests(TestCase):
 
     def test_contextual_briefing_uses_only_available_observations(self):
         s=Pioneers.new();s.authorise('booster');s.next_report();before=s.state['rng']
-        s.brief('observations');self.assertIn('no validated altitude',s.state['events'][-1]['detail'])
+        s.brief('observations');self.assertIn('Searching / no reliable return',s.state['events'][-1]['detail'])
         s.brief('recommendation');self.assertNotIn('abort command',s.state['events'][-1]['detail']);self.assertEqual(before,s.state['rng'])

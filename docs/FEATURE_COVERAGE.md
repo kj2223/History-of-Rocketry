@@ -9,10 +9,12 @@
 - Seven data-driven flight objectives from Tiny Tim through improved WAC to inert-interface and powered Bumper attempts; scoped evidence prerequisites and calendar opportunities. Repeated failures and inconclusive records remain possible.
 - Real funded preparation changes underlying engineering state; specialist effects apply to future work. Expendable hardware/labour included in per-round packages. No technical gain from recording an opinion or merely changing the date.
 - Integer-second milestone engine, adaptive release/flight playback, manual pause/speed, unexpected observation pauses, independent range authority, append-only live transcript and evidence-grounded archived engineer briefings.
-- Three truths: underlying engineering/outcome draws remain private; imperfect measurements and staff judgements appear publicly; the player records a separate interpretation. Phase animation is illustrative, not detailed physical telemetry.
+- Bunker sightline and radar plotting views replace the generic phase animation. Quarter-second point-mass trajectories include motor burns, coast, Bumper staging and impact. Optical visibility, sampled imperfect radar fixes, lost-track age and archived measurements derive from that trajectory. Reports distinguish highest measured height from confirmed apogee; no radar solution means no invented altitude.
+- Three truths: underlying engineering/outcome draws and the motion envelope remain private; imperfect measurements and staff judgements appear publicly; the player records a separate interpretation. Existing completed records are preserved; older active saves use an approximate fallback trajectory.
 - Finite $1.2m research allocation, committed envelopes/contracts, settlement once, unused-authority release, complete ledger and cost/duration/source previews. Two eligible one-shot sponsor proposals can be declined; committed work survives funding exhaustion.
 - Tests cover replay speed/chunk invariance, pause/report boundaries, save/resume, corruption, financial reconciliation, recruitment, repeat attempts, evidence/privacy, sponsor refusal and a seed-11 route through 1949. Real source/frozen HTTP lifecycle smoke included in CI.
 - Deferred: full physics, every historical flight, detailed V-2 procurement, expanded relationships, multiple range streams and integration into subsequent chapters. See [play guide and abstractions](PIONEERS_1945_1949.md).
+- A cached 3D launch film is a proposed next rendering layer, not implemented. See [observation model, historical anchors and film constraints](WHITE_SANDS_OBSERVATION.md).
 
 Updated 29 October 2026. The new NASA-formation chapter is separate from the modern Apollo campaign. The default Apollo executable remains unchanged in scenario selection.
 

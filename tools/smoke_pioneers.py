@@ -29,6 +29,7 @@ def main():
             url='http://127.0.0.1:'+str(json.loads((data/'pioneers-server.json').read_text())['port'])
             with urllib.request.urlopen(url) as response:html=response.read().decode()
             assert '__WORKSPACE_STYLES__' not in html and 'Range observation' in html
+            with urllib.request.urlopen(url+'/pioneers-observation.js') as response:assert b'PioneerObservation' in response.read()
             token=re.search("const TOKEN='([^']+)'",html).group(1)
             def call(action,**params):
                 request=urllib.request.Request(url+'/api/command',data=json.dumps({'action':action,**params}).encode(),headers={'Content-Type':'application/json','Origin':url,'X-Per-Aspera':token})

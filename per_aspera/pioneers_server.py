@@ -21,6 +21,7 @@ class PioneersController(FoundingController):
 
     def public(self):
         return self.sim.public()|{'running':self.running,'speed':self.speed,'error':self.error,'save_name':self.path.name,'version_label':VERSION,
+                                 'display_rate':((1 if self.sim.state['time']-self.sim.state['flight']['start']<20 else 6)*self.speed if self.sim.state['flight'] and self.running and not self.pending else 0),
                                  'saves':[p.name for p in sorted(SAVES.glob('pioneers-1945-*.json'),key=lambda p:p.stat().st_mtime,reverse=True)][:30]}
 
     def tick(self):

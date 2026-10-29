@@ -11,6 +11,7 @@ import tempfile
 
 from .engine import RuleError,tuples
 from .persistence import SaveError
+from .pioneers_tracking import observations,trajectory
 
 DATA=json.loads((Path(__file__).with_name('campaign_data')/'pioneers.json').read_text(encoding='utf-8'))
 CONTENT=hashlib.sha256(json.dumps(DATA,sort_keys=True).encode()).hexdigest()[:16]
@@ -119,6 +120,8 @@ class Pioneers:
         measured=self.rng.random()<min(.96,s['reality']['instrumentation']+(.25 if v['focus']=='measurement' else .08))
         recovered=self.rng.random()<(.6 if 'brooks' in s['staff'] else .38)
         s['flight']={**v,'start':s['time'],'index':0,'duration':p['flight'],'success':success,'measured':measured,'recovered':recovered,'anomaly':False,'phase':'Range release','observations':[]}
+        preview=random.Random();preview.setstate(self.rng.getstate())
+        s['flight']['motion_apogee']=round(p['altitude']*(.88+preview.random()*.2)*(1 if success else .12+preview.random()*.4),1)
         s['vehicle']=None;self.event('launch','Range releases the vehicle',f"{p['name']}, configuration {v['revision']}. Vega retains range safety authority. Your funded remit is in execution.",'Daniel Vega',v['links'])
         s['rng']=self.rng.getstate()
 
@@ -144,18 +147,24 @@ class Pioneers:
             detail='Tracking indicates departure from the intended profile. Vega is executing range procedures. Ellis: vehicle or interface behaviour is a possible cause; available observations do not isolate it. No executive flight command is required.'
             eid=self.event('anomaly','Unexpected flight development',detail,'Daniel Vega',f['links']);s['attention'].append(eid);f['observations'].append(detail)
         else:
-            detail=label+'. '+('Instrument channel returning a record; reduction and validation follow the flight.' if f['measured'] and i>=2 else 'Optical observers reporting; no validated altitude measurement yet.')
+            observed=self.tracking(f,offset)
+            detail=label+'. '+observed['optical']['status']+'. Radar: '+observed['radar']['status']+'. Measurements remain subject to reduction and review.'
             self.event('transcript',label,detail,'Range communications',f['links']);f['observations'].append(detail)
         if f['index']<len(p['phases']):return
-        altitude=round(p['altitude']*(.88+self.rng.random()*.2)*(1 if f['success'] else .12+self.rng.random()*.4),1)
-        estimate=round(altitude*(.9+self.rng.random()*.2),1)
-        useful=f['success'] and (f['measured'] or f['recovered'] or f['profile'] in ('booster','inert'))
-        report={'profile':f['profile'],'revision':f['revision'],'date':self.date(),'useful':useful,'flight_observed':f['success'],'record':f['measured'],'recovered':f['recovered'],
-                'altitude':estimate if f['measured'] else None,'estimate':round(estimate/5)*5 if not f['measured'] else None,'focus':f['focus'],'links':f['links']}
+        # Preserve the established campaign RNG stream; observations use deterministic sensor errors.
+        self.rng.random()
+        if not f['success']:self.rng.random()
+        self.rng.random()
+        radar=self.tracking(f,p['flight'])['radar']
+        estimate=max((point['height_km'] for point in radar['samples']),default=None)
+        useful=f['success'] and (estimate is not None or f['recovered'] or f['profile'] in ('booster','inert'))
+        report={'profile':f['profile'],'revision':f['revision'],'date':self.date(),'useful':useful,'flight_observed':f['success'],'record':estimate is not None,'recovered':f['recovered'],
+                'altitude':estimate,'estimate':None,'focus':f['focus'],'links':f['links']}
         assessment=('Ellis: the recorded objective is supported; this is not a blanket qualification of the design.' if useful else 'Ellis: the objective remains unconfirmed. Repeat with stronger measurement coverage or address flight margins; a second opinion cannot replace missing evidence.')
-        evidence=('Reduced instrument estimate '+str(estimate)+' km; simplified sensor model, not a physics reconstruction.' if f['measured'] else 'No usable instrument altitude. Coarse optical estimate only: approximately '+str(report['estimate'])+' km; substantial uncertainty.')
+        evidence=('Highest radar-derived height '+str(estimate)+' km. This is the highest valid sample, not a confirmed apogee.' if estimate is not None else 'No validated radar altitude solution. Optical observations alone do not establish the peak altitude.')
         eid=self.event('report',p['name']+' — flight report',evidence+' '+('Range observed the intended flight profile. ' if f['success'] else 'Range observed an incomplete flight profile. ')+('Recovered material is available. ' if f['recovered'] else 'Recovery did not return useful material. ')+assessment,'Ruth Ellis',f['links']);report['event']=eid
         s['flights'].append(report);s['flight']=None;s['attention'].append(eid)
+        report['tracking']=radar
         if s['remit'] and s['remit']['remaining']==0:s['remit']=None
 
     def acknowledge(self):
@@ -237,7 +246,7 @@ class Pioneers:
         if f:
             p=PROFILES[f['profile']];elapsed=s['time']-f['start']
             flight={'name':p['name'],'elapsed':elapsed,'duration':p['flight'],'phase':f['phase'],'anomaly':f['anomaly'],'revision':f['revision'],'observations':f['observations'],
-                    'visual_fraction':max(0,min(1,elapsed/p['flight'])),'vehicle':'bumper' if p['id'].startswith('bumper') else 'wac'}
+                    'tracking':self.tracking(f,elapsed),'vehicle':'bumper' if p['id'].startswith('bumper') else 'booster' if p['id']=='booster' else 'wac'}
         return {'campaign':s['campaign'],'seed':s['seed'],'date':self.date(),'time':s['time'],'status':s['status'],'attention':list(s['attention']),
                 'funds':{'allocation':s['allocation'],'paid':s['paid'],'committed':self.committed(),'available':self.available()},'ledger':deepcopy(s['ledger']),
                 'events':deepcopy(s['events']),'staff':[{k:v for k,v in p.items() if k not in ('skill','optimism')}|{'appointed':p['id'] in s['staff'],'pending':any(j.get('person')==p['id'] for j in s['jobs'])} for p in DATA['staff']],
@@ -246,6 +255,14 @@ class Pioneers:
                 'remit':deepcopy(r),'vehicle':deepcopy(s['vehicle']),'flight':flight,'flights':deepcopy(s['flights']),'theory':s['theory'],'grants':list(s['grants']),'grant_attempts':list(s['grant_attempts'])}
 
     def briefing(self):return self.public()
+
+    def flight_trajectory(self,f):
+        p=PROFILES[f['profile']]
+        return trajectory(f['profile'],p['flight'],f.get('motion_apogee',p['altitude']*(1 if f['success'] else .3)),None if f['success'] else p['phases'][2][0])
+
+    def tracking(self,f,elapsed):
+        p=PROFILES[f['profile']]
+        return observations(f['profile'],p['flight'],f.get('motion_apogee',p['altitude']*(1 if f['success'] else .3)),None if f['success'] else p['phases'][2][0],elapsed,f['measured'],f['profile'] in ('wac_b','bumper_sep','bumper'))
 
 
 def validate(s):
@@ -276,6 +293,7 @@ def validate(s):
         f=s['flight']
         if f and (type(f['index']) is not int or not 0<=f['index']<len(PROFILES[f['profile']]['phases']) or not 0<=f['start']<=s['time'] or any(type(f[k]) is not bool for k in ('success','measured','recovered','anomaly'))):raise ValueError('Invalid active flight.')
         if f and (f['duration']!=PROFILES[f['profile']]['flight'] or f['start']+PROFILES[f['profile']]['phases'][f['index']][0]<s['time']):raise ValueError('Flight clock would run backwards.')
+        if f and 'motion_apogee' in f and (type(f['motion_apogee']) not in (int,float) or not math.isfinite(f['motion_apogee']) or not 0<f['motion_apogee']<=1000):raise ValueError('Invalid flight envelope.')
         for f in s['flights']:
             if f['profile'] not in PROFILES or f['event'] not in ids or any(type(f[k]) is not bool for k in ('useful','flight_observed','record','recovered')):raise ValueError('Invalid flight evidence.')
         allocation=DATA['allocation'];paid=0;committed=0;last=-1
