@@ -56,6 +56,12 @@ class MissionScheduleTests(TestCase):
         self.assertTrue(any('Apollo 1' in x for x in blocks));self.assertTrue(any('Apollo 4' in x for x in blocks))
         with self.assertRaises(RuleError):sim.launch('apollo7')
 
+    def test_authorisation_order_can_prioritise_crewed_preparation(self):
+        sim=self.ready_campaign();sim.authorise_missions(['apollo7','apollo4','apollo5','apollo6'])
+        self.assertEqual([j['mission'] for j in sim.state['jobs']],['apollo7','apollo4','apollo5'])
+        self.assertFalse(any(j.get('mission')=='apollo6' for j in sim.state['jobs']))
+        validate(sim.state)
+
     def test_delegated_campaign_finishes_out_of_numeric_order_with_valid_dependencies(self):
         sim=self.ready_campaign();sim.authorise_missions(list(MISSIONS));self.run_schedule(sim)
         self.assertEqual(sim.state['status'],'complete')

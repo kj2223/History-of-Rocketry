@@ -21,7 +21,7 @@ See [CAMPAIGN_MODEL.md](CAMPAIGN_MODEL.md) for launch instructions, actual finan
 - Implemented: batch mandates with named managers and fixed funded scope; three parallel preparation teams, one assurance team and one flight/test operations slot. Preparation can proceed ahead of dependency flight results. Routine execution is delegated and can run while the Administrator uses other workspace views.
 - Implemented: configuration/evidence exceptions, persistent executive holds, accident standdown, explicit priced amendments, retained obligations, deferral and causal authority records. No delegate can bypass flight gates or spend outside its recorded envelope.
 - Implemented: version-1 modern-save migration with a preserved backup, version-2 per-mission state, public mission board with status/costs/dependencies, save-and-quit and separate writable storage for portable/installed builds.
-- Validation: 145 unit tests pass, including 12 new scheduling/migration tests; source and packaged application lifecycle smoke tests exercise delegation, command security and autosave. Windows CI builds and tests both the portable executable and per-user Inno installer before candidate publication.
+- Validation: 146 unit tests pass, including 13 new scheduling/migration tests; source and packaged application lifecycle smoke tests exercise delegation, command security and autosave. Windows CI builds and tests both the portable executable and per-user Inno installer before candidate publication.
 - Deferred: simultaneous flights, a detailed resource/launch-window calendar, individual vehicle production inventory, contractor procurement and editable mission objectives. The default mission dependency graph is a documented gameplay abstraction.
 
 

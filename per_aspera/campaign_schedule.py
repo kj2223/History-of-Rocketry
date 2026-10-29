@@ -91,7 +91,7 @@ class MissionSchedule:
     def dispatch(self):
         s=self.state
         if s['status']!='active' or s['standdown'] or s['schedule_pauses']:return
-        for mid,m in MISSIONS.items():
+        for mid,m in sorted(MISSIONS.items(),key=lambda item:s['plans'][item[0]]['authority'] or 'Z'):
             if s['schedule_pauses']:break
             p=s['plans'][mid]
             if not p['authority'] or p['held'] or mid in self.completed() or s['flight'] and s['flight']['mission']==mid or any(j.get('mission')==mid for j in s['jobs']):continue
