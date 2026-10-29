@@ -249,7 +249,7 @@ class Campaign(MissionSchedule):
         if p['authority']:
             if p['obligations']['execute']!=self.costs(m['id'])['execute']:raise RuleError('The mandate does not fund execution; amend it first.')
         else:self._money('operations',self.costs(m['id'])['execute'],m['name']+' execution','commit')
-        cause=self.event('mission',m['name']+' authorised',m['objective']+' Operational decisions belong to Flight Control, test conductors and the crew.',links=([p['authority']] if p['authority'] else [])+[event for key in m['requires'] for event in s['hardware'][key]['lineage'][-1:]],mission=m['id'])
+        cause=self.event('mission',m['name']+' authorised',('Execution proceeds under the recorded delegated mandate. ' if p['authority'] else '')+m['objective']+' Operational decisions belong to Flight Control, test conductors and the crew.',actor=PEOPLE[p['manager']]['name'] if p['authority'] else 'Administrator',links=([p['authority']] if p['authority'] else [])+[event for key in m['requires'] for event in s['hardware'][key]['lineage'][-1:]],mission=m['id'])
         seed=self.rng.getrandbits(32);s['rng']=self.rng.getstate()
         s['flight']={'mission':m['id'],'delegated':bool(p['authority']),'start':s['time'],'phase':0,'phase_start':s['time'],'seed':seed,'snapshot':deepcopy({k:s['hardware'][k] for k in m['requires']}),
                      'mass':self.mass(m['id']),'cause':cause,'aborted':False,'lost':False,'crew_lost':False,'calls':[],'queue':[]}

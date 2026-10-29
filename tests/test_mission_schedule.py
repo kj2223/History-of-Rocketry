@@ -71,6 +71,7 @@ class MissionScheduleTests(TestCase):
             self.assertTrue(set(SCHEDULE['dependencies'][r['mission']]).issubset(done))
             self.assertEqual(r['outcome'],'objective_complete');done.add(r['mission'])
         self.assertEqual(done,set(MISSIONS));validate(sim.state)
+        self.assertTrue(all(e['actor']=='Nora Bennett' and 'delegated mandate' in e['detail'] for e in sim.state['events'] if e['kind']=='mission'))
         self.assertEqual(sim.state['funds']['operations']['committed'],0)
         self.assertEqual(sim.state['funds']['operations']['paid'],1350000000)
 
