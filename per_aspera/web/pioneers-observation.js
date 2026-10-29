@@ -40,7 +40,7 @@ window.PioneerObservation=(()=>{
   label(c,'RANGE STATION · MEASURED FIXES',16,21,'#b9d6b8');
   label(c,'Slant range km →',x0+pw*.55,h-5,'#a0b2a2',10);
   const points=radar?.samples||[];c.strokeStyle='#95c892';c.lineWidth=1.5;c.beginPath();
-  points.forEach((p,i)=>{const x=x0+p.range_km/coverage*pw,y=y0-p.elevation_deg/90*ph;i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke();
+  points.forEach((p,i)=>{const x=x0+p.range_km/coverage*pw,y=y0-p.elevation_deg/90*ph;i&&p.elapsed-points[i-1].elapsed<=radar.sample_interval?c.lineTo(x,y):c.moveTo(x,y)});c.stroke();
   const last=radar?.last_fix;
   if(last){const x=x0+last.range_km/coverage*pw,y=y0-last.elevation_deg/90*ph;c.strokeStyle=radar.locked?'#cce6a0':'#e1b86c';c.beginPath();c.arc(x,y,4,0,7);c.stroke();label(c,radar.locked?'LIVE TRACK':'LAST FIX · '+Math.floor(radar.age_seconds)+' s OLD',x0+4,47,radar.locked?'#cce6a0':'#e1b86c',11)}
   else label(c,'SEARCHING — NO VALID RETURN',x0+15,y0-ph*.45,'#a0b2a2',12);
