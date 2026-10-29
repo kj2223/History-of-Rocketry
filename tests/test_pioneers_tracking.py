@@ -6,6 +6,7 @@ from unittest import TestCase
 
 from per_aspera.pioneers import Pioneers,PROFILES,save,load,validate
 from per_aspera.pioneers_tracking import trajectory,row_at,observations
+from per_aspera.persistence import SaveError
 
 
 class TrackingTests(TestCase):
@@ -69,3 +70,12 @@ class TrackingTests(TestCase):
             self.assertLessEqual(abs(result['altitude']-peak),peak*.11+.1)
             self.assertEqual(result['altitude'],max(p['height_km'] for p in result['tracking']['samples']))
         self.assertNotIn('motion_apogee',json.dumps(s.public()))
+
+    def test_corrupt_archived_radar_samples_are_rejected(self):
+        s=Pioneers.new();s.authorise('booster','measurement')
+        for _ in range(20):
+            while s.state['attention']:s.acknowledge()
+            if not s.state['jobs'] and not s.state['flight']:break
+            s.next_report()
+        validate(s.state);s.state['flights'][0]['tracking']['samples'][0]['elapsed']=999999
+        with self.assertRaises(SaveError):validate(s.state)

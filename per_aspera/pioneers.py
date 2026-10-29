@@ -296,6 +296,14 @@ def validate(s):
         if f and 'motion_apogee' in f and (type(f['motion_apogee']) not in (int,float) or not math.isfinite(f['motion_apogee']) or not 0<f['motion_apogee']<=1000):raise ValueError('Invalid flight envelope.')
         for f in s['flights']:
             if f['profile'] not in PROFILES or f['event'] not in ids or any(type(f[k]) is not bool for k in ('useful','flight_observed','record','recovered')):raise ValueError('Invalid flight evidence.')
+            if 'tracking' in f:
+                radar=f['tracking'];samples=radar['samples'];previous=-1
+                if not isinstance(samples,list) or len(samples)>145 or radar['coverage_km'] not in (80,160) or radar['sample_interval']!=5 or type(radar['locked']) is not bool:raise ValueError('Invalid radar record.')
+                for point in samples:
+                    if type(point['elapsed']) is not int or not previous<point['elapsed']<=PROFILES[f['profile']]['flight'] or point['elapsed']%5:raise ValueError('Invalid radar sample chronology.')
+                    previous=point['elapsed']
+                    if any(type(point[k]) not in (int,float) or not math.isfinite(point[k]) for k in ('range_km','elevation_deg','height_km')) or not 0<=point['elevation_deg']<=90 or not 0<=point['height_km']<=point['range_km']<=radar['coverage_km']+.1:raise ValueError('Invalid radar measurement.')
+                if radar['last_fix']!=(samples[-1] if samples else None) or f['record']!=bool(samples):raise ValueError('Radar summary differs from its evidence.')
         allocation=DATA['allocation'];paid=0;committed=0;last=-1
         for e in s['ledger']:
             a=e['amount'];op=e['operation']
