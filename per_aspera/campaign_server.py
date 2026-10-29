@@ -140,9 +140,14 @@ class Controller:
         self.persist()
 
 
-def _run(sim,path,port=0,open_browser=True):
-    controller=Controller(sim,path);controller.persist()
-    html=(Path(__file__).with_name('web')/'index.html').read_text(encoding='utf-8').replace('__CAMPAIGN_TOKEN__',controller.token)
+def _run(sim,path,port=0,open_browser=True,controller=None,html_path=None,metadata_name='server.json'):
+    controller=controller or Controller(sim,path);controller.persist()
+    web=Path(__file__).with_name('web')
+    html=(Path(html_path) if html_path else web/'index.html').read_text(encoding='utf-8').replace('__CAMPAIGN_TOKEN__',controller.token)
+    if '__WORKSPACE_STYLES__' in html:
+        import re
+        styles='\n'.join(re.findall(r'<style>(.*?)</style>',(web/'index.html').read_text(encoding='utf-8'),re.S))
+        html=html.replace('__WORKSPACE_STYLES__',styles)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
         def send(self,status,payload,kind='application/json; charset=utf-8'):
@@ -155,6 +160,8 @@ def _run(sim,path,port=0,open_browser=True):
                 with controller.lock:self.send(200,controller.public())
             elif self.path=='/api/export':
                 with controller.lock:self.send(200,controller.sim.briefing())
+            elif self.path=='/api/handoff' and hasattr(controller.sim,'handoff'):
+                with controller.lock:self.send(200,controller.sim.handoff())
             else:self.send(404,{'error':'Not found.'})
         def do_POST(self):
             origin='http://127.0.0.1:'+str(self.server.server_port)
@@ -174,14 +181,14 @@ def _run(sim,path,port=0,open_browser=True):
                     presentation=(controller.path,list(controller.pending),controller.fraction)
                     try:controller.command(body);controller.error=''
                     except (RuleError,SaveError,OSError,ValueError,TypeError,KeyError) as error:
-                        controller.sim=Campaign(snapshot);controller.running=False;controller.error=str(error)
+                        controller.sim=type(controller.sim)(snapshot);controller.running=False;controller.error=str(error)
                         controller.path,controller.pending,controller.fraction=presentation
                         self.send(400,controller.public());return
                     self.send(200,controller.public())
             except (ValueError,RuleError) as error:self.send(400,{'error':str(error)})
     server=ThreadingHTTPServer(('127.0.0.1',port),Handler)
     url='http://127.0.0.1:'+str(server.server_port)+'/'
-    (ROOT/'server.json').write_text(json.dumps({'port':server.server_port,'pid':os.getpid()}),encoding='utf-8')
+    (ROOT/metadata_name).write_text(json.dumps({'port':server.server_port,'pid':os.getpid()}),encoding='utf-8')
     print('Per Aspera: '+url,flush=True)
     print('Campaign: '+str(path),flush=True)
     if open_browser:webbrowser.open(url)
@@ -190,7 +197,7 @@ def _run(sim,path,port=0,open_browser=True):
     finally:
         with controller.lock:controller.running=False;controller.persist()
         server.server_close()
-        (ROOT/'server.json').unlink(missing_ok=True)
+        (ROOT/metadata_name).unlink(missing_ok=True)
 
 
 def run(sim,path,port=0,open_browser=True):

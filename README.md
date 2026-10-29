@@ -1,10 +1,20 @@
 # Project Per Aspera
 
+## New: separate NASA-formation prototype, 1958–1961
+
+The **1958 prototype is playable separately** from the Apollo campaign. Recruit a fictional senior team, set research priorities and move from direct oversight to funded delegation. It starts on 1 October 1958 and ends with the May 1961 lunar commitment. No 1958–1969 merge is implemented yet.
+
+Use **PerAspera-1958-Portable.exe** from the **v0.3.0-rc.1** prerelease for the dedicated Windows opening. From source, double-click **Launch 1958 Prototype.cmd** or run `python -m per_aspera --founding`. Add `--fresh` for a separate new opening. Its saves and default resume pointer are separate from Apollo.
+
+[1958–1961 play guide, funding rules and scope limits](docs/FOUNDING_1958_1961.md)
+
+## Existing Apollo campaign
+
 The default prototype now covers **25 May 1961 through Apollo 11**, with a modern Administrator workspace. Develop the rocket and spacecraft, assign leads, plan concurrent work, qualify revisions and carry the same hardware and team history through Apollo 1, 4, 5, 6, 7, 8, 9, 10 and 11. Flight Control and the crew retain operational authority.
 
 The current development build extends delegation to funded procurement/development, engineering investigation, test selection and corrective work. The team chooses routine technical packages; you approve scope, budgets and exceptions. Existing saves migrate with backups and retain their original spending authority until you explicitly extend it. The RC1 downloads below predate this update.
 
-## Windows release candidate
+## Earlier Apollo RC1 downloads
 
 The rebuilt Python game is **Per Aspera v0.2.0-rc.1**. Download **PerAspera-Portable.exe** or **PerAspera-Setup.exe** from the matching GitHub prerelease. Python is bundled; no Python installation is needed. The interface opens in your default browser and the simulation runs locally.
 
@@ -195,6 +205,7 @@ On Windows with Python 3.12 and Inno Setup 6 installed:
 python -m pip install -r requirements-build.txt
 python tools/build_windows.py
 python tools/smoke_windows.py --exe dist/PerAspera-Portable.exe --installer dist/PerAspera-Setup.exe
+python tools/smoke_founding.py --exe dist/PerAspera-1958-Portable.exe
 ```
 
 The dev workflow runs all tests, builds both executables, tests installation/startup/uninstall with temporary data and uploads hashes plus the source commit. Release candidates are explicitly published from that verified commit; a dev push does not overwrite a published release or mark a candidate as the stable latest release.

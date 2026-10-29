@@ -1,6 +1,24 @@
-# Feature coverage — current expanded campaign
+# Feature coverage — Per Aspera prototypes
 
-Updated 29 October 2026. The modern 1961–1969 campaign is now the default executable prototype. The older coverage below applies specifically to the retained Tkinter scenario.
+Updated 29 October 2026. The new NASA-formation chapter is separate from the modern Apollo campaign. The default Apollo executable remains unchanged in scenario selection.
+
+## NASA formation, 1958–1961 — implemented standalone prototype
+
+- **Institution:** starts 1 October 1958 with inherited NACA cover, aggregate teams and six senior posts; concludes 25 May 1961 with an institutional review, even if work is incomplete.
+- **Recruitment:** eight persistent fictional candidates, optional reference reports, appointment/onboarding contracts, two staffing teams, alternative programme/propulsion candidates, work histories and protected responsibility for existing packages.
+- **Research:** four broad agendas with scoped development/analysis/trial stages and independent review. Specialists choose procedures. Private capability/difficulty, noisy observations and professional judgements remain separate.
+- **Gradual delegation:** direct report-by-report oversight initially; bounded or adverse-finding referral authority requires an appointed programme director and relevant specialist. No date or reputation unlocks.
+- **Resources:** finite research/organisation/reserve authority, three-team expansion, frozen task leads/conditions, per-programme caps and ledger reconciliation. No double charging, automatic annual funding or arbitrary rewards.
+- **Presentation:** the shared modern workspace with separate briefing, recruitment, research, delegation, funding, archive and 1961 review pages. Pause/speed, chapter-specific saves, public archive and handoff export are implemented.
+- **Isolation:** separate `nasa_1958` schema, save prefix, resume pointer, writer lease and server metadata. Apollo saves and state are not imported, created or changed. Handoff format version 1 has `merge_implemented: false`; a future adapter must use the validated private save as well as public evidence.
+- **Validation:** 28 new opening tests; all 183 tests pass. Source and dedicated portable smoke checks exercise UI resources, recruitment, delegation, rollback, save/shutdown and Apollo-file isolation.
+- **Deferred:** the 1958–1969 merge, Mercury launches, broad research trees, full historical personnel, contractor markets, individual employee simulation, facilities/politics and automatic Apollo mappings. These are not represented as finished gameplay.
+
+See [the opening play guide](FOUNDING_1958_1961.md).
+
+## Apollo campaign, 1961–1969
+
+The modern 1961–1969 campaign remains the default executable prototype. The older coverage below applies specifically to the retained Tkinter scenario.
 
 | Area | Current implementation | Remaining limits |
 |---|---|---|

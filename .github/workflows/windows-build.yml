@@ -28,7 +28,9 @@ jobs:
       - name: Run simulation and persistence tests
         run: python -m unittest discover -s tests -q
       - name: Test source application lifecycle
-        run: python tools/smoke_windows.py
+        run: |
+          python tools/smoke_windows.py
+          python tools/smoke_founding.py
       - name: Install build tools
         run: |
           python -m pip install -r requirements-build.txt
@@ -36,7 +38,9 @@ jobs:
       - name: Build portable and installer
         run: python tools/build_windows.py
       - name: Test actual portable and installed builds
-        run: python tools/smoke_windows.py --exe dist/PerAspera-Portable.exe --installer dist/PerAspera-Setup.exe
+        run: |
+          python tools/smoke_windows.py --exe dist/PerAspera-Portable.exe --installer dist/PerAspera-Setup.exe
+          python tools/smoke_founding.py --exe dist/PerAspera-1958-Portable.exe
       - name: Record hashes and source revision
         shell: pwsh
         run: |

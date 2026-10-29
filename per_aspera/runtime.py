@@ -24,17 +24,17 @@ def configure(path=None,installed=False):
 def data_root():return _root or Path(__file__).resolve().parent.parent
 
 
-def open_existing():
+def open_existing(campaign='apollo_1961',metadata='server.json'):
     """A second ordinary launch reopens the existing local instance."""
     import json
     import urllib.request
     import webbrowser
     try:
-        info=json.loads((data_root()/'server.json').read_text(encoding='utf-8'))
+        info=json.loads((data_root()/metadata).read_text(encoding='utf-8'))
         port=info['port']
         if type(port) is not int or not 0<port<65536:return False
         url='http://127.0.0.1:'+str(port)+'/'
         with urllib.request.urlopen(url+'api/state',timeout=1) as response:state=json.load(response)
-        if state.get('campaign')!='apollo_1961':return False
+        if state.get('campaign')!=campaign:return False
         webbrowser.open(url);return True
     except (OSError,ValueError,KeyError):return False
