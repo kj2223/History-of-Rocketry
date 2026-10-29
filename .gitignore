@@ -1,2 +1,13 @@
-node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+saves/
+tmp/
+*.tmp
 dist/
+build/
+*.spec
+server.json
+PerAsperaData/
+release-artifacts/
+*.v1-backup.json

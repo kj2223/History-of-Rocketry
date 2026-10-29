@@ -1,0 +1,29 @@
+{
+  "start": "1969-02-24T08:00:00",
+  "budget": 1800000,
+  "workforce": {"engineers": 84, "teams": 2},
+  "components": {
+    "feed": {"name": "LM propellant feed", "unit": "pressure ripple", "prior": 0.32, "repair_cost": 170000, "repair_hours": 36, "repair_factor": 0.22},
+    "sensor": {"name": "LM pressure instrumentation", "unit": "thermal offset", "prior": 0.32, "repair_cost": 85000, "repair_hours": 18, "repair_factor": 0.18},
+    "guidance": {"name": "Guidance workload integration", "unit": "processor occupancy", "prior": 0.30, "repair_cost": 140000, "repair_hours": 30, "repair_factor": 0.28}
+  },
+  "tests": {
+    "flow": {"name": "Instrumented cold-flow comparison", "hours": 18, "cost": 55000, "coverage": ["feed", "sensor"], "description": "Compare the flight pressure channel against an independent flow reference. Ambient conditions do not qualify lunar thermal behaviour."},
+    "thermal": {"name": "Thermal sensor calibration", "hours": 12, "cost": 40000, "coverage": ["sensor"], "description": "Compare the installed channel with a reference across temperature. This can explain an indication without certifying propulsion."},
+    "integration": {"name": "Mission integration rehearsal", "hours": 24, "cost": 90000, "coverage": ["feed", "guidance"], "description": "Run the current mission profile with representative task loading. Required before independent readiness review."},
+    "crew": {"name": "Crew contingency rehearsal", "hours": 18, "cost": 35000, "coverage": [], "description": "Practise workload sharing and emergency return. Preparation improves procedures, not the hardware."}
+  },
+  "missions": [
+    {"id": "apollo9", "name": "Apollo 9", "subtitle": "Earth-orbit qualification", "window": "1969-03-03T14:00:00", "objective": "Qualify LM independent flight, rendezvous and crew procedures in Earth orbit.", "environment": 0.65, "phases": [{"name": "Ascent", "hours": 1}, {"name": "Earth-orbit systems checkout", "hours": 72}, {"name": "LM separation and rendezvous", "hours": 12, "test": true}, {"name": "Recovery", "hours": 1}]},
+    {"id": "apollo10", "name": "Apollo 10", "subtitle": "Lunar rehearsal", "window": "1969-05-18T16:00:00", "objective": "Rehearse lunar navigation, LM descent and rendezvous without landing.", "environment": 0.90, "phases": [{"name": "Ascent", "hours": 1}, {"name": "Translunar coast", "hours": 72}, {"name": "Lunar-orbit checkout", "hours": 12}, {"name": "Descent rehearsal and rendezvous", "hours": 4, "test": true}, {"name": "Transearth coast", "hours": 72}, {"name": "Recovery", "hours": 1}]},
+    {"id": "apollo11", "name": "Apollo 11", "subtitle": "Landing and return", "window": "1969-07-16T13:00:00", "objective": "Land a crew on the Moon, collect samples and return them safely to Earth.", "environment": 1.0, "phases": [{"name": "Ascent", "hours": 1}, {"name": "Translunar coast", "hours": 72}, {"name": "Lunar-orbit checkout", "hours": 12}, {"name": "Powered descent", "hours": 1, "test": true}, {"name": "Surface operations", "hours": 20}, {"name": "Ascent and rendezvous", "hours": 3}, {"name": "Transearth coast", "hours": 72}, {"name": "Recovery", "hours": 1}]}
+  ],
+  "events": {
+    "opening": "Apollo 9 is approaching. An LM pressure channel showed a transient discrepancy during rehearsal. Flight hardware, a temperature-sensitive instrument and integration workload remain plausible concerns. Existing test summaries do not distinguish them.",
+    "outsiders": [
+      {"role": "calibration technician", "domain": "sensor", "question": "Did the reference instrument see the same pressure change at the same temperature?", "test": "thermal"},
+      {"role": "test-stand mechanic", "domain": "feed", "question": "Was the independent flow meter on the same time base as the flight channel?", "test": "flow"},
+      {"role": "simulator scheduler", "domain": "guidance", "question": "Did the rehearsal include the computer tasks that run together during descent?", "test": "integration"}
+    ]
+  }
+}

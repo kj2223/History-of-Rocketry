@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "countdown_seconds": 60,
+  "source": "https://www.nasa.gov/wp-content/uploads/static/history/SP-4029/Apollo_11d_Ascent_Phase.htm",
+  "description": "Rounded Apollo 11 nominal ascent profile reused as a prototype estimate for Apollo 9-11; not a solved flight trajectory.",
+  "knots": [
+    {
+      "t": 0,
+      "altitude_km": 0,
+      "range_km": 0,
+      "speed_km_s": 0,
+      "latitude": 28.447,
+      "longitude": -80.604
+    },
+    {
+      "t": 66,
+      "altitude_km": 7.845,
+      "range_km": 1.934,
+      "speed_km_s": 0.321,
+      "latitude": 28.452,
+      "longitude": -80.585
+    },
+    {
+      "t": 83,
+      "altitude_km": 13.568,
+      "range_km": 5.578,
+      "speed_km_s": 0.504,
+      "latitude": 28.462,
+      "longitude": -80.55
+    },
+    {
+      "t": 135,
+      "altitude_km": 44.006,
+      "range_km": 46.424,
+      "speed_km_s": 1.622,
+      "latitude": 28.574,
+      "longitude": -80.152
+    },
+    {
+      "t": 162,
+      "altitude_km": 66.726,
+      "range_km": 95.05,
+      "speed_km_s": 2.403,
+      "latitude": 28.705,
+      "longitude": -79.676
+    },
+    {
+      "t": 461,
+      "altitude_km": 180.163,
+      "range_km": 1114.308,
+      "speed_km_s": 5.305,
+      "latitude": 30.951,
+      "longitude": -69.431
+    },
+    {
+      "t": 549,
+      "altitude_km": 187.376,
+      "range_km": 1623.371,
+      "speed_km_s": 6.516,
+      "latitude": 31.715,
+      "longitude": -64.147
+    },
+    {
+      "t": 699,
+      "altitude_km": 191.13,
+      "range_km": 2633.468,
+      "speed_km_s": 7.388,
+      "latitude": 32.486,
+      "longitude": -53.459
+    },
+    {
+      "t": 709,
+      "altitude_km": 191.082,
+      "range_km": 2705.211,
+      "speed_km_s": 7.39,
+      "latitude": 32.503,
+      "longitude": -52.649
+    }
+  ],
+  "events": [
+    {
+      "second": 0,
+      "title": "Terminal countdown",
+      "speaker": "Launch Director",
+      "text": "Terminal sequence at T-minus 60 seconds. The authorised configuration and readiness file are on the console."
+    },
+    {
+      "second": 50,
+      "title": "Ten seconds",
+      "speaker": "Launch Director",
+      "text": "T-minus ten seconds. Terminal sequence continues."
+    },
+    {
+      "second": 52,
+      "title": "Ignition sequence",
+      "speaker": "Launch Director",
+      "text": "Ignition sequence underway."
+    },
+    {
+      "second": 55,
+      "title": "Five seconds",
+      "speaker": "Launch Director",
+      "text": "Five."
+    },
+    {
+      "second": 57,
+      "title": "Three seconds",
+      "speaker": "Launch Director",
+      "text": "Three."
+    },
+    {
+      "second": 58,
+      "title": "Two seconds",
+      "speaker": "Launch Director",
+      "text": "Two."
+    },
+    {
+      "second": 59,
+      "title": "One second",
+      "speaker": "Launch Director",
+      "text": "One."
+    },
+    {
+      "second": 60,
+      "title": "Liftoff",
+      "speaker": "Launch Director",
+      "text": "Liftoff. The vehicle is away."
+    },
+    {
+      "second": 72,
+      "title": "Tower clear",
+      "speaker": "Flight Director",
+      "text": "Tower clear. Flight Control continues the ascent watch."
+    },
+    {
+      "second": 120,
+      "title": "Roll and pitch programme",
+      "speaker": "Guidance Controller",
+      "text": "Roll and pitch programme in progress. Following the planned ascent profile."
+    },
+    {
+      "second": 143,
+      "title": "Maximum dynamic pressure region",
+      "speaker": "Flight Director",
+      "text": "Passing the estimated peak loading region. Continuing the ascent watch."
+    },
+    {
+      "second": 222,
+      "title": "S-IC cutoff and separation",
+      "speaker": "Propulsion Controller",
+      "text": "S-IC cutoff. Stage separation. S-II sequence underway."
+    },
+    {
+      "second": 609,
+      "title": "S-II cutoff and separation",
+      "speaker": "Propulsion Controller",
+      "text": "Second-stage cutoff. Separation. S-IVB sequence follows."
+    },
+    {
+      "second": 759,
+      "title": "S-IVB cutoff",
+      "speaker": "Propulsion Controller",
+      "text": "S-IVB cutoff. Preparing the orbit-insertion check."
+    },
+    {
+      "second": 769,
+      "title": "Parking orbit insertion",
+      "speaker": "Flight Director",
+      "text": "Parking orbit insertion recorded. Begin spacecraft checkout. We have a mission to fly."
+    }
+  ]
+}

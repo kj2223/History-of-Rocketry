@@ -1,12 +1,4 @@
-# THE TEST BUILD: on every push to dev, builds the Windows installer and portable .exe for playtesters
-# and publishes them as a numbered release: v0.1.1, v0.1.2 and so on, one number per merge.
-# The first two numbers come from "version" in package.json; change it to 0.2.0 to start the v0.2.x series.
-# Pull requests into dev build too, to check the build still works, but publish nothing.
-# The file names stay the same in every release, so these links always fetch the newest build:
-#   https://github.com/kj2223/history-of-rocketry/releases/latest/download/ProjectVanguard-Setup.exe
-#   https://github.com/kj2223/history-of-rocketry/releases/latest/download/ProjectVanguard-Portable.exe
-# The builds are unsigned, so Windows SmartScreen warns on first run (More info, then Run anyway).
-name: Windows test build
+name: Windows release candidate
 
 on:
   push:
@@ -16,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-build-${{ github.ref }}
@@ -25,38 +17,34 @@ concurrency:
 jobs:
   build:
     runs-on: windows-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      # The next number in the series: one more than the highest vX.Y.N release so far.
-      - name: Pick the release number
-        if: github.event_name != 'pull_request'
-        shell: bash
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+      - name: Run simulation and persistence tests
+        run: python -m unittest discover -s tests -q
+      - name: Test source application lifecycle
+        run: python tools/smoke_windows.py
+      - name: Install build tools
         run: |
-          SERIES=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
-          LAST=$(gh release list --limit 1000 --json tagName -q '.[].tagName' | { grep -E "^v${SERIES//./\\.}\.[0-9]+$" || true; } | sed "s/^v$SERIES\.//" | sort -n | tail -1)
-          VERSION="$SERIES.$(( ${LAST:-0} + 1 ))"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          npm version "$VERSION" --no-git-tag-version
-      - run: npm run dist
+          python -m pip install -r requirements-build.txt
+          choco install innosetup --yes --no-progress
+      - name: Build portable and installer
+        run: python tools/build_windows.py
+      - name: Test actual portable and installed builds
+        run: python tools/smoke_windows.py --exe dist/PerAspera-Portable.exe --installer dist/PerAspera-Setup.exe
+      - name: Record hashes and source revision
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/*.exe | ForEach-Object { (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower() + '  ' + $_.Name } | Set-Content dist/SHA256SUMS.txt
+          git rev-parse HEAD | Set-Content dist/SOURCE_COMMIT.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: project-vanguard-windows
-          path: |
-            dist/ProjectVanguard-Setup.exe
-            dist/ProjectVanguard-Portable.exe
-      - name: Publish the release
-        if: github.event_name != 'pull_request'
-        shell: bash
-        run: |
-          gh release create "v$VERSION" dist/ProjectVanguard-Setup.exe dist/ProjectVanguard-Portable.exe \
-            --target "$GITHUB_SHA" --title "Project Vanguard v$VERSION" --generate-notes --latest
-          # The rolling "dev-build" release from before numbered releases; the latest links replace it.
-          gh release delete dev-build --yes --cleanup-tag || true
+          name: PerAspera-Windows-RC-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30

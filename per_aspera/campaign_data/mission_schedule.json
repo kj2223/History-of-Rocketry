@@ -1,0 +1,14 @@
+{
+  "preparation_teams": 3,
+  "dependencies": {
+    "apollo1": [],
+    "apollo4": [],
+    "apollo5": [],
+    "apollo6": ["apollo4"],
+    "apollo7": ["apollo1", "apollo4"],
+    "apollo8": ["apollo6", "apollo7"],
+    "apollo9": ["apollo5", "apollo6", "apollo7"],
+    "apollo10": ["apollo8", "apollo9"],
+    "apollo11": ["apollo10"]
+  }
+}

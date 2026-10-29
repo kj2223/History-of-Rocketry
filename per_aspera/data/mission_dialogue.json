@@ -1,0 +1,76 @@
+{
+  "contacts": {
+    "flight_director": {
+      "name": "Flight Director",
+      "scope": "Primary mission contact; coordinates controller reports and applies flight rules.",
+      "channels": []
+    },
+    "propulsion": {
+      "name": "Propulsion Controller",
+      "scope": "Propulsion observations; available flow measurements do not prove a root cause.",
+      "channels": [
+        "reference_flow_ripple",
+        "flight_channel_ripple"
+      ]
+    },
+    "guidance": {
+      "name": "Guidance Controller",
+      "scope": "Guidance workload observations; a normalised index is not a failure probability.",
+      "channels": [
+        "processor_occupancy"
+      ]
+    },
+    "recovery": {
+      "name": "Recovery Coordinator",
+      "scope": "Return and retrieval reporting; do not assume safe recovery before a report.",
+      "channels": []
+    }
+  },
+  "questions": {
+    "observations": {
+      "label": "What observations and data do we have?",
+      "lead": "Available record:"
+    },
+    "causes": {
+      "label": "What could explain this, and what is uncertain?",
+      "lead": "Assessment, not a confirmed cause:"
+    },
+    "seriousness": {
+      "label": "How serious is the reported situation?",
+      "lead": "Operational assessment:"
+    },
+    "recommendation": {
+      "label": "What do you recommend, including abort?",
+      "lead": "Recommendation and authority:"
+    },
+    "triggers": {
+      "label": "What would trigger further action?",
+      "lead": "Conditions for further action:"
+    }
+  },
+  "causes": "The available observations cannot uniquely distinguish hardware behaviour, instrumentation error and integration effects. A favourable reading or outcome does not establish a root cause. No private physical condition or unreported telemetry is available to this briefing.",
+  "triggers": "A reported operating-margin concern, new instrument evidence or a flight-rule condition would be assessed by the responsible controller and Flight Director. The crew may initiate an emergency abort independently. This prototype has no detailed subhour flight-rule telemetry or numeric abort-rule display. Executive action requires an explicit escalation within agency authority, not an invented manoeuvre decision.",
+  "pause": "This pause is for reading and accessibility. It creates no in-world opportunity to delay a flight-rule response. Controller/crew actions already in the record remain in effect; resuming continues the same mission.",
+  "launch_sequence": [
+    {
+      "at": 0,
+      "title": "Terminal countdown",
+      "text": "Terminal count. The authorised configuration and readiness record are on the console; Launch Control proceeds with the approved sequence."
+    },
+    {
+      "at": 0.2,
+      "title": "Ignition sequence",
+      "text": "Ignition. Launch Control follows the vehicle through the programmed start sequence."
+    },
+    {
+      "at": 0.4,
+      "title": "Liftoff",
+      "text": "Liftoff. The programme leaves the pad. Flight Control and the crew retain flight-rule and emergency authority."
+    },
+    {
+      "at": 0.6,
+      "title": "Early ascent",
+      "text": "Early ascent. Controllers follow the departure and prepare handover. The next priorities are spacecraft checkout and the existing engineering questions."
+    }
+  ]
+}

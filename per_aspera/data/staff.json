@@ -1,0 +1,6 @@
+[
+  {"id":"bennett","name":"Nora Bennett","role":"Lunar Programme Director","record":"Programme integration and delivery; led the current rehearsal campaign.","expertise":{"feed":0.60,"sensor":0.45,"guidance":0.70},"caution":0.35,"directness":0.62,"openness":0.65,"bias":"guidance"},
+  {"id":"mercer","name":"James Mercer","role":"Propulsion Lead","record":"Ten years of propulsion test and integration work; prefers discriminating measurements to precedents.","expertise":{"feed":0.94,"sensor":0.60,"guidance":0.30},"caution":0.62,"directness":0.88,"openness":0.72,"bias":"feed"},
+  {"id":"ortiz","name":"Dr Lila Ortiz","role":"Independent Mission Assurance","record":"Independent engineering review and qualification; accountable for readiness findings.","expertise":{"feed":0.77,"sensor":0.73,"guidance":0.76},"caution":0.85,"directness":0.90,"openness":0.80,"bias":"feed"},
+  {"id":"hayes","name":"Rebecca Hayes","role":"Systems Integration Engineer","record":"Flight instrumentation and crew-interface work; a developing integration specialist.","expertise":{"feed":0.42,"sensor":0.90,"guidance":0.83},"caution":0.54,"directness":0.42,"openness":0.90,"bias":"sensor"}
+]

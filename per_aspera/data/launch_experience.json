@@ -1,0 +1,46 @@
+{
+  "anticipation": [
+    {
+      "second": 4,
+      "person": "bennett",
+      "group": "Organisation and judgement",
+      "title": "The programme director at the console",
+      "text": "The flight team has it now. Your authorised file includes {record}. I am staying to watch this one."
+    },
+    {
+      "second": 20,
+      "person": "hayes",
+      "group": "Engineering record",
+      "title": "The ground work goes with them",
+      "text": "I have {record} beside me. This is where that ground work has to hold up. I want to see the first spacecraft checks."
+    },
+    {
+      "second": 36,
+      "person": "ortiz",
+      "group": "Readiness assessment",
+      "title": "A final assurance note",
+      "text": "My readiness file records {record}, with its stated limits. I want them to come home. Let the controllers work."
+    }
+  ],
+  "aftermath": [
+    {
+      "second": 775,
+      "person": "bennett",
+      "title": "A moment at the window",
+      "text": "For a moment, I can put the file down. {reference} There is a spacecraft in orbit now. Flight Control has the next checks. I am glad we reached this point."
+    },
+    {
+      "second": 800,
+      "person": "hayes",
+      "title": "The first quiet words",
+      "text": "I wish everyone who worked on those tests could see this view. {reference} I will compare the first spacecraft report when it comes. For now, I am relieved."
+    },
+    {
+      "second": 825,
+      "person": "ortiz",
+      "title": "Relief, with the file still open",
+      "text": "There is relief in seeing them reach orbit. {reference} My endorsement still carries its stated limits. Let the controllers do their work."
+    }
+  ],
+  "focus_until": 855
+}
