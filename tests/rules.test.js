@@ -9,7 +9,7 @@ import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAna
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { grant } from '../js/rules/economy.js';
-import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
+import { ensureStarter, hire, tickSecond, catchUp } from '../js/rules/game.js';
 import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe, retrofitQuote } from '../js/rules/production.js';
@@ -1012,4 +1012,13 @@ test('Titan II needs its pogo cured before it can be man-rated', async () => {
   assert.equal(manRatingResearchDone('titan'), false);
   giveResearch(['gm_pogo']);
   assert.equal(manRatingResearchDone('titan'), true);
+});
+
+test('paydays come sooner while the calendar catches up with history', () => {
+  S.fs.f_orbit = 1; // a satellite up before the Space Act: the calendar runs up to ten times faster
+  S.gt = 30;
+  const speed = catchUp(), budget = S.b;
+  assert.ok(speed > 2, 'the calendar is catching up');
+  for (let second = 0; second < Math.ceil(30 / speed); second++) tickSecond();
+  assert.ok(S.b > budget, 'one funding cycle of calendar has passed, so the appropriation is paid');
 });

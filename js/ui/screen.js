@@ -105,7 +105,7 @@ export function renderHeader() {
   $('#dt').textContent = today();
   const speedUp = catchUp();
   $('#cu').textContent = speedUp > 1.05 ? ` ×${speedUp.toFixed(1)}, catching up with history` : '';
-  $('#gt').textContent = S.gt;
+  $('#gt').textContent = Math.max(1, Math.ceil(S.gt / speedUp));
   $('#ga').textContent = formatMoney(grant());
   $('#bg').textContent = formatMoney(S.b);
   $('#rp').textContent = Math.round(S.rep) + '%';
