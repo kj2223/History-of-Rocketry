@@ -12,6 +12,7 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { STATIONS } from '../data/launch-site.js';
 import { AREAS } from '../data/research.js';
 import { LANES, LANE_CAPS, LANE_RAISE, laneLead, laneJob, laneIdleReason } from '../rules/lanes.js';
+import { AIRFRAMES_ON_HAND, WORKS_CAPS, WORKS_RAISE } from '../rules/factory-lead.js';
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -50,6 +51,31 @@ function lanesMessage() {
   };
 }
 
+// REED'S FACTORY BUDGET (rules/factory-lead.js): her offer once she has joined, then production at work, which asks for a decision
+// when she is holding an unbalanced blueprint or the budget cannot cover her next order.
+const airframesOnHand = programme => S.air.filter(airframe => airframe.prog == programme && (airframe.st == 'r' || airframe.st == 'queued')).length
+  + S.aq.filter(item => item.k == 'build' && item.prog == programme).length;
+function worksMessage() {
+  const works = S.works, from = memberName('reed'), role = memberRole('reed');
+  if (!memberJoined('reed')) return null;
+  if (!works) {
+    if (!PROGRAMMES[S.cur] || !S.progs[S.cur].ready) return null;
+    return {
+      id: 'works', kind: 'report', from, role, subject: 'Production of the ' + PROGRAMMES[S.cur].name, pane: 'note',
+      body: `<p>Give me a factory budget for the ${escapeHtml(PROGRAMMES[S.cur].name)} and I keep ${AIRFRAMES_ON_HAND} airframes ready or on the floor, upgrade the ready ones to each new blueprint and publish the blueprint as the research comes in, paying for each order as it starts.</p><p class="m">If a change would make the rocket heavier for its thrust (the tanks in before the engines), I hold it and ask you first.</p><div class="acts">${WORKS_CAPS.map(cap => `<button data-a="wstart" data-id="${cap}">${formatMoney(cap)} BUDGET</button>`).join('')}</div>`,
+    };
+  }
+  const name = PROGRAMMES[works.prog].name, asks = [];
+  if (works.hold) asks.push(`<p>I am holding the draft blueprint: it would cut liftoff thrust-to-weight by ${Math.round(-works.hold * 100)}%. I will publish once the engine work catches up. Publish now if you would rather fly the extra propellant and plan the loads around it.</p>`);
+  if (works.dry) asks.push(`<p>The budget cannot cover ${escapeHtml(works.dry)}. Raise it, or hand production back to you.</p>`);
+  return {
+    id: 'works', kind: asks.length ? 'decision' : 'report', from, role, pane: 'note',
+    subject: works.hold ? `Holding the ${name} blueprint` : works.dry ? `The ${name} factory budget is spent` : `Running ${name} production`,
+    body: asks.join('') + `<p>${works.built} airframe${works.built == 1 ? '' : 's'} ordered and ${works.retro} upgraded, ${formatMoney(works.spent)} of ${formatMoney(works.cap)} spent. ${airframesOnHand(works.prog)} of ${AIRFRAMES_ON_HAND} on hand.</p>`
+      + `<div class="acts">${works.hold ? '<button data-a="wpub">PUBLISH NOW</button>' : ''}<button data-a="wraise">RAISE BY ${formatMoney(WORKS_RAISE)}</button><button data-a="wend">HAND PRODUCTION BACK</button></div>`,
+  };
+}
+
 function remitMessage() {
   const remit = S.remit, from = memberName('ellis'), role = memberRole('ellis');
   if (!remit) {
@@ -82,6 +108,8 @@ function messages() {
   if (remit) list.push(remit);
   const lanes = lanesMessage();
   if (lanes) list.push(lanes);
+  const works = worksMessage();
+  if (works) list.push(works);
   const incidents = waitingIncidents();
   if (incidents.length) list.push({
     id: 'inc', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: `${incidents.length} incident${incidents.length == 1 ? '' : 's'} waiting for you`, pane: 'note',
@@ -116,6 +144,8 @@ function sideHTML() {
     return `<div class="r"><span>${AREAS[area]}</span><b class="${job ? '' : 'd'}">${job ? `${job.t}s` : laneIdleReason(area)}</b></div>`
       + (job ? `<div class="m">${escapeHtml(itemAsSeen(job.id).name)}</div><div class="bar"><i data-jb="${job.k + job.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '');
   }).join('') + `<div class="r"><span>Spent</span><b>${formatMoney(S.lanes.spent)} of ${formatMoney(S.lanes.cap)}</b></div>`);
+  const works = S.works;
+  if (works) html += card(`PRODUCTION · ${memberName('reed')}`, `<div class="r"><span>${escapeHtml(PROGRAMMES[works.prog].name)}</span><b>${airframesOnHand(works.prog)} of ${AIRFRAMES_ON_HAND} on hand</b></div>${works.hold ? '<div class="m">Holding an unbalanced blueprint.</div>' : ''}<div class="r"><span>Spent</span><b>${formatMoney(works.spent)} of ${formatMoney(works.cap)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(works.spent / works.cap * 100))}%"></i></div>`);
   html += card(`FACTORY · ${S.aq.length} in the queue`, S.aq.length ? `<div class="m">Next out: ${S.aq[0].k == 'build' ? 'airframe' : S.aq[0].k == 'retro' ? 'retrofit' : 'spacecraft'} <span data-q="0"></span></div><div class="bar"><i data-qb="0"></i></div>` : '<div class="m">The factory floor is empty.</div>');
   const camp = S.auto.camp;
   if (camp) html += card(`CAMPAIGN · ${memberName('ellis')}`, `<div class="r"><span>Flights flown</span><b>${camp.n}</b></div><div class="r"><span>Spent</span><b>${formatMoney(camp.spent)} of ${formatMoney(camp.budget)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(camp.spent / camp.budget * 100))}%"></i></div>`);

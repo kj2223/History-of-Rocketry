@@ -9,6 +9,7 @@ import { S, findJob, withProgramme } from '../core/state.js';
 import { designation } from '../rules/design.js';
 import { unitCost, batchCost, buildTime, draftChanges, experienceCarryover, lineLearning, lineExperience, retrofitQuote } from '../rules/production.js';
 import { buildTeams, buildRate, refundFor } from '../rules/factory.js';
+import { reedPublishes } from '../rules/factory-lead.js';
 import { programmeBar } from './design-bureau.js';
 import { $, setHTML } from './dom.js';
 
@@ -23,6 +24,7 @@ function drawingOfficeHTML() {
   return `<div class="r"><span class="d">Published blueprint</span><b>${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev}</b></div><div class="m">${S.bp.pk.length} package${S.bp.pk.length == 1 ? '' : 's'} and ${fixCount} corrective fix${fixCount == 1 ? '' : 'es'} on the drawings.</div>`
     + (changes ? `<div class="c"><div class="t">DRAFT CHANGES FOR REV ${S.bp.rev + 1}</div><div class="m">${[...draft.packages.map(id => BY_ID[id].name), ...draft.fixes.map(mode => findFix(mode, S.fix[mode]).name)].join('; ')}.</div><div class="m">Publishing keeps about ${Math.round(experienceCarryover() * 100)}% of the production line's experience${draft.packages.some(id => id.startsWith('ms_')) ? ': a milestone means retooling the line' : ''}. Batching changes into fewer revisions keeps the line learning.</div><button data-a="publish">PUBLISH BLUEPRINT REV ${S.bp.rev + 1}</button><div class="m">Airframes already ordered keep their revision. Cancel them in the queue if you would rather wait.</div></div>`
       : '<div class="m">Every finished package and fix is on the published blueprint.</div>')
+    + (reedPublishes() ? `<div class="m" style="margin-top:8px">Margaret Reed publishes this rocket's blueprint while she runs its production${S.works.hold ? '. She is holding this draft: it would make the rocket heavier for its thrust' : ''}.</div>` : '')
     + `<div class="r" style="margin-top:8px"><span class="d">Auto-publish when draft changes reach</span><select data-ap="n" style="width:auto;margin:0">${AUTO_PUBLISH_CHOICES.map(count => `<option${S.ap.n == count ? ' selected' : ''}>${count}</option>`).join('')}</select></div><button data-a="aptog">AUTO-PUBLISH: ${S.ap.on ? 'ON' : 'OFF'}</button>`;
 }
 // The factory: ordering, line experience, build teams and the queue. Items on the floor show progress and refund half.

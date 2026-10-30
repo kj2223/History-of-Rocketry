@@ -39,6 +39,7 @@
 //   team    the core team's record: Ellis, Vega and Morgan (see rules/team.js)
 //   remit   Ellis's engineering remit, or null (see rules/remit.js)
 //   lanes   Chen's research lanes, or null (see rules/lanes.js)
+//   works   Reed's factory budget, or null (see rules/factory-lead.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -73,6 +74,7 @@ export const newGameState = () => ({
   team: { n: 0, ok: 0, rev: 0, fix: 0, dir: 0, rec: 0, top: 0, held: 0, watch: [] },
   remit: null,
   lanes: null,
+  works: null,
 });
 
 export const S = newGameState();
