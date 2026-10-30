@@ -70,6 +70,9 @@ export function missionStepSeconds(mission) {
   if (!type.orbital || mission.time < type.sep + 60 || mission.time > type.retro - 180) return normal;
   return Math.max(normal, Math.min(Math.round((type.retro - type.sep) / ORBIT_STEPS), Math.floor(type.retro - 180 - mission.time)));
 }
+// THE QUIET STRETCH IN ORBIT: from insertion to the run-up to retrofire, nothing is scheduled but the orbits themselves. It flies in
+// the background: the game keeps your chosen speed and the mission keeps pace, as many steps a tick as the speed (ui/launch-view.js).
+export const inQuietOrbit = mission => !!mission.type.orbital && mission.time >= mission.type.sep + 60 && mission.time <= mission.type.retro - 180;
 // Which orbit the capsule is on (1 to the planned count), or 0 before insertion.
 export const currentOrbit = mission => mission.type.orbital && mission.time > mission.type.sep ? Math.min(mission.type.orbits, 1 + Math.floor((mission.time - mission.type.sep) / ORBIT_SECONDS)) : 0;
 const animalName = animal => `the ${animal.species} ${animal.animalName}`;

@@ -15,7 +15,7 @@ import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel, availableChannels, canRetune, offLinkWarning } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
 import { chiefOnFailure } from '../rules/team.js';
-import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock, missionStepSeconds, currentOrbit } from '../rules/mission.js';
+import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock, missionStepSeconds, currentOrbit, inQuietOrbit } from '../rules/mission.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
@@ -30,7 +30,8 @@ import { $, setHTML } from './dom.js';
 // countTimer, flightTimer: the interval timers. lastTrace, lastRangeTrace: the last flight's track, kept on the plotting board
 // (a Mercury mission has no downrange track: null), lastEvents: its milestones (rules/flight.js), marked on the board. planned: the pre-flight prediction of the flight in the air, drawn under its track.
 export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null, lastEvents: [], planned: null };
-export const isBusy = () => !!launchView.count;
+// Busy: a count or a flight holds the game to 1x, except a mission in its quiet stretch in orbit, which flies in the background.
+export const isBusy = () => !!launchView.count && !(airborne.mission && !airborne.mission.pending && inQuietOrbit(airborne.mission));
 export const isCounting = () => !!launchView.count && launchView.count.phase == 'count';
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
@@ -418,7 +419,7 @@ function launchMission(override) {
   launchView.flightTimer = setInterval(missionTick, 250);
 }
 // A quarter-second of the mission: five mission seconds with a pilot aboard, ten without, faster in orbit (rules/mission.js
-// missionStepSeconds). The clock stops for decisions.
+// missionStepSeconds), and as many steps as the game speed in the quiet stretch in orbit. The clock stops for decisions.
 function missionTick() {
   const mission = airborne.mission;
   if (!mission) return;
@@ -426,7 +427,11 @@ function missionTick() {
     $('#padph').textContent = 'DECISION';
     return;
   }
-  const result = stepMission(mission, missionStepSeconds(mission));
+  // In the quiet stretch the mission keeps pace with the game speed: one step per game second, at 4x four to a tick.
+  let result = stepMission(mission, missionStepSeconds(mission));
+  for (let step = 1; step < (S.speed ?? 1) && result == 'tick' && inQuietOrbit(mission); step++) result = stepMission(mission, missionStepSeconds(mission));
+  // A decision in flight brings the game back to 1x so you see it.
+  if (result == 'decide' && S.speed > 1) S.speed = 1;
   drawTranscript(mission);
   const now = reading(mission);
   mission.trace.push(Math.round(now.alt * 1000));
