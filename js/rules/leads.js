@@ -10,11 +10,15 @@ export const postOpen = area => LEAD_POSTS[area].opens == 'nasa' ? !!S.nasa : me
 export const openPosts = () => Object.keys(LEAD_POSTS).filter(area => postOpen(area) && !S.leads[area]);
 // The lead hired for an area: their candidate entry, or null.
 export const hiredLead = area => LEAD_POSTS[area] && S.leads[area] ? LEAD_POSTS[area].candidates.find(candidate => candidate.id == S.leads[area]) : null;
-export const leadsPayroll = () => Object.keys(S.leads).reduce((sum, area) => sum + (hiredLead(area) || { salary: 0 }).salary, 0);
+// The candidates a post offers: once the Mercury spacecraft lead has moved to Apollo, the Spacecraft post offers its Gemini pair.
+export const postCandidates = area => LEAD_POSTS[area].candidates.filter(candidate => !candidate.gemini == !(area == 'c' && S.p2 && S.p2.ap && S.p2.ap.lead));
+// Salaries: the hired leads, and the lead who moved to Apollo.
+export const leadsPayroll = () => Object.keys(S.leads).reduce((sum, area) => sum + (hiredLead(area) || { salary: 0 }).salary, 0)
+  + (S.p2 && S.p2.ap && S.p2.ap.lead ? LEAD_POSTS.c.candidates.find(candidate => candidate.id == S.p2.ap.lead).salary : 0);
 
 // Hire a candidate. Returns an error text, or null if they joined.
 export function hireLead(area, id) {
-  const post = LEAD_POSTS[area], candidate = post && post.candidates.find(other => other.id == id);
+  const post = LEAD_POSTS[area], candidate = post && postCandidates(area).find(other => other.id == id);
   if (!candidate) return 'No such candidate.';
   if (!postOpen(area)) return 'That post is not open yet.';
   if (S.leads[area]) return 'That post is filled.';

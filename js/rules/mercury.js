@@ -12,6 +12,7 @@
 //   lj       Little Joe record: { ok: good aborts, mk: a monkey has flown }
 //   fl       flags: office decisions taken (life, win, ovr, cock), failures investigated (four, maFail, fx_ + a capsule system), maQual,
 //            sec2 (Section 2 is open), gem (Project Gemini is open)
+//   ap       Project Apollo, once Mercury is complete (rules/apollo.js)
 //   mercDone day Project Mercury was completed   gemDone  day every Gemini directive was met
 //   tgt      the day the Agena target in orbit runs out (rendezvous and docking need it up)
 //   cap      capabilities shown in flight, each recorded with the configuration that showed it (capabilityShown):
@@ -33,6 +34,7 @@ import { previewFlight } from './flight.js';
 import { anyCertified, isManRated, manRatingRecord } from './manrate.js';
 import { assignedPilot, joinSecondGroup } from './astronauts.js';
 import { checkFirsts, openSovietSectionTwo } from './race.js';
+import { openApollo } from './apollo.js';
 
 export const newPhaseTwo = () => ({
   v: 3, sec: 1, dir: 0, pool: [], astros: [], selDone: 0, sel: { st: 0, at: Math.round(S.day + 50), reg: null }, veh: [], flights: 0, mem: [], stand: 0, secDone: 0, memo: null, nv: 1, chimp: 0, monk: 0,
@@ -243,6 +245,7 @@ export function fulfilDirective(directive, astronaut) {
     addHistory('Project Mercury complete');
     log('[NASA] Project Mercury is complete: an American has lived in orbit for more than a day. The two-man Gemini spacecraft is next.', 'hd');
     openGemini();
+    openApollo();
   } else if (state.dir == MERCURY_DIRECTIVES.length) {
     state.gemDone = Math.round(S.day);
     addHistory('Project Gemini complete');

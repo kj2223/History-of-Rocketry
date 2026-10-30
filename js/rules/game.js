@@ -24,6 +24,7 @@ import { chenJoinTick, lanesTick } from './lanes.js';
 import { reedJoinTick, worksTick, reedPublishes } from './factory-lead.js';
 import { demandTick } from './orders.js';
 import { sharedTick } from './shared-research.js';
+import { apolloTick } from './apollo.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -44,7 +45,7 @@ export const catchUp = () => {
 export const daysPerSecond = () => (S.nasa ? DAYS_PER_SECOND_PHASE_TWO : DAYS_PER_SECOND) * catchUp();
 
 // ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the appropriation and payroll every funding cycle,
-// the Astronaut Office, the factory, engineering jobs, Ellis's remit, Chen's research lanes and the shared lanes, Reed's factory, customer demand for
+// the Astronaut Office, the Apollo study, the factory, engineering jobs, Ellis's remit, Chen's research lanes and the shared lanes, Reed's factory, customer demand for
 // standing orders, auto-publishing and programme maturity. Returns true if the page needs redrawing.
 export function tickSecond() {
   let changed = false;
@@ -68,6 +69,7 @@ export function tickSecond() {
     if (budgetTick(days)) changed = true;
     trainingTick(days);
     if (officeTick(days)) changed = true;
+    if (apolloTick(days)) changed = true;
   }
   if (factoryTick()) changed = true;
   for (const job of S.jobs.slice()) if (--job.t <= 0) {

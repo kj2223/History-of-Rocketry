@@ -23,8 +23,7 @@ import { runPoll, scrub, facilityLock, buildFacility, stationLock, hireStation, 
 import { playMercury } from './mercury-bot.mjs';
 import { autoLaunch } from '../js/rules/auto.js';
 import { directorUnlocked } from '../js/rules/campaign.js';
-import { LEAD_POSTS } from '../js/data/leads.js';
-import { openPosts, hireLead, leadsPayroll } from '../js/rules/leads.js';
+import { openPosts, hireLead, leadsPayroll, postCandidates } from '../js/rules/leads.js';
 import { SHARED_AREAS, SHARED_CAPS, startShared, raiseShared, proposals, approveProposal } from '../js/rules/shared-research.js';
 import { briefFree, approveBrief } from '../js/rules/brief.js';
 import { orderFor, standingOrders, raiseOrder, resumeOrder, ordersTotals } from '../js/rules/orders.js';
@@ -116,7 +115,7 @@ function run(seed) {
       if (!S.staff.director) return;
       delegated.at = t;
     }
-    for (const area of openPosts()) hireLead(area, LEAD_POSTS[area].candidates.slice().sort((first, second) => first.salary - second.salary)[0].id);
+    for (const area of openPosts()) hireLead(area, postCandidates(area).slice().sort((first, second) => first.salary - second.salary)[0].id);
     if (!S.remit && remitUnlocked() && S.b > reserve + REMIT_CAPS[0]) startRemit(REMIT_CAPS[0]);
     // Caps are raised only while the treasury can carry them; otherwise the line waits.
     const flush = S.b > reserve + 60000;
@@ -197,7 +196,7 @@ function run(seed) {
   return {
     ...phaseOne, mercury, one, endMercury: one.at, budgetMercury: one.budget, sectionDate: one.date ? formatDate(one.date) : '-', gagarin: formatDate(S.rv.r_gagarin), human: one.human || '-',
     end: t, budgetEnd: S.b, mercuryDate: S.p2 && S.p2.mercDone ? formatDate(S.p2.mercDone) : '-', titov: S.rv.r_titov ? formatDate(S.rv.r_titov) : '-', dayInOrbit: S.fs.f_day || '-',
-    geminiDate: S.p2 && S.p2.gemDone ? formatDate(S.p2.gemDone) : '-', crew2: S.fs.f_crew2 || '-', eva: S.fs.f_eva || '-',
+    geminiDate: S.p2 && S.p2.gemDone ? formatDate(S.p2.gemDone) : '-', apollo: S.p2 && S.p2.ap && S.p2.ap.arch ? `${S.p2.ap.arch} ${formatDate(S.p2.ap.ad)}` : S.p2 && S.p2.ap && S.p2.ap.done ? 'study done, no choice' : '-', crew2: S.fs.f_crew2 || '-', eva: S.fs.f_eva || '-',
     voskhod: S.rv.r_voskhod ? formatDate(S.rv.r_voskhod) : '-', leonov: S.rv.r_leonov ? formatDate(S.rv.r_leonov) : '-',
     dock: S.fs.f_dock || '-', kosmos: S.rv.r_kosmos ? formatDate(S.rv.r_kosmos) : '-',
   };
@@ -219,6 +218,6 @@ for (let i = 0; i < RUNS; i++) {
     const [first, end] = sectionDirectives(2), since = k => mercury.directiveTimes[k] === undefined ? undefined : mercury.directiveTimes[k] + mercury.nasaAt - r.endMercury;
     const mercuryEnd = mercury.mercuryAt === null ? r.end : mercury.mercuryAt, atEnd = mercury.atMercury || { ...mercury, budget: r.budgetEnd };
     console.log(`        section 2: ${mercury.sectionTwoDone ? 'done' : 'NOT DONE'} in ${minutes(mercuryEnd - r.endMercury)}m after Section 1 (play total ${minutes(mercuryEnd)}m) ${r.mercuryDate} (day in orbit: ${r.dayInOrbit}, Titov ${r.titov}) missions ${atEnd.missions - r.one.missions} failed ${atEnd.missionFails - r.one.missionFails} astronautsLost ${atEnd.astronautsLost - r.one.astronautsLost} rating launches ${atEnd.launches - r.one.launches} budget ${Math.round(atEnd.budget)} | directives(min after Section 1) ${MERCURY_DIRECTIVES.slice(first, end).map((_, k) => minutes(since(first + k))).join(' ')}`);
-    if (mercury.sectionTwoDone) console.log(`        gemini: ${mercury.geminiDone ? 'done' : 'NOT DONE'} in ${minutes(r.end - mercuryEnd)}m after Mercury (play total ${minutes(r.end)}m) ${r.geminiDate} (two-man crew: ${r.crew2}, Voskhod ${r.voskhod}; spacewalk: ${r.eva}, Leonov ${r.leonov}; docking: ${r.dock}, Kosmos ${r.kosmos}) missions ${mercury.missions - atEnd.missions} failed ${mercury.missionFails - atEnd.missionFails} astronautsLost ${mercury.astronautsLost - atEnd.astronautsLost} rating launches ${mercury.launches - atEnd.launches} budget ${Math.round(r.budgetEnd)}`);
+    if (mercury.sectionTwoDone) console.log(`        gemini: ${mercury.geminiDone ? 'done' : 'NOT DONE'} in ${minutes(r.end - mercuryEnd)}m after Mercury (play total ${minutes(r.end)}m) ${r.geminiDate} (two-man crew: ${r.crew2}, Voskhod ${r.voskhod}; spacewalk: ${r.eva}, Leonov ${r.leonov}; docking: ${r.dock}, Kosmos ${r.kosmos}) missions ${mercury.missions - atEnd.missions} failed ${mercury.missionFails - atEnd.missionFails} astronautsLost ${mercury.astronautsLost - atEnd.astronautsLost} rating launches ${mercury.launches - atEnd.launches} budget ${Math.round(r.budgetEnd)} apollo ${r.apollo}`);
   }
 }

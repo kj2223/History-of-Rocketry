@@ -23,6 +23,9 @@ import { chooseTestingRegime, startChimpTraining, answerOfficeDecision } from '.
 import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot, assignThirdCrew, thirdCrew } from '../js/rules/astronauts.js';
 import { manRatingResearchDone, isManRated, isFamilyCertified } from '../js/rules/manrate.js';
 import { setRequest, REQUEST_RANGE } from '../js/rules/budget.js';
+import { STUDY_SIZES, ARCHITECTURE_ORDER } from '../js/data/apollo.js';
+import { decideRollover, startStudy, estimate, chooseArchitecture } from '../js/rules/apollo.js';
+import { capabilityShown } from '../js/rules/mercury.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
 // The Gemini buildings open once Mercury is complete.
@@ -155,6 +158,15 @@ export function playMercury(game) {
       report.sectionTwoDone = true;
       report.mercuryAt = game.now();
       report.atMercury = { missions: report.missions, missionFails: report.missionFails, astronautsLost: report.astronautsLost, launches: report.launches, budget: S.b };
+    }
+    // Apollo: the Mercury lead goes with the team, the full study once affordable, and the lowest-risk estimate once Gemini has
+    // docked (or when Gemini is complete, whatever it has flown).
+    const project = state.ap;
+    if (project) {
+      if (project.lead === undefined) decideRollover(true);
+      if (!project.sz) startStudy(S.b > STUDY_SIZES.full.cost + 100000 ? 'full' : 'quick');
+      if (project.done && !project.arch && (capabilityShown('dock') || state.gemDone))
+        chooseArchitecture(ARCHITECTURE_ORDER.slice().sort((first, second) => estimate(first, 'risk').mid - estimate(second, 'risk').mid)[0]);
     }
     if (state.gemDone) {
       report.geminiDone = true;
