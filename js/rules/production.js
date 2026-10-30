@@ -4,7 +4,7 @@ import { gaussian } from '../core/util.js';
 import { isMilestone } from '../data/research.js';
 import { findFix } from '../data/failures.js';
 import { S, today, withProgramme } from '../core/state.js';
-import { programmeOf, programmeData } from './programs.js';
+import { programmeOf, programmeData, stagesOf, fixKeyFor } from './programs.js';
 import { packageCounts, airframeLabel } from './design.js';
 import { itemAsSeen } from './research.js';
 
@@ -29,10 +29,19 @@ export const batchCost = count => [...Array(count)].reduce((sum, _, index) => su
 export const buildTime = (extra = 0) => Math.round(baseBuildTime() * lineLearning(lineExperience(extra)));
 
 // BLUEPRINTS. The draft is everything finished since the published revision: { packages, fixes } (failure modes whose fix changed).
-export const draftChanges = () => ({
-  packages: Object.keys(S.pk).filter(id => !S.bp.pk.includes(id)),
-  fixes: Object.keys(S.fix).filter(mode => S.bp.fix[mode] != S.fix[mode]),
-});
+// The fixes a blueprint of the rocket in focus would carry: its own, and each lower stage's as mode@stage (rules/stages.js).
+export const rocketFixes = () => {
+  const fixes = { ...S.fix };
+  for (const stage of stagesOf(S.cur)) for (const mode in S.progs[stage].fix) fixes[fixKeyFor(stage, mode)] = S.progs[stage].fix[mode];
+  return fixes;
+};
+export const draftChanges = () => {
+  const fixes = rocketFixes();
+  return {
+    packages: Object.keys(S.pk).filter(id => !S.bp.pk.includes(id)),
+    fixes: Object.keys(fixes).filter(mode => S.bp.fix[mode] != fixes[mode]),
+  };
+};
 // How much line experience publishing the draft keeps: small packages 85% each, a milestone (retooling) 40%, a corrective fix 97%.
 export function experienceCarryover() {
   const draft = draftChanges(), milestones = draft.packages.filter(isMilestone).length;

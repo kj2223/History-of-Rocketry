@@ -14,6 +14,7 @@ import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, freeTeams, withProgramme } from '../core/state.js';
+import { stagesOf, rocketOf } from './programs.js';
 import { INVESTIGATION_COST, startInvestigation, acceptFinding, chooseFix } from './jobs.js';
 import { groundTest, TEST_STAND } from './launch-site.js';
 import { fixesHeld } from './team.js';
@@ -57,10 +58,10 @@ export function endRemit() {
 }
 
 // The findings she has referred to you, in her remit's programme.
-export const referredFindings = () => S.remit && S.progs[S.remit.prog] ? withProgramme(S.remit.prog, () => S.inc.filter(incident => incident.st == 'found' && incident.ref)) : [];
+export const referredFindings = () => S.remit && S.progs[S.remit.prog] ? [S.remit.prog, ...stagesOf(S.remit.prog)].flatMap(kind => withProgramme(kind, () => S.inc.filter(incident => incident.st == 'found' && incident.ref))) : [];
 // Whether the incidents of the programme in focus go through Ellis: she works them, and the findings she refers to you come in
 // her remit's message, not the general incidents one. Once you make the call on a referred finding, she builds the fix.
-export const incidentsWithEllis = () => !!S.remit && S.remit.prog == S.cur;
+export const incidentsWithEllis = () => !!S.remit && S.remit.prog == rocketOf(S.cur);
 
 // A one-time note when Ellis has earned a remit. Returns true if it was made.
 export function remitEarnedTick() {
@@ -97,7 +98,8 @@ export function remitTick() {
     endRemit();
     return true;
   }
-  return withProgramme(remit.prog, () => ellisTurn(remit));
+  // She works the rocket's lower stages too (rules/stages.js).
+  return [remit.prog, ...stagesOf(remit.prog)].map(kind => withProgramme(kind, () => ellisTurn(remit))).some(Boolean);
 }
 function ellisTurn(remit) {
   let changed = false;

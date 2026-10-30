@@ -5,7 +5,7 @@ import { BY_ID, isMilestone } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, withProgramme, earn } from '../core/state.js';
 import { designation, airframeLabel } from './design.js';
-import { batchCost, buildTime, draftChanges, experienceCarryover, makeAirframe, retrofitQuote } from './production.js';
+import { batchCost, buildTime, draftChanges, experienceCarryover, makeAirframe, retrofitQuote, rocketFixes } from './production.js';
 import { startNewFamilyIfRedesigned } from './manrate.js';
 import { redesign } from './knowledge.js';
 import { deliverCapsule } from './mercury.js';
@@ -38,7 +38,7 @@ export function publishBlueprint(automatic) {
   if (!changes) return;
   const keep = experienceCarryover(), before = S.line.xp;
   S.line.xp = Math.round(before * keep * 10) / 10;
-  S.bp = { rev: S.bp.rev + 1, pk: Object.keys(S.pk), fix: { ...S.fix } };
+  S.bp = { rev: S.bp.rev + 1, pk: Object.keys(S.pk), fix: rocketFixes() };
   startNewFamilyIfRedesigned(draft.packages, S.bp.rev);
   for (const id of draft.packages) if (BY_ID[id] && isMilestone(id) && BY_ID[id].phase != 2 && BY_ID[id].area) redesign(BY_ID[id].area);
   log(`[DRAWING OFFICE] ${automatic ? 'Auto-published' : 'Published'} blueprint Rev ${S.bp.rev} with ${changes} change${changes > 1 ? 's' : ''}. The line keeps ${Math.round(keep * 100)}% of its experience (${before.toFixed(1)} to ${S.line.xp.toFixed(1)} units).`, 'ok');

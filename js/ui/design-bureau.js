@@ -12,12 +12,12 @@ import { MILESTONES, AREAS, BY_ID, EFFECTS, formatEffect } from '../data/researc
 import { EXPLAINERS, CONFIDENCE_LEVELS, EXPERIMENTAL_SAYS } from '../data/research-notes.js';
 import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
 import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
-import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
+import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob, withProgramme } from '../core/state.js';
 import { trackingTiers, designation, designSpec } from '../rules/design.js';
 import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
 import { queueLock, queuePosition, queueWait, queueEntries, analysisPosition, queueAnalysisLock, fixPosition, queueFixLock, reviewPosition, queueReviewLock, RESEARCH_QUEUE_LENGTH } from '../rules/queue.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
-import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
+import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor, stagesOf } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
 import { INVESTIGATION_COST, investigationTime, recordsQuality } from '../rules/jobs.js';
 import { chiefOnFindings, rangeOnRecords } from '../rules/team.js';
@@ -205,7 +205,7 @@ function jointProgrammesCard() {
 
 // ROCKET PROGRAMMES: a bar to switch the programme in focus (also on Hangar & Base), and the focused programme's card.
 export function programmeBar() {
-  return `<div class="pbar">${Object.keys(S.progs).map(kind => `<button data-a="prog" data-id="${kind}" class="${kind == S.cur ? 'on' : ''}">${PROGRAMMES[kind].name}<span class="d"> ${S.progs[kind].ready ? Math.round(maturity(kind)) : 'design'}</span></button>`).join('')}</div>`;
+  return `<div class="pbar">${Object.keys(S.progs).filter(kind => !PROGRAMMES[kind].stageOf).map(kind => `<button data-a="prog" data-id="${kind}" class="${kind == S.cur ? 'on' : ''}">${PROGRAMMES[kind].name}<span class="d"> ${S.progs[kind].ready ? Math.round(maturity(kind)) : 'design'}</span></button>`).join('')}</div>`;
 }
 const formatStat = (stat, value) => stat == 'thr' ? `${Math.round(value / 100) / 10} kN` : stat == 'dry' || stat == 'f' ? `${Math.round(value)} kg` : stat == 'g' ? `${value.toFixed(1)} g` : stat == 'r' ? `${value >= 0 ? '+' : ''}${Math.round(value * 100)} pts` : stat == 'rv' ? `${Math.round(value).toLocaleString('en-US')} m/s` : `${Math.round(value * 100)}%`;
 function programmeCard() {
@@ -245,17 +245,41 @@ const TRACKING_NAMES = ['Optical & radar tracking', 'Tracking radar network', 'R
 // under the mouse, shown instead while it is there; unfolded: the areas whose folded confirmed packages are opened out.
 export const researchDesk = { view: 'research', pick: null, hover: null, unfolded: {} };
 const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGINEERING FILE', incidents: 'UNEXPLAINED FAILURES' };
+// LOWER STAGES (rules/stages.js): their incidents and engineering files show under the rocket's, each in a block that carries the
+// stage (data-stage), so its buttons act with that stage in focus (ui/input.js).
+const isUnexplained = incident => incident.st == 'open' || incident.st == 'inv' || incident.st == 'found';
+const stageCount = test => stagesOf(S.cur).reduce((sum, stage) => sum + S.progs[stage].inc.filter(test).length, 0);
+const inStage = (stage, html) => `<div data-stage="${stage}"><div class="lbl sub">${PROGRAMMES[stage].name.toUpperCase()}</div>${html}</div>`;
+// One compact row per lower stage: its engine, the widest of the team's windows on it, its open incidents and the flaws found.
+function stageRows() {
+  return stagesOf(S.cur).map(stage => withProgramme(stage, () => {
+    const bundle = S.progs[stage], open = S.inc.filter(isUnexplained).length;
+    const widest = DESIGN_STATS.filter(({ key }) => key != 'r' && key != 'h' && key != 'q').map(({ key, label }) => {
+      const range = believedWindow(stage, key);
+      return { label, share: (range.hi - range.lo) / 2 / Math.max(1e-9, Math.abs(range.mid)) };
+    }).sort((first, second) => second.share - first.share)[0];
+    return `<div class="r stage"><span><b>${PROGRAMMES[stage].name}</b> <span class="d">${PROGRAMMES[stage].engine}</span></span><span class="d">${widest.label} ±${Math.round(widest.share * 100)}% · flaws found ${bundle.traits.filter(trait => trait.found).length} of ${bundle.traits.length} · ${Object.keys(S.fix).length} fix${Object.keys(S.fix).length == 1 ? '' : 'es'} fitted</span><button data-a="rview" data-id="${open ? 'incidents' : 'file'}">${open ? `${open} INCIDENT${open > 1 ? 'S' : ''}` : 'FILE'}</button></div>`;
+  })).join('');
+}
 export function renderResearchDesk() {
-  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv' || incident.st == 'found'), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length;
+  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(isUnexplained), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length + stageCount(incident => incident.st == 'diag');
+  const stageUnexplained = stageCount(isUnexplained);
   // Rocket areas once the programme is ready; recovery always; the spacecraft areas after NASA.
   const areas = (bundle && bundle.ready ? ['p', 's', 'i', 'a'] : []).concat(['r'], S.nasa ? ['c', 'e'] : []);
   const view = researchDesk.view;
-  let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length ? ` (${unexplained.length})` : ''}${key == 'file' && awaitingFix ? ` (${awaitingFix})` : ''}</button>`).join('')}`
+  let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length + stageUnexplained ? ` (${unexplained.length + stageUnexplained})` : ''}${key == 'file' && awaitingFix ? ` (${awaitingFix})` : ''}</button>`).join('')}`
     + `<span class="m">${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev} · ${INSTRUMENT_NAMES[tiers.v]} · ${TRACKING_NAMES[tiers.g]} · <b>teams free ${freeTeams()} of ${S.teams}</b></span></div>`;
-  if (view == 'research') html += programmeBar() + queueRow() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + dossier();
+  if (view == 'research') html += programmeBar() + stageRows() + queueRow() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + dossier();
   else if (view == 'programme') html += programmeBar() + programmeCard() + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar desk), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}.</div>`;
-  else if (view == 'file') html += `<div class="m">Each system's entry in the engineering file: what your team knows about it, the failure modes it has met and how they were cured. Knowledge carries from flight to flight.</div><div class="rcols" style="--areas:${areas.length}">${areas.map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`;
-  else html += unexplained.length ? `<div class="cards">${unexplained.slice().reverse().map(incidentHTML).join('')}</div>` : '<div class="m">No unexplained failures on file.</div>';
+  else if (view == 'file') html += `<div class="m">Each system's entry in the engineering file: what your team knows about it, the failure modes it has met and how they were cured. Knowledge carries from flight to flight.</div><div class="rcols" style="--areas:${areas.length}">${areas.map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`
+    + stagesOf(S.cur).map(stage => inStage(stage, withProgramme(stage, () => `<div class="rcols" style="--areas:2">${['p', 's'].map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`))).join('');
+  else {
+    const stageCards = stagesOf(S.cur).map(stage => withProgramme(stage, () => {
+      const open = S.inc.filter(isUnexplained);
+      return open.length ? inStage(stage, `<div class="cards">${open.slice().reverse().map(incidentHTML).join('')}</div>`) : '';
+    })).join('');
+    html += unexplained.length || stageCards ? (unexplained.length ? `<div class="cards">${unexplained.slice().reverse().map(incidentHTML).join('')}</div>` : '') + stageCards : '<div class="m">No unexplained failures on file.</div>';
+  }
   setHTML($('#rdesk'), html);
 }
 

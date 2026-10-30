@@ -1,6 +1,6 @@
 // INPUT: every button, select and slider on the page. Buttons carry data-a (the action) and data-id; after an action the game is
 // saved and the screen redrawn, except where an action returns early.
-import { S, save, resetState, log } from '../core/state.js';
+import { S, save, resetState, log, withProgramme } from '../core/state.js';
 import { setRequest } from '../rules/budget.js';
 import { formNasa } from '../rules/race.js';
 import { commission, crashProgramme } from '../rules/research.js';
@@ -402,7 +402,11 @@ document.addEventListener('click', event => {
   else if (action == 'abort') {
     if (airborne.flight) finishFlight(0, 'abort');
     else if (airborne.mission) manualAbort(airborne.mission);
-  } else if (GAME_ACTIONS[action]) GAME_ACTIONS[action](id, button);
+  } else if (GAME_ACTIONS[action]) {
+    // A button inside a lower stage's block (ui/design-bureau.js) acts with that stage in focus.
+    const stage = button.closest('[data-stage]');
+    stage ? withProgramme(stage.dataset.stage, () => GAME_ACTIONS[action](id, button)) : GAME_ACTIONS[action](id, button);
+  }
   else if (action == 'reset') {
     if (!resetArmed) return armReset(button);
     resetGame(button);

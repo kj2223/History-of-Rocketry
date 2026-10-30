@@ -21,6 +21,7 @@
 //   needsGemini: opens only with Project Gemini; manRatingResearch: research its own man-rating needs as well as the usual
 //   headStart: share of the best earlier knowledge its team starts with, instead of HEAD_START.best (a missile already flight-tested)
 //   booster: the booster stage under the core (staged rockets): dry mass, fuel (kg), thr thrust (N), isp
+//   stages: instead of a booster, the lower stages that are designs of their own (STAGE DESIGNS below, rules/stages.js)
 export const PROGRAMMES = {
   wac: {
     name: 'WAC Corporal', year: 1946, generation: 0,
@@ -69,7 +70,7 @@ export const PROGRAMMES = {
     name: 'Atlas', year: 1958, generation: 5, requires: ['vanguard', 'jupc'], anyRequirement: 1, needsNasa: 1,
     design: { dry: 300, f: 600, thr: 20000, g: 8, h: 2.8, q: 1.8, c: .8, r: -.05, i: 2.2 },
     cost: 200000, designTime: 75, unitCost: 60000, unitTime: 48, sizeScale: 6, costScale: 3, timeScale: 1.2, packagesPerArea: 6, learningRate: 3, traitRange: [3, 3],
-    propellants: ['Kerosene & LOX'], hasMilestones: 1, canOrbit: 1, booster: { dry: 1900, fuel: 15000, thr: 250000, isp: 280 },
+    propellants: ['Kerosene & LOX'], hasMilestones: 1, canOrbit: 1, stages: ['atlas1'],
     why: 'An intercontinental missile with steel-balloon tanks thin as a coin. Enough power to put a man in orbit, if it can be tamed.',
   },
   // Gemini's booster (Phase Two, Section 2). Opens with Project Gemini; a crew rides it only once its pogo is cured (manRatingResearch).
@@ -77,8 +78,25 @@ export const PROGRAMMES = {
     name: 'Titan II', year: 1962, generation: 6, requires: ['atlas', 'vanguard', 'jupc'], anyRequirement: 1, needsNasa: 1, needsGemini: 1, manRatingResearch: ['gm_pogo'], headStart: .6,
     design: { dry: 420, f: 900, thr: 33000, g: 9, h: 3, q: 2, c: .8, r: 0, i: 2.4 },
     cost: 240000, designTime: 80, unitCost: 75000, unitTime: 52, sizeScale: 7, costScale: 3.2, timeScale: 1.2, packagesPerArea: 6, learningRate: 3, traitRange: [1, 2],
-    propellants: ['Aerozine & N2O4'], hasMilestones: 1, canOrbit: 1, booster: { dry: 2300, fuel: 26000, thr: 380000, isp: 285 },
+    propellants: ['Aerozine & N2O4'], hasMilestones: 1, canOrbit: 1, stages: ['titan1'],
     why: 'An Air Force missile burning propellants that ignite on contact: no igniters, and it can sit fuelled for months. Strong enough to lift the two-man Gemini, but it shakes along its length (pogo) until that is cured.',
+  },
+  // STAGE DESIGNS (Apollo step 3): a lower stage with its own true figures, flaws, failures and fixes, kept in a bundle of its own
+  // (rules/stages.js). The rocket's own design is its top stage. stageOf: the rocket it belongs to; it is never started, built or
+  // flown alone. design: as a rocket's, but f is the propellant it carries (kg) and isp its engine's specific impulse (s).
+  atlas1: {
+    name: 'Atlas booster section', engine: 'two LR89s', stageOf: 'atlas', year: 1958, generation: 5,
+    design: { dry: 1900, f: 15000, thr: 250000, isp: 280, g: 8, h: 2.8, q: 1.8, c: .8, r: -.02, i: 2.2 },
+    sizeScale: 6, costScale: 3, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    propellants: ['Kerosene & LOX'],
+    why: 'The Atlas is a stage and a half: two booster engines and their skirt drop away two minutes up, and the sustainer flies on alone on the same tanks.',
+  },
+  titan1: {
+    name: 'Titan II first stage', engine: 'LR87', stageOf: 'titan', year: 1962, generation: 6,
+    design: { dry: 2300, f: 26000, thr: 380000, isp: 285, g: 9, h: 3, q: 2, c: .8, r: 0, i: 2.4 },
+    sizeScale: 7, costScale: 3.2, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    propellants: ['Aerozine & N2O4'],
+    why: 'Twin-chamber LR87 engines on a stage of thin aluminium tanks: most of the Titan II\'s weight and nearly all of its thrust at liftoff.',
   },
 };
 export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas', 'titan'];
@@ -104,6 +122,9 @@ export const TRAITS = [
   { key: 'weak', name: 'Engine short of rated thrust', statPenalty: { thr: -.08 }, why: 'The engine never quite delivers its rated thrust.' },
 ];
 export const traitByKey = key => TRAITS.find(trait => trait.key == key);
+// The flaws a lower stage can be born with: its engine, plumbing and tanks. Heating, fins and separation belong to the whole stack.
+// Overweight and underpowered stages wait for research of their own (stage identity, part 2): nothing could yet cure them.
+export const STAGE_TRAITS = ['rough', 'pump', 'start', 'leak', 'thin'];
 
 // The design figures the team does not know exactly. area: the knowledge area that narrows the window.
 // startWidth: how wide the window starts, as a fraction of the value either side (reliability: in points).

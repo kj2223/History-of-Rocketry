@@ -10,11 +10,13 @@ import { MISSION_TYPES } from '../js/data/mercury.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond, catchUp } from '../js/rules/game.js';
-import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
+import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages, ensureStages, stagesOf } from '../js/rules/programs.js';
+import { lowerStage } from '../js/rules/stages.js';
+import { PROPELLANTS } from '../js/data/launch.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe, retrofitQuote } from '../js/rules/production.js';
 import { publishBlueprint, holdForLaunch } from '../js/rules/factory.js';
-import { previewFlight, beginFlight, step, hasEvent } from '../js/rules/flight.js';
+import { previewFlight, beginFlight, step, hasEvent, endFlight } from '../js/rules/flight.js';
 import { designSpec } from '../js/rules/design.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
@@ -1757,4 +1759,42 @@ test('the Apollo study reports after its months, and Gemini evidence firms up th
   assert.equal(chooseArchitecture('lor'), null);
   assert.equal(S.p2.ap.arch, 'lor');
   assert.ok(chooseArchitecture('eor'), 'the choice is made once');
+});
+
+test('Titan II and Atlas start with a first stage of their own, and older saves get theirs on load', () => {
+  readyProgramme('titan');
+  assert.deepEqual(stagesOf('titan'), ['titan1']);
+  assert.equal(S.progs.titan1.ready, 0, 'a stage is never a rocket you can fly on its own');
+  assert.ok(!candidates().includes('titan1'));
+  delete S.progs.titan1;
+  ensureStages();
+  assert.ok(S.progs.titan1.T.thr > 0);
+});
+
+test('a first-stage failure opens its incident on the stage, and the stage learns from it', () => {
+  const airframe = readyProgramme('titan');
+  S.b = 1e6;
+  S.fac.lc19 = 1;
+  const flight = withProgramme('titan', () => beginFlight(airframe, 'Aerozine & N2O4', 'Inert Ballast', 1, 1));
+  assert.equal(flight.stages[0].stage, 'titan1');
+  const before = S.progs.titan1.kn.p;
+  Object.assign(flight, { failure: 'p', failStage: 'titan1' });
+  endFlight(flight, false, 'fail');
+  assert.equal(S.progs.titan.inc.length, 0);
+  assert.equal(S.progs.titan1.inc.length, 1);
+  assert.match(S.progs.titan1.inc[0].lab, /first stage/);
+  assert.ok(S.progs.titan1.kn.p > before);
+});
+
+test("a stage's fix rides in the rocket's blueprint and lowers that stage's risk only", () => {
+  const airframe = readyProgramme('titan');
+  S.progs.titan1.fix.p = 'ind';
+  withProgramme('titan', () => publishBlueprint());
+  assert.equal(S.progs.titan.bp.fix['p@titan1'], 'ind');
+  assert.equal(S.progs.titan.bp.fix.p, undefined);
+  const spec = withProgramme('titan', () => designSpec([]));
+  const bare = withProgramme('titan', () => lowerStage('titan', airframe, spec, PROPELLANTS['Aerozine & N2O4']));
+  const fixed = withProgramme('titan', () => lowerStage('titan', { ...airframe, fix: { 'p@titan1': 'ind' } }, spec, PROPELLANTS['Aerozine & N2O4']));
+  assert.ok(fixed.modeMultipliers.p < bare.modeMultipliers.p);
+  assert.ok(fixed.dry > bare.dry, 'the inducer adds its mass to the stage');
 });
