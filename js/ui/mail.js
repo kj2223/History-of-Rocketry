@@ -18,9 +18,12 @@ import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REM
 import { ORDER_RAISE, standingOrders, orderFor, orderWaiting, ordersTotals, requestText } from '../rules/orders.js';
 import { DIRECTOR_CADENCE } from '../rules/auto.js';
 import { LEAD_POSTS } from '../data/leads.js';
-import { openPosts, hiredLead } from '../rules/leads.js';
+import { openPosts, hiredLead, postCandidates } from '../rules/leads.js';
 import { SHARED_AREAS, SHARED_CAPS, SHARED_RAISE, proposals, isChoice, sharedIdleReason } from '../rules/shared-research.js';
 import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
+import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
+import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
+import { capabilityShown } from '../rules/mercury.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -106,7 +109,7 @@ function researchStaffMessage() {
   const asks = SHARED_AREAS.filter(area => proposals(area).length);
   if (!posts.length && !staffed.length) return null;
   const postsHTML = posts.length ? `<div class="lbl">POSTS TO FILL</div>` + posts.map(area => `<div class="c"><div class="r"><b>${escapeHtml(LEAD_POSTS[area].title)}</b><span class="d">${AREAS[area]}</span></div>`
-    + LEAD_POSTS[area].candidates.map(candidate => `<div class="r"><span><b>${escapeHtml(candidate.name)}</b> · <span class="m">${escapeHtml(candidate.note)}</span></span><button data-a="leadhire" data-id="${area}:${candidate.id}">HIRE · ${candidate.pace > 1 ? 'quicker' : candidate.pace < 1 ? 'slower' : 'steady'} · ${formatMoney(candidate.salary)}/cycle</button></div>`).join('') + '</div>').join('') : '';
+    + postCandidates(area).map(candidate => `<div class="r"><span><b>${escapeHtml(candidate.name)}</b> · <span class="m">${escapeHtml(candidate.note)}</span></span><button data-a="leadhire" data-id="${area}:${candidate.id}">HIRE · ${candidate.pace > 1 ? 'quicker' : candidate.pace < 1 ? 'slower' : 'steady'} · ${formatMoney(candidate.salary)}/cycle</button></div>`).join('') + '</div>').join('') : '';
   const lanesHTML = staffed.length ? `<div class="lbl">SHARED RESEARCH LINE</div><div class="c">` + SHARED_AREAS.map(area => {
     const lead = hiredLead(area), job = laneJob(area), idle = sharedIdleReason(area);
     return `<div class="r"><span>${AREAS[area]}</span><b class="${job ? '' : 'd'}">${lead ? escapeHtml(lead.name) : 'no lead'}${job ? `: ${escapeHtml(itemAsSeen(job.id).name)}, ${job.t}s` : idle ? `: ${idle}` : ''}</b></div>`;
@@ -124,6 +127,40 @@ function researchStaffMessage() {
     subject: asks.length ? `${asks.length == 1 ? 'A milestone proposal' : 'Milestone proposals'} for you` : posts.length ? `${posts.length == 1 ? 'A research post' : 'Research posts'} to fill` : 'The shared research line',
     body: proposalsHTML + postsHTML + lanesHTML,
   };
+}
+
+// PROJECT APOLLO (rules/apollo.js): who leads it, the study, and the choice of architecture.
+const millions = amount => `$${(amount / 1e6).toFixed(1)}M`;
+const ESTIMATE_TEXT = {
+  cost: range => `${millions(range.low)} to ${millions(range.high)}`,
+  years: range => `${range.low.toFixed(1)} to ${range.high.toFixed(1)} years`,
+  risk: range => `${(range.low * 100).toFixed(1)}% to ${(range.high * 100).toFixed(1)}%`,
+};
+const ESTIMATE_LABELS = { cost: 'Development cost', years: 'To the first landing attempt', risk: 'Crew lost on a landing' };
+function apolloMessage() {
+  const state = apollo();
+  if (!state) return null;
+  const lead = apolloLead(), base = { id: 'apollo', from: lead ? lead.name : 'NASA Headquarters', role: lead ? 'Apollo Spacecraft Manager' : 'Office of Manned Space Flight', pane: 'note' };
+  if (state.lead === undefined) {
+    const mercuryLead = hiredLead('c');
+    return { ...base, kind: 'decision', subject: 'Apollo begins: who goes with the Mercury team?',
+      body: `<p>Mercury is complete. Its engineers move to Apollo while Gemini flies, and their first job is to study how to reach the Moon.</p><p>${escapeHtml(mercuryLead.name)} could go with them. The study would be quicker and firmer for it, but Gemini would need a new spacecraft lead, hired from scratch.</p><div class="acts"><button class="pri" data-a="aproll" data-id="1">SEND ${escapeHtml(mercuryLead.name.toUpperCase())} TO APOLLO</button><button data-a="aproll" data-id="0">KEEP ${escapeHtml(mercuryLead.name.toUpperCase())} ON GEMINI</button></div>` };
+  }
+  if (!state.sz) return { ...base, kind: 'decision', subject: 'Commission the Apollo study',
+    body: `<p>${lead ? `I have the Mercury spacecraft team with me.` : 'The Mercury engineers are here, without their lead.'} They bring ${state.xp} crewed Mercury flight${state.xp == 1 ? '' : 's'} of experience. How thorough should the study be?</p>`
+      + Object.entries(STUDY_SIZES).map(([key, study]) => `<div class="r"><span><b>${study.name}</b> · <span class="m">${study.why} About ${Math.round(studyDays(key) / 30)} months.</span></span><button data-a="apstudy" data-id="${key}"${S.b < study.cost ? ' disabled' : ''}>COMMISSION · ${formatMoney(study.cost)}</button></div>`).join('') };
+  if (!state.done) return { ...base, kind: 'report', subject: 'The Apollo study is under way',
+    body: `<p>${STUDY_SIZES[state.sz].name}: about ${Math.max(1, Math.round(state.t / 30))} month${Math.round(state.t / 30) > 1 ? 's' : ''} to go. Direct ascent, Earth-orbit rendezvous and lunar-orbit rendezvous are each being costed.</p><div class="bar"><i style="width:${Math.round((1 - state.t / state.tot) * 100)}%"></i></div>` };
+  const evidence = ['rdv', 'dock', 'eva'].filter(capabilityShown).length;
+  const table = ARCHITECTURE_ORDER.map(key => {
+    const architecture = ARCHITECTURES[key], chosen = state.arch == key;
+    return `<div class="c"><div class="r"><b>${architecture.name}</b><span class="d">${architecture.launches} ${architecture.booster} launch${architecture.launches > 1 ? 'es' : ''}</span></div><div class="m">${escapeHtml(architecture.why)}</div>`
+      + ['cost', 'years', 'risk'].map(stat => `<div class="r"><span>${ESTIMATE_LABELS[stat]}</span><b>${ESTIMATE_TEXT[stat](estimate(key, stat))}</b></div>`).join('')
+      + (state.arch ? (chosen ? '<div class="m"><b>Chosen.</b></div>' : '') : `<div class="acts"><button data-a="aparch" data-id="${key}">GO WITH ${architecture.name.toUpperCase()}</button></div>`) + '</div>';
+  }).join('');
+  if (state.arch) return { ...base, kind: 'report', subject: `Apollo goes by ${ARCHITECTURES[state.arch].name.toLowerCase()}`, body: table };
+  return { ...base, kind: 'decision', subject: 'The Apollo study has reported: choose the way to the Moon',
+    body: `<p>Here are the three approaches, costed. The ranges are how sure the study is.</p><p class="m">${evidence < 3 ? 'Gemini has not yet flown everything a rendezvous needs. Each rendezvous, docking or spacewalk it flies firms up the risk figures of the two rendezvous approaches, so waiting buys certainty at the cost of schedule.' : 'Gemini has flown rendezvous, docking and spacewalks: the rendezvous risk figures are as firm as this study can make them.'}</p>${table}` };
 }
 
 function remitMessage() {
@@ -168,6 +205,8 @@ function messages() {
   }
   const staff = researchStaffMessage();
   if (staff) list.push(staff);
+  const apolloNote = apolloMessage();
+  if (apolloNote) list.push(apolloNote);
   const remit = remitMessage();
   if (remit) list.push(remit);
   const incidents = waitingIncidents();

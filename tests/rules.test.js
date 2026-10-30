@@ -1690,3 +1690,71 @@ test('Reed does not take an airframe held for your launch, and a budget can be d
   raiseWorks(true);
   assert.equal(S.works.cap, 160000);
 });
+
+// PROJECT APOLLO, PART ONE (rules/apollo.js): the Mercury team rolls over to Apollo and studies the way to the Moon.
+const mercuryComplete = async (spacecraftLead = 'hayes') => {
+  const { fulfilDirective } = await import('../js/rules/mercury.js');
+  const { MERCURY_DIRECTIVES, LAST_MERCURY_DIRECTIVE } = await import('../js/data/mercury.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.secDone = 1;
+  S.p2.astros = makePool(7).map((astronaut, index) => ({ ...astronaut, st: 'active', flights: index < 3 ? 1 : 0 }));
+  S.p2.dir = LAST_MERCURY_DIRECTIVE;
+  S.day = 6000;
+  S.b = 1e6;
+  if (spacecraftLead) S.leads.c = spacecraftLead;
+  fulfilDirective(MERCURY_DIRECTIVES[LAST_MERCURY_DIRECTIVE]);
+};
+test('Apollo opens with Gemini when Mercury is complete, bringing the Mercury flights as experience', async () => {
+  await mercuryComplete();
+  assert.ok(S.p2.ap, 'Apollo is open');
+  assert.equal(S.p2.ap.xp, 3, 'three crewed Mercury flights');
+  assert.equal(S.p2.ap.lead, undefined, 'you decide whether the spacecraft lead goes');
+  for (const key of ['direct', 'eor', 'lor']) assert.ok(S.p2.ap.tr[key].cost > 0 && S.p2.ap.tr[key].risk > 0);
+});
+test('sending the Mercury spacecraft lead to Apollo reopens the Gemini post with new candidates, and they stay on the payroll', async () => {
+  const { decideRollover, apolloLead } = await import('../js/rules/apollo.js');
+  const { openPosts, postCandidates, hireLead, leadsPayroll } = await import('../js/rules/leads.js');
+  await mercuryComplete();
+  const before = leadsPayroll();
+  decideRollover(true);
+  assert.equal(apolloLead().id, 'hayes');
+  assert.ok(openPosts().includes('c'), 'Gemini needs a spacecraft lead');
+  assert.deepEqual(postCandidates('c').map(candidate => candidate.id), ['sato', 'bell']);
+  assert.equal(leadsPayroll(), before, 'Hayes is still paid, from Apollo');
+  assert.ok(hireLead('c', 'brandt'), 'the Mercury candidates are no longer offered');
+  assert.equal(hireLead('c', 'bell'), null);
+  assert.equal(leadsPayroll(), before + 650);
+});
+test('without a spacecraft lead there is nobody to send, and the study runs slower', async () => {
+  const { studyDays } = await import('../js/rules/apollo.js');
+  const { STUDY_SIZES, NEW_TEAM_SLOWDOWN } = await import('../js/data/apollo.js');
+  await mercuryComplete(null);
+  assert.equal(S.p2.ap.lead, null);
+  assert.equal(studyDays('quick'), Math.round(STUDY_SIZES.quick.days * NEW_TEAM_SLOWDOWN));
+});
+test('the Apollo study reports after its months, and Gemini evidence firms up the rendezvous risks', async () => {
+  const { decideRollover, startStudy, estimate, chooseArchitecture } = await import('../js/rules/apollo.js');
+  const { recordCapability } = await import('../js/rules/mercury.js');
+  await mercuryComplete();
+  assert.ok(startStudy('full'), 'decide who leads first');
+  decideRollover(true);
+  const treasury = S.b;
+  assert.equal(startStudy('full'), null);
+  assert.equal(S.b, treasury - 160000);
+  assert.equal(estimate('lor', 'risk'), null, 'no figures before the study reports');
+  assert.ok(chooseArchitecture('lor'), 'nothing to choose from yet');
+  let seconds = 0;
+  while (!S.p2.ap.done && seconds++ < 2000) tickSecond();
+  assert.ok(S.p2.ap.done, 'the study reports');
+  const width = range => range.high - range.low;
+  const lorBefore = width(estimate('lor', 'risk')), directBefore = width(estimate('direct', 'risk'));
+  for (const kind of ['rdv', 'dock']) recordCapability(kind, { mt: 'gt', cfg: { rev: 1, pk: [] } }, { prog: 'titan' });
+  assert.ok(width(estimate('lor', 'risk')) < lorBefore * .6, 'rendezvous and docking flown: the lunar-orbit risk is firmer');
+  assert.equal(width(estimate('direct', 'risk')), directBefore, 'direct ascent needs no rendezvous');
+  const truth = S.p2.ap.tr.lor.cost, range = estimate('lor', 'cost');
+  assert.ok(range.low <= truth && truth <= range.high, 'the truth lies inside the estimate');
+  assert.equal(chooseArchitecture('lor'), null);
+  assert.equal(S.p2.ap.arch, 'lor');
+  assert.ok(chooseArchitecture('eor'), 'the choice is made once');
+});

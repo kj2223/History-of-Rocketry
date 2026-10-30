@@ -5,6 +5,7 @@ import { MERCURY_DIRECTIVES, ELECTION_DAY, INAUGURATION_DAY, TESTING_REGIMES, OF
 import { S, log, formatDate } from '../core/state.js';
 import { phaseTwo, newPhaseTwo, directiveKey, fulfilDirective, orbitalBoosterCertified, openSectionTwo, openGemini } from './mercury.js';
 import { openSovietSectionTwo } from './race.js';
+import { openApollo } from './apollo.js';
 import { makePool } from './astronauts.js';
 import { anyCertified, checkCertification } from './manrate.js';
 
@@ -133,7 +134,7 @@ export function officeTick(days) {
 // Phase Two state appears the first tick after NASA is established. Older saves are brought up to date here:
 // version 2 had a skippable man-rating directive; version 1 had no selection steps, Little Joe record or chimpanzee colony.
 // Saves that finished Section 1 before Section 2 existed open it here, and saves that finished Mercury before Gemini existed open Gemini
-// (with the Soviet Section 2 dates added since).
+// (with the Soviet Section 2 dates added since), and Apollo.
 export function ensurePhaseTwo() {
   if (!S.p2) {
     S.p2 = newPhaseTwo();
@@ -146,6 +147,7 @@ export function ensurePhaseTwo() {
     openSovietSectionTwo();
     openGemini();
   }
+  if (state.mercDone && !state.ap) openApollo();
   if (state.v == 2) {
     state.v = 3;
     if (state.bd == 'skip' && state.dir == 5 && !anyCertified()) state.dir = 4;

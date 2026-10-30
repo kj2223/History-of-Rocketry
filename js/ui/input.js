@@ -20,6 +20,7 @@ import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { approveBrief } from '../rules/brief.js';
 import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
 import { hireLead } from '../rules/leads.js';
+import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
 import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
@@ -210,6 +211,15 @@ const GAME_ACTIONS = {
     if (error) log('[R&D] ' + error, 'bad');
   },
   snot: area => notNow(area),
+  aproll: send => decideRollover(send == '1'),
+  apstudy: size => {
+    const error = startStudy(size);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
+  aparch: key => {
+    const error = chooseArchitecture(key);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
   iattend: () => attendFirst(),
   iproceed: () => proceedWithFirst(),
   bstart: size => {

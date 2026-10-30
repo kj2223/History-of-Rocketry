@@ -5,7 +5,8 @@
 // station engineers keep their consoles: FIDO still sets the flight limits, the aero/thermal lead owns the development.
 // The keys and candidate ids are stored in saves.
 //   title, opens: 'chen' (once Alice Chen joins) or 'nasa' (once NASA is established)
-//   candidates: [{ id, name, note, pace: lane speed (1 is a station engineer's), salary: $ per funding cycle }]
+//   candidates: [{ id, name, note, pace: lane speed (1 is a station engineer's), salary: $ per funding cycle,
+//                  gemini: offered only once the Mercury spacecraft lead has moved to Apollo }]
 export const LEAD_POSTS = {
   p: {
     title: 'Propulsion Development Lead', opens: 'chen', candidates: [
@@ -41,6 +42,9 @@ export const LEAD_POSTS = {
     title: 'Spacecraft Lead', opens: 'nasa', candidates: [
       { id: 'hayes', name: 'Rebecca Hayes', note: 'Came over from the NACA capsule studies. Drives a team hard.', pace: 1.2, salary: 1100 },
       { id: 'brandt', name: 'Walter Brandt', note: 'Aircraft systems engineer from the X-15 programme. Steady.', pace: 1, salary: 700 },
+      // Offered once the Mercury spacecraft lead has moved to Apollo (rules/apollo.js).
+      { id: 'sato', name: 'Kenji Sato', note: 'Led the Mercury capsule\'s systems tests at the contractor\'s plant. Knows the hardware, wants the job.', pace: 1.2, salary: 1000, gemini: 1 },
+      { id: 'bell', name: 'Martha Bell', note: 'Flight-test engineer from Edwards. Careful with anything new.', pace: 1, salary: 650, gemini: 1 },
     ],
   },
   e: {
