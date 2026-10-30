@@ -1,6 +1,7 @@
 // THE LAUNCH DIRECTOR runs the campaign you set (rules/campaign.js) and the standing orders (rules/orders.js). For a campaign
 // it orders airframes within the budget, picks the propellant load, runs the go/no-go poll and flies, until the target is met,
-// the deadline passes or the budget is spent. A first invites you to attend before she flies it (rules/invitations.js). No DOM.
+// the deadline passes or the budget is spent. A first invites you to attend before she flies it (rules/invitations.js): attended,
+// she leaves the count to Watch (ui/launch-view.js startDirectorCount). No DOM.
 import { formatMoney } from '../core/util.js';
 import { S, log, withProgramme } from '../core/state.js';
 import { quoteLaunch, hasBoosterStage } from './design.js';
@@ -52,8 +53,9 @@ function directorTurn(camp) {
   const ready = S.air.filter(candidate => candidate.st == 'r' && candidate.prog == camp.prog).sort((first, second) => second.pk.length - first.pk.length);
   const ordered = orderForCampaign(camp, ready.length), airframe = ready[0];
   if (!airframe) return ordered;
-  // A first waits for your answer to her invitation (rules/invitations.js).
-  if (waitForInvitation(airframe)) return true;
+  // A first waits for your answer to her invitation (rules/invitations.js); attended, it goes to the pad for Watch.
+  const invitation = waitForInvitation(airframe);
+  if (invitation === true || S.auto.pad) return true;
   const plan = planLoad(airframe, camp, camp.go ? VETERAN_MARGIN : directorMargin());
   if (plan.reason) {
     camp.hold = camp.go ? `${airframe.label}: even at ${Math.round(VETERAN_MARGIN * 100)}% of the limits, ${plan.reason}. The design needs work, or fly it yourself.` : `${airframe.label}: ${plan.reason}. The director is not sure enough to fly it.`;
@@ -71,6 +73,12 @@ function directorTurn(camp) {
     return true;
   }
   if (S.b - quote.cost < TREASURY_RESERVE) return false;
+  if (invitation == 'attend') {
+    S.auto.pad = { af: airframe.id, fuel: camp.fuel, pay: camp.pay, st: plan.stage, load: plan.load };
+    camp.spent += quote.cost;
+    log(`[LAUNCH DIRECTOR] ${airframe.label} is on the pad at ${Math.round(plan.load * 100)}% propellant. The count is running in Watch.`, 'cyan');
+    return true;
+  }
   if (Math.random() < slipChance()) {
     const cost = Math.min(S.b, scrubCost());
     S.b -= cost;

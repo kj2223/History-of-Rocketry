@@ -145,8 +145,8 @@ function messages() {
     id: 'inv', kind: invitation.attend ? 'report' : 'decision', from: memberName('ellis'), role: memberRole('ellis'), pane: 'note',
     subject: `You are invited to ${invitation.what}`,
     body: invitation.attend
-      ? `<p>The pad is yours for ${escapeHtml(invitation.what)}. Fly it from Watch; the campaign waits until you do.</p><div class="acts"><button class="pri" data-desk="watch">OPEN WATCH</button><button data-a="iproceed">LET FLIGHT CONTROL PROCEED AFTER ALL</button></div>`
-      : `<p>The campaign's next flight is ${escapeHtml(invitation.what)}. Attend and fly it yourself from Watch, or let Flight Control proceed without you.</p><p class="m">If I hear nothing in about ${invitation.turns * DIRECTOR_CADENCE} seconds, Flight Control proceeds.</p><div class="acts"><button class="pri" data-a="iattend">ATTEND</button><button data-a="iproceed">LET FLIGHT CONTROL PROCEED</button></div>`,
+      ? `<p>I am bringing ${escapeHtml(invitation.what)} to the pad. My crews run the count in Watch; you watch, and you can still hold or scrub.</p><div class="acts"><button class="pri" data-desk="watch">OPEN WATCH</button><button data-a="iproceed">LET FLIGHT CONTROL PROCEED AFTER ALL</button></div>`
+      : `<p>The campaign's next flight is ${escapeHtml(invitation.what)}. Attend and watch it from the control room while my crews fly it, or let Flight Control proceed without you.</p><p class="m">If I hear nothing in about ${invitation.turns * DIRECTOR_CADENCE} seconds, Flight Control proceeds.</p><div class="acts"><button class="pri" data-a="iattend">ATTEND</button><button data-a="iproceed">LET FLIGHT CONTROL PROCEED</button></div>`,
   });
   if (camp && camp.hold) list.push({
     id: 'camp', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: 'The campaign needs your guidance', pane: 'note',

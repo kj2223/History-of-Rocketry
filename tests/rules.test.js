@@ -226,14 +226,14 @@ test('a campaign closes at its deadline', () => {
 });
 
 // INVITATIONS (rules/invitations.js): a first waits for your answer, and proceeds by itself if you give none.
-test('Ellis invites you to a first: attending holds it for you, silence lets Flight Control proceed', async () => {
+test('Ellis invites you to a first: attending brings it to the pad for Watch, silence lets Flight Control proceed', async () => {
   const { firstAboard, waitForInvitation, attendFirst, proceedWithFirst, INVITE_TURNS } = await import('../js/rules/invitations.js');
   const airframe = readyProgramme('aerobee');
   S.air.push(airframe);
   assert.equal(firstAboard(airframe), 'the first flight of the Aerobee');
   assert.ok(waitForInvitation(airframe), 'the invitation goes out and she waits');
   attendFirst();
-  for (let turn = 0; turn < INVITE_TURNS + 2; turn++) assert.ok(waitForInvitation(airframe), 'attending: she waits for you');
+  for (let turn = 0; turn < INVITE_TURNS + 2; turn++) assert.equal(waitForInvitation(airframe), 'attend', 'attending: she brings it to the pad for you to watch');
   proceedWithFirst();
   assert.ok(!waitForInvitation(airframe), 'you change your mind and she flies it');
   S.auto.inv = null;
@@ -241,16 +241,60 @@ test('Ellis invites you to a first: attending holds it for you, silence lets Fli
   while (waitForInvitation(airframe)) turns++;
   assert.equal(turns, INVITE_TURNS, 'no answer: Flight Control proceeds after her turns run out');
   S.progs.aerobee.fm = [];
-  assert.equal(firstAboard(airframe), null, 'flown, and no new milestone aboard');
   airframe.pk.push('ms_test');
-  BY_ID.ms_test = { name: 'a test milestone' };
-  assert.equal(firstAboard(airframe), 'the first flight with a test milestone');
-  delete BY_ID.ms_test;
+  assert.equal(firstAboard(airframe), null, 'a new blueprint was cleared with the design: no invitation');
+});
+test('an attended first goes to the pad with her plan instead of flying unseen', async () => {
+  const { attendFirst } = await import('../js/rules/invitations.js');
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.staff.director = 1;
+  S.b = 1e6;
+  S.auto.xp = 20;
+  assert.equal(startCampaign({ prog: 'aerobee', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal: 3, months: 12, budget: 1e6 }), null);
+  for (let second = 0; second < 600 && !S.auto.inv; second++) {
+    tickSecond();
+    autoLaunch();
+  }
+  assert.ok(S.auto.inv, 'the invitation goes out');
+  attendFirst();
+  for (let second = 0; second < 60 && !S.auto.pad; second++) autoLaunch();
+  assert.ok(S.auto.pad, 'she brings it to the pad');
+  assert.equal(S.auto.pad.af, S.auto.inv.air);
+  assert.equal(S.auto.camp.n, 0, 'nothing has flown without you');
 });
 
 // STANDING ORDERS
 // An open incident holds routine flights until it is dealt with; these tests close them as a player or Ellis's remit would.
 const closeIncidents = kind => withProgramme(kind, () => S.inc.forEach(incident => incident.st = 'done'));
+test('a standing order flies a new configuration without stopping to ask', async () => {
+  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.staff.director = 1;
+  assert.equal(startOrder('aerobee', 1e6), null);
+  const flown = () => orderFor('aerobee').n;
+  for (let second = 0; second < 1500 && !flown(); second++) {
+    tickSecond();
+    autoLaunch();
+    closeIncidents('aerobee');
+    S.b = Math.max(S.b, 200000);
+  }
+  assert.ok(flown(), 'the order flies');
+  for (const airframe of S.air) if (airframe.prog == 'aerobee') airframe.pk.push('ms_test');
+  BY_ID.ms_test = { name: 'a test milestone', area: 'p', tier: 1 };
+  const before = flown();
+  for (let second = 0; second < 1500 && flown() == before; second++) {
+    tickSecond();
+    autoLaunch();
+    closeIncidents('aerobee');
+    for (const airframe of S.air) if (airframe.prog == 'aerobee' && !airframe.pk.includes('ms_test')) airframe.pk.push('ms_test');
+    S.b = Math.max(S.b, 200000);
+    assert.equal(orderFor('aerobee').hold, null);
+  }
+  delete BY_ID.ms_test;
+  assert.ok(flown() > before, 'it keeps flying with the new milestone aboard');
+});
 test('a standing order flies customer requests by itself and keeps flying after a campaign expires', async () => {
   const { startOrder, orderFor } = await import('../js/rules/orders.js');
   readyProgramme('aerobee');

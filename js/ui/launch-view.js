@@ -147,19 +147,29 @@ const newCount = (poll, target, label, mission) => ({
   poll, shown: 0, phase: 'count', fuel: 0, target, filling: false, label, clock: COUNT_FROM, running: true, hold: '', userHold: false, override: false, ...(mission ? { mission } : {}),
 });
 function runCount() {
-  if (S.crew.bstr) startFuelling();
+  if (S.crew.bstr || launchView.count.byDirector) startFuelling();
   clearInterval(launchView.countTimer);
   launchView.countTimer = setInterval(countTick, 100);
   renderPad();
 }
-export function startCount() {
+export function startCount(byDirector = false) {
   const form = launchForm, airframe = S.air.find(candidate => candidate.id == form.af && candidate.st == 'r');
   if (!airframe || quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100).error) return;
   launchView.count = newCount(runPoll(airframe, form.fuel, form.st && hasBoosterStage(airframe) ? 1 : 0), form.load / 100, airframe.label);
   // The settings go to the pad with the rocket, so changing the launch form during the count does not change this launch.
   launchView.count.form = { fuel: form.fuel, pay: form.pay, st: form.st, plan: form.plan };
+  launchView.count.byDirector = byDirector;
   openPad();
   runCount();
+}
+// AN ATTENDED FIRST (rules/invitations.js): Ellis has brought the rocket to the pad with her plan; her crews load it and run the
+// count in Watch while you watch, and the flight counts as hers. Run from the clock once nothing else is on the pad.
+export function startDirectorCount() {
+  const pad = S.auto.pad;
+  S.auto.pad = null;
+  if (!pad || !S.air.some(airframe => airframe.id == pad.af && airframe.st == 'r')) return;
+  Object.assign(launchForm, { af: pad.af, afPicked: 1, fuel: pad.fuel, pay: pad.pay, st: pad.st, load: Math.round(pad.load * 100), plan: null });
+  startCount(true);
 }
 // One 100 ms tick of the count: loading, the clock, reading out the poll, and the holds.
 function countTick() {
@@ -313,6 +323,7 @@ function launchFlight(override) {
   const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
   if (!flight) return;
+  flight.byDirector = !!count.byDirector;
   launchView.planned = flight.prediction = planned;
   flight.watch = watchedChannels(airframe, form.ch);
   flight.bubbles = { tc: { t: 'LIFTOFF', c: 'go' } };

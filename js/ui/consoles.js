@@ -92,7 +92,7 @@ function missionState(id, mission) {
 }
 // THE COUNT: the tanks, then the go/no-go poll as it is read out.
 function countState(id, count) {
-  if (id == 'tc') return state(count.hold ? `HOLD · T-${Math.ceil(count.clock)}` : `T-${Math.ceil(count.clock)} · counting`, count.hold || 'Running the count.', null, count.hold ? 'wn' : 'ok');
+  if (id == 'tc') return state(count.hold ? `HOLD · T-${Math.ceil(count.clock)}` : `T-${Math.ceil(count.clock)} · counting`, count.hold || (count.byDirector ? 'Ellis runs the count; you are watching.' : 'Running the count.'), null, count.hold ? 'wn' : 'ok');
   if (id == 'bstr' && (count.filling || count.fuel > 0) && !count.shown) return state(`Tanks ${Math.round(count.fuel * 100)}% of ${Math.round(count.target * 100)}%`, count.filling ? 'Loading and pressurizing.' : 'Tanks loaded.', count.fuel / Math.max(.01, count.target), 'ok');
   const index = count.poll.lines.findIndex(line => line.id == id), line = count.poll.lines[index];
   if (line && index < count.shown) return state(line.go ? 'GO' : 'NO-GO', line.msg || 'Ready.', null, line.go ? 'ok' : 'bad');
