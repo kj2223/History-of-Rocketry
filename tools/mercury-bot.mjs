@@ -17,7 +17,7 @@ import { orderAirframes, publishBlueprint, buildTeams, buildTeamCost } from '../
 import { startInvestigation, chooseFix, INVESTIGATION_COST } from '../js/rules/jobs.js';
 import { runPoll, scrub, facilityLock, buildFacility, stationLock, hireStation, troubleshoot, groundTest, groundTestLock, PAD_FIX_COST } from '../js/rules/launch-site.js';
 import { nasaReady, formNasa } from '../js/rules/race.js';
-import { directiveKey, boosterPlan, crewLock, orderCapsule, requirementText, capsuleSystems, targetUp } from '../js/rules/mercury.js';
+import { directiveDone, openDirectives, boosterPlan, crewLock, orderCapsule, requirementText, capsuleSystems, targetUp } from '../js/rules/mercury.js';
 import { beginMission, stepMission, endMission, decisionOptions, decisionOdds, chooseOption, missionStepSeconds } from '../js/rules/mission.js';
 import { chooseTestingRegime, startChimpTraining, answerOfficeDecision } from '../js/rules/astronaut-office.js';
 import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot } from '../js/rules/astronauts.js';
@@ -50,7 +50,8 @@ export function playMercury(game) {
   // Programmes fast enough but over their heating or aero limits with a capsule aboard: their aerodynamics research comes first.
   const overLimit = {};
   const markDirectives = () => {
-    while (S.p2 && report.directiveTimes.length < S.p2.dir) report.directiveTimes.push(game.now() - report.nasaAt);
+    // Parallel goals met out of order count when they are met.
+    while (S.p2 && report.directiveTimes.length < MERCURY_DIRECTIVES.filter(directive => directiveDone(directive.key)).length) report.directiveTimes.push(game.now() - report.nasaAt);
   };
   const advance = seconds => {
     game.advance(seconds);
@@ -159,8 +160,10 @@ export function playMercury(game) {
       report.geminiDone = true;
       break;
     }
-    const reserve = 15000, key = directiveKey();
-    const directive = MERCURY_DIRECTIVES[state.dir], orbital = state.secDone, gemini = state.fl.gem;
+    // The parallel Gemini goals: the rendezvous or docking once both seats have trained for it, the long flight meanwhile.
+    const open = openDirectives(), trained = GEMINI_SEATS.every(seat => (assignedPilot(seat) || { reh: {} }).reh.rdv);
+    const directive = (trained && open.find(each => each.rendezvous || each.dock)) || open.find(each => !each.rendezvous && !each.dock) || open[0];
+    const reserve = 15000, key = directive.key, orbital = state.secDone, gemini = state.fl.gem;
 
     // Blueprints, staff and facilities.
     // A booster milestone starts a new man-rating family, so a certified booster's blueprint only takes fixes and packages.
@@ -293,7 +296,6 @@ export function playMercury(game) {
       const agena = state.veh.find(each => each.mt == 'ag'), agenaBooster = boosterFor('ag');
       if (!agena && !S.aq.some(item => item.k == 'msn' && item.mt == 'ag') && !requirementText('ag') && S.b >= MISSION_TYPES.ag.cost + reserve) orderCapsule('ag');
       if (!agenaBooster) orderBoosterFor('ag', reserve);
-      const trained = GEMINI_SEATS.every(seat => (assignedPilot(seat) || { reh: {} }).reh.rdv);
       if (!trained) {
         advance(2);
         continue;

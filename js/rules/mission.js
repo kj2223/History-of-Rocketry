@@ -20,7 +20,7 @@
 import { formatMoney, gaussian, clamp } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES } from '../data/failures.js';
-import { MISSION_TYPES, MERCURY_DIRECTIVES, CHIMPANZEE_NAMES, MONKEY_NAMES, CAPSULE_NAMES, DECISIONS, ORBIT_SECONDS, RETROFIRE_AFTER_ORBITS, ORBITAL_ASCENT, ORBITAL_DESCENT,
+import { MISSION_TYPES, CHIMPANZEE_NAMES, MONKEY_NAMES, CAPSULE_NAMES, DECISIONS, ORBIT_SECONDS, RETROFIRE_AFTER_ORBITS, ORBITAL_ASCENT, ORBITAL_DESCENT,
   ORBITAL_TIMES, FUEL_PER_ORBIT, DRIFTING_FUEL_PER_ORBIT, THRUSTER_FAULT_FUEL, RETRO_FUEL, LOW_FUEL, SPLASH_SPREAD_KM, LONG_WAIT_KM, TRACKING_STATIONS,
   OAMS_BURN_FUEL, EVA_FUEL, RENDEZVOUS_FUEL, TARGET_DAYS } from '../data/mercury.js';
 import { S, log, addHistory, save, isResearched, isConfirmed, recordRunEvent, earn } from '../core/state.js';
@@ -29,7 +29,7 @@ import { loseReputation } from './economy.js';
 import { boosterRun, boosterFailed, boosterSucceeded } from './flight.js';
 import { recordBoosterFlight, isManRated } from './manrate.js';
 import { learn, teachingValue } from './knowledge.js';
-import { phaseTwo, boosterPlan, capsuleSystems, fulfilDirective, targetLock, recordCapability } from './mercury.js';
+import { phaseTwo, boosterPlan, capsuleSystems, fulfilDirective, openDirectives, targetLock, recordCapability } from './mercury.js';
 import { astronautById, simulatorTier, promoteBackup, assignedPilot } from './astronauts.js';
 import { recordMercuryFlight } from './budget.js';
 import { usePad, damagePad } from './site.js';
@@ -1057,10 +1057,12 @@ export function endMission(mission) {
     }
   }
   if (mission.type.orbital) orbitalRecords(mission, { crewSafe, recovered, pilot });
-  const directive = MERCURY_DIRECTIVES[state.dir];
+  // One flight can meet more than one open directive (a fourteen-day flight that also docks).
   let met = false;
-  if (directive && directive.missionType == mission.missionType) met = directiveMet(directive, mission, { ok, crewSafe, recovered, pilot, animal, state });
-  if (met) fulfilDirective(directive, pilot);
+  for (const directive of openDirectives().filter(each => each.missionType == mission.missionType)) if (directiveMet(directive, mission, { ok, crewSafe, recovered, pilot, animal, state })) {
+    fulfilDirective(directive, pilot);
+    met = true;
+  }
   if (!outcome.padShutdown && !outcome.strayLaunch) {
     const value = teachingValue(mission.boost && mission.boost.flight.tracking);
     learn('c', (outcome.heatDamage || outcome.parachuteFailed || outcome.overheated || outcome.offAttitude ? 3 : 1.5) * value);

@@ -971,6 +971,29 @@ test('meeting the last Mercury directive completes Mercury and opens Gemini, wit
   assert.equal(MERCURY_DIRECTIVES[S.p2.dir].key, 'g1');
 });
 
+test('the last Gemini goals open together and can be met in any order', async () => {
+  const { fulfilDirective, openDirectives, directiveDone } = await import('../js/rules/mercury.js');
+  const { MERCURY_DIRECTIVES } = await import('../js/data/mercury.js');
+  const goal = key => MERCURY_DIRECTIVES.find(directive => directive.key == key);
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.dir = MERCURY_DIRECTIVES.findIndex(directive => directive.key == 'g5');
+  S.day = 7000;
+  assert.deepEqual(openDirectives().map(directive => directive.key), ['g5']);
+  fulfilDirective(goal('g5'));
+  assert.deepEqual(openDirectives().map(directive => directive.key), ['g7', 'g6', 'g8']);
+  // Rendezvous first: the fourteen-day flight is still open, and the count waits for it.
+  fulfilDirective(goal('g6'));
+  assert.ok(directiveDone('g6') && !directiveDone('g7'));
+  assert.deepEqual(openDirectives().map(directive => directive.key), ['g7', 'g8']);
+  fulfilDirective(goal('g7'));
+  assert.equal(MERCURY_DIRECTIVES[S.p2.dir].key, 'g8');
+  assert.ok(!S.p2.gemDone);
+  fulfilDirective(goal('g8'));
+  assert.equal(S.p2.dir, MERCURY_DIRECTIVES.length);
+  assert.ok(S.p2.gemDone);
+});
+
 test('a Gemini spacecraft lasts four days on batteries, eight with fuel cells and fourteen with the long-duration stores', async () => {
   const { orbitChoices } = await import('../js/rules/mercury.js');
   S.nasa = 1;

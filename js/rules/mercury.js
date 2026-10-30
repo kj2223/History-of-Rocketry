@@ -64,8 +64,14 @@ export function targetLock(capsule, plan, commander, pilot) {
   if (plan == 'dock' && !capabilityShown('rdv')) return 'docking comes after a rendezvous has been flown';
   return null;
 }
-// Has the directive with this key been met?
-export const directiveDone = key => phaseTwo().dir > MERCURY_DIRECTIVES.findIndex(directive => directive.key == key);
+// Has the directive with this key been met? Parallel directives met out of order are listed in met.
+export const directiveDone = key => phaseTwo().dir > MERCURY_DIRECTIVES.findIndex(directive => directive.key == key) || (phaseTwo().met || []).includes(key);
+// The directives open now: the current one, or once the parallel group is reached, every one of it not yet met.
+export function openDirectives() {
+  const state = phaseTwo(), directive = MERCURY_DIRECTIVES[state.dir];
+  if (!directive) return [];
+  return directive.parallel ? MERCURY_DIRECTIVES.filter(each => each.parallel && !(state.met || []).includes(each.key)) : [directive];
+}
 // The mission an astronaut is assigned to train for: the suborbital flight in Section 1, the orbital flight after it, then Gemini
 // (the command pilot's seat; the pilot's seat is 'gtp').
 export const pilotMissionType = () => phaseTwo().fl.gem ? 'gt' : phaseTwo().secDone ? 'mo' : 'mr';
@@ -219,7 +225,12 @@ export function fulfilDirective(directive, astronaut) {
   S.rep = Math.min(100, S.rep + (directive.key == 'crew' || directive.key == 'ocrew' ? 20 : 8));
   addHistory(`Mercury directive met: ${directive.name}`);
   log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(directive.reward)}.`, 'hd');
-  state.dir++;
+  if (!directive.parallel) state.dir++;
+  else {
+    // A parallel directive is marked met; the count moves on past every met one at its head.
+    state.met = [...(state.met || []), directive.key];
+    while (MERCURY_DIRECTIVES[state.dir] && state.met.includes(MERCURY_DIRECTIVES[state.dir].key)) state.dir++;
+  }
   if (state.dir == sectionDirectives(1)[1]) {
     checkFirsts({ human: 1 });
     state.secDone = Math.round(S.day);

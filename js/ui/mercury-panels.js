@@ -232,6 +232,11 @@ export function mercuryDirectiveHTML() {
   }
   if (key == 'orate') progress = `<div class="m">Fly your orbital-class booster as ordinary launches or on orbital Mercury flights: every flight of its family counts. See the man-rating board.</div>`;
   if (directive.project == 'gemini') progress = geminiProgressHTML();
+  // The parallel goals are listed together: fly them in any order.
+  if (directive.parallel) {
+    const goals = MERCURY_DIRECTIVES.filter(each => each.parallel), met = state.met || [];
+    return `${sectionOne}${mercury}<div class="t">Gemini goals, in any order: ${met.length} of ${goals.length} met</div>${goals.map(each => `<div class="m">${met.includes(each.key) ? '<b class="ok">✓ met</b>' : '<b>○</b>'} <b>${each.name}</b>: ${each.description} Reward ${formatMoney(each.reward)}.</div>`).join('')}<div class="m">A backup crew assigned in the Astronaut Office trains alongside the prime crew and flies next, so one goal can be prepared while another flies.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
+  }
   return `${sectionOne}${mercury}<div class="t">${directive.project == 'gemini' ? 'Gemini directive' : directive.section ? `Section ${directive.section} directive` : 'Mercury directive'} ${state.dir - first + 1} of ${end - first}: ${directive.name}</div><div class="m">${directive.description} Reward ${formatMoney(directive.reward)}.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
 }
 
@@ -241,6 +246,10 @@ export function mercuryDirectiveTrack() {
   const state = S.p2;
   if (!state || state.gemDone) return null;
   const directive = MERCURY_DIRECTIVES[state.dir], key = directive.key;
+  if (directive.parallel) {
+    const goals = MERCURY_DIRECTIVES.filter(each => each.parallel), met = (state.met || []).length;
+    return { label: 'Gemini goals, any order', name: goals.filter(each => !(state.met || []).includes(each.key)).map(each => each.name).join(' · '), status: `${met} of ${goals.length} met`, fraction: met / goals.length };
+  }
   const group = MERCURY_DIRECTIVES.map((each, index) => (each.project || each.section || 1) == (directive.project || directive.section || 1) ? index : -1).filter(index => index >= 0);
   const label = `${directive.project == 'gemini' ? 'Gemini' : directive.section ? `Section ${directive.section}` : 'Mercury'} ${state.dir - group[0] + 1} of ${group.length}`;
   let fraction = null, status = directive.description.split('. ')[0].replace(/\.$/, '');
