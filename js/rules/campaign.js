@@ -95,11 +95,11 @@ export function goAhead() {
 // and a flight you fly yourself answers a request for guidance.
 export function recordCampaignFlight(flight, ok, peak, byDirector) {
   if (flight.programme == 'aerobee' && ok && !S.staff.director && S.progs.aerobee.okf == AEROBEE_FLIGHTS_TO_UNLOCK)
-    log('[LAUNCH] The Aerobee is flying routinely. Daniel Vega could now run its launches as campaigns while you develop the next rocket. Appoint Vega launch director on the Launch tab.', 'hd');
+    log('[LAUNCH] The Aerobee is flying routinely. Ruth Ellis could now run its launches as campaigns while you develop the next rocket. Appoint Ellis launch director on the Launch tab.', 'hd');
   if (byDirector) {
     const rank = directorRank();
     S.auto.xp = directorExperience() + 1;
-    if (directorRank() != rank) log(`[LAUNCH DIRECTOR] ${directorExperience()} flights run. The director is now ${directorRank() == 'Veteran' ? 'a veteran: it flies close to the limits and no longer slips on procedure' : 'seasoned: steadier countdowns, and it flies closer to the limits'}.`, 'ok');
+    if (directorRank() != rank) log(`[LAUNCH DIRECTOR] ${directorExperience()} flights run. Ellis is now ${directorRank() == 'Veteran' ? 'a veteran director: she flies close to the limits and no longer slips on procedure' : 'a seasoned director: steadier countdowns, and she flies closer to the limits'}.`, 'ok');
   }
   const camp = S.auto && S.auto.camp;
   if (!camp || flight.programme != camp.prog) return;

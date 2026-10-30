@@ -14,7 +14,7 @@
 // the cutoff against the planned time; the Test Conductor calls the rocket clear of the launcher; FIDO (or the RSO before there
 // is a FIDO) calls Mach one and max Q; BSTR calls booster cutoff and separation; TLM calls the payload's g when it is watched.
 //
-// THE CORE TEAM (data/team.js) is on the loop for every flight, with no console to hire: Daniel Vega calls the liftoff with the
+// THE CORE TEAM (data/team.js) is on the loop for every flight, with no console to hire: Daniel Vega, the pad lead, calls the liftoff with the
 // crew's flight count, and Samuel Morgan calls the apogee off the range radar before there is a FIDO, and any peak higher than
 // the best the range has measured.
 import { PAYLOADS } from '../data/launch.js';

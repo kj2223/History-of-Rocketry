@@ -3,7 +3,7 @@
 // here too: they speak from what the records show, never from the hidden cause. No DOM.
 //
 // S.team: { n: flights worked, ok: successful flights, rev: records analyses Ellis has led, fix: fixes signed into a design,
-//           dir: flights Vega has run as launch director, rec: records Morgan has measured, top: highest peak measured (m),
+//           dir: flights Ellis has run as launch director, rec: records Morgan has measured, top: highest peak measured (m),
 //           held: fixes that held, ru: 1 once Ellis has earned a remit (rules/remit.js), watch: fixes still on trial [{ p: programme, m: failure mode, ok: good flights since }] }
 import { CORE_TEAM } from '../data/team.js';
 import { FAILURE_MODES } from '../data/failures.js';
@@ -58,8 +58,8 @@ export function fixFailedTrial(mode) {
 // Each member's record, for the roster.
 export function memberRecord(id) {
   const team = S.team;
-  if (id == 'ellis') return `${plural(team.n, 'flight')}, ${plural(failures(), 'failure')}, ${plural(team.rev, 'review')} led, ${plural(team.fix, 'fix', 'fixes')} signed into the designs, ${fixesHeld()} held`;
-  if (id == 'vega') return `${plural(team.n, 'countdown')} run, ${team.ok} good${S.staff.director ? `, ${team.dir} as launch director` : ''}`;
+  if (id == 'ellis') return `${plural(team.n, 'flight')}, ${plural(failures(), 'failure')}, ${plural(team.rev, 'review')} led, ${plural(team.fix, 'fix', 'fixes')} signed into the designs, ${fixesHeld()} held${S.staff.director ? `, ${team.dir} run as launch director` : ''}`;
+  if (id == 'vega') return `${plural(team.n, 'countdown')} run, ${team.ok} good`;
   return `${plural(team.n, 'flight')} tracked, ${plural(team.rec, 'record')} measured${team.top ? `, best peak ${(team.top / 1000).toFixed(1)} km` : ''}`;
 }
 
