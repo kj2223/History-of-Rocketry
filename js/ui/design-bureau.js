@@ -8,34 +8,38 @@
 //   engineering file  what the team knows about each system, its failure modes and design reviews.
 //   incidents         failures not yet explained.
 import { formatMoney } from '../core/util.js';
-import { MILESTONES, AREAS, BY_ID, EFFECTS, formatEffect } from '../data/research.js';
+import { MILESTONES, AREAS, BY_ID, EFFECTS, formatEffect, isMilestone } from '../data/research.js';
 import { EXPLAINERS, CONFIDENCE_LEVELS, EXPERIMENTAL_SAYS } from '../data/research-notes.js';
 import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
 import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
 import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob, withProgramme } from '../core/state.js';
 import { trackingTiers, designation, designSpec } from '../rules/design.js';
-import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
+import { isVehicleArea, itemsInArea, itemAsSeen, researchJob, fullyResearched, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
 import { queueLock, queuePosition, queueWait, queueEntries, analysisPosition, queueAnalysisLock, fixPosition, queueFixLock, reviewPosition, queueReviewLock, RESEARCH_QUEUE_LENGTH } from '../rules/queue.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
-import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor, stagesOf } from '../rules/programs.js';
+import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor, stagesOf, isInProgramme, researchTarget, STAGE_AREAS } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
 import { INVESTIGATION_COST, investigationTime, recordsQuality } from '../rules/jobs.js';
 import { chiefOnFindings, rangeOnRecords } from '../rules/team.js';
 import { $, setHTML } from './dom.js';
 
-// The job researching an item, for the programme it belongs to (vehicle areas) or the global bundle.
-const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id && job.prog == (isVehicleArea(item.area) ? S.cur : null));
+// On a rocket with stage designs, how many of its stages have a package ("1/2"), while some still lack it; otherwise ''.
+const stageShare = id => {
+  const stages = stagesOf(S.cur), all = [...stages, S.cur].filter(kind => isInProgramme(kind, id));
+  const done = all.filter(kind => S.progs[kind].pk[id]).length;
+  return stages.length && !isMilestone(id) && all.length > 1 && done && done < all.length ? `${done}/${all.length} stages` : '';
+};
 
 const FOLD_CONFIRMED_OVER = 3; // more confirmed packages than this in a column fold into one row
 // ONE AREA'S COLUMN: breakthrough progress, the milestone slot, then a card per package (finished, in work, or on offer).
 function researchColumn(area) {
   const counts = areaCounts(area), vehicle = isVehicleArea(area), needs = breakthroughNeedsHere(area)[0];
   const hasMilestones = !vehicle || (PROGRAMMES[S.cur].hasMilestones && firstMilestoneOptions(area).length);
-  const open = itemsInArea(area).filter(item => !isResearched(item.id)), offered = open.filter(isProposed), later = open.length - offered.length;
+  const open = itemsInArea(area).filter(item => !fullyResearched(item.id)), offered = open.filter(isProposed), later = open.length - offered.length;
   let html = `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}${vehicle ? '' : ' <span class="d">all rockets</span>'}</div>`;
   if (hasMilestones) html += `<div class="r m"><span>Breakthrough</span><span>${Math.min(counts.confirmed, needs)} of ${needs} confirmed</span></div><div class="bar"><i style="width:${Math.min(100, counts.confirmed / needs * 100)}%"></i></div>` + milestoneSlot(area, needs, counts);
   else html += `<div class="m">${counts.done} of ${counts.total} done · ${counts.confirmed} confirmed</div>`;
-  const finished = itemsInArea(area).filter(item => isResearched(item.id)), confirmed = finished.filter(item => isConfirmed(item.id));
+  const finished = itemsInArea(area).filter(item => fullyResearched(item.id)), confirmed = finished.filter(item => isConfirmed(item.id));
   // A long run of confirmed work folds into one row (click to unfold) so the column still fits above the dossier.
   const folded = confirmed.length > FOLD_CONFIRMED_OVER && !researchDesk.unfolded[area];
   if (confirmed.length > FOLD_CONFIRMED_OVER) html += `<button data-a="rfold" data-id="${area}" class="rcard done chip"><span class="r"><b>${confirmed.length} confirmed</b><span>${folded ? '▸' : '▾'}</span></span></button>`;
@@ -55,12 +59,12 @@ function milestoneSlot(area, needs, counts) {
 // A compact card. Picking it shows it in the dossier. mark: shown before the name (milestones). Confirmed work shrinks to a
 // one-line chip so long columns still fit above the dossier; hovering it shows it in full there.
 function packageCard(entry, mark = '') {
-  const item = itemAsSeen(entry.id), job = researchJob(item), done = isResearched(item.id), confirmed = done && isConfirmed(item.id), queued = queuePosition(item.id);
+  const item = itemAsSeen(entry.id), job = researchJob(item), done = fullyResearched(item.id), confirmed = done && isConfirmed(item.id), queued = queuePosition(item.id), share = stageShare(item.id);
   const look = done ? (confirmed ? 'done' : 'flown') : job ? 'work' : queued >= 0 ? 'queued' : item.dud ? 'exp' : 'open';
   const tag = done ? (confirmed ? '■' : '□') : job ? '' : queued >= 0 ? `#${queued + 1}` : item.dud ? '◆' : '';
   const meta = done ? (confirmed ? 'confirmed' : 'finished, not yet confirmed') : job ? `in work: <span data-j="pk${item.id}">${job.t}s</span> left`
     : queued >= 0 ? `queued · ${formatMoney(costAfterEarmark(item))} · ${item.time}s`
-    : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}`;
+    : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}${share ? ` · done on ${share}` : ''}`;
   const progress = job ? `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '';
   if (confirmed) return `<button data-a="rpick" data-id="${item.id}" class="rcard done chip${researchDesk.pick == item.id ? ' on' : ''}" title="${item.name}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span></button>`;
   return `<button data-a="rpick" data-id="${item.id}" class="rcard ${look}${researchDesk.pick == item.id ? ' on' : ''}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span><span class="m">${meta}</span>${progress}</button>`;
@@ -143,11 +147,11 @@ function dossierExpectations(item) {
 // What can be done: commission it (or speed it up), or ground test finished work.
 function dossierActions(item) {
   const job = researchJob(item);
-  let html = '<div class="dossier-part act"><div class="t">' + (isConfirmed(item.id) ? 'CONFIRMED' : isResearched(item.id) ? 'GROUND TEST' : job ? 'IN WORK' : 'COMMISSION') + '</div>';
-  if (isResearched(item.id)) return html + (groundTestHTML(item.area, item) || `<p class="m">${isConfirmed(item.id) ? 'Nothing more to do: the work is confirmed.' : 'No ground test for this area. Fly it to confirm it.'}</p>`) + '</div>';
+  let html = '<div class="dossier-part act"><div class="t">' + (isConfirmed(item.id) ? 'CONFIRMED' : fullyResearched(item.id) ? 'GROUND TEST' : job ? 'IN WORK' : 'COMMISSION') + '</div>';
+  if (fullyResearched(item.id)) return html + (groundTestHTML(item.area, item) || `<p class="m">${isConfirmed(item.id) ? 'Nothing more to do: the work is confirmed.' : 'No ground test for this area. Fly it to confirm it.'}</p>`) + '</div>';
   if (job) html += `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div><p class="wn">In progress: <span data-j="pk${item.id}">${job.t}s</span> left${job.cr ? ' (crash schedule)' : ''}</p>${crashHTML(item, job)}`;
   else html += commissionButton(item) + queueHTML(item);
-  if (isVehicleArea(item.area)) html += '<p class="m">Finished work goes into airframes when you publish the next blueprint revision (Hangar desk).</p>';
+  if (isVehicleArea(item.area)) html += `<p class="m">${stagesOf(S.cur).length && researchTarget(item.id) != S.cur && !job ? `The development lead would put this on the ${PROGRAMMES[researchTarget(item.id)].name}, the stage furthest behind. ` : ''}Finished work goes into airframes when you publish the next blueprint revision (Hangar desk).</p>`;
   return html + '</div>';
 }
 function milestoneRow(milestone) {
@@ -250,7 +254,8 @@ const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGI
 const isUnexplained = incident => incident.st == 'open' || incident.st == 'inv' || incident.st == 'found';
 const stageCount = test => stagesOf(S.cur).reduce((sum, stage) => sum + S.progs[stage].inc.filter(test).length, 0);
 const inStage = (stage, html) => `<div data-stage="${stage}"><div class="lbl sub">${PROGRAMMES[stage].name.toUpperCase()}</div>${html}</div>`;
-// One compact row per lower stage: its engine, the widest of the team's windows on it, its open incidents and the flaws found.
+// One compact row per lower stage: its engine and revision, its research, the widest of the team's windows on it, the flaws found
+// and fixes fitted, and its open incidents.
 function stageRows() {
   return stagesOf(S.cur).map(stage => withProgramme(stage, () => {
     const bundle = S.progs[stage], open = S.inc.filter(isUnexplained).length;
@@ -258,7 +263,8 @@ function stageRows() {
       const range = believedWindow(stage, key);
       return { label, share: (range.hi - range.lo) / 2 / Math.max(1e-9, Math.abs(range.mid)) };
     }).sort((first, second) => second.share - first.share)[0];
-    return `<div class="r stage"><span><b>${PROGRAMMES[stage].name}</b> <span class="d">${PROGRAMMES[stage].engine}</span></span><span class="d">${widest.label} ±${Math.round(widest.share * 100)}% · flaws found ${bundle.traits.filter(trait => trait.found).length} of ${bundle.traits.length} · ${Object.keys(S.fix).length} fix${Object.keys(S.fix).length == 1 ? '' : 'es'} fitted</span><button data-a="rview" data-id="${open ? 'incidents' : 'file'}">${open ? `${open} INCIDENT${open > 1 ? 'S' : ''}` : 'FILE'}</button></div>`;
+    const research = STAGE_AREAS.flatMap(area => itemsInArea(area)), done = research.filter(item => isResearched(item.id)).length;
+    return `<div class="r stage"><span><b>${PROGRAMMES[stage].name}</b> <span class="d">${PROGRAMMES[stage].engine} · Rev ${bundle.bp.rev}</span></span><span class="d">research ${done} of ${research.length} · ${widest.label} ±${Math.round(widest.share * 100)}% · flaws found ${bundle.traits.filter(trait => trait.found).length} of ${bundle.traits.length} · ${Object.keys(S.fix).length} fix${Object.keys(S.fix).length == 1 ? '' : 'es'} fitted</span><button data-a="rview" data-id="${open ? 'incidents' : 'file'}">${open ? `${open} INCIDENT${open > 1 ? 'S' : ''}` : 'FILE'}</button></div>`;
   })).join('');
 }
 export function renderResearchDesk() {

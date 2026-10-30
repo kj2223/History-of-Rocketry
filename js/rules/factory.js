@@ -4,8 +4,8 @@ import { formatMoney } from '../core/util.js';
 import { BY_ID, isMilestone } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, withProgramme, earn } from '../core/state.js';
-import { designation, airframeLabel } from './design.js';
-import { batchCost, buildTime, draftChanges, experienceCarryover, makeAirframe, retrofitQuote, rocketFixes } from './production.js';
+import { designation } from './design.js';
+import { batchCost, buildTime, draftChanges, draftSize, experienceCarryover, makeAirframe, retrofitQuote, rocketFixes, blueprintConfig, fitConfig } from './production.js';
 import { startNewFamilyIfRedesigned } from './manrate.js';
 import { redesign } from './knowledge.js';
 import { deliverCapsule } from './mercury.js';
@@ -22,7 +22,7 @@ export function orderAirframes(count) {
   const cost = batchCost(count);
   if (S.b < cost) return;
   S.b -= cost;
-  const config = { pk: [...S.bp.pk], fix: { ...S.bp.fix }, rev: S.bp.rev }, times = [...Array(count)].map((_, index) => buildTime(index));
+  const config = blueprintConfig(), times = [...Array(count)].map((_, index) => buildTime(index));
   for (let i = 0; i < count; i++) S.aq.push({ k: 'build', prog: S.cur, cfg: config, cost: Math.round(cost / count), t: times[i], tot: times[i] });
   log(`[FACTORY] Ordered x${count} ${PROGRAMMES[S.cur].name} ${designation(config.pk)} to blueprint Rev ${config.rev} (${formatMoney(cost)}).`, 'wn');
 }
@@ -31,17 +31,26 @@ export function orderAirframes(count) {
 // A booster milestone starts a new man-rating family and a redesign of the system it changes.
 export const autoPublishDue = () => {
   const draft = draftChanges();
-  return S.ap.on && draft.packages.length + draft.fixes.length >= S.ap.n;
+  return S.ap.on && draftSize(draft) >= S.ap.n;
 };
 export function publishBlueprint(automatic) {
-  const draft = draftChanges(), changes = draft.packages.length + draft.fixes.length;
+  const draft = draftChanges(), changes = draftSize(draft);
   if (!changes) return;
   const keep = experienceCarryover(), before = S.line.xp;
   S.line.xp = Math.round(before * keep * 10) / 10;
-  S.bp = { rev: S.bp.rev + 1, pk: Object.keys(S.pk), fix: rocketFixes() };
+  // The rocket (its top stage, and every stage's fixes) and each lower stage with new work publish their own revisions.
+  const published = [];
+  if (draft.packages.length + draft.fixes.length) {
+    S.bp = { rev: S.bp.rev + 1, pk: Object.keys(S.pk), fix: rocketFixes() };
+    published.push(`blueprint Rev ${S.bp.rev}`);
+  }
+  for (const stage of new Set(draft.stages.map(change => change.stage))) {
+    S.progs[stage].bp = { ...S.progs[stage].bp, rev: S.progs[stage].bp.rev + 1, pk: Object.keys(S.progs[stage].pk) };
+    published.push(`${PROGRAMMES[stage].name} Rev ${S.progs[stage].bp.rev}`);
+  }
   startNewFamilyIfRedesigned(draft.packages, S.bp.rev);
   for (const id of draft.packages) if (BY_ID[id] && isMilestone(id) && BY_ID[id].phase != 2 && BY_ID[id].area) redesign(BY_ID[id].area);
-  log(`[DRAWING OFFICE] ${automatic ? 'Auto-published' : 'Published'} blueprint Rev ${S.bp.rev} with ${changes} change${changes > 1 ? 's' : ''}. The line keeps ${Math.round(keep * 100)}% of its experience (${before.toFixed(1)} to ${S.line.xp.toFixed(1)} units).`, 'ok');
+  log(`[DRAWING OFFICE] ${automatic ? 'Auto-published' : 'Published'} ${published.join(' and ')} with ${changes} change${changes > 1 ? 's' : ''}. The line keeps ${Math.round(keep * 100)}% of its experience (${before.toFixed(1)} to ${S.line.xp.toFixed(1)} units).`, 'ok');
 }
 
 // HELD FOR LAUNCH: an airframe you mean to fly yourself (airframe.hold, set from the launch form or by starting its count), or the
@@ -59,7 +68,7 @@ export function queueRetrofit(id) {
   withProgramme(airframe.prog, () => {
     S.b -= quote.cost;
     airframe.st = 'queued';
-    S.aq.push({ k: 'retro', af: airframe.id, prog: airframe.prog, cfg: { pk: [...S.bp.pk], fix: { ...S.bp.fix }, rev: S.bp.rev }, cost: quote.cost, t: quote.time, tot: quote.time });
+    S.aq.push({ k: 'retro', af: airframe.id, prog: airframe.prog, cfg: blueprintConfig(), cost: quote.cost, t: quote.time, tot: quote.time });
     log(`[FACTORY] ${airframe.label} queued for upgrade to Rev ${S.bp.rev} (${formatMoney(quote.cost)}).`, 'wn');
   });
 }
@@ -99,11 +108,8 @@ export function factoryTick() {
 function finishUpgrade(item) {
   const airframe = S.air.find(candidate => candidate.id == item.af);
   if (!airframe) return;
-  airframe.pk = [...item.cfg.pk];
-  airframe.fix = { ...item.cfg.fix };
-  airframe.rev = item.cfg.rev;
+  fitConfig(airframe, item.cfg);
   airframe.st = 'r';
-  airframe.label = airframeLabel(airframe.prog, airframe.pk, airframe.id);
   log(`[FACTORY] ${airframe.label} upgraded to blueprint Rev ${airframe.rev}.`, 'ok');
 }
 function deliverAirframe(item) {

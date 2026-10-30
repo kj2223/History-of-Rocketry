@@ -22,7 +22,7 @@ import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES, SYMPTOMS, visibleSymptoms, findFix } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, save, isConfirmed, addHistory, recordRunEvent, withProgramme, earn } from '../core/state.js';
-import { baseDesign, designSpec, fixModifiers, trackingTiers, quoteLaunch } from './design.js';
+import { designSpec, fixModifiers, trackingTiers, quoteLaunch } from './design.js';
 import { recoveryPlan, recoverPayload } from './recovery.js';
 import { FAILURE_WARNINGS, WARNING_SECONDS } from './telemetry.js';
 import { confirmPackage, checkBreakthroughs } from './research.js';
@@ -36,6 +36,7 @@ import { recordCampaignFlight } from './campaign.js';
 import { recordFirsts } from './invitations.js';
 import { recordTeamFlight, recordFixTrials } from './team.js';
 import { lowerStage } from './stages.js';
+import { stagePackages } from './production.js';
 
 // What is in the air right now: the UI's launch view (and the launch director) keep the flight or Mercury mission here.
 export const airborne = { flight: null, mission: null };
@@ -163,7 +164,7 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
     isp: propellant.isp * engineGain, vacuumIsp: propellant.vacuumIsp * engineGain,
   }, build, onTheDay, efficiency, residualShare());
   // A rocket with stage designs flies its lower stage's own figures, flaws and fixes (rules/stages.js); older rockets their booster.
-  const lower = stage && programme.stages ? lowerStage(programmeKey, airframe, spec, propellant, load, options.estimated) : null;
+  const lower = stage && programme.stages ? lowerStage(programmeKey, airframe, propellant, load, options.estimated) : null;
   const stages = lower || (stage && programme.booster) ? [readyStage(lower || boosterStage(programme, spec, modifiers, propellant, load), build, onTheDay, efficiency, residualShare()), core] : [core];
   stages[0].litAt = 0;
   const coreBurnTime = burnSeconds(core);
@@ -174,8 +175,8 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   const experience = Math.min(PROPELLANT_EXPERIENCE.max, (S.fr[propellantName] || 0) * PROPELLANT_EXPERIENCE.perFlight)
     + Math.min(ROCKET_EXPERIENCE.max, successfulFlights(programmeKey) * ROCKET_EXPERIENCE.perFlight);
   const reliability = Math.min(.99, propellant.reliability + experience + spec.r - Math.min(.08, unproven * .012) + .07 * maturity(programmeKey) / 100);
-  // A lower stage's reliability rests on its own design's offset in place of the top stage's (its packages still count).
-  if (lower) stages[0].reliability = Math.min(.99, reliability - baseDesign(options.estimated).r + lower.r);
+  // A lower stage's reliability rests on its own design's offset and research in place of the top stage's.
+  if (lower) stages[0].reliability = Math.min(.99, reliability - spec.r + lower.r);
   return {
     airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over, plan: options.plan || null,
     propellant: propellantName, payload: payloadName, satellite: !!payload.satellite, payloadMass: payload.mass, separationRisk: 1,
@@ -650,13 +651,15 @@ function endFlightForProgramme(flight, ok, why) {
 }
 
 // A lower stage with a design of its own learns its engine and tanks from every flight it flies, and most from its own failures.
+// A stage that burned through to separation confirms the packages it carried.
 function stagesLearn(flight) {
   const value = teachingValue(flight.tracking);
-  for (const each of flight.stages) if (each.stage) withProgramme(each.stage, () => {
+  flight.stages.forEach((each, index) => each.stage && withProgramme(each.stage, () => {
     for (const area of ['p', 's']) learn(area, .8 * value);
     if (flight.failStage == each.stage) learn(systemOf(flight.failure), 2.5 * value);
+    else if (flight.stageIndex > index) for (const id of stagePackages(flight.airframe, each.stage)) confirmPackage(id, 'Flight');
     revealTraits(each.stage);
-  });
+  }));
 }
 
 // MERCURY BOOSTERS: one of your airframes flies its normal physics and failure model with a capsule aboard, from liftoff to burnout.

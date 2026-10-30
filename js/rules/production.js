@@ -35,18 +35,29 @@ export const rocketFixes = () => {
   for (const stage of stagesOf(S.cur)) for (const mode in S.progs[stage].fix) fixes[fixKeyFor(stage, mode)] = S.progs[stage].fix[mode];
   return fixes;
 };
+// A lower stage's finished packages ride in its own blueprint (S.progs[stage].bp), listed in the draft as stages: [{ stage, id }].
 export const draftChanges = () => {
   const fixes = rocketFixes();
   return {
     packages: Object.keys(S.pk).filter(id => !S.bp.pk.includes(id)),
     fixes: Object.keys(fixes).filter(mode => S.bp.fix[mode] != fixes[mode]),
+    stages: stagesOf(S.cur).flatMap(stage => Object.keys(S.progs[stage].pk).filter(id => !S.progs[stage].bp.pk.includes(id)).map(id => ({ stage, id }))),
   };
 };
-// How much line experience publishing the draft keeps: small packages 85% each, a milestone (retooling) 40%, a corrective fix 97%.
+export const draftSize = draft => draft.packages.length + draft.fixes.length + draft.stages.length;
+// How much line experience publishing the draft keeps: small packages 85% each (a stage's too), a milestone (retooling) 40%,
+// a corrective fix 97%.
 export function experienceCarryover() {
   const draft = draftChanges(), milestones = draft.packages.filter(isMilestone).length;
-  return Math.pow(.85, draft.packages.length - milestones) * Math.pow(.4, milestones) * Math.pow(.97, draft.fixes.length);
+  return Math.pow(.85, draft.packages.length - milestones + draft.stages.length) * Math.pow(.4, milestones) * Math.pow(.97, draft.fixes.length);
 }
+// The published configuration of the rocket in focus, as airframes are built to it: its packages, fixes and revision, and each
+// lower stage's packages and revision (stg).
+export const blueprintConfig = () => ({
+  pk: [...S.bp.pk], fix: { ...S.bp.fix }, rev: S.bp.rev,
+  stg: Object.fromEntries(stagesOf(S.cur).map(stage => [stage, { pk: [...S.progs[stage].bp.pk], rev: S.progs[stage].bp.rev }])),
+});
+const copyStages = stages => Object.fromEntries(Object.entries(stages || {}).map(([stage, config]) => [stage, { pk: [...config.pk], rev: config.rev }]));
 
 // BUILD VARIATION: no two airframes come out the same. Each one's thrust, dry mass and drag differ a little from the drawings,
 // typically by 3%, 2% and 4% (never more than two and a half times that). A practised line builds more consistently: the spread
@@ -62,11 +73,18 @@ export function buildVariation(experience) {
   return variation;
 }
 
-// A new airframe built to a blueprint configuration { pk, fix, rev }.
+// A new airframe built to a blueprint configuration { pk, fix, rev, stg }.
 export const makeAirframe = (config, cost, programme = S.cur) => {
   const id = S.nid++, line = S.progs[programme] && S.progs[programme].line;
-  return { id, prog: programme, pk: [...config.pk], fix: { ...config.fix }, rev: config.rev || 1, cost, st: 'r', built: today(), label: airframeLabel(programme, config.pk, id), vr: buildVariation(line ? line.xp : 0) };
+  return { id, prog: programme, pk: [...config.pk], fix: { ...config.fix }, rev: config.rev || 1, stg: copyStages(config.stg), cost, st: 'r', built: today(), label: airframeLabel(programme, config.pk, id), vr: buildVariation(line ? line.xp : 0) };
 };
+// Bring an airframe to a configuration (an upgrade).
+export function fitConfig(airframe, config) {
+  Object.assign(airframe, { pk: [...config.pk], fix: { ...config.fix }, rev: config.rev, stg: copyStages(config.stg) });
+  airframe.label = airframeLabel(airframe.prog, airframe.pk, airframe.id);
+}
+// The packages an airframe's lower stage carries.
+export const stagePackages = (airframe, stage) => airframe.stg && airframe.stg[stage] ? airframe.stg[stage].pk : [];
 
 // Upgrading a built airframe to the published blueprint: one factory job however many changes it carries.
 // $600 plus 15% of each missing package's and fix's cost; 6 seconds plus 2 per change; both reduced by line learning.
@@ -77,10 +95,11 @@ export function retrofitQuote(airframe) {
 function retrofitQuoteForProgramme(airframe) {
   const missingPackages = S.bp.pk.filter(id => !airframe.pk.includes(id));
   const changedFixes = Object.keys(S.bp.fix).filter(mode => airframe.fix[mode] != S.bp.fix[mode]);
-  const changes = missingPackages.length + changedFixes.length;
+  const missingStagePackages = stagesOf(S.cur).flatMap(stage => S.progs[stage].bp.pk.filter(id => !stagePackages(airframe, stage).includes(id)));
+  const changes = missingPackages.length + changedFixes.length + missingStagePackages.length;
   if (!changes) return null;
   let cost = 600;
-  missingPackages.forEach(id => cost += itemAsSeen(id).cost * .15);
+  [...missingPackages, ...missingStagePackages].forEach(id => cost += itemAsSeen(id).cost * .15);
   changedFixes.forEach(mode => cost += findFix(mode, S.bp.fix[mode]).cost * .15);
   return { changes, cost: Math.round(cost * lineLearning(lineExperience())), time: Math.round((6 + 2 * changes) * lineLearning(lineExperience())) };
 }

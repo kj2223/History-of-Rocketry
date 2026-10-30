@@ -10,7 +10,7 @@ import { FACILITIES, STATIONS } from '../js/data/launch-site.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { PROGRAMMES } from '../js/data/programmes.js';
 import { researchLock, commission, itemsInArea } from '../js/rules/research.js';
-import { unitCost, draftChanges } from '../js/rules/production.js';
+import { unitCost, draftChanges, draftSize } from '../js/rules/production.js';
 import { candidates, startLock, startProgramme, stagesOf } from '../js/rules/programs.js';
 import { hire, engineeringTeamCost } from '../js/rules/game.js';
 import { orderAirframes, publishBlueprint, buildTeams, buildTeamCost } from '../js/rules/factory.js';
@@ -182,7 +182,7 @@ export function playMercury(game) {
     for (const kind of readyProgrammes()) withProgramme(kind, () => {
       const draft = draftChanges();
       if (isFamilyCertified(kind) && draft.packages.some(isMilestone)) return;
-      if (draft.packages.length + draft.fixes.length) publishBlueprint();
+      if (draftSize(draft)) publishBlueprint();
     });
     if (S.teams < 6 && S.b > engineeringTeamCost() + reserve + 30000) hire('team');
     // Short of money: ask Congress for more next year.

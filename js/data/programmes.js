@@ -81,20 +81,22 @@ export const PROGRAMMES = {
     propellants: ['Aerozine & N2O4'], hasMilestones: 1, canOrbit: 1, stages: ['titan1'],
     why: 'An Air Force missile burning propellants that ignite on contact: no igniters, and it can sit fuelled for months. Strong enough to lift the two-man Gemini, but it shakes along its length (pogo) until that is cured.',
   },
-  // STAGE DESIGNS (Apollo step 3): a lower stage with its own true figures, flaws, failures and fixes, kept in a bundle of its own
-  // (rules/stages.js). The rocket's own design is its top stage. stageOf: the rocket it belongs to; it is never started, built or
-  // flown alone. design: as a rocket's, but f is the propellant it carries (kg) and isp its engine's specific impulse (s).
+  // STAGE DESIGNS (Apollo step 3): a lower stage with its own true figures, flaws, research, failures and fixes, kept in a bundle of
+  // its own (rules/stages.js). The rocket's own design is its top stage. stageOf: the rocket it belongs to; it is never started,
+  // built or flown alone. design: as a rocket's, but f is the propellant it carries (kg) and isp its engine's specific impulse (s).
+  // A stage researches the rocket's propulsion and structures packages (the development lead picks the stage for each one);
+  // sizeScale sizes their propellant effects to the stage, dryScale their dry-mass effects (a stage is mostly tank).
   atlas1: {
     name: 'Atlas booster section', engine: 'two LR89s', stageOf: 'atlas', year: 1958, generation: 5,
     design: { dry: 1900, f: 15000, thr: 250000, isp: 280, g: 8, h: 2.8, q: 1.8, c: .8, r: -.02, i: 2.2 },
-    sizeScale: 6, costScale: 3, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    sizeScale: 150, dryScale: 38, costScale: 3, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
     propellants: ['Kerosene & LOX'],
     why: 'The Atlas is a stage and a half: two booster engines and their skirt drop away two minutes up, and the sustainer flies on alone on the same tanks.',
   },
   titan1: {
     name: 'Titan II first stage', engine: 'LR87', stageOf: 'titan', year: 1962, generation: 6,
     design: { dry: 2300, f: 26000, thr: 380000, isp: 285, g: 9, h: 3, q: 2, c: .8, r: 0, i: 2.4 },
-    sizeScale: 7, costScale: 3.2, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    sizeScale: 200, dryScale: 38, costScale: 3.2, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
     propellants: ['Aerozine & N2O4'],
     why: 'Twin-chamber LR87 engines on a stage of thin aluminium tanks: most of the Titan II\'s weight and nearly all of its thrust at liftoff.',
   },
@@ -123,8 +125,7 @@ export const TRAITS = [
 ];
 export const traitByKey = key => TRAITS.find(trait => trait.key == key);
 // The flaws a lower stage can be born with: its engine, plumbing and tanks. Heating, fins and separation belong to the whole stack.
-// Overweight and underpowered stages wait for research of their own (stage identity, part 2): nothing could yet cure them.
-export const STAGE_TRAITS = ['rough', 'pump', 'start', 'leak', 'thin'];
+export const STAGE_TRAITS = ['rough', 'pump', 'start', 'leak', 'thin', 'heavy', 'weak'];
 
 // The design figures the team does not know exactly. area: the knowledge area that narrows the window.
 // startWidth: how wide the window starts, as a fraction of the value either side (reliability: in points).

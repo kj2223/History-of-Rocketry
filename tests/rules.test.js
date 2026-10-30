@@ -4,17 +4,17 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID, isMilestone } from '../js/data/research.js';
-import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
+import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea, fullyResearched } from '../js/rules/research.js';
 import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, queueFix, fixPosition, queueReview, reviewPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond, catchUp } from '../js/rules/game.js';
-import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages, ensureStages, stagesOf } from '../js/rules/programs.js';
+import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages, ensureStages, stagesOf, researchTarget } from '../js/rules/programs.js';
 import { lowerStage } from '../js/rules/stages.js';
 import { PROPELLANTS } from '../js/data/launch.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
-import { makeAirframe, retrofitQuote } from '../js/rules/production.js';
+import { makeAirframe, retrofitQuote, draftChanges, blueprintConfig } from '../js/rules/production.js';
 import { publishBlueprint, holdForLaunch } from '../js/rules/factory.js';
 import { previewFlight, beginFlight, step, hasEvent, endFlight } from '../js/rules/flight.js';
 import { designSpec } from '../js/rules/design.js';
@@ -23,7 +23,7 @@ import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD }
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
 import { autoLaunch } from '../js/rules/auto.js';
 import { filedModes, systemOf } from '../js/rules/knowledge.js';
-import { startInvestigation, acceptFinding, nameCause, extendInvestigation } from '../js/rules/jobs.js';
+import { startInvestigation, acceptFinding, nameCause, extendInvestigation, finishJob } from '../js/rules/jobs.js';
 import { startCampaign, goAhead, directorMargin, recordCampaignFlight, provenProgramme, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL, FLIGHTS_TO_PROVE } from '../js/rules/campaign.js';
 import { runPoll } from '../js/rules/launch-site.js';
 
@@ -1792,9 +1792,51 @@ test("a stage's fix rides in the rocket's blueprint and lowers that stage's risk
   withProgramme('titan', () => publishBlueprint());
   assert.equal(S.progs.titan.bp.fix['p@titan1'], 'ind');
   assert.equal(S.progs.titan.bp.fix.p, undefined);
-  const spec = withProgramme('titan', () => designSpec([]));
-  const bare = withProgramme('titan', () => lowerStage('titan', airframe, spec, PROPELLANTS['Aerozine & N2O4']));
-  const fixed = withProgramme('titan', () => lowerStage('titan', { ...airframe, fix: { 'p@titan1': 'ind' } }, spec, PROPELLANTS['Aerozine & N2O4']));
+  const bare = withProgramme('titan', () => lowerStage('titan', airframe, PROPELLANTS['Aerozine & N2O4']));
+  const fixed = withProgramme('titan', () => lowerStage('titan', { ...airframe, fix: { 'p@titan1': 'ind' } }, PROPELLANTS['Aerozine & N2O4']));
   assert.ok(fixed.modeMultipliers.p < bare.modeMultipliers.p);
   assert.ok(fixed.dry > bare.dry, 'the inducer adds its mass to the stage');
+});
+
+test('the development lead puts each propulsion package on the stage furthest behind', () => {
+  readyProgramme('titan');
+  S.b = 1e6;
+  const id = programmePackages('titan', 'p')[0].id;
+  const research = () => withProgramme('titan', () => {
+    commission(id);
+    const job = S.jobs.pop();
+    finishJob(job);
+    return job.prog;
+  });
+  assert.equal(research(), 'titan1', 'the lower stage first on a tie');
+  assert.ok(S.progs.titan1.pk[id] && !S.progs.titan.pk[id]);
+  assert.equal(withProgramme('titan', () => fullyResearched(id)), false, 'still on offer for the top stage');
+  assert.equal(research(), 'titan');
+  assert.equal(withProgramme('titan', () => fullyResearched(id)), true);
+  assert.equal(withProgramme('titan', () => researchTarget(id)), null);
+});
+
+test("a stage's research gets its own blueprint revision, and airframes and upgrades carry it", () => {
+  const airframe = readyProgramme('titan');
+  const id = programmePackages('titan', 'p')[0].id;
+  withProgramme('titan1', () => giveResearch([id]));
+  withProgramme('titan', () => {
+    assert.deepEqual(draftChanges().stages, [{ stage: 'titan1', id }]);
+    publishBlueprint();
+    assert.equal(S.progs.titan1.bp.rev, 2);
+    assert.equal(S.bp.rev, 1, 'the rocket keeps its revision when only a stage changed');
+    assert.deepEqual(S.progs.titan1.bp.pk, [id]);
+    assert.equal(retrofitQuote(airframe).changes, 1);
+    assert.deepEqual(makeAirframe(blueprintConfig(), 0, 'titan').stg.titan1, { pk: [id], rev: 2 });
+  });
+});
+
+test("a stage's own research changes how it flies; the rocket's research does not reach it", () => {
+  const airframe = readyProgramme('titan');
+  const thrust = programmePackages('titan', 'p').find(item => item.effects.t > 0).id, propellant = PROPELLANTS['Aerozine & N2O4'];
+  withProgramme('titan1', () => giveResearch([thrust]));
+  withProgramme('titan', () => giveResearch([thrust]));
+  const bare = withProgramme('titan', () => lowerStage('titan', airframe, propellant));
+  assert.equal(withProgramme('titan', () => lowerStage('titan', { ...airframe, pk: [thrust] }, propellant)).thrust, bare.thrust);
+  assert.ok(withProgramme('titan', () => lowerStage('titan', { ...airframe, stg: { titan1: { pk: [thrust], rev: 2 } } }, propellant)).thrust > bare.thrust);
 });
