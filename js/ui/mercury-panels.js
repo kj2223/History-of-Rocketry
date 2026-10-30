@@ -9,7 +9,7 @@ import { SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS } from '../data/
 import { MISSION_TYPES, MERCURY_DIRECTIVES, TESTING_REGIMES, OFFICE_DECISIONS, CHIMP_TRAINING_COST, ORBIT_SECONDS } from '../data/mercury.js';
 import { S, formatDate, isResearched } from '../core/state.js';
 import { skillEstimate, isQualified, simulatorTier, activeAstronauts, assignedPilot, assignmentName } from '../rules/astronauts.js';
-import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters, pilotMissionType, orbitChoices, orbitalBoosterCertified } from '../rules/mercury.js';
+import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters, pilotMissionType, orbitChoices, orbitalBoosterCertified, targetUp, targetLock } from '../rules/mercury.js';
 import { manRatingRecord, cleanFlightsNeeded, MAN_RATING_RESEARCH, manRatingResearchFor, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
 import { quoteLaunch } from '../rules/design.js';
 import { $, escapeHtml, percent, setHTML } from './dom.js';
@@ -107,7 +107,8 @@ const SYSTEMS_SHOWN = {
   ma: [['hs', 'Heat shield'], ['ec', 'Environmental control'], ['pc', 'Parachutes']],
   mr: [['as', 'Abort sensing'], ['et', 'Escape tower'], ['tj', 'Tower jettison'], ['ac', 'Attitude control'], ['ec', 'Environmental control'], ['hs', 'Heat shield'], ['pc', 'Parachutes'], ['lb', 'Landing bag']],
   mo: [['as', 'Abort sensing'], ['et', 'Escape tower'], ['ac', 'Attitude control'], ['ec', 'Environmental control'], ['rr', 'Retrorockets'], ['hs', 'Heat shield'], ['pc', 'Parachutes'], ['lb', 'Landing bag']],
-  gt: [['es', 'Ejection seats'], ['om', 'Manoeuvring thrusters'], ['ac', 'Attitude control'], ['ec', 'Environmental control'], ['ev', 'Spacewalk suit'], ['rr', 'Retrorockets'], ['hs', 'Heat shield'], ['pc', 'Parachutes']],
+  gt: [['es', 'Ejection seats'], ['om', 'Manoeuvring thrusters'], ['ac', 'Attitude control'], ['ec', 'Environmental control'], ['ev', 'Spacewalk suit'], ['rv', 'Rendezvous radar'], ['rr', 'Retrorockets'], ['hs', 'Heat shield'], ['pc', 'Parachutes']],
+  ag: [['ac', 'Attitude control'], ['rv', 'Docking adapter']],
 };
 const kilometres = metres => `${Math.round(metres / 1000).toLocaleString()} km`;
 const hoursAloft = orbits => `about ${Math.round(orbits * ORBIT_SECONDS / 360) / 10} hours`;
@@ -168,7 +169,7 @@ function flightPreparationHTML(state, capsules, boosters) {
 <select data-mb="1">${boosters.length ? plans.map(({ airframe, plan: option }) => `<option value="${airframe.id}"${airframe.id == state.lb ? ' selected' : ''}>Booster: ${airframe.label}, Rev ${airframe.rev}${isManRated(airframe) ? ' • man-rated' : ''}${option.ok ? '' : option.overLimit ? ' • over its limits' : ' • too weak'}</option>`).join('') : '<option>No boosters in the hangar</option>'}</select>
 <select data-mf="1">${propellants.map(propellant => `<option${propellant == state.lf ? ' selected' : ''}>${propellant}</option>`).join('')}</select>
 <select data-mc="1">${crewChoices.map(choice => `<option value="${choice}"${choice == state.lc ? ' selected' : ''}>${crewName(choice)}</option>`).join('')}</select>
-${type.orbital ? `<select data-mo="1">${orbits.map(count => `<option value="${count}"${count == state.lo ? ' selected' : ''}>${count} orbit${count > 1 ? 's' : ''} (${hoursAloft(count)})</option>`).join('')}</select>${type.gemini ? geminiNotesHTML(state, capsule, systems) : `<div class="m">The capsule's oxygen, coolant and batteries last ${systems.endurance} orbits${systems.endurance < 22 ? '; research stretches them' : ''}. Attitude fuel is spent holding the capsule steady, most of it in the first three orbits, and it must last through retrofire.</div>`}` : ''}
+${type.target ? `<div class="m">${agenaText()}</div>` : ''}${type.orbital && !type.target ? `<select data-mo="1">${orbits.map(count => `<option value="${count}"${count == state.lo ? ' selected' : ''}>${count} orbit${count > 1 ? 's' : ''} (${hoursAloft(count)})</option>`).join('')}</select>${type.gemini ? geminiNotesHTML(state, capsule, systems) : `<div class="m">The capsule's oxygen, coolant and batteries last ${systems.endurance} orbits${systems.endurance < 22 ? '; research stretches them' : ''}. Attitude fuel is spent holding the capsule steady, most of it in the first three orbits, and it must last through retrofire.</div>`}` : ''}
 ${booster ? `<div class="m">With the capsule aboard, ${booster.label} ${plan.staged ? '(staged)' : '(single stage)'}${plan.ok && plan.load < 1 ? `, off-loaded to ${Math.round(plan.load * 100)}% propellant to stay inside its limits,` : ''} should reach <b>${kilometres(plan.preview.peakAltitude)}</b> and <b>${Math.round(plan.preview.peakSpeed).toLocaleString()} m/s</b>. This mission needs ${needText(capsule.mt)}: ${plan.ok ? '<b class="ok">enough</b>' : plan.overLimit ? '<b class="bad">not safely</b>' : '<b class="bad">not enough</b>'}. Liftoff thrust-to-weight ${plan.preview.thrustToWeight.toFixed(2)}, peak skin heating ${Math.round(plan.preview.maxHeat * 100)}% and aero load ${Math.round(plan.preview.maxQ * 100)}% of limit.${quote && !quote.error ? ` Propellant and pad ${formatMoney(quote.cost)}.` : ''}</div>` : ''}
 <div class="m">Capsule systems${systems.unproven ? ` (${systems.unproven} unproven package${systems.unproven > 1 ? 's' : ''} aboard)` : ''}:</div><div class="rels">${shown.map(([key, name]) => `<div class="r"><span class="d">${name}</span><b class="${systems.reliability(key) < .85 ? 'bad' : systems.reliability(key) < .92 ? 'wn' : 'ok'}">${percent(systems.reliability(key))}</b></div>`).join('')}</div>
 <button data-a="mcount" class="big"${lock ? ' disabled' : ''}>BEGIN COUNTDOWN</button>${lock ? `<div class="m bad">${lock}</div>` : ''}</div>`;
@@ -181,8 +182,17 @@ function geminiNotesHTML(state, capsule, systems) {
   if (evaLock) state.le = 0;
   const eva = evaLock ? `<div class="m">Spacewalk: ${evaLock}.</div>`
     : `<select data-me="1"><option value="0"${state.le ? '' : ' selected'}>No spacewalk</option><option value="1"${state.le ? ' selected' : ''}>Spacewalk on the third orbit</option></select>`;
-  return `<div class="m">The spacecraft lasts ${systems.endurance} orbits${systems.endurance < 206 ? '; fuel cells and long-duration stores stretch it' : ''}. ${aboard('gm_oams') ? 'The manoeuvring thrusters change orbit on the first orbit.' : `Built without the ${BY_ID.gm_oams.name}: it cannot change orbit.`}</div>${eva}`;
+  return `<div class="m">The spacecraft lasts ${systems.endurance} orbits${systems.endurance < 206 ? '; fuel cells and long-duration stores stretch it' : ''}. ${aboard('gm_oams') ? 'The manoeuvring thrusters change orbit on the first orbit.' : `Built without the ${BY_ID.gm_oams.name}: it cannot change orbit.`}</div>${eva}${targetHTML(state, capsule)}`;
 }
+// The rendezvous or docking choice (state.lr: 0, 'rdv' or 'dock'), each offered only when rules/mercury.js targetLock allows it.
+function targetHTML(state, capsule) {
+  const commander = assignedPilot('gt'), pilot = assignedPilot('gtp');
+  const locks = { rdv: targetLock(capsule, 'rdv', commander, pilot), dock: targetLock(capsule, 'dock', commander, pilot) };
+  if (state.lr && locks[state.lr]) state.lr = 0;
+  if (locks.rdv) return `<div class="m">Rendezvous: ${locks.rdv}.</div>`;
+  return `<select data-mr="1"><option value="0"${state.lr ? '' : ' selected'}>No rendezvous</option><option value="rdv"${state.lr == 'rdv' ? ' selected' : ''}>Rendezvous with the Agena</option>${locks.dock ? '' : `<option value="dock"${state.lr == 'dock' ? ' selected' : ''}>Rendezvous and dock with the Agena</option>`}</select>${locks.dock ? `<div class="m">Docking: ${locks.dock}.</div>` : ''}<div class="m">${agenaText()}</div>`;
+}
+const agenaText = () => targetUp() ? `An Agena target is in orbit until ${formatDate(S.p2.tgt)}.` : 'No Agena target in orbit. It stays up about three months once launched.';
 
 // THE MERCURY DIRECTIVE panel, with progress notes for the directive in hand.
 function sideNotesHTML(state) {
@@ -194,14 +204,21 @@ function sideNotesHTML(state) {
 function geminiProgressHTML() {
   const pad = S.fac.lc19 ? '<b class="ok">in service</b>' : S.fb && S.fb.lc19 ? `in service around ${formatDate(S.fb.lc19)}` : '<b class="wn">not built</b> (Base desk)';
   const titan = !S.progs.titan ? '<b class="wn">not started</b> (R&D desk)' : isFamilyCertified('titan') ? '<b class="ok">man-rated</b>' : 'started, not yet man-rated';
-  return `<div class="m">Gemini spacecraft design: ${isResearched('gm_cap') ? '<b class="ok">done</b>' : 'not yet (R&D desk)'}. Titan II: ${titan}. Launch Complex 19: ${pad}. Gemini simulator: ${S.fac.gsim ? '<b class="ok">in service</b>' : 'not built, so crews train at half rate'}.</div>`;
+  return `<div class="m">Gemini spacecraft design: ${isResearched('gm_cap') ? '<b class="ok">done</b>' : 'not yet (R&D desk)'}. Titan II: ${titan}. Launch Complex 19: ${pad}. Gemini simulator: ${S.fac.gsim ? '<b class="ok">in service</b>' : 'not built, so crews train at half rate'}.</div>${capabilitiesHTML()}`;
+}
+// What Gemini has shown in flight, each on the configuration that showed it (rules/mercury.js recordCapability).
+const CAPABILITY_NAMES = { eva: 'Spacewalk', rdv: 'Rendezvous', dock: 'Docking' };
+function capabilitiesHTML() {
+  const records = S.p2.cap || [];
+  if (!records.length) return '';
+  return `<div class="m">Shown in flight: ${records.map(record => `${CAPABILITY_NAMES[record.k]} (${MISSION_TYPES[record.mt].capsuleName} Rev ${record.rev} on ${PROGRAMMES[record.by] ? PROGRAMMES[record.by].name : 'its booster'}, ${formatDate(record.d)})`).join('; ')}.</div>`;
 }
 export function mercuryDirectiveHTML() {
   const state = S.p2;
   if (!state) return '';
   const sectionOne = state.secDone ? `<div class="ok">Section 1 complete ${formatDate(state.secDone)}: an American has flown in space.</div><button data-a="sec1">VIEW SECTION 1 SUMMARY</button>` : '';
   const mercury = state.mercDone ? `<div class="ok">Project Mercury complete ${formatDate(state.mercDone)}: an American has spent a day in orbit.</div>` : '';
-  if (state.gemDone) return `${sectionOne}${mercury}<div class="ok">Eight days in orbit on Gemini, ${formatDate(state.gemDone)}.</div><div class="m">The rest of Gemini (rendezvous, the fourteen-day flight and docking with an Agena) is in development.</div>`;
+  if (state.gemDone) return `${sectionOne}${mercury}<div class="ok">Project Gemini complete ${formatDate(state.gemDone)}: two weeks in orbit, spacewalks, rendezvous and docking.</div><div class="m">Apollo is next.</div>`;
   const directive = MERCURY_DIRECTIVES[state.dir], key = directive.key;
   // Gemini directives are counted on their own; the rest within their section.
   const group = MERCURY_DIRECTIVES.map((each, index) => (each.project || each.section || 1) == (directive.project || directive.section || 1) ? index : -1).filter(index => index >= 0);
@@ -215,6 +232,11 @@ export function mercuryDirectiveHTML() {
   }
   if (key == 'orate') progress = `<div class="m">Fly your orbital-class booster as ordinary launches or on orbital Mercury flights: every flight of its family counts. See the man-rating board.</div>`;
   if (directive.project == 'gemini') progress = geminiProgressHTML();
+  // The parallel goals are listed together: fly them in any order.
+  if (directive.parallel) {
+    const goals = MERCURY_DIRECTIVES.filter(each => each.parallel), met = state.met || [];
+    return `${sectionOne}${mercury}<div class="t">Gemini goals, in any order: ${met.length} of ${goals.length} met</div>${goals.map(each => `<div class="m">${met.includes(each.key) ? '<b class="ok">✓ met</b>' : '<b>○</b>'} <b>${each.name}</b>: ${each.description} Reward ${formatMoney(each.reward)}.</div>`).join('')}<div class="m">A backup crew assigned in the Astronaut Office trains alongside the prime crew and flies next, so one goal can be prepared while another flies.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
+  }
   return `${sectionOne}${mercury}<div class="t">${directive.project == 'gemini' ? 'Gemini directive' : directive.section ? `Section ${directive.section} directive` : 'Mercury directive'} ${state.dir - first + 1} of ${end - first}: ${directive.name}</div><div class="m">${directive.description} Reward ${formatMoney(directive.reward)}.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
 }
 
@@ -224,6 +246,10 @@ export function mercuryDirectiveTrack() {
   const state = S.p2;
   if (!state || state.gemDone) return null;
   const directive = MERCURY_DIRECTIVES[state.dir], key = directive.key;
+  if (directive.parallel) {
+    const goals = MERCURY_DIRECTIVES.filter(each => each.parallel), met = (state.met || []).length;
+    return { label: 'Gemini goals, any order', name: goals.filter(each => !(state.met || []).includes(each.key)).map(each => each.name).join(' · '), status: `${met} of ${goals.length} met`, fraction: met / goals.length };
+  }
   const group = MERCURY_DIRECTIVES.map((each, index) => (each.project || each.section || 1) == (directive.project || directive.section || 1) ? index : -1).filter(index => index >= 0);
   const label = `${directive.project == 'gemini' ? 'Gemini' : directive.section ? `Section ${directive.section}` : 'Mercury'} ${state.dir - group[0] + 1} of ${group.length}`;
   let fraction = null, status = directive.description.split('. ')[0].replace(/\.$/, '');

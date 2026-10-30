@@ -6,16 +6,17 @@
 //   t      true skills { pil, sys, end, com }      bias   how far off the office's first impression is, per skill
 //   med    a hidden heart condition                kn     days of pre-selection testing (they reveal the person like training)
 //   dq     medically disqualified in testing       st     pool | active | grounded | medical | lost
-//   tday   training days                           reh    simulator rehearsals done, { emergency: 1 }
+//   tday   training days                           reh    simulator rehearsals done, { emergency: 1 }, and rdv once trained for rendezvous
 //   focus  a TRAINING_FOCUS key                    gd     days left grounded
 //   fat    fatigue, 0 to 100                       flights
 //   asg    the mission assigned ('mr', 'mo', or a Gemini seat: 'gt' command pilot, 'gtp' pilot), or null
 //   mt     mission training, 0 to 1                cap  capsule name, once flown
 //   bk     the mission they back up, or null: a backup trains alongside the pilot and takes over the next flight
+//   gem    1 once they have flown Gemini (they train faster for the next one)
 import { gaussian } from '../core/util.js';
 import { FIRST_NAMES, LAST_NAMES, SERVICES, DEGREES, SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS, REHEARSAL_KEYS } from '../data/astronauts.js';
 import { MISSION_TYPES, GEMINI_SEATS, SECOND_GROUP_SIZE } from '../data/mercury.js';
-import { S, log, addHistory } from '../core/state.js';
+import { S, log, addHistory, isResearched } from '../core/state.js';
 import { scheduleOffice } from './astronaut-office.js';
 
 const pick = list => list[Math.floor(Math.random() * list.length)];
@@ -99,6 +100,10 @@ export function selectCrew(ids) {
   return true;
 }
 
+// How far through mission training a Gemini crew is when they have trained for rendezvous.
+export const RENDEZVOUS_TRAINING = .6;
+// How much faster a Gemini veteran trains for another Gemini flight.
+export const GEMINI_VETERAN_TRAINING = 2;
 // TRAINING for some days. Rates scale with the facilities; simulator fidelity decides how much a session is worth.
 // Each skill grows more slowly as it nears 100, and at half rate when the astronaut is exhausted (fatigue over 60).
 export const simulatorTier = () => S.fac.msim ? 2 : S.fac.ptrain ? 1 : 0;
@@ -149,12 +154,20 @@ export function trainingTick(days) {
       improve('end', .02 * egressTank);
       astronaut.reh.hatch = astronaut.reh.hatch || (Math.random() < .01 * days * egressTank ? 1 : 0);
     }
-    // Gemini crews train at half rate until the Gemini mission simulator is built.
+    // Gemini crews train at half rate until the Gemini mission simulator is built. A Gemini veteran (one who has flown Gemini)
+    // trains for the next Gemini flight faster: the spacecraft and procedures are already learned, only the new flight plan is not.
     if (focus == 'msn' && (astronaut.asg || astronaut.bk)) {
-      const geminiWithoutSimulator = GEMINI_SEATS.includes(astronaut.asg || astronaut.bk) && !S.fac.gsim ? .5 : 1;
-      astronaut.mt = Math.min(1, astronaut.mt + days / 110 * (.5 + .5 * simulator) * geminiWithoutSimulator);
+      const gemini = GEMINI_SEATS.includes(astronaut.asg || astronaut.bk), geminiWithoutSimulator = gemini && !S.fac.gsim ? .5 : 1;
+      const veteran = gemini && astronaut.gem ? GEMINI_VETERAN_TRAINING : 1;
+      astronaut.mt = Math.min(1, astronaut.mt + days / 110 * (.5 + .5 * simulator) * geminiWithoutSimulator * veteran);
       improve('sys', .02 * simulator);
       improve('pil', .02 * simulator);
+      // Rendezvous is trained for the mission, not picked up in general simulator time: a Gemini crew well into mission
+      // training once the rendezvous radar is researched.
+      if (GEMINI_SEATS.includes(astronaut.asg || astronaut.bk) && isResearched('gm_rdv') && astronaut.mt >= RENDEZVOUS_TRAINING && !astronaut.reh.rdv) {
+        astronaut.reh.rdv = 1;
+        log(`[SIMULATOR] ${astronaut.name} has trained for rendezvous.`, 'cyan');
+      }
     }
     // A heart condition missed in selection may surface; anyone may be grounded for a while, more likely when tired.
     if (astronaut.med && Math.random() < .0025 * days) {

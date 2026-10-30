@@ -12,7 +12,10 @@
 //   lj       Little Joe record: { ok: good aborts, mk: a monkey has flown }
 //   fl       flags: office decisions taken (life, win, ovr, cock), failures investigated (four, maFail, fx_ + a capsule system), maQual,
 //            sec2 (Section 2 is open), gem (Project Gemini is open)
-//   mercDone day Project Mercury was completed   gemDone  day every Gemini directive built so far was met
+//   mercDone day Project Mercury was completed   gemDone  day every Gemini directive was met
+//   tgt      the day the Agena target in orbit runs out (rendezvous and docking need it up)
+//   cap      capabilities shown in flight, each recorded with the configuration that showed it (capabilityShown):
+//            [{ k: 'eva' | 'rdv' | 'dock', mt: mission type, rev: spacecraft blueprint, pk: its packages, by: booster programme, d: day }]
 //   oq       office decisions to come: [{ k, at }]   od   the office decision waiting for an answer
 //   gmul     appropriation multiplier            ch       chimpanzee colony: { on, t: training 0 to 1 }
 //   ma       orbital qualification flights: { ok, n }   elec  0, 1 after the election, 2 after the inauguration
@@ -40,8 +43,35 @@ export const directiveKey = () => {
   const directive = MERCURY_DIRECTIVES[phaseTwo().dir];
   return directive ? directive.key : null;
 };
-// Has the directive with this key been met?
-export const directiveDone = key => phaseTwo().dir > MERCURY_DIRECTIVES.findIndex(directive => directive.key == key);
+// Is an Agena target in orbit?
+export const targetUp = () => (phaseTwo().tgt || 0) > S.day;
+
+// CAPABILITIES are evidence, not a bonus: each is recorded with the spacecraft configuration and booster that showed it, so later
+// work (Apollo) can ask what was actually flown, on what. A capability on one configuration does not qualify another.
+export const capabilityShown = kind => (phaseTwo().cap || []).some(record => record.k == kind);
+export function recordCapability(kind, capsule, booster) {
+  const state = phaseTwo();
+  state.cap = state.cap || [];
+  state.cap.push({ k: kind, mt: capsule.mt, rev: capsule.cfg.rev, pk: [...capsule.cfg.pk], by: booster.prog, d: Math.round(S.day) });
+}
+// RENDEZVOUS AND DOCKING need the radar aboard, a target in orbit and a crew trained for it (mission training with the radar
+// researched, rules/astronauts.js), and docking needs a rendezvous already flown. plan: 'rdv' or 'dock'. Returns why not, or null.
+export function targetLock(capsule, plan, commander, pilot) {
+  if (!capsule.cfg.pk.includes('gm_rdv')) return 'the spacecraft was built without the rendezvous radar';
+  if (!targetUp()) return 'no Agena target in orbit: launch one first';
+  const untrained = [commander, pilot].find(astronaut => !astronaut || !astronaut.reh.rdv);
+  if (untrained) return `${untrained ? untrained.name : 'the crew'} has not trained for rendezvous yet`;
+  if (plan == 'dock' && !capabilityShown('rdv')) return 'docking comes after a rendezvous has been flown';
+  return null;
+}
+// Has the directive with this key been met? Parallel directives met out of order are listed in met.
+export const directiveDone = key => phaseTwo().dir > MERCURY_DIRECTIVES.findIndex(directive => directive.key == key) || (phaseTwo().met || []).includes(key);
+// The directives open now: the current one, or once the parallel group is reached, every one of it not yet met.
+export function openDirectives() {
+  const state = phaseTwo(), directive = MERCURY_DIRECTIVES[state.dir];
+  if (!directive) return [];
+  return directive.parallel ? MERCURY_DIRECTIVES.filter(each => each.parallel && !(state.met || []).includes(each.key)) : [directive];
+}
 // The mission an astronaut is assigned to train for: the suborbital flight in Section 1, the orbital flight after it, then Gemini
 // (the command pilot's seat; the pilot's seat is 'gtp').
 export const pilotMissionType = () => phaseTwo().fl.gem ? 'gt' : phaseTwo().secDone ? 'mo' : 'mr';
@@ -62,9 +92,10 @@ export const requirementText = missionType => {
     if (!state.secDone) return 'Opens in Section 2, once an American has flown in space.';
     if (!isResearched('ms_ablh') && !isResearched('mo_shield')) return `Needs a heat shield for orbital re-entry: ${name('ms_ablh')} or ${name('mo_shield')}.`;
   }
-  if (missionType == 'gt') {
+  if (missionType == 'gt' || missionType == 'ag') {
     if (!state.fl.gem) return 'Opens with Project Gemini, once Mercury is complete.';
-    if (!isResearched('gm_cap')) return `Needs ${name('gm_cap')}.`;
+    const design = missionType == 'gt' ? 'gm_cap' : 'gm_agena';
+    if (!isResearched(design)) return `Needs ${name(design)}.`;
   }
   return null;
 };
@@ -182,10 +213,10 @@ export function capsuleSystems(config, missionType = 'mo') {
 // ENDURANCE: three orbits as built, six with the extra consumables, 22 with the long-duration modifications on top (Sigma 7 and
 // Faith 7). Set by the packages aboard, not their rolled figures, so a capsule always reaches the next step. Gemini: GEMINI_ENDURANCE.
 const ENDURANCE_STEPS = [[['mo_cons', 'mo_long'], 22], [['mo_cons'], 6]];
-const enduranceOrbits = (config, missionType) => missionType == 'gt' ? GEMINI_ENDURANCE.find(([ids]) => ids.every(id => config.pk.includes(id)))[1]
+const enduranceOrbits = (config, missionType) => MISSION_TYPES[missionType].target ? 1 : missionType == 'gt' ? GEMINI_ENDURANCE.find(([ids]) => ids.every(id => config.pk.includes(id)))[1]
   : (ENDURANCE_STEPS.find(([ids]) => ids.every(id => config.pk.includes(id))) || [null, BASE_ENDURANCE_ORBITS])[1];
 // The orbit counts a capsule can fly.
-export const orbitChoices = (config, missionType = 'mo') => (missionType == 'gt' ? GEMINI_ORBIT_CHOICES : ORBIT_CHOICES).filter(orbits => orbits <= capsuleSystems(config, missionType).endurance);
+export const orbitChoices = (config, missionType = 'mo') => (MISSION_TYPES[missionType].target ? [1] : missionType == 'gt' ? GEMINI_ORBIT_CHOICES : ORBIT_CHOICES).filter(orbits => orbits <= capsuleSystems(config, missionType).endurance);
 
 // A Mercury directive is met: the reward, the record, and the Section 1 finale on the last one.
 export function fulfilDirective(directive, astronaut) {
@@ -194,7 +225,12 @@ export function fulfilDirective(directive, astronaut) {
   S.rep = Math.min(100, S.rep + (directive.key == 'crew' || directive.key == 'ocrew' ? 20 : 8));
   addHistory(`Mercury directive met: ${directive.name}`);
   log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(directive.reward)}.`, 'hd');
-  state.dir++;
+  if (!directive.parallel) state.dir++;
+  else {
+    // A parallel directive is marked met; the count moves on past every met one at its head.
+    state.met = [...(state.met || []), directive.key];
+    while (MERCURY_DIRECTIVES[state.dir] && state.met.includes(MERCURY_DIRECTIVES[state.dir].key)) state.dir++;
+  }
   if (state.dir == sectionDirectives(1)[1]) {
     checkFirsts({ human: 1 });
     state.secDone = Math.round(S.day);
@@ -209,8 +245,8 @@ export function fulfilDirective(directive, astronaut) {
     openGemini();
   } else if (state.dir == MERCURY_DIRECTIVES.length) {
     state.gemDone = Math.round(S.day);
-    addHistory('Gemini: eight days in orbit');
-    log('[NASA] Gemini has flown two men for eight days, long enough for a trip to the Moon and back. Rendezvous and docking are next.', 'hd');
+    addHistory('Project Gemini complete');
+    log('[NASA] Project Gemini is complete: two weeks in orbit, spacewalks, rendezvous and docking. Everything a Moon landing needs has been flown. Apollo is next.', 'hd');
   }
 }
 // PROJECT GEMINI opens once Mercury is complete: its research is proposed, Titan II can be started, and the second astronaut group

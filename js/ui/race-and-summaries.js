@@ -5,7 +5,7 @@ import { programmeProgress } from '../rules/economy.js';
 import { intelligenceEstimate, sovietProgress } from '../rules/race.js';
 import { $, setHTML } from './dom.js';
 
-const SECTION_TWO_FIRSTS = ['f_day', 'f_crew2', 'f_eva'];
+const SECTION_TWO_FIRSTS = ['f_day', 'f_crew2', 'f_eva', 'f_rdv', 'f_dock'];
 const FIRST_STATUS = { us: ['ok', 'US FIRST'], second: ['wn', 'SECOND'], them: ['bad', 'SOVIET FIRST'] };
 export function renderRace() {
   const estimate = intelligenceEstimate(), ours = programmeProgress(), theirs = sovietProgress();

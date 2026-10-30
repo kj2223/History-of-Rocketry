@@ -126,6 +126,8 @@ export const EXPLAINERS = {
   gm_eva: 'A suit with extra layers against the cold and the sun, a chest pack and an umbilical to the spacecraft. Ed White walked in space for twenty minutes on Gemini 4.',
   gm_long: 'Two weeks of food, water and oxygen, and a soft suit the crew could take off. Gemini 7 stayed up fourteen days, as long as a trip to the Moon and back.',
   gm_seat: 'Gemini had no escape tower. Each pilot sat on a rocket-propelled seat that could throw him clear of a failing Titan low down, and the spacecraft could separate and fire its retros higher up.',
+  gm_rdv: 'A radar that finds the target and a small computer that works out the burns. Catching another spacecraft is not flying toward it: speed up and you climb away from it. Gemini 6A closed to thirty centimetres from Gemini 7.',
+  gm_agena: 'An Agena upper stage, launched on an Atlas, fitted with a docking collar and lights for the crew. Gemini 8 docked with one in March 1966, the first docking in orbit.',
   gm_pogo: 'Titan II shook along its length as it burned, enough to blur a pilot\'s vision. Surge chambers in the propellant lines and steadier tank pressure calmed it before a crew flew.',
   fx_sg: 'On Friendship 7 a faulty switch reported that the landing bag had deployed, which would have meant the heat shield was loose. Rewiring it ends the false alarms.',
 

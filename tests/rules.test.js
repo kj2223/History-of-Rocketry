@@ -971,6 +971,29 @@ test('meeting the last Mercury directive completes Mercury and opens Gemini, wit
   assert.equal(MERCURY_DIRECTIVES[S.p2.dir].key, 'g1');
 });
 
+test('the last Gemini goals open together and can be met in any order', async () => {
+  const { fulfilDirective, openDirectives, directiveDone } = await import('../js/rules/mercury.js');
+  const { MERCURY_DIRECTIVES } = await import('../js/data/mercury.js');
+  const goal = key => MERCURY_DIRECTIVES.find(directive => directive.key == key);
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.dir = MERCURY_DIRECTIVES.findIndex(directive => directive.key == 'g5');
+  S.day = 7000;
+  assert.deepEqual(openDirectives().map(directive => directive.key), ['g5']);
+  fulfilDirective(goal('g5'));
+  assert.deepEqual(openDirectives().map(directive => directive.key), ['g7', 'g6', 'g8']);
+  // Rendezvous first: the fourteen-day flight is still open, and the count waits for it.
+  fulfilDirective(goal('g6'));
+  assert.ok(directiveDone('g6') && !directiveDone('g7'));
+  assert.deepEqual(openDirectives().map(directive => directive.key), ['g7', 'g8']);
+  fulfilDirective(goal('g7'));
+  assert.equal(MERCURY_DIRECTIVES[S.p2.dir].key, 'g8');
+  assert.ok(!S.p2.gemDone);
+  fulfilDirective(goal('g8'));
+  assert.equal(S.p2.dir, MERCURY_DIRECTIVES.length);
+  assert.ok(S.p2.gemDone);
+});
+
 test('a Gemini spacecraft lasts four days on batteries, eight with fuel cells and fourteen with the long-duration stores', async () => {
   const { orbitChoices } = await import('../js/rules/mercury.js');
   S.nasa = 1;
@@ -1004,6 +1027,46 @@ test('a Gemini crew needs an uncrewed Gemini first, the ejection seats, and a tr
   assert.match(crewLock(1, titan, 'gt'), /mission training/);
   S.p2.astros.forEach(astronaut => astronaut.mt = 1);
   assert.equal(crewLock(1, titan, 'gt'), null);
+});
+
+// GEMINI PART 2: the Agena target, rendezvous and docking, with the Python design's rules: capabilities are recorded per
+// configuration, docking follows a flown rendezvous, and the crew train for rendezvous as part of mission training.
+test('rendezvous needs the radar, an Agena in orbit and a trained crew; docking needs a rendezvous flown first', async () => {
+  const { targetLock, targetUp, recordCapability, capabilityShown } = await import('../js/rules/mercury.js');
+  const { TARGET_DAYS } = await import('../js/data/mercury.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.day = 7000;
+  const crew = [1, 2].map(id => ({ id, name: `Pilot ${id}`, reh: {} }));
+  const bare = { mt: 'gt', cfg: { pk: [], rev: 2 } }, radar = { mt: 'gt', cfg: { pk: ['gm_rdv'], rev: 3 } };
+  assert.match(targetLock(bare, 'rdv', ...crew), /rendezvous radar/);
+  assert.match(targetLock(radar, 'rdv', ...crew), /no Agena/);
+  S.p2.tgt = S.day + TARGET_DAYS;
+  assert.ok(targetUp());
+  assert.match(targetLock(radar, 'rdv', ...crew), /Pilot 1 has not trained/);
+  crew.forEach(astronaut => astronaut.reh.rdv = 1);
+  assert.equal(targetLock(radar, 'rdv', ...crew), null);
+  assert.match(targetLock(radar, 'dock', ...crew), /after a rendezvous/);
+  recordCapability('rdv', radar, { prog: 'titan' });
+  assert.ok(capabilityShown('rdv'));
+  assert.deepEqual(S.p2.cap[0], { k: 'rdv', mt: 'gt', rev: 3, pk: ['gm_rdv'], by: 'titan', d: 7000 }, 'recorded with the configuration that flew it');
+  assert.equal(targetLock(radar, 'dock', ...crew), null);
+  S.day += TARGET_DAYS;
+  assert.ok(!targetUp(), 'the Agena runs out after about three months');
+});
+
+test('a Gemini crew trains for rendezvous in mission training once the radar is researched', async () => {
+  const { trainingTick, RENDEZVOUS_TRAINING } = await import('../js/rules/astronauts.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.selDone = 1;
+  const astronaut = { id: 1, name: 'Pilot 1', st: 'active', tday: 0, t: { pil: 60, sys: 60, end: 60, com: 60 }, reh: {}, fat: 0, mt: RENDEZVOUS_TRAINING, asg: 'gt', bk: null, focus: 'msn', med: 0 };
+  S.p2.astros = [astronaut];
+  trainingTick(1);
+  assert.ok(!astronaut.reh.rdv, 'not before the radar exists');
+  giveResearch(['gm_rdv']);
+  trainingTick(1);
+  assert.equal(astronaut.reh.rdv, 1);
 });
 
 test('Titan II needs its pogo cured before it can be man-rated', async () => {

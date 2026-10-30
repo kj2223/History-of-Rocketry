@@ -140,6 +140,9 @@ export const PACKAGES = [
   research('gm_long','c','Fourteen-day stores and a lightweight suit',15000,110,{du:90,ec:.03},{phase:2,hiddenUntil:'gem'}),
   research('gm_seat','e','Ejection seats',12000,100,{es:.12},{phase:2,hiddenUntil:'gem'}),
   research('gm_pogo','e','Titan II pogo suppression',11000,100,{pogo:1},{phase:2,hiddenUntil:'gem'}),
+  // Rendezvous and docking (Gemini's second half): rv = rendezvous radar and computer, agena = the Agena target can be built.
+  research('gm_rdv','c','Rendezvous radar and onboard computer',16000,110,{rv:.12},{phase:2,hiddenUntil:'gem'}),
+  research('gm_agena','c','Agena target vehicle and docking adapter',17000,110,{agena:1},{phase:2,hiddenUntil:'gem'}),
 ];
 
 // MILESTONES: major programmes, each a big step in one area.
@@ -203,6 +206,7 @@ export const EFFECTS = {
   du: ['endurance', 1, ' orbits'], af: ['thruster fuel saved', 100, '%'], rt: ['retrofire accuracy', 100, '%'], sg: ['heat-shield signal fixed', 1, ''],
   // Gemini
   gem: ['Gemini spacecraft', 1, ''], om: ['manoeuvring thrusters', 100, ' pts'], ev: ['spacewalk suit', 100, ' pts'], es: ['ejection seats', 100, ' pts'], pogo: ['Titan II pogo cured', 1, ''],
+  rv: ['rendezvous and docking', 100, ' pts'], agena: ['Agena target vehicle', 1, ''],
 };
 // One effect as text, e.g. "thrust +5%" or, with an uncertainty, "thrust +5% (±1)".
 export const formatEffect = (key, value, uncertainty) => {
