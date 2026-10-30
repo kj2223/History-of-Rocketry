@@ -21,6 +21,7 @@
 //   needsGemini: opens only with Project Gemini; manRatingResearch: research its own man-rating needs as well as the usual
 //   headStart: share of the best earlier knowledge its team starts with, instead of HEAD_START.best (a missile already flight-tested)
 //   booster: the booster stage under the core (staged rockets): dry mass, fuel (kg), thr thrust (N), isp
+//   needsApollo: opens once Project Apollo has chosen its architecture; dryScale: sizes dry-mass effects apart from sizeScale
 //   stages: instead of a booster, the lower stages that are designs of their own (STAGE DESIGNS below, rules/stages.js)
 export const PROGRAMMES = {
   wac: {
@@ -81,6 +82,15 @@ export const PROGRAMMES = {
     propellants: ['Aerozine & N2O4'], hasMilestones: 1, canOrbit: 1, stages: ['titan1'],
     why: 'An Air Force missile burning propellants that ignite on contact: no igniters, and it can sit fuelled for months. Strong enough to lift the two-man Gemini, but it shakes along its length (pogo) until that is cured.',
   },
+  // The first Saturn (Apollo step 3). Opens once Apollo has chosen how to reach the Moon (needsApollo): the rocket the Moon rocket
+  // grows from. Its own design is the S-IV, the first hydrogen stage; under it the S-I, eight H-1 engines round a cluster of tanks.
+  saturn1: {
+    name: 'Saturn I', year: 1964, generation: 7, requires: ['titan', 'atlas'], anyRequirement: 1, needsNasa: 1, needsApollo: 1, headStart: .5,
+    design: { dry: 750, f: 6500, thr: 45000, g: 8, h: 3, q: 2, c: .8, r: -.04, i: 2.6 },
+    cost: 400000, designTime: 100, unitCost: 150000, unitTime: 64, sizeScale: 40, dryScale: 12, costScale: 4, timeScale: 1.3, packagesPerArea: 6, learningRate: 3, traitRange: [2, 3],
+    propellants: ['Hydrogen & LOX'], hasMilestones: 1, canOrbit: 1, stages: ['sat1_si'],
+    why: 'Von Braun\'s team clusters eight proven engines under tanks borrowed from Redstone and Jupiter, and tops them with a stage burning liquid hydrogen: the most efficient fuel there is, and the hardest to handle.',
+  },
   // STAGE DESIGNS (Apollo step 3): a lower stage with its own true figures, flaws, research, failures and fixes, kept in a bundle of
   // its own (rules/stages.js). The rocket's own design is its top stage. stageOf: the rocket it belongs to; it is never started,
   // built or flown alone. design: as a rocket's, but f is the propellant it carries (kg) and isp its engine's specific impulse (s).
@@ -100,8 +110,15 @@ export const PROGRAMMES = {
     propellants: ['Aerozine & N2O4'],
     why: 'Twin-chamber LR87 engines on a stage of thin aluminium tanks: most of the Titan II\'s weight and nearly all of its thrust at liftoff.',
   },
+  sat1_si: {
+    name: 'Saturn I first stage (S-I)', engine: 'eight H-1s', stageOf: 'saturn1', year: 1964, generation: 7,
+    design: { dry: 6500, f: 70000, thr: 1000000, isp: 289, g: 8, h: 3, q: 2, c: .8, r: -.02, i: 2.6 },
+    sizeScale: 540, dryScale: 110, costScale: 4, timeScale: 1.3, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    propellants: ['Kerosene & LOX'],
+    why: 'Eight H-1 engines, each a cousin of the Jupiter\'s, under a cluster of nine tanks. If one engine stops, the others can burn longer and still make orbit.',
+  },
 };
-export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas', 'titan'];
+export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas', 'titan', 'saturn1'];
 export const MATURE = 45; // programme maturity (average team knowledge of the rocket) that opens the next programme
 export const FLIGHTS_TO_MATURE = 3; // and the rocket must also have flown this many successful flights of its own
 // What a new programme's team already knows: a share of the best knowledge on any earlier rocket, or of the rocket it grows out of.

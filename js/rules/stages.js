@@ -6,6 +6,7 @@
 // publication and one upgrade carry every stage. The rocket's own design is its top stage. No DOM.
 import { FAILURE_MODES, findFix } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
+import { PROPELLANTS } from '../data/launch.js';
 import { withProgramme } from '../core/state.js';
 import { designSpec } from './design.js';
 import { stagePackages } from './production.js';
@@ -31,14 +32,16 @@ const stageModifiers = fixes => {
 export function lowerStage(kind, airframe, propellant, load = 1, estimated = false) {
   const stage = PROGRAMMES[kind].stages[0], fixes = stageFixes(airframe, stage), modifiers = stageModifiers(fixes);
   const spec = withProgramme(stage, () => designSpec(stagePackages(airframe, stage), estimated));
-  const isp = PROGRAMMES[stage].design.isp * (1 + .25 * (spec.t - 1));
+  // A stage burns its own propellant (the Saturn I's S-I burns kerosene under a hydrogen upper stage): its thin-air gain and its
+  // reliability are that propellant's.
+  const own = PROPELLANTS[PROGRAMMES[stage].propellants[0]] || propellant, isp = PROGRAMMES[stage].design.isp * (1 + .25 * (spec.t - 1));
   return {
     isBooster: 1, stage,
     dry: spec.dry + spec.d + modifiers.d,
     fuel: spec.f * load,
     thrust: spec.thr * spec.t * modifiers.t,
-    isp, vacuumIsp: isp * propellant.vacuumIsp / propellant.isp,
-    r: spec.r,
+    isp, vacuumIsp: isp * own.vacuumIsp / own.isp,
+    r: spec.r + own.reliability - propellant.reliability,
     modeMultipliers: Object.fromEntries(Object.keys(FAILURE_MODES).map(mode => [mode, (fixes[mode] ? findFix(mode, fixes[mode]).riskMultiplier : 1) * traitWeight(stage, mode, airframe)])),
   };
 }

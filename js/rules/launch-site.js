@@ -53,6 +53,7 @@ export function facilityLock(id) {
   if (siteStatus(id) == 'waiting') return 'Ordered: waiting for a free contractor crew.';
   if (siteStatus(id) == 'mothballed') return 'Mothballed.';
   if (facility.nasa && !S.nasa) return 'Opens when NASA is established.';
+  if (facility.apollo && !(S.p2 && S.p2.ap && S.p2.ap.arch)) return 'Opens once Project Apollo has chosen how to reach the Moon.';
   if (facility.requires && !S.fac[facility.requires]) return `Requires ${FACILITIES[facility.requires].name}.`;
   if (S.dir < facility.fromDirective) return `Available from directive ${facility.fromDirective + 1}.`;
   if (directiveLock(id)) return directiveLock(id);

@@ -7,6 +7,7 @@
 //   nasa: 1 if it opens only with NASA, buildDays: construction time in game days (ordered now, in service later),
 //   pad: the rocket programme a launch complex serves (its launches need a free pad of their own),
 //   afterDirective: the Mercury directive (key) that must be met before it can be ordered: upgrades are earned by success.
+//   apollo: 1 if it opens only once Project Apollo has chosen its architecture
 // From NASA's founding every building takes time to build and costs upkeep (see SITE below and rules/site.js).
 export const FACILITIES = {
   tty: { name: 'Teleprinter & Range Communications', cost: 12000, description: 'Teleprinters link the blockhouse to the range. Unlocks the Telemetry Engineer.', requires: null, fromDirective: 0, consoles: 1, controlRoom: 1 },
@@ -33,6 +34,7 @@ export const FACILITIES = {
   lc19: { name: 'Launch Complex 19', cost: 110000, description: 'The Titan II pad, with an erector that lowers away from the booster before launch and a white room where the crew boards. Every Titan II launches from it.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 90, pad: 'titan', afterDirective: 'oday' },
   altch: { name: 'Altitude Chamber', cost: 45000, description: 'A vacuum chamber that takes a spacecraft and its crew to orbital pressure on the ground. Cabin depressurisation tests here clear a spacecraft for a spacewalk.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, afterDirective: 'oday' },
   gsim: { name: 'Gemini Mission Simulator', cost: 70000, description: 'A two-seat simulator with the Gemini cockpit, driven by digital computers. Gemini crews train for their flight at full rate (half rate without it).', requires: 'msim', fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, afterDirective: 'oday' },
+  lc34: { name: 'Launch Complex 34', cost: 300000, description: 'The Saturn pad: a pedestal for a cluster of eight engines, a 300-foot service structure on rails and a blockhouse under ten feet of concrete. Every Saturn I launches from it.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, apollo: 1, buildDays: 150, pad: 'saturn1' },
   lc12: { name: 'Launch Complex 12', cost: 80000, description: 'A second Atlas pad, so one Atlas can be readied while the other pad is refurbished after a launch.', requires: 'lc14', fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 120, pad: 'atlas', afterDirective: 'mo' },
 };
 
