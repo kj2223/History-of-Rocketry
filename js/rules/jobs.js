@@ -5,7 +5,7 @@ import { formatMoney } from '../core/util.js';
 import { FAILURE_MODES, findFix } from '../data/failures.js';
 import { S, log, freeTeams, withProgramme } from '../core/state.js';
 import { trackingTiers, airframeLabel } from './design.js';
-import { retrofitQuote } from './production.js';
+import { retrofitQuote, rocketFixes } from './production.js';
 import { finishResearch, confirmPackage, checkBreakthroughs } from './research.js';
 import { learn, knowledgeFraction, systemOf, SYSTEMS, REVIEW_COST, reviewTime, finishReview } from './knowledge.js';
 import { finishDesign, revealTraits } from './programs.js';
@@ -152,7 +152,7 @@ function finishRetrofit(id) {
   const airframe = S.air.find(candidate => candidate.id == id);
   if (!airframe) return;
   airframe.pk = Object.keys(S.pk);
-  airframe.fix = { ...S.fix };
+  airframe.fix = rocketFixes();
   airframe.st = 'r';
   airframe.label = airframeLabel(airframe.prog, airframe.pk, airframe.id);
   log(`[HANGAR] ${airframe.label} retrofit complete.`, 'ok');

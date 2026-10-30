@@ -81,7 +81,8 @@ export const SYMPTOMS = {
 };
 // The symptoms of a mode that these instruments would show.
 export const visibleSymptoms = (mode, tracking) => FAILURE_MODES[mode].symptoms.filter(symptom => SYMPTOMS[symptom].visible(tracking));
-export const findFix = (mode, fixId) => FAILURE_MODES[mode].fixes.find(fix => fix.id == fixId);
+// A lower stage's fix rides as mode@stage (rules/stages.js); it is the same fix.
+export const findFix = (mode, fixId) => FAILURE_MODES[mode.split('@')[0]].fixes.find(fix => fix.id == fixId);
 
 // What a launch-crew station reports when it catches a latent fault in the pre-launch poll.
 export const FAULT_REPORTS = {

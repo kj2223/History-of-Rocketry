@@ -4,7 +4,7 @@
 // The programme table itself is in data/programmes.js.
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, BY_ID } from '../data/research.js';
-import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
+import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, STAGE_TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
 import { S, log, addHistory, newBundle, recordRunEvent, earn } from '../core/state.js';
 
 // The four research areas that belong to a rocket (the others are global: see core/state.js).
@@ -45,14 +45,14 @@ export function rollProgramme(kind, skipping = false) {
   const programme = PROGRAMMES[kind], design = programme.design;
   const trueDesign = { c: design.c, i: design.i }, bias = {};
   const traitCount = programme.traitRange[0] + Math.floor(Math.random() * (programme.traitRange[1] - programme.traitRange[0] + 1)) + (skipping ? programme.skip.extraTraits : 0);
-  // Satellite launchers are rolled within a narrower spread: their flaws are in reliability, not in whether orbit is possible at all.
-  const spread = programme.canOrbit ? .45 : 1;
+  // Satellite launchers and their stages are rolled within a narrower spread: their flaws are in reliability, not in whether orbit is possible at all.
+  const spread = programme.canOrbit || programme.stageOf ? .45 : 1;
   for (const { key, startWidth } of DESIGN_STATS) {
     const deviation = Math.max(-1, Math.min(1, gaussian() * .45));
     trueDesign[key] = key == 'r' ? design.r + (skipping ? programme.skip.r : 0) + deviation * startWidth : design[key] * (1 + deviation * startWidth * spread);
     bias[key] = Math.max(-1.5, Math.min(1.5, gaussian()));
   }
-  const pool = TRAITS.filter(trait => !trait.stagedOnly || programme.booster), traits = [];
+  const pool = TRAITS.filter(trait => programme.stageOf ? STAGE_TRAITS.includes(trait.key) : !trait.stagedOnly || programme.booster || programme.stages), traits = [];
   while (traits.length < traitCount && pool.length) {
     const trait = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
     traits.push({ k: trait.key, found: 0 });
@@ -75,8 +75,26 @@ export function createProgramme(kind, skipping = false) {
     bundle.kn[area] = Math.max(best * (skipping ? programme.skip.headStart : programme.headStart || HEAD_START.best), parent * HEAD_START.parent);
   }
   S.progs[kind] = bundle;
+  for (const stage of programme.stages || []) createStage(stage);
   return bundle;
 }
+// A LOWER STAGE gets a bundle of its own (rules/stages.js), rolled like a rocket's, with the rocket's knowledge to start from.
+export function createStage(stage) {
+  const bundle = newBundle(), parent = S.progs[PROGRAMMES[stage].stageOf];
+  Object.assign(bundle, { kind: stage, start: Math.round(S.day), ...rollProgramme(stage), ready: 0 });
+  for (const area of VEHICLE_AREAS) bundle.kn[area] = parent ? parent.kn[area] || 0 : 0;
+  S.progs[stage] = bundle;
+  return bundle;
+}
+// Saves from before a rocket had stage designs get them on load.
+export function ensureStages() {
+  for (const kind of Object.keys(S.progs)) for (const stage of (PROGRAMMES[kind] && PROGRAMMES[kind].stages) || []) if (!S.progs[stage]) createStage(stage);
+}
+// The lower stages of a rocket that has them, and the rocket a stage belongs to (a rocket is its own).
+export const stagesOf = kind => (PROGRAMMES[kind] && PROGRAMMES[kind].stages || []).filter(stage => S.progs[stage]);
+export const rocketOf = kind => PROGRAMMES[kind] && PROGRAMMES[kind].stageOf || kind;
+// A fix's key on an airframe: a lower stage's fixes ride in the rocket's blueprint and airframes as mode@stage.
+export const fixKeyFor = (kind, mode) => PROGRAMMES[kind] && PROGRAMMES[kind].stageOf ? `${mode}@${kind}` : mode;
 export const programmeOf = airframe => airframe && airframe.prog || S.cur;
 export const programmeData = (kind = S.cur) => PROGRAMMES[kind];
 
@@ -171,7 +189,7 @@ export function revealTraits(kind) {
 // How much more likely failure mode `mode` is on this rocket because of a trait (1 = no trait, or the airframe carries the fix).
 export const traitWeight = (kind, mode, airframe) => {
   const trait = traitsOf(kind).find(entry => traitByKey(entry.k).mode == mode);
-  return trait && !(airframe && airframe.fix && airframe.fix[mode]) ? traitByKey(trait.k).weight : 1;
+  return trait && !(airframe && airframe.fix && airframe.fix[fixKeyFor(kind, mode)]) ? traitByKey(trait.k).weight : 1;
 };
 
 // The window the team believes for a stat: centred near the truth (an early bias that fades) and narrowing with knowledge.

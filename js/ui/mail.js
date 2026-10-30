@@ -4,12 +4,13 @@
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES } from '../data/history.js';
 import { CORE_TEAM } from '../data/team.js';
-import { S } from '../core/state.js';
+import { S, withProgramme } from '../core/state.js';
 import { nasaReady } from '../rules/race.js';
 import { itemAsSeen } from '../rules/research.js';
 import { queueLock, queuePosition } from '../rules/queue.js';
 import { memberName, memberRole, joinedMembers, memberJoined } from '../rules/team.js';
 import { PROGRAMMES } from '../data/programmes.js';
+import { stagesOf } from '../rules/programs.js';
 import { STATIONS } from '../data/launch-site.js';
 import { AREAS } from '../data/research.js';
 import { LANES, LANE_RAISE, laneLead, laneJob, laneIdleReason } from '../rules/lanes.js';
@@ -31,7 +32,9 @@ import { $, setHTML, escapeHtml } from './dom.js';
 export const mail = { open: 'dir' };
 const KIND_NAMES = { decision: 'Decision', directive: 'Directive', report: 'Report', log: 'Log' };
 
-const waitingIncidents = () => incidentsWithEllis() ? [] : S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag');
+const waiting = () => S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag');
+// The rocket's incidents and its lower stages' (rules/stages.js).
+const waitingIncidents = () => incidentsWithEllis() ? [] : [...waiting(), ...stagesOf(S.cur).flatMap(stage => withProgramme(stage, waiting))];
 
 // ELLIS'S REMIT (rules/remit.js): her offer once she has earned it, then the running remit, which asks for a decision when the cap
 // cannot cover her next job or she has referred findings to you.

@@ -154,6 +154,8 @@ header.top{grid-column:2;display:flex;align-items:center;gap:20px;padding:0 18px
 .dossier .quote{border-left:2px solid var(--ac);padding-left:8px;margin:6px 0 8px;font-style:italic;line-height:1.35}.dossier .act button{width:100%;margin:0 0 4px}.dossier .act .bar{margin:0 0 6px}
 .dossier .wide:only-child{grid-column:1/-1;max-width:900px}
 #rdesk .pbar button{flex:0 0 auto;padding:4px 14px}
+/* One compact row per lower stage (rules/stages.js) above the research columns. */
+#rdesk .r.stage{align-items:center;justify-content:flex-start;gap:14px;font-size:.85em;margin:0 0 8px}#rdesk .r.stage button{flex:0 0 auto;width:auto;margin:0;padding:3px 12px;font-size:.85em}
 /* The mission clock strip and the command loop, under the plotting board while a flight is up. */
 .clockstrip{display:flex;align-items:center;gap:20px;border:1px solid var(--ln);background:var(--pn);padding:10px 14px}.clockstrip .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .mclock{display:flex;flex-direction:column}.mclock .lbl{font-size:.62rem;color:var(--dim);letter-spacing:.1em}.mclock b{font:500 2.3rem var(--mono);color:var(--ac)}

@@ -4,7 +4,7 @@
 // DELEGATE=1 plays the delegation route: at the Aerobee it appoints the launch director, hires the cheaper candidate for every
 // lead post, gives Ellis a remit and authorises a lean programme brief for the newest rocket (moving production and research to
 // each new rocket as it is ready), opens the shared research line and approves each lead's first proposal.
-import { S, resetState, formatDate, freeTeams } from '../js/core/state.js';
+import { S, resetState, formatDate, freeTeams, withProgramme } from '../js/core/state.js';
 import { PACKAGES, BY_ID } from '../js/data/research.js';
 import { DIRECTIVES } from '../js/data/history.js';
 import { MERCURY_DIRECTIVES, sectionDirectives } from '../js/data/mercury.js';
@@ -14,7 +14,7 @@ import { PROGRAMMES } from '../js/data/programmes.js';
 import { researchLock, commission, itemsInArea } from '../js/rules/research.js';
 import { hasBoosterStage, quoteLaunch } from '../js/rules/design.js';
 import { unitCost, draftChanges } from '../js/rules/production.js';
-import { candidates, startLock, startProgramme, maturity } from '../js/rules/programs.js';
+import { candidates, startLock, startProgramme, maturity, stagesOf } from '../js/rules/programs.js';
 import { tickSecond, hire, engineeringTeamCost, ensureStarter } from '../js/rules/game.js';
 import { orderAirframes, publishBlueprint } from '../js/rules/factory.js';
 import { startInvestigation, chooseFix, startReview, acceptAllFindings, INVESTIGATION_COST } from '../js/rules/jobs.js';
@@ -151,14 +151,17 @@ function run(seed) {
       S.cur = latest;
       if (!S.air.some(airframe => airframe.st == 'r' && airframe.prog == latest) && !S.aq.some(item => item.prog == latest) && S.b >= unitCost() + 4000) orderAirframes(1);
     }
-    for (const incident of S.inc) {
-      if (!freeTeams()) break;
-      if (incident.st == 'open' && S.b - INVESTIGATION_COST >= reserve) startInvestigation(incident.id);
-      else if (incident.st == 'diag') for (const fix of FAILURE_MODES[incident.dx].fixes.slice().sort((first, second) => first.riskMultiplier - second.riskMultiplier)) if (S.b - fix.cost >= reserve && freeTeams()) {
-        chooseFix(incident.id, fix.id);
-        break;
+    // The rocket's incidents, then those of its lower stages (rules/stages.js).
+    for (const kind of [S.cur, ...stagesOf(S.cur)]) withProgramme(kind, () => {
+      for (const incident of S.inc) {
+        if (!freeTeams()) break;
+        if (incident.st == 'open' && S.b - INVESTIGATION_COST >= reserve) startInvestigation(incident.id);
+        else if (incident.st == 'diag') for (const fix of FAILURE_MODES[incident.dx].fixes.slice().sort((first, second) => first.riskMultiplier - second.riskMultiplier)) if (S.b - fix.cost >= reserve && freeTeams()) {
+          chooseFix(incident.id, fix.id);
+          break;
+        }
       }
-    }
+    });
     // Programmes: start the next rung once the current rocket is mature.
     for (const candidate of candidates()) {
       if (offPath(candidate, army)) continue;
