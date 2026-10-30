@@ -9,6 +9,7 @@ import { PAYLOADS } from '../data/launch.js';
 import { FAILURE_MODES, SYMPTOMS } from '../data/failures.js';
 import { S, log, logSink } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
+import { holdForLaunch } from '../rules/factory.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, formatAltitude, CHANNELS, isPowered, hasEvent } from '../rules/flight.js';
 import { boosterPlan, crewLock } from '../rules/mercury.js';
@@ -154,6 +155,7 @@ function runCount() {
 export function startCount() {
   const form = launchForm, airframe = S.air.find(candidate => candidate.id == form.af && candidate.st == 'r');
   if (!airframe || quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100).error) return;
+  holdForLaunch(airframe.id);
   launchView.count = newCount(runPoll(airframe, form.fuel, form.st && hasBoosterStage(airframe) ? 1 : 0), form.load / 100, airframe.label);
   // The settings go to the pad with the rocket, so changing the launch form during the count does not change this launch.
   launchView.count.form = { fuel: form.fuel, pay: form.pay, st: form.st, plan: form.plan };
@@ -393,6 +395,7 @@ export function startMissionCount() {
   if (!capsule || !booster) return;
   const crew = state.lc || 'none', propellant = state.lf || 'Alcohol & LOX', plan = boosterPlan(booster, propellant, capsule.mt);
   if (!plan.ok || crewLock(crew, booster, capsule.mt)) return;
+  holdForLaunch(booster.id);
   launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo, eva: state.le, target: state.lr });
   openPad();
   runCount();

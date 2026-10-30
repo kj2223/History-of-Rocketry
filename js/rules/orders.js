@@ -21,7 +21,7 @@ import { isMilestone } from '../data/research.js';
 import { S, log, earn, formatDate, withProgramme } from '../core/state.js';
 import { quoteLaunch } from './design.js';
 import { batchCost } from './production.js';
-import { orderAirframes } from './factory.js';
+import { orderAirframes, heldForLaunch } from './factory.js';
 import { runPoll, scrub, scrubCost, troubleshoot, PAD_FIX_COST } from './launch-site.js';
 import { beginFlight, previewFlight, step, takeReadings, endFlight } from './flight.js';
 import { learn, teachingValue } from './knowledge.js';
@@ -62,10 +62,11 @@ export function startOrder(prog, cap) {
   log(`[LAUNCH DIRECTOR] Standing order: the ${PROGRAMMES[prog].name} flies routine customer flights, up to ${formatMoney(cap)}.`, 'cyan');
   return null;
 }
-export function raiseOrder(prog) {
+// double: raise by the cap itself, for the budgets of a big programme.
+export function raiseOrder(prog, double = false) {
   const order = orderFor(prog);
   if (!order) return;
-  order.cap += ORDER_RAISE;
+  order.cap += double ? order.cap : ORDER_RAISE;
   if (order.hold && order.hold.startsWith('The cap')) order.hold = null;
   log(`[LAUNCH DIRECTOR] ${PROGRAMMES[prog].name} order raised to ${formatMoney(order.cap)}.`, 'cyan');
 }
@@ -90,7 +91,7 @@ function approvedPackages(prog) {
   return airframe ? [...airframe.pk] : withProgramme(prog, () => [...S.bp.pk]);
 }
 // Airframes Ellis can take for routine flights: ready, and not set aside (aside: why she would not plan a load on it).
-const readyAirframes = prog => S.air.filter(airframe => airframe.st == 'r' && airframe.prog == prog && !airframe.aside).sort((first, second) => second.pk.length - first.pk.length);
+const readyAirframes = prog => S.air.filter(airframe => airframe.st == 'r' && airframe.prog == prog && !airframe.aside && !heldForLaunch(airframe)).sort((first, second) => second.pk.length - first.pk.length);
 const openIncident = prog => withProgramme(prog, () => S.inc.some(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag'));
 
 // DEMAND. Returns true if a request arrived or lapsed.

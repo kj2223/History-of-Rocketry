@@ -9,7 +9,7 @@ import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
 import { mothball, reopen } from '../rules/site.js';
 import { airborne } from '../rules/flight.js';
-import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from '../rules/factory.js';
+import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem, holdForLaunch } from '../rules/factory.js';
 import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
@@ -188,11 +188,11 @@ const GAME_ACTIONS = {
     const error = startRemit(+cap);
     if (error) log('[CHIEF] ' + error, 'bad');
   },
-  rraise: () => raiseRemit(),
+  rraise: (id, button) => raiseRemit(button.dataset.n == '2'),
   rend: () => endRemit(),
-  lraise: () => raiseLanes(),
+  lraise: (id, button) => raiseLanes(button.dataset.n == '2'),
   lend: () => endLanes(),
-  wraise: () => raiseWorks(),
+  wraise: (id, button) => raiseWorks(button.dataset.n == '2'),
   wend: () => endWorks(),
   wpub: () => publishHeld(),
   leadhire: id => {
@@ -203,7 +203,7 @@ const GAME_ACTIONS = {
     const error = startShared(+cap);
     if (error) log('[R&D] ' + error, 'bad');
   },
-  sraise: () => raiseShared(),
+  sraise: (id, button) => raiseShared(button.dataset.n == '2'),
   sclose: () => endShared(),
   sapprove: id => {
     const error = approveProposal(id);
@@ -216,7 +216,7 @@ const GAME_ACTIONS = {
     const error = approveBrief(+size);
     if (error) log('[PROGRAMME] ' + error, 'bad');
   },
-  oraise: prog => raiseOrder(prog),
+  oraise: (prog, button) => raiseOrder(prog, button.dataset.n == '2'),
   oend: prog => endOrder(prog),
   ores: prog => resumeOrder(prog),
   fac: id => buildFacility(id),
@@ -229,6 +229,7 @@ const GAME_ACTIONS = {
   name: (id, button) => nameCause(+id, button.dataset.f),
   publish: () => publishBlueprint(),
   upgrade: id => queueRetrofit(+id),
+  afhold: id => holdForLaunch(+id, !(S.air.find(airframe => airframe.id == +id) || {}).hold),
   cancelq: id => cancelQueueItem(+id),
   aptog: () => S.ap.on = S.ap.on ? 0 : 1,
   mcount: () => startMissionCount(),

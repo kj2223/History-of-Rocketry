@@ -604,15 +604,16 @@ function endFlightForProgramme(flight, ok, why) {
     }
     const science = scienceReturn(flight, peak, why);
     // The current directive: reach its altitude, or (the satellite directive) reach orbit. Orbit pays 130%, or 60% if the Soviets got there first.
-    const directive = DIRECTIVES[S.dir];
-    if (directive && (why == 'orbit' || (peak >= directive.altitudeKm * 1000 && directive.altitudeKm < 120))) {
-      const reward = why == 'orbit' ? Math.round(directive.reward * (S.rvd.r_sat ? .6 : 1.3)) : directive.reward;
+    // A flight that clears the next directives too meets them all at once, so a high flight never has to be flown again.
+    const meets = directive => directive.altitudeKm < 120 ? peak >= directive.altitudeKm * 1000 : why == 'orbit';
+    for (let directive = DIRECTIVES[S.dir]; directive && meets(directive); directive = DIRECTIVES[S.dir]) {
+      const orbital = directive.altitudeKm >= 120, reward = orbital ? Math.round(directive.reward * (S.rvd.r_sat ? .6 : 1.3)) : directive.reward;
       earn(reward);
       S.rep = Math.min(100, S.rep + 10);
       addHistory(`Directive met: ${directive.name}`);
-      log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(reward)}${why == 'orbit' ? (S.rvd.r_sat ? ' (cut: the Soviets were first)' : ' (bonus: first in orbit)') : ''}.`, 'hd');
+      log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(reward)}${orbital ? (S.rvd.r_sat ? ' (cut: the Soviets were first)' : ' (bonus: first in orbit)') : ''}.`, 'hd');
       S.dir++;
-      if (why == 'orbit') log('[FLASH DISPATCH] AP Wire: a new moon circles the Earth. Scope of this build complete!', 'hd');
+      if (orbital) log('[FLASH DISPATCH] AP Wire: a new moon circles the Earth. Scope of this build complete!', 'hd');
     }
     checkFirsts({ ok: true, why, peak, spd: flight.peakSpeed, dr: flight.downrange, pay: flight.payload, rec: science.rec, got: science.got, staged: flight.stages.length > 1 });
   }

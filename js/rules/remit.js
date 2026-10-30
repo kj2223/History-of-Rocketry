@@ -42,9 +42,10 @@ export function startRemit(cap) {
   log(`[CHIEF] Ellis takes the routine engineering of the ${PROGRAMMES[S.cur].name}, up to ${formatMoney(cap)}. She leaves the PROP console.`, 'cyan');
   return null;
 }
-export function raiseRemit() {
+// double: raise by the cap itself, for the budgets of a big programme.
+export function raiseRemit(double = false) {
   if (!S.remit) return;
-  S.remit.cap += REMIT_RAISE;
+  S.remit.cap += double ? S.remit.cap : REMIT_RAISE;
   S.remit.dry = null;
   log(`[CHIEF] Ellis's remit raised to ${formatMoney(S.remit.cap)}.`, 'ok');
 }

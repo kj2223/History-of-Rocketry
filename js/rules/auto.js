@@ -5,7 +5,7 @@ import { formatMoney } from '../core/util.js';
 import { S, log, withProgramme } from '../core/state.js';
 import { quoteLaunch, hasBoosterStage } from './design.js';
 import { batchCost } from './production.js';
-import { orderAirframes } from './factory.js';
+import { orderAirframes, heldForLaunch } from './factory.js';
 import { runPoll, scrub, scrubCost, troubleshoot, PAD_FIX_COST } from './launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight } from './flight.js';
 import { campaignExpired, endCampaign, directorMargin, slipChance, VETERAN_MARGIN } from './campaign.js';
@@ -49,7 +49,7 @@ export function autoLaunch() {
 }
 
 function directorTurn(camp) {
-  const ready = S.air.filter(candidate => candidate.st == 'r' && candidate.prog == camp.prog).sort((first, second) => second.pk.length - first.pk.length);
+  const ready = S.air.filter(candidate => candidate.st == 'r' && candidate.prog == camp.prog && !heldForLaunch(candidate)).sort((first, second) => second.pk.length - first.pk.length);
   const ordered = orderForCampaign(camp, ready.length), airframe = ready[0];
   if (!airframe) return ordered;
   // A first waits for your answer to her invitation (rules/invitations.js).

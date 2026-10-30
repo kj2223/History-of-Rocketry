@@ -19,7 +19,7 @@ import { S, log, withProgramme } from '../core/state.js';
 import { baseDesign, fixModifiers } from './design.js';
 import { itemAsSeen } from './research.js';
 import { batchCost, draftChanges, retrofitQuote } from './production.js';
-import { orderAirframes, publishBlueprint, queueRetrofit } from './factory.js';
+import { orderAirframes, publishBlueprint, queueRetrofit, heldForLaunch } from './factory.js';
 import { memberJoined } from './team.js';
 import { orderFor } from './orders.js';
 
@@ -54,9 +54,10 @@ export function startWorks(cap) {
   log(`[FACTORY] Reed takes over production of the ${PROGRAMMES[S.cur].name}, up to ${formatMoney(cap)}.`, 'cyan');
   return null;
 }
-export function raiseWorks() {
+// double: raise by the cap itself, for the budgets of a big programme.
+export function raiseWorks(double = false) {
   if (!S.works) return;
-  S.works.cap += WORKS_RAISE;
+  S.works.cap += double ? S.works.cap : WORKS_RAISE;
   S.works.dry = null;
   log(`[FACTORY] Reed's factory budget raised to ${formatMoney(S.works.cap)}.`, 'ok');
 }
@@ -162,7 +163,7 @@ function orderTurn(works) {
 
 function retrofitTurn(works) {
   if (S.aq.some(item => item.k == 'retro' && item.prog == works.prog)) return false;
-  const airframe = S.air.find(candidate => candidate.prog == works.prog && candidate.st == 'r' && retrofitQuote(candidate));
+  const airframe = S.air.find(candidate => candidate.prog == works.prog && candidate.st == 'r' && !heldForLaunch(candidate) && retrofitQuote(candidate));
   if (!airframe) return false;
   const cost = retrofitQuote(airframe).cost;
   if (!withinCap(works, `the upgrade of ${airframe.label}`, cost) || S.b - cost < TREASURY_RESERVE) return false;

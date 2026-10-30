@@ -7,6 +7,7 @@ import { CORE_TEAM } from '../data/team.js';
 import { S } from '../core/state.js';
 import { nasaReady } from '../rules/race.js';
 import { itemAsSeen } from '../rules/research.js';
+import { queueLock, queuePosition } from '../rules/queue.js';
 import { memberName, memberRole, joinedMembers, memberJoined } from '../rules/team.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { STATIONS } from '../data/launch-site.js';
@@ -50,19 +51,19 @@ function runningLine(line, prog) {
     const order = orderFor(prog), waiting = !order.hold && orderWaiting(prog);
     return { ask: !!order.hold, html: `<div class="r"><span>${order.n} flight${order.n == 1 ? '' : 's'}, ${order.okn} good, ${formatMoney(order.paid)} paid</span><b>${formatMoney(order.spent)} of ${formatMoney(order.cap)}</b></div>`
       + (order.hold ? `<p class="wn">${escapeHtml(order.hold)}</p>` : `<div class="m">${waiting ? `Waiting: ${waiting}.` : 'Flying as requests come in.'}</div>`)
-      + `<div class="acts">${order.hold ? `<button data-a="ores" data-id="${prog}">GO AHEAD</button>` : ''}<button data-a="oraise" data-id="${prog}">RAISE BY ${formatMoney(ORDER_RAISE)}</button><button data-a="oend" data-id="${prog}">CLOSE THE ORDER</button></div>` };
+      + `<div class="acts">${order.hold ? `<button data-a="ores" data-id="${prog}">GO AHEAD</button>` : ''}<button data-a="oraise" data-id="${prog}">RAISE BY ${formatMoney(ORDER_RAISE)}</button><button data-a="oraise" data-id="${prog}" data-n="2">DOUBLE TO ${formatMoney(2 * order.cap)}</button><button data-a="oend" data-id="${prog}">CLOSE THE ORDER</button></div>` };
   }
   if (line == 'production') {
     const works = S.works, idle = worksIdleReason();
     const ask = works.hold ? `<p class="wn">Holding the draft blueprint: it would cut liftoff thrust-to-weight by ${Math.round(-works.hold * 100)}%. Reed publishes once the engine work catches up; publish now if you would rather fly the extra propellant.</p>` : works.dry ? `<p class="wn">The budget cannot cover ${escapeHtml(works.dry)}.</p>` : '';
     return { ask: !!ask, html: `<div class="r"><span>${works.built} ordered, ${works.retro} upgraded, ${airframesOnHand(prog)} of ${airframesWanted(prog)} on hand</span><b>${formatMoney(works.spent)} of ${formatMoney(works.cap)}</b></div>`
       + (ask || (idle ? `<div class="m">Idle: ${escapeHtml(idle)}.</div>` : '<div class="m">Work on the factory floor.</div>'))
-      + `<div class="acts">${works.hold ? '<button data-a="wpub">PUBLISH NOW</button>' : ''}<button data-a="wraise">RAISE BY ${formatMoney(WORKS_RAISE)}</button><button data-a="wend">HAND PRODUCTION BACK</button></div>` };
+      + `<div class="acts">${works.hold ? '<button data-a="wpub">PUBLISH NOW</button>' : ''}<button data-a="wraise">RAISE BY ${formatMoney(WORKS_RAISE)}</button><button data-a="wraise" data-n="2">DOUBLE TO ${formatMoney(2 * works.cap)}</button><button data-a="wend">HAND PRODUCTION BACK</button></div>` };
   }
   const lanes = S.lanes;
   return { ask: !!lanes.dry, html: `<div class="r"><span>${lanes.jobs} package${lanes.jobs == 1 ? '' : 's'} started</span><b>${formatMoney(lanes.spent)} of ${formatMoney(lanes.cap)}</b></div>`
     + (lanes.dry ? `<p class="wn">The budget cannot cover ${escapeHtml(lanes.dry)}.</p>` : '') + laneRows()
-    + `<div class="acts"><button data-a="lraise">RAISE BY ${formatMoney(LANE_RAISE)}</button><button data-a="lend">CLOSE THE LANES</button></div>` };
+    + `<div class="acts"><button data-a="lraise">RAISE BY ${formatMoney(LANE_RAISE)}</button><button data-a="lraise" data-n="2">DOUBLE TO ${formatMoney(2 * S.lanes.cap)}</button><button data-a="lend">CLOSE THE LANES</button></div>` };
 }
 function briefMessage(prog) {
   const name = escapeHtml(PROGRAMMES[prog].name), lines = briefLines(prog), free = lines.filter(line => line.state == 'free');
@@ -90,6 +91,15 @@ const briefProgrammes = () => [...new Set([S.cur, ...standingOrders(), S.works?.
 
 // CHEN'S RESEARCH STAFF (rules/leads.js, rules/shared-research.js): the posts open to fill, each with its two candidates; the
 // shared research line and its lanes; and the leads' milestone proposals, which ask for a decision.
+// A milestone proposal: approve it onto the lead's lane, or, while the lane is busy or the money is short, queue it for your own
+// teams as the research desk would (rules/queue.js).
+function proposalButton(milestone, busy) {
+  const position = queuePosition(milestone.id);
+  if (position >= 0) return `<b class="wn">Queued #${position + 1} for your teams</b>`;
+  if (!busy && S.b >= milestone.cost) return `<button data-a="sapprove" data-id="${milestone.id}">APPROVE · ${formatMoney(milestone.cost)}</button>`;
+  const lock = queueLock(milestone.id);
+  return `<button data-a="rq" data-id="${milestone.id}"${lock ? ` disabled title="${escapeHtml(lock)}"` : ''}>QUEUE FOR YOUR TEAMS · ${formatMoney(milestone.cost)}</button>`;
+}
 function researchStaffMessage() {
   if (!memberJoined('chen')) return null;
   const posts = openPosts(), shared = S.shared, staffed = SHARED_AREAS.filter(area => hiredLead(area));
@@ -101,13 +111,13 @@ function researchStaffMessage() {
     const lead = hiredLead(area), job = laneJob(area), idle = sharedIdleReason(area);
     return `<div class="r"><span>${AREAS[area]}</span><b class="${job ? '' : 'd'}">${lead ? escapeHtml(lead.name) : 'no lead'}${job ? `: ${escapeHtml(itemAsSeen(job.id).name)}, ${job.t}s` : idle ? `: ${idle}` : ''}</b></div>`;
   }).join('') + (shared.cap
-    ? `<div class="r"><span>${shared.jobs} started</span><b>${formatMoney(shared.spent)} of ${formatMoney(shared.cap)}</b></div>${shared.dry ? `<p class="wn">The line cannot cover ${escapeHtml(shared.dry)}.</p>` : ''}<div class="acts"><button data-a="sraise">RAISE BY ${formatMoney(SHARED_RAISE)}</button><button data-a="sclose">CLOSE THE LINE</button></div>`
+    ? `<div class="r"><span>${shared.jobs} started</span><b>${formatMoney(shared.spent)} of ${formatMoney(shared.cap)}</b></div>${shared.dry ? `<p class="wn">The line cannot cover ${escapeHtml(shared.dry)}.</p>` : ''}<div class="acts"><button data-a="sraise">RAISE BY ${formatMoney(SHARED_RAISE)}</button><button data-a="sraise" data-n="2">DOUBLE TO ${formatMoney(2 * shared.cap)}</button><button data-a="sclose">CLOSE THE LINE</button></div>`
     : `<div class="m">Open the line and each lead runs the routine research of their area under it. Milestones still come to you first.</div><div class="acts">${SHARED_CAPS.map(cap => `<button data-a="sstart" data-id="${cap}">${formatMoney(cap)} LINE</button>`).join('')}</div>`) + '</div>' : '';
   const proposalsHTML = asks.map(area => {
     const lead = hiredLead(area), busy = !!laneJob(area);
     return `<div class="c"><div class="lbl">PROPOSAL · ${escapeHtml(lead.name)}</div>${isChoice(area) ? '<p class="wn">A choice: starting one approach closes the others.</p>' : ''}`
-      + proposals(area).map(milestone => `<div class="r"><span><b>${escapeHtml(milestone.name)}</b> · <span class="m">${escapeHtml(milestone.why || '')}</span></span><button data-a="sapprove" data-id="${milestone.id}"${busy || S.b < milestone.cost ? ' disabled' : ''}>APPROVE · ${formatMoney(milestone.cost)}</button></div>`).join('')
-      + `${busy ? '<div class="m">The lane is finishing a package; approve once it is done.</div>' : ''}<div class="acts"><button data-a="snot" data-id="${area}">NOT NOW</button></div></div>`;
+      + proposals(area).map(milestone => `<div class="r"><span><b>${escapeHtml(milestone.name)}</b> · <span class="m">${escapeHtml(milestone.why || '')}</span></span>${proposalButton(milestone, busy)}</div>`).join('')
+      + `${busy ? '<div class="m">The lane is finishing a package: approve once it is done, or queue the milestone for your own teams.</div>' : ''}<div class="acts"><button data-a="snot" data-id="${area}">NOT NOW</button></div></div>`;
   }).join('');
   return {
     id: 'staff', kind: asks.length || shared.dry ? 'decision' : 'report', from: memberName('chen'), role: memberRole('chen'), pane: 'note',
@@ -134,7 +144,7 @@ function remitMessage() {
     id: 'remit', kind: asks.length ? 'decision' : 'report', from, role, pane: 'note',
     subject: asks.length ? `The ${PROGRAMMES[remit.prog].name} remit needs you` : `Running the ${PROGRAMMES[remit.prog].name} engineering`,
     body: asks.join('') + `<p>${remit.jobs} job${remit.jobs == 1 ? '' : 's'} started on the ${name}, ${formatMoney(remit.spent)} of ${formatMoney(remit.cap)} spent.</p><p class="m">${authorityText()}</p>`
-      + `<div class="acts">${referred.length ? '<button data-a="mailremit">OPEN THE INCIDENTS</button>' : ''}<button data-a="rraise">RAISE BY ${formatMoney(REMIT_RAISE)}</button><button data-a="rend">CLOSE THE REMIT</button></div>`,
+      + `<div class="acts">${referred.length ? '<button data-a="mailremit">OPEN THE INCIDENTS</button>' : ''}<button data-a="rraise">RAISE BY ${formatMoney(REMIT_RAISE)}</button><button data-a="rraise" data-n="2">DOUBLE TO ${formatMoney(2 * S.remit.cap)}</button><button data-a="rend">CLOSE THE REMIT</button></div>`,
   };
 }
 
