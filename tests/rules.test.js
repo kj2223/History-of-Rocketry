@@ -1340,7 +1340,7 @@ test('a lane takes its experiments once the routine work is done, and says why w
   assert.ok(next && next.dud, 'only experiments left, and the lead takes one');
   lanesTick();
   assert.equal(laneJob('p').id, next.id);
-  assert.equal(laneIdleReason('s'), 'no BSTR yet');
+  assert.equal(laneIdleReason('s'), 'no BSTR or lead yet');
 });
 
 // THE PROGRAMME BRIEF (rules/brief.js): one approval starts every free lead's line on the rocket in focus.
@@ -1379,7 +1379,7 @@ test('a hired lead runs the shared lane on the shared line, and proposes a miles
   readyProgramme('aerobee');
   S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
   chenJoinTick();
-  assert.deepEqual(openPosts(), ['r'], 'Payloads & Recovery opens with Chen; the spacecraft posts wait for NASA');
+  assert.deepEqual(openPosts(), ['p', 's', 'i', 'a', 'r'], 'the development posts and Payloads & Recovery open with Chen; the spacecraft posts wait for NASA');
   S.b = 500000;
   const before = payroll();
   assert.equal(hireLead('r', 'okafor'), null);
@@ -1403,6 +1403,22 @@ test('a hired lead runs the shared lane on the shared line, and proposes a miles
   S.jobs = [];
   notNow('r');
   assert.deepEqual(proposals('r'), []);
+});
+
+test('a development lead takes over a rocket lane from the console engineer, at their own pace', async () => {
+  const { hireLead } = await import('../js/rules/leads.js');
+  const { chenJoinTick, laneLead } = await import('../js/rules/lanes.js');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  S.crew.bstr = 1;
+  assert.equal(laneLead('s').pace, 1, 'BSTR leads until a lead is appointed');
+  assert.equal(laneLead('a'), null);
+  assert.equal(hireLead('a', 'lindqvist'), null);
+  assert.equal(hireLead('s', 'novak'), null);
+  assert.deepEqual(laneLead('a'), { name: 'Dr Victor Lindqvist', pace: 1.3 }, 'no FIDO needed: the aero lead owns development');
+  assert.equal(laneLead('s').name, 'Irene Novak');
+  assert.ok(hireLead('s', 'kowalski'), 'one lead per post');
 });
 
 // REED'S FACTORY BUDGET (rules/factory-lead.js): she keeps airframes on hand, upgrades them and publishes balanced blueprints.

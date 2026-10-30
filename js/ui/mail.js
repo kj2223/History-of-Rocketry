@@ -36,12 +36,12 @@ const waitingIncidents = () => incidentsWithEllis() ? [] : S.inc.filter(incident
 // its lines is held for you.
 const laneRows = () => Object.keys(LANES).map(area => {
   const lead = laneLead(area), idle = S.lanes && laneIdleReason(area);
-  return `<div class="r"><span>${AREAS[area]}</span><b class="${lead && !idle ? '' : 'd'}">${lead ? escapeHtml(lead.name) + (lead.pace < 1 ? ' (covering, slower)' : '') + (idle ? `: ${idle}` : '') : `no ${STATIONS[LANES[area]].callSign} yet`}</b></div>`;
+  return `<div class="r"><span>${AREAS[area]}</span><b class="${lead && !idle ? '' : 'd'}">${lead ? escapeHtml(lead.name) + (lead.cover ? ' (covering, slower)' : '') + (idle ? `: ${idle}` : '') : `no ${STATIONS[LANES[area]].callSign} or lead yet`}</b></div>`;
 }).join('');
 const LINE_OFFERS = {
   flights: () => 'Ellis flies routine customer flights on it under a cap, on the cheapest rocket under order that reaches each request.',
   production: () => `Reed keeps ${AIRFRAMES_ON_HAND} airframes ready or on the floor (one more while it flies routine flights), upgrades them and publishes the blueprint, holding any change that makes it heavier for its thrust.`,
-  research: () => 'Chen runs the routine research in each of its systems, one station engineer to a lane. Your teams stay yours for milestones.',
+  research: () => 'Chen runs the routine research in each of its systems, one lane each, led by its development lead or, until you hire one, its station engineer. Your teams stay yours for milestones.',
 };
 const LINE_NAMES = { flights: 'FLIGHTS', production: 'PRODUCTION', research: 'RESEARCH' };
 // A running line: its account, its question for you if any, why it is quiet, and its buttons. { html, ask }

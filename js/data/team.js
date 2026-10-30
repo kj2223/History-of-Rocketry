@@ -23,7 +23,7 @@ export const CORE_TEAM = {
   },
   chen: {
     name: 'Alice Chen', role: 'Research Lead', callSign: 'R&D', speciality: 'Research programmes', joins: 'Once the Aerobee flies routinely',
-    owns: 'Joins once the Aerobee flies routinely. With a research budget, she runs a lane in each system, led by its station engineer: PROP on propulsion, BSTR on structures and tankage, TLM on instrumentation, FIDO on aerodynamics.',
+    owns: 'Joins once the Aerobee flies routinely. With a research budget, she runs a lane in each system, led by the development lead you hire for it, or until then by its station engineer: PROP on propulsion, BSTR on structures and tankage, TLM on instrumentation, FIDO on aerodynamics. She also finds you the leads for the research every rocket shares.',
   },
   reed: {
     name: 'Margaret Reed', role: 'Factory Lead', callSign: 'FACTORY', speciality: 'Production', joins: 'Once you appoint a launch director',
