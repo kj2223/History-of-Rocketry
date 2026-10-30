@@ -14,6 +14,7 @@ import { AREAS } from '../data/research.js';
 import { LANES, LANE_CAPS, LANE_RAISE, laneLead, laneJob, laneIdleReason } from '../rules/lanes.js';
 import { AIRFRAMES_ON_HAND, WORKS_CAPS, WORKS_RAISE } from '../rules/factory-lead.js';
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
+import { ORDER_CAPS, ORDER_RAISE, ordersUnlocked, standingOrders, orderFor, orderWaiting, ordersTotals, requestText } from '../rules/orders.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -76,6 +77,32 @@ function worksMessage() {
   };
 }
 
+// ELLIS'S STANDING ORDERS (rules/orders.js): the offer once she is launch director, then one rolling report of every order, which
+// asks for a decision when an order is held for you.
+function ordersMessage() {
+  if (!ordersUnlocked()) return null;
+  const from = memberName('ellis'), role = memberRole('ellis'), progs = standingOrders();
+  const offer = PROGRAMMES[S.cur] && S.progs[S.cur].ready && !orderFor(S.cur)
+    ? `<p>${progs.length ? 'Add' : 'Give'} the ${escapeHtml(PROGRAMMES[S.cur].name)} a standing order and I fly it for the services and the research panels as they ask, inside a spending cap.</p><div class="acts">${ORDER_CAPS.map(cap => `<button data-a="ostart" data-id="${cap}">${formatMoney(cap)} CAP</button>`).join('')}</div>` : '';
+  if (!progs.length) return offer ? {
+    id: 'orders', kind: 'report', from, role, subject: 'Routine flights without you scheduling them', pane: 'note',
+    body: `<p>Customers keep asking for flights to a set altitude. With a standing order I take each request on the cheapest rocket under order that reaches it, and a good flight pays their contract. Every flight also teaches the team, the newest rocket a little too.</p>${offer}<p class="m">Campaigns run alongside: a campaign's flight goes first, and its end does not stop the orders.</p>`,
+  } : null;
+  const held = progs.filter(prog => orderFor(prog).hold), totals = ordersTotals();
+  const rows = progs.map(prog => {
+    const order = orderFor(prog), waiting = !order.hold && orderWaiting(prog);
+    return `<div class="c"><div class="r"><b>${escapeHtml(PROGRAMMES[prog].name)}</b><span>${order.n} flight${order.n == 1 ? '' : 's'}, ${order.okn} good · ${formatMoney(order.spent)} of ${formatMoney(order.cap)}</span></div>`
+      + (order.hold ? `<p class="wn">${escapeHtml(order.hold)}</p>` : waiting ? `<div class="m">Waiting: ${waiting}.</div>` : '')
+      + `<div class="acts">${order.hold ? `<button data-a="ores" data-id="${prog}">GO AHEAD</button>` : ''}<button data-a="oraise" data-id="${prog}">RAISE BY ${formatMoney(ORDER_RAISE)}</button><button data-a="oend" data-id="${prog}">CLOSE THE ORDER</button></div></div>`;
+  }).join('');
+  const requests = S.orders.reqs.length ? S.orders.reqs.map(request => `<div class="m">${escapeHtml(requestText(request))}${request.why ? ` <span class="d">(${escapeHtml(request.why)})</span>` : ''}</div>`).join('') : '<div class="m">No requests open. The next is expected soon.</div>';
+  return {
+    id: 'orders', kind: held.length ? 'decision' : 'report', from, role, pane: 'note',
+    subject: held.length ? `${held.length == 1 ? 'A standing order is' : 'Standing orders are'} waiting for you` : `Standing orders: ${totals.n} flight${totals.n == 1 ? '' : 's'}, ${formatMoney(totals.paid)} from customers`,
+    body: `<p>${totals.n} routine flight${totals.n == 1 ? '' : 's'} flown, ${totals.okn} delivered, ${formatMoney(totals.paid)} paid by customers.</p>${rows}<div class="lbl">OPEN REQUESTS</div>${requests}${offer}`,
+  };
+}
+
 function remitMessage() {
   const remit = S.remit, from = memberName('ellis'), role = memberRole('ellis');
   if (!remit) {
@@ -104,6 +131,8 @@ function messages() {
     id: 'camp', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: 'The campaign needs your guidance', pane: 'note',
     body: `<p>${escapeHtml(camp.hold)}</p><p class="m">Fly the next one yourself from Watch, or tell me to go ahead.</p><div class="acts"><button data-a="cgo">GO AHEAD</button><button data-desk="watch">OPEN WATCH</button></div>`,
   });
+  const orders = ordersMessage();
+  if (orders) list.push(orders);
   const remit = remitMessage();
   if (remit) list.push(remit);
   const lanes = lanesMessage();
@@ -149,6 +178,10 @@ function sideHTML() {
   html += card(`FACTORY · ${S.aq.length} in the queue`, S.aq.length ? `<div class="m">Next out: ${S.aq[0].k == 'build' ? 'airframe' : S.aq[0].k == 'retro' ? 'retrofit' : 'spacecraft'} <span data-q="0"></span></div><div class="bar"><i data-qb="0"></i></div>` : '<div class="m">The factory floor is empty.</div>');
   const camp = S.auto.camp;
   if (camp) html += card(`CAMPAIGN · ${memberName('ellis')}`, `<div class="r"><span>Flights flown</span><b>${camp.n}</b></div><div class="r"><span>Spent</span><b>${formatMoney(camp.spent)} of ${formatMoney(camp.budget)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(camp.spent / camp.budget * 100))}%"></i></div>`);
+  if (standingOrders().length) {
+    const totals = ordersTotals();
+    html += card(`STANDING ORDERS · ${memberName('ellis')}`, standingOrders().map(prog => `<div class="r"><span>${escapeHtml(PROGRAMMES[prog].name)}</span><b class="${orderFor(prog).hold ? 'wn' : ''}">${orderFor(prog).hold ? 'waiting for you' : `${orderFor(prog).n} flown`}</b></div>`).join('') + `<div class="r"><span>Paid by customers</span><b>${formatMoney(totals.paid)}</b></div><div class="r"><span>Requests open</span><b>${S.orders.reqs.length}</b></div>`);
+  }
   const remit = S.remit;
   if (remit) html += card(`REMIT · ${memberName('ellis')}`, `<div class="r"><span>${escapeHtml(PROGRAMMES[remit.prog].name)}</span><b>${remit.jobs} job${remit.jobs == 1 ? '' : 's'}</b></div><div class="r"><span>Spent</span><b>${formatMoney(remit.spent)} of ${formatMoney(remit.cap)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(remit.spent / remit.cap * 100))}%"></i></div>`);
   html += '<div class="lbl sub">CORE TEAM</div>' + joinedMembers().map(id => `<div class="who"><i>${CORE_TEAM[id].name.split(' ').map(word => word[0]).join('')}</i><span><b>${memberName(id)}</b><span class="m">${memberRole(id)}</span></span></div>`).join('');

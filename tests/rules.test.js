@@ -225,6 +225,63 @@ test('a campaign closes at its deadline', () => {
   assert.equal(report.outcome, 'deadline');
 });
 
+// STANDING ORDERS
+// An open incident holds routine flights until it is dealt with; these tests close them as a player or Ellis's remit would.
+const closeIncidents = kind => withProgramme(kind, () => S.inc.forEach(incident => incident.st = 'done'));
+test('a standing order flies customer requests by itself and keeps flying after a campaign expires', async () => {
+  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.staff.director = 1;
+  S.hi = 60000;
+  assert.equal(startCampaign({ prog: 'wac', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal: 50, months: 3, budget: 1e6 }), null);
+  assert.equal(startOrder('aerobee', 1e6), null);
+  let flownAtExpiry = null;
+  for (let second = 0; second < 3000; second++) {
+    tickSecond();
+    autoLaunch();
+    if (S.auto.camp && S.auto.camp.hold) goAhead();
+    closeIncidents('aerobee');
+    closeIncidents('wac');
+    if (orderFor('aerobee').hold) assert.fail(orderFor('aerobee').hold);
+    if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
+    S.b = Math.max(S.b, 200000);
+  }
+  assert.equal(S.auto.last.outcome, 'deadline');
+  assert.ok(orderFor('aerobee').n > flownAtExpiry, 'the order keeps flying once the campaign is over');
+  assert.ok(orderFor('aerobee').paid > 0, 'customers pay for good flights');
+  assert.ok(orderFor('aerobee').spent <= orderFor('aerobee').cap);
+});
+
+test('a standing order stops and asks you when its cap is spent', async () => {
+  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.staff.director = 1;
+  S.hi = 60000;
+  assert.equal(startOrder('aerobee', 10000), null);
+  for (let second = 0; second < 3000 && !orderFor('aerobee').hold; second++) {
+    tickSecond();
+    autoLaunch();
+    closeIncidents('aerobee');
+    S.b = Math.max(S.b, 200000);
+  }
+  assert.match(orderFor('aerobee').hold, /cap/);
+  assert.ok(orderFor('aerobee').spent <= 10000);
+});
+
+test('Ellis flies a request on the cheapest ordered rocket that reaches it, not the newest', async () => {
+  const { startOrder, orderFor, ordersTurn } = await import('../js/rules/orders.js');
+  S.air.push(readyProgramme('aerobee'), readyProgramme('viking'));
+  S.staff.director = 1;
+  startOrder('aerobee', 1e6);
+  startOrder('viking', 1e6);
+  S.b = 1e6;
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
+  ordersTurn(.85);
+  assert.equal(orderFor('aerobee').n, 1);
+  assert.equal(orderFor('viking').n, 0);
+});
+
 test('flights you fly yourself count towards the campaign; the director learns only from its own', () => {
   readyProgramme('aerobee');
   S.staff.director = 1;

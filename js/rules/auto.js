@@ -1,5 +1,6 @@
-// THE LAUNCH DIRECTOR runs the campaign you set (rules/campaign.js): it orders airframes within the budget, picks the
-// propellant load, runs the go/no-go poll and flies, until the target is met, the deadline passes or the budget is spent. No DOM.
+// THE LAUNCH DIRECTOR runs the campaign you set (rules/campaign.js) and the standing orders (rules/orders.js). For a campaign
+// it orders airframes within the budget, picks the propellant load, runs the go/no-go poll and flies, until the target is met,
+// the deadline passes or the budget is spent. No DOM.
 import { formatMoney } from '../core/util.js';
 import { S, log, withProgramme } from '../core/state.js';
 import { quoteLaunch, hasBoosterStage } from './design.js';
@@ -8,6 +9,7 @@ import { orderAirframes } from './factory.js';
 import { runPoll, scrub, scrubCost, troubleshoot, PAD_FIX_COST } from './launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight } from './flight.js';
 import { campaignExpired, endCampaign, directorMargin, slipChance, VETERAN_MARGIN } from './campaign.js';
+import { standingOrders, ordersTurn } from './orders.js';
 
 // The director tries every 15 seconds, and keeps $6,000 in the treasury for you.
 const DIRECTOR_CADENCE = 15;
@@ -34,14 +36,15 @@ export function planLoad(airframe, camp, margin) {
   return { reason, stage };
 }
 
-// Every 15 seconds while a campaign runs. Returns true if anything happened.
+// Every 15 seconds while a campaign or a standing order runs: the campaign's flight first, then the orders (rules/orders.js).
+// Returns true if anything happened.
 export function autoLaunch() {
   const camp = S.auto.camp;
-  if (!S.staff.director || !camp || airborne.flight || --S.auto.cd > 0) return false;
+  if (!S.staff.director || (!camp && !standingOrders().length) || airborne.flight || --S.auto.cd > 0) return false;
   S.auto.cd = DIRECTOR_CADENCE;
-  if (campaignExpired()) return true;
-  if (camp.hold) return false;
-  return withProgramme(camp.prog, () => directorTurn(camp));
+  if (camp && campaignExpired()) return true;
+  if (camp && !camp.hold && withProgramme(camp.prog, () => directorTurn(camp))) return true;
+  return ordersTurn();
 }
 
 function directorTurn(camp) {

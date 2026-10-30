@@ -40,6 +40,7 @@
 //   remit   Ellis's engineering remit, or null (see rules/remit.js)
 //   lanes   Chen's research lanes, or null (see rules/lanes.js)
 //   works   Reed's factory budget, or null (see rules/factory-lead.js)
+//   orders  standing flight orders and the customers' requests (see rules/orders.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -75,6 +76,7 @@ export const newGameState = () => ({
   remit: null,
   lanes: null,
   works: null,
+  orders: { by: {}, reqs: [], n: 1, due: 0 },
 });
 
 export const S = newGameState();

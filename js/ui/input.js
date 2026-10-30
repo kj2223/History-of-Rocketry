@@ -16,6 +16,7 @@ import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { startRemit, raiseRemit, endRemit } from '../rules/remit.js';
 import { startLanes, raiseLanes, endLanes } from '../rules/lanes.js';
 import { startWorks, raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
+import { startOrder, raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
@@ -196,6 +197,13 @@ const GAME_ACTIONS = {
   wraise: () => raiseWorks(),
   wend: () => endWorks(),
   wpub: () => publishHeld(),
+  ostart: cap => {
+    const error = startOrder(S.cur, +cap);
+    if (error) log('[LAUNCH DIRECTOR] ' + error, 'bad');
+  },
+  oraise: prog => raiseOrder(prog),
+  oend: prog => endOrder(prog),
+  ores: prog => resumeOrder(prog),
   fac: id => buildFacility(id),
   mothball: id => mothball(id),
   reopen: id => reopen(id),
