@@ -19,7 +19,7 @@ import { beginMission, stepMission, endMission, reading, decisionOptions, decisi
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
-import { render, markDirty } from './screen.js';
+import { render, markDirty, openWatch } from './screen.js';
 import { $, setHTML } from './dom.js';
 
 // The launch view's state. count: the countdown in progress, or null:
@@ -35,6 +35,7 @@ export const isBusy = () => !!launchView.count;
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
 
 function openPad() {
+  openWatch();
   $('#pad').hidden = false;
   $('#home').hidden = true;
   $('#padlog').innerHTML = '';

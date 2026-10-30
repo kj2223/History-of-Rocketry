@@ -27,6 +27,7 @@ import { trajectoryPanel, currentPlan } from './trajectory.js';
 import { siteView, renderFacilities } from './site-plan.js';
 import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
+import { openMail } from './mail.js';
 import { $ } from './dom.js';
 
 let resetArmed = 0;
@@ -212,6 +213,13 @@ const GAME_ACTIONS = {
 };
 // Actions that only change what is shown: they return without saving or redrawing.
 const VIEW_ACTIONS = {
+  // Mail: open a message, or go from Ellis's incident message to the incidents in Research.
+  mailopen: id => openMail(id),
+  mailinc: () => {
+    researchDesk.view = 'incidents';
+    openDesk('rd');
+    render();
+  },
   nasa: () => {
     formNasa();
     ensurePhaseTwo();
