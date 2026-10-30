@@ -72,6 +72,10 @@ document.addEventListener('change', event => {
     S.p2.le = +value;
     return render();
   }
+  if (data.mr) {
+    S.p2.lr = value == '0' ? 0 : value;
+    return render();
+  }
   if (data.rq) {
     setRequest(+value);
     save();

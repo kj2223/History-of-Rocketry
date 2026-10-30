@@ -17,7 +17,7 @@ import { orderAirframes, publishBlueprint, buildTeams, buildTeamCost } from '../
 import { startInvestigation, chooseFix, INVESTIGATION_COST } from '../js/rules/jobs.js';
 import { runPoll, scrub, facilityLock, buildFacility, stationLock, hireStation, troubleshoot, groundTest, groundTestLock, PAD_FIX_COST } from '../js/rules/launch-site.js';
 import { nasaReady, formNasa } from '../js/rules/race.js';
-import { directiveKey, boosterPlan, crewLock, orderCapsule, requirementText, capsuleSystems } from '../js/rules/mercury.js';
+import { directiveKey, boosterPlan, crewLock, orderCapsule, requirementText, capsuleSystems, targetUp } from '../js/rules/mercury.js';
 import { beginMission, stepMission, endMission, decisionOptions, decisionOdds, chooseOption, missionStepSeconds } from '../js/rules/mission.js';
 import { chooseTestingRegime, startChimpTraining, answerOfficeDecision } from '../js/rules/astronaut-office.js';
 import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot } from '../js/rules/astronauts.js';
@@ -99,13 +99,13 @@ export function playMercury(game) {
   const decide = mission => {
     const key = mission.pending.key, directive = MERCURY_DIRECTIVES[S.p2.dir];
     let options = decisionOptions(mission, key).filter(option => option.available);
-    const stillNeeded = directive && ((key == 'fuel' || key == 'cells') && mission.orbitsFlown < (directive.orbits || 0) || key == 'eva' && directive.eva);
+    const stillNeeded = directive && ((key == 'fuel' || key == 'cells') && mission.orbitsFlown < (directive.orbits || 0) || key == 'eva' && directive.eva || key == 'rdv' && (directive.rendezvous || directive.dock));
     if (stillNeeded && options.some(option => !option.soft)) options = options.filter(option => !option.soft);
     const best = options.sort((first, second) => decisionOdds(mission, key, second) - decisionOdds(mission, key, first))[0];
     chooseOption(mission, best.index);
   };
   // Fly one Mercury mission. Real time on screen: a 30 s count, a quarter-second per step, and five seconds for each decision.
-  const flyMission = (capsule, booster, crew, orbits) => {
+  const flyMission = (capsule, booster, crew, orbits, target = null) => {
     const poll = runPoll(booster.airframe, booster.propellant, booster.plan.staged);
     if (poll.nogo && S.b > PAD_FIX_COST) troubleshoot(poll);
     if (poll.nogo) {
@@ -113,7 +113,7 @@ export function playMercury(game) {
       return advance(3);
     }
     const eva = !!(directive => directive && directive.eva)(MERCURY_DIRECTIVES[S.p2.dir]);
-    const mission = beginMission(capsule.id, crew, { af: booster.airframe.id, fuel: booster.propellant, latent: poll.fault, wind: poll.wind, orbits, eva });
+    const mission = beginMission(capsule.id, crew, { af: booster.airframe.id, fuel: booster.propellant, latent: poll.fault, wind: poll.wind, orbits, eva, target });
     if (!mission) return advance(1);
     let steps = 0, decisions = 0, result;
     do {
@@ -254,14 +254,17 @@ export function playMercury(game) {
       continue;
     }
     const lastsLongEnough = each => !orbits || capsuleSystems(each.cfg, missionType).endurance >= orbits;
-    // Gemini spacecraft need the manoeuvring system and the spacewalk suit aboard for the directives that use them.
-    const builtFor = each => lastsLongEnough(each) && (!directive.manoeuvre || each.cfg.pk.includes('gm_oams')) && (!directive.eva || each.cfg.pk.includes('gm_eva'));
+    // Gemini spacecraft need the manoeuvring system, the spacewalk suit and the rendezvous radar aboard for the directives that use them.
+    const target = directive.dock ? 'dock' : directive.rendezvous ? 'rdv' : null;
+    const builtFor = each => lastsLongEnough(each) && (!directive.manoeuvre || each.cfg.pk.includes('gm_oams')) && (!directive.eva || each.cfg.pk.includes('gm_eva')) && (!target || each.cfg.pk.includes('gm_rdv'));
     const blueprint = { cfg: { pk: Object.keys(S.g.pk), rev: S.g.bp.rev } };
     if (!builtFor(blueprint) || directive.eva && !S.fac.altch) {
       advance(2);
       continue;
     }
     const capsule = state.veh.find(each => each.mt == missionType && builtFor(each));
+    // An Agena target takes a while to build: start one as soon as a rendezvous or docking directive is coming.
+    if (gemini && MERCURY_DIRECTIVES.slice(state.dir).some(each => each.rendezvous || each.dock) && !state.veh.some(each => each.mt == 'ag') && !S.aq.some(item => item.k == 'msn' && item.mt == 'ag') && !requirementText('ag') && S.b >= MISSION_TYPES.ag.cost + reserve) orderCapsule('ag');
     if (!capsule && !S.aq.some(item => item.k == 'msn' && item.mt == missionType && builtFor(item)) && S.b >= MISSION_TYPES[missionType].cost + reserve) orderCapsule(missionType);
     const booster = boosterFor(missionType);
     if (!booster) orderBoosterFor(missionType, reserve);
@@ -284,7 +287,24 @@ export function playMercury(game) {
       advance(2);
       continue;
     }
-    flyMission(capsule, booster, crew, orbits);
+    // RENDEZVOUS AND DOCKING: keep an Agena target built ahead, as a player would. Once the Gemini flight is otherwise ready and both
+    // crew have trained for rendezvous, put the Agena up first (it lasts three months), on the cheapest booster that can carry it.
+    if (target) {
+      const agena = state.veh.find(each => each.mt == 'ag'), agenaBooster = boosterFor('ag');
+      if (!agena && !S.aq.some(item => item.k == 'msn' && item.mt == 'ag') && !requirementText('ag') && S.b >= MISSION_TYPES.ag.cost + reserve) orderCapsule('ag');
+      if (!agenaBooster) orderBoosterFor('ag', reserve);
+      const trained = GEMINI_SEATS.every(seat => (assignedPilot(seat) || { reh: {} }).reh.rdv);
+      if (!trained) {
+        advance(2);
+        continue;
+      }
+      if (!targetUp()) {
+        if (agena && agenaBooster) flyMission(agena, agenaBooster, 'none', 1);
+        else advance(2);
+        continue;
+      }
+    }
+    flyMission(capsule, booster, crew, orbits, target);
   }
   markDirectives();
   return report;

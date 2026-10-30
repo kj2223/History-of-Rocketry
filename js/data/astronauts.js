@@ -20,6 +20,8 @@ export const REHEARSALS = {
   abort: { long: 'launch abort', short: 'launch abort' },
   retro: { long: 'retrofire failure', short: 'retrofire failure' },
   hatch: { long: 'emergency egress', short: 'emergency egress' },
+  // Trained in mission training, not drawn at random (rules/astronauts.js RENDEZVOUS_TRAINING).
+  rdv: { long: 'rendezvous', short: 'rendezvous' },
 };
 // The order the simulator picks rehearsals from (it matters for random draws).
 export const REHEARSAL_KEYS = ['att', 'ecs', 'tj', 'abort', 'retro', 'hatch'];

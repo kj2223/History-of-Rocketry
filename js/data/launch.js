@@ -33,6 +33,7 @@ export const PAYLOADS = {
   'Command Receiver Test Package': { cost: 2500, mass: 15, science: 0, needs: 'cmd', uplink: 1 },
   'Mercury Capsule': { cost: 0, mass: 100, science: 0, mercury: 1 },
   'Gemini Spacecraft': { cost: 0, mass: 260, science: 0, mercury: 1 },
+  'Agena Target': { cost: 0, mass: 110, science: 0, mercury: 1 },
 };
 
 // PITCH PROGRAMS: how a single-stage rocket (or a booster stage) turns over toward the horizon on the way up, set on the

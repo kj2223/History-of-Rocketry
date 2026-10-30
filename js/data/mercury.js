@@ -24,8 +24,8 @@ export const BASE_ENDURANCE_ORBITS = 3;
 // FUEL_PER_ORBIT for each of the first three orbits; after that the capsule drifts and spends far less. Research cuts both.
 // A thruster fault costs THRUSTER_FAULT_FUEL; retrofire needs RETRO_FUEL to hold the capsule steady while the retros burn.
 export const FUEL_PER_ORBIT = 8, DRIFTING_FUEL_PER_ORBIT = 2.5, THRUSTER_FAULT_FUEL = 22, RETRO_FUEL = 15, LOW_FUEL = 35;
-// Gemini: the fuel an orbit change and a spacewalk (holding attitude while the hatch is open) cost.
-export const OAMS_BURN_FUEL = 8, EVA_FUEL = 5;
+// Gemini: the fuel an orbit change, a spacewalk (holding attitude while the hatch is open) and a rendezvous cost.
+export const OAMS_BURN_FUEL = 8, EVA_FUEL = 5, RENDEZVOUS_FUEL = 15;
 // SPLASHDOWN: how far from the recovery ships the capsule comes down, in km. A good retrofire lands within a few km of the
 // ships; a late or crooked one hundreds of km away (Aurora 7 came down 400 km long). Beyond LONG_WAIT_KM the ships are hours away.
 export const SPLASH_SPREAD_KM = 25, LONG_WAIT_KM = 120;
@@ -72,7 +72,15 @@ export const MISSION_TYPES = {
     needs: { v: 7000 }, reference: { alt: 160, v: 7840 }, boostEnd: 300, sep: 300, gLoad: 4.5, fuel: { hold: 6, drift: .15 },
     why: 'Project Gemini. Two astronauts in a spacecraft that can change its orbit, on a booster strong enough to lift it (7,000 m/s with the spacecraft aboard: Titan II). Spacewalks and flights of a week or two.',
   },
+  // THE AGENA TARGET: launched on an orbital-class booster, it stays in orbit for TARGET_DAYS as the target for a rendezvous or docking.
+  // target: the flight ends once it is in orbit.
+  ag: {
+    name: 'Agena target', fullName: 'Agena target launch', capsuleName: 'Agena Target Vehicle', cost: 60000, buildTime: 160, crewed: 0, orbital: 1, target: 1, payload: 'Agena Target',
+    needs: { v: 7000 }, reference: { alt: 160, v: 7840 }, boostEnd: 300, sep: 300, gLoad: 0,
+    why: 'A target for Gemini to catch and dock with, launched on an orbital-class booster (Atlas, from its own pad). It stays in orbit about three months; launch the Gemini while it is up.',
+  },
 };
+export const TARGET_DAYS = 90;
 // The orbit counts the planner offers a Gemini flight, and how long the spacecraft lasts: four days on batteries, eight with the
 // fuel cells, fourteen with the long-duration stores as well (Gemini 4, 5 and 7).
 export const GEMINI_ORBIT_CHOICES = [3, 16, 62, 120, 206];
@@ -83,7 +91,8 @@ export const GEMINI_SEATS = ['gt', 'gtp'];
 export const SECOND_GROUP_SIZE = 9;
 
 // PHASE TWO DIRECTIVES, in order. missionType: the mission that can meet it (rate is met by any flight record).
-// orbits: the fewest orbits that count; crew: astronauts aboard; manoeuvre: an orbit change; eva: a spacewalk.
+// orbits: the fewest orbits that count; crew: astronauts aboard; manoeuvre: an orbit change; eva: a spacewalk;
+// rendezvous: close in on an Agena target; dock: dock with it.
 export const MERCURY_DIRECTIVES = [
   { key: 'bj', name: 'Big Joe', description: 'Prove the heat shield: fly a boilerplate capsule on your orbital-class booster and recover it.', reward: 60000, missionType: 'bj' },
   { key: 'lj', name: 'Little Joe series', description: 'Qualify the escape system across its envelope: three good aborts, at least one with a rhesus monkey aboard.', reward: 60000, missionType: 'lj' },
@@ -102,6 +111,9 @@ export const MERCURY_DIRECTIVES = [
   { key: 'g3', section: 2, project: 'gemini', name: 'First two-man flight', description: 'Fly two astronauts for three orbits and fire the manoeuvring thrusters to change orbit, as Gemini 3 did. Needs the ejection seats, the manoeuvring system (OAMS) aboard and a man-rated Titan II.', reward: 250000, missionType: 'gt', orbits: 3, crew: 2, manoeuvre: 1 },
   { key: 'g4', section: 2, project: 'gemini', name: 'American spacewalk', description: 'An astronaut leaves the spacecraft in orbit and comes back in, as Ed White did on Gemini 4. Needs the spacewalk suit and an altitude chamber to clear the spacecraft for depressurisation.', reward: 200000, missionType: 'gt', orbits: 16, crew: 2, eva: 1 },
   { key: 'g5', section: 2, project: 'gemini', name: 'Eight days in orbit', description: 'Fly two astronauts for 120 orbits, the length of a trip to the Moon, as Gemini 5 did. Needs the fuel cells.', reward: 200000, missionType: 'gt', orbits: 120, crew: 2 },
+  { key: 'g7', section: 2, project: 'gemini', name: 'Two weeks in orbit', description: 'Fly two astronauts for 206 orbits, fourteen days, as Gemini 7 did. Needs the fuel cells and the fourteen-day stores.', reward: 200000, missionType: 'gt', orbits: 206, crew: 2 },
+  { key: 'g6', section: 2, project: 'gemini', name: 'Rendezvous', description: 'Catch a target in orbit and close to within a few metres, as Gemini 6A did. Launch an Agena target first, then a Gemini with the rendezvous radar while it is up.', reward: 250000, missionType: 'gt', orbits: 16, crew: 2, rendezvous: 1 },
+  { key: 'g8', section: 2, project: 'gemini', name: 'Docking', description: 'Rendezvous with an Agena target and dock with it, as Gemini 8 did: two spacecraft joined in orbit, as a Moon landing will need. Coming home early after docking still counts.', reward: 250000, missionType: 'gt', orbits: 1, crew: 2, dock: 1 },
 ];
 // The last Mercury directive's index: Mercury is complete once it is met, and Gemini opens.
 export const LAST_MERCURY_DIRECTIVE = MERCURY_DIRECTIVES.findIndex(directive => directive.key == 'oday');
@@ -168,6 +180,14 @@ export const DECISIONS = {
     { text: 'Get back in now', baseChance: 1, soft: 1 },
     { text: 'Push on and finish the tasks', skill: 'end', baseChance: .55 },
     { text: 'Slow down and follow CAPCOM\'s pace', skill: 'com', baseChance: .65, needs: 'capcom' }] },
+  // Rendezvous: the radar loses lock on the target (soft: give up the rendezvous). Docked: a thruster sticks open and the pair spin (Gemini 8).
+  rdv: { question: 'The radar has lost lock on the target. The crew can still see it, a point of light against the stars.', options: [
+    { text: 'Give up the rendezvous', baseChance: 1, soft: 1 },
+    { text: 'Close in by eye, with the star charts', skill: 'pil', baseChance: .5 },
+    { text: 'Fly the ground\'s solution from the tracking data', skill: 'com', baseChance: .6, needs: 'capcom' }] },
+  spin: { question: 'Docked, the spacecraft and the Agena are rolling faster and faster. The crew are starting to grey out.', options: [
+    { text: 'Undock and stop the spin with the re-entry thrusters', skill: 'pil', baseChance: .65 },
+    { text: 'Stay docked and shut the Agena down', baseChance: .25 }] },
   cells: { question: 'Oxygen pressure to the fuel cells is falling. Without them the spacecraft runs on its small batteries.', options: [
     { text: 'Come home early', baseChance: 1, soft: 1 },
     { text: 'Power down and nurse the cells', skill: 'sys', baseChance: .6 },
