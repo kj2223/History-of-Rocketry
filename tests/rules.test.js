@@ -1840,3 +1840,23 @@ test("a stage's own research changes how it flies; the rocket's research does no
   assert.equal(withProgramme('titan', () => lowerStage('titan', { ...airframe, pk: [thrust] }, propellant)).thrust, bare.thrust);
   assert.ok(withProgramme('titan', () => lowerStage('titan', { ...airframe, stg: { titan1: { pk: [thrust], rev: 2 } } }, propellant)).thrust > bare.thrust);
 });
+
+// THE SATURN I (Apollo step 3): the second rocket with stage designs, opening once Apollo has its architecture.
+test('the Saturn I opens only once Apollo has chosen how to reach the Moon, with the S-I as a stage of its own', async () => {
+  await mercuryComplete();
+  readyProgramme('titan');
+  S.progs.titan.matured = 1;
+  assert.match(startLock('saturn1'), /Apollo/);
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  assert.equal(startLock('saturn1'), null);
+  startProgramme('saturn1');
+  assert.deepEqual(stagesOf('saturn1'), ['sat1_si']);
+});
+
+test('the S-I burns kerosene under a hydrogen upper stage, and the Saturn I can orbit an Apollo boilerplate the Titan II cannot', () => {
+  const saturn = readyProgramme('saturn1'), titan = readyProgramme('titan');
+  const first = withProgramme('saturn1', () => lowerStage('saturn1', saturn, PROPELLANTS['Hydrogen & LOX']));
+  assert.ok(Math.abs(first.vacuumIsp / first.isp - PROPELLANTS['Kerosene & LOX'].vacuumIsp / PROPELLANTS['Kerosene & LOX'].isp) < 1e-9);
+  assert.equal(previewFlight(saturn, 'Hydrogen & LOX', 'Apollo Boilerplate', 1, .8).orbit, true);
+  assert.equal(previewFlight(titan, 'Aerozine & N2O4', 'Apollo Boilerplate', 1, 1).orbit, false);
+});

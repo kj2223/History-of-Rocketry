@@ -140,6 +140,7 @@ export function startLock(kind) {
   if (closer) return `Closed: the ${PROGRAMMES[closer].name} programme took the other route.`;
   if (programme.needsNasa && !S.nasa) return 'Needs NASA.';
   if (programme.needsGemini && !(S.p2 && S.p2.fl.gem)) return 'Opens with Project Gemini, once Mercury is complete.';
+  if (programme.needsApollo && !(S.p2 && S.p2.ap && S.p2.ap.arch)) return 'Opens once Project Apollo has chosen how to reach the Moon.';
   const met = requirementsMet(programme) || isShortcut(kind) && isMature(programme.skip.from);
   const needs = programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ');
   if (!met) return `Needs ${isShortcut(kind) ? `${PROGRAMMES[programme.skip.from].name} (to skip straight to it) or ${needs}` : needs} to mature (knowledge ${MATURE} and ${FLIGHTS_TO_MATURE} successful flights).`;
