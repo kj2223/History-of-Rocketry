@@ -4,13 +4,13 @@
 // rocket under order that reaches it, which need not be the newest. A good flight pays the customer's contract. Every flight
 // teaches the team: the rocket's own systems as any flight does, and the newest rocket a little as well (flight time on an older
 // rocket still counts, at a reduced rate). Good flights go into one rolling Mail report. An order stops and asks you when its
-// cap is spent, when Ellis cannot plan a safe load, or when a milestone has changed the rocket's configuration; it waits by
+// cap is spent or when Ellis cannot plan a safe load (a new configuration needs no approval: it was cleared with its blueprint); it waits by
 // itself while the treasury is short, while an incident on the rocket is open, or while no airframe is ready.
 // Campaigns run alongside: a campaign's flight goes first, and a campaign ending does not stop the orders. No DOM.
 //
 // S.orders: { by: { [prog]: order }, reqs: open requests, n: the next request id, due: the game day the next request arrives }
 //   order:   { cap ($), spent ($), n: flights, okn: good flights, paid ($ from customers), hold: why Ellis waits for you or null,
-//              pk: the packages of the configuration you approved (a new milestone among an airframe's packages holds the order),
+//              pk: the packages of the configuration flying (a new milestone among an airframe's packages is noted in the log),
 //              aside: airframes set aside in a row because no safe load could be planned }
 // An airframe Ellis will not fly on routine flights carries aside: the reason; you can still fly it yourself.
 //   request: { id, who, pay: the payload flown, km: the altitude asked for, fee ($ on a good flight), by: the game day it lapses,
@@ -76,7 +76,7 @@ export function endOrder(prog) {
   log(`[LAUNCH DIRECTOR] ${PROGRAMMES[prog].name} order closed: ${order.n} flight${order.n == 1 ? '' : 's'}, ${order.okn} good, ${formatMoney(order.paid)} from customers, ${formatMoney(order.spent)} of ${formatMoney(order.cap)} spent.`, 'wn');
   if (!standingOrders().length) S.orders.reqs = [];
 }
-// You approve the rocket's new configuration (or answer Ellis's question about a load): the order flies again.
+// You answer Ellis's question about a load: the order flies again.
 export function resumeOrder(prog) {
   const order = orderFor(prog);
   if (!order) return;
@@ -168,11 +168,10 @@ function chooseRocket(request, margin) {
       reasons.push(`${PROGRAMMES[prog].name}: ${waiting}`);
       continue;
     }
-    const newMilestone = airframe.pk.find(id => isMilestone(id) && !order.pk.includes(id));
-    if (newMilestone) {
-      order.hold = `The ${PROGRAMMES[prog].name} now flies a new configuration. Approve it before routine flights resume.`;
-      log(`[LAUNCH DIRECTOR] ${order.hold}`, 'wn');
-      continue;
+    // A new configuration was cleared when its blueprint was signed into the design: she notes it and flies on.
+    if (airframe.pk.some(id => isMilestone(id) && !order.pk.includes(id))) {
+      order.pk = [...airframe.pk];
+      log(`[LAUNCH DIRECTOR] The ${PROGRAMMES[prog].name} flies its new configuration on routine flights from now on.`, 'cyan');
     }
     // The full stack where the rocket has a booster stage and it plans safely, else the upper stage alone.
     const fuel = PROGRAMMES[prog].propellants[0];
