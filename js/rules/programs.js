@@ -5,7 +5,7 @@
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, BY_ID } from '../data/research.js';
 import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
-import { S, log, addHistory, newBundle, recordRunEvent } from '../core/state.js';
+import { S, log, addHistory, newBundle, recordRunEvent, earn } from '../core/state.js';
 
 // The four research areas that belong to a rocket (the others are global: see core/state.js).
 export const VEHICLE_AREAS = ['p', 's', 'i', 'a'];
@@ -72,7 +72,7 @@ export function createProgramme(kind, skipping = false) {
   for (const area of VEHICLE_AREAS) {
     const best = Math.max(0, ...earlier.map(other => other.kn[area] || 0));
     const parent = programme.derivedFrom && S.progs[programme.derivedFrom] ? S.progs[programme.derivedFrom].kn[area] || 0 : 0;
-    bundle.kn[area] = Math.max(best * (skipping ? programme.skip.headStart : HEAD_START.best), parent * HEAD_START.parent);
+    bundle.kn[area] = Math.max(best * (skipping ? programme.skip.headStart : programme.headStart || HEAD_START.best), parent * HEAD_START.parent);
   }
   S.progs[kind] = bundle;
   return bundle;
@@ -107,6 +107,7 @@ export function startLock(kind) {
   const closer = closedBy(kind);
   if (closer) return `Closed: the ${PROGRAMMES[closer].name} programme took the other route.`;
   if (programme.needsNasa && !S.nasa) return 'Needs NASA.';
+  if (programme.needsGemini && !(S.p2 && S.p2.fl.gem)) return 'Opens with Project Gemini, once Mercury is complete.';
   const met = requirementsMet(programme) || isShortcut(kind) && isMature(programme.skip.from);
   const needs = programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ');
   if (!met) return `Needs ${isShortcut(kind) ? `${PROGRAMMES[programme.skip.from].name} (to skip straight to it) or ${needs}` : needs} to mature (knowledge ${MATURE} and ${FLIGHTS_TO_MATURE} successful flights).`;
@@ -128,7 +129,7 @@ export function startProgramme(kind) {
   log(`[PROGRAMME] ${programme.name} programme approved (${formatMoney(programme.cost)}). Engineers begin the detailed design; the first drawings are ready in about ${designTime}s.`, 'hd');
   if (skipping) log(`[PROGRAMME] ${programme.name} skips the ${PROGRAMMES[programme.skip.past].name} generation: the ${PROGRAMMES[programme.skip.past].name} programme is closed, its research is folded into the ${programme.name}, and the team starts with little it already knows.`, 'wn');
   if (programme.igyFunding) {
-    S.b += programme.igyFunding;
+    earn(programme.igyFunding);
     log(`[CONGRESS] ${programme.name} is named the American satellite for the International Geophysical Year. A dedicated appropriation of ${formatMoney(programme.igyFunding)} comes with it.`, 'hd');
   }
   addHistory(`${programme.name} programme started`);

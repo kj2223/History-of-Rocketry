@@ -1,28 +1,41 @@
 // INPUT: every button, select and slider on the page. Buttons carry data-a (the action) and data-id; after an action the game is
 // saved and the screen redrawn, except where an action returns early.
 import { S, save, resetState, log } from '../core/state.js';
+import { setRequest } from '../rules/budget.js';
 import { formNasa } from '../rules/race.js';
 import { commission, crashProgramme } from '../rules/research.js';
+import { queueResearch, queueAnalysis, queueFix, queueReview, unqueue, moveUpQueue } from '../rules/queue.js';
 import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
+import { mothball, reopen } from '../rules/site.js';
 import { airborne } from '../rules/flight.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from '../rules/factory.js';
 import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
-import { orderCapsule } from '../rules/mercury.js';
+import { startRemit, raiseRemit, endRemit } from '../rules/remit.js';
+import { raiseLanes, endLanes } from '../rules/lanes.js';
+import { raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
+import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
+import { approveBrief } from '../rules/brief.js';
+import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
+import { hireLead } from '../rules/leads.js';
+import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
+import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
-import { selectCrew, setTrainingFocus, assignPilot } from '../rules/astronauts.js';
+import { selectCrew, setTrainingFocus, assignPilot, assignBackup, assignThirdCrew } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
-import { launchForm, campaignForm, campaignRocket } from './launch-panel.js';
+import { launchForm, campaignForm, campaignSettings } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
 import { selectedFinalists, sectionSummaryHTML } from './mercury-panels.js';
 import { showPhaseOneSummary, showRunLog, copyRunLog } from './race-and-summaries.js';
 import { researchDesk, renderResearchDesk } from './design-bureau.js';
 import { trajectoryPanel, currentPlan } from './trajectory.js';
+import { siteView, renderFacilities } from './site-plan.js';
 import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
+import { openMail } from './mail.js';
 import { $ } from './dom.js';
 
 let resetArmed = 0;
@@ -32,7 +45,7 @@ document.addEventListener('input', event => {
   if (event.target.dataset.tj) $('#tj-' + event.target.dataset.tj).textContent = event.target.value + '°';
 });
 
-// SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew), auto-publish, the campaign form and the launch form.
+// SELECTS: an astronaut's training focus, the Mercury planner (capsule, booster, propellant, crew, orbits), auto-publish, the campaign form and the launch form.
 document.addEventListener('change', event => {
   const data = event.target.dataset, value = event.target.value;
   if (data.focus) {
@@ -54,6 +67,23 @@ document.addEventListener('change', event => {
   }
   if (data.mc) {
     S.p2.lc = isNaN(+value) ? value : +value;
+    return render();
+  }
+  if (data.mo) {
+    S.p2.lo = +value;
+    return render();
+  }
+  if (data.me) {
+    S.p2.le = +value;
+    return render();
+  }
+  if (data.mr) {
+    S.p2.lr = value == '0' ? 0 : value;
+    return render();
+  }
+  if (data.rq) {
+    setRequest(+value);
+    save();
     return render();
   }
   if (data.tj) {
@@ -78,7 +108,10 @@ document.addEventListener('change', event => {
   if (!field) return;
   launchForm[field] = field == 'st' || field == 'load' ? +value : value;
   if (field == 'st') launchForm.stageChosen = 1;
-  if (field == 'af') launchForm.stageChosen = 0;
+  if (field == 'af') {
+    launchForm.stageChosen = 0;
+    launchForm.afPicked = 1;
+  }
   render();
 });
 
@@ -136,16 +169,59 @@ const PAD_ACTIONS = {
 const GAME_ACTIONS = {
   com: id => commission(id),
   crash: id => crashProgramme(id),
+  rq: id => queueResearch(id),
+  unq: index => unqueue(+index),
+  qup: index => moveUpQueue(+index),
+  qinv: id => queueAnalysis(+id),
+  qfix: (id, button) => queueFix(+id, button.dataset.f),
+  qrev: id => queueReview(id),
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),
   cstart: () => {
-    const error = startCampaign({ prog: campaignRocket(), fuel: launchForm.fuel, pay: launchForm.pay, st: launchForm.st, ...campaignForm });
+    const error = startCampaign({ ...campaignSettings(), ...campaignForm });
     if (error) log('[LAUNCH DIRECTOR] ' + error, 'bad');
   },
   cend: () => endCampaign('ended'),
   cgo: () => goAhead(),
+  rstart: cap => {
+    const error = startRemit(+cap);
+    if (error) log('[CHIEF] ' + error, 'bad');
+  },
+  rraise: () => raiseRemit(),
+  rend: () => endRemit(),
+  lraise: () => raiseLanes(),
+  lend: () => endLanes(),
+  wraise: () => raiseWorks(),
+  wend: () => endWorks(),
+  wpub: () => publishHeld(),
+  leadhire: id => {
+    const error = hireLead(...id.split(':'));
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  sstart: cap => {
+    const error = startShared(+cap);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  sraise: () => raiseShared(),
+  sclose: () => endShared(),
+  sapprove: id => {
+    const error = approveProposal(id);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  snot: area => notNow(area),
+  iattend: () => attendFirst(),
+  iproceed: () => proceedWithFirst(),
+  bstart: size => {
+    const error = approveBrief(+size);
+    if (error) log('[PROGRAMME] ' + error, 'bad');
+  },
+  oraise: prog => raiseOrder(prog),
+  oend: prog => endOrder(prog),
+  ores: prog => resumeOrder(prog),
   fac: id => buildFacility(id),
+  mothball: id => mothball(id),
+  reopen: id => reopen(id),
   inv: id => startInvestigation(+id),
   fix: (id, button) => chooseFix(+id, button.dataset.f),
   accept: id => acceptFinding(+id),
@@ -170,7 +246,12 @@ const GAME_ACTIONS = {
   selok: () => {
     if (selectCrew([...selectedFinalists])) selectedFinalists.clear();
   },
-  asg: id => assignPilot(+id, 'mr'),
+  asg: id => assignPilot(+id, pilotMissionType()),
+  bkp: id => assignBackup(+id, pilotMissionType()),
+  asgp: id => assignPilot(+id, 'gtp'),
+  bkpp: id => assignBackup(+id, 'gtp'),
+  nxp: id => assignThirdCrew(+id, 'gt'),
+  nxpp: id => assignThirdCrew(+id, 'gtp'),
   memok: () => {
     S.p2.memo = null;
     $('#sum').hidden = true;
@@ -183,6 +264,25 @@ const GAME_ACTIONS = {
 };
 // Actions that only change what is shown: they return without saving or redrawing.
 const VIEW_ACTIONS = {
+  // Mail: open a message, or go from Ellis's incident message to the incidents in Research.
+  mailopen: id => openMail(id),
+  // From the directive or race block in the top bar: open Mail on that message.
+  mailshow: id => {
+    openDesk('');
+    openMail(id);
+  },
+  // From Ellis's remit message: her rocket's incidents, with the findings she referred to you.
+  mailremit: () => {
+    if (S.remit && S.progs[S.remit.prog]) S.cur = S.remit.prog;
+    researchDesk.view = 'incidents';
+    openDesk('rd');
+    render();
+  },
+  mailinc: () => {
+    researchDesk.view = 'incidents';
+    openDesk('rd');
+    render();
+  },
   nasa: () => {
     formNasa();
     ensurePhaseTwo();
@@ -277,6 +377,11 @@ document.addEventListener('click', event => {
   if (speedButton) {
     S.speed = +speedButton.dataset.spd;
     return renderHeader();
+  }
+  const plot = event.target.closest('[data-plot]');
+  if (plot) {
+    siteView.selected = plot.dataset.plot;
+    return renderFacilities();
   }
   const button = event.target.closest('button[data-a]');
   if (!button || button.disabled) return;

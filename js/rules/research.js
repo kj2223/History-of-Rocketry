@@ -3,7 +3,7 @@
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, MILESTONES, BY_ID, isMilestone, AREAS, formatEffect, breakthroughNeeds } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
+import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob, earn } from '../core/state.js';
 import { learn, knowledgeFraction } from './knowledge.js';
 import { programmePackages, isInProgramme, scaledForProgramme, VEHICLE_AREAS, programmeData } from './programs.js';
 import { trackingTiers } from './design.js';
@@ -67,6 +67,14 @@ export function describeResearch(item) {
 
 // Why a package or milestone cannot be commissioned now, or null if it can.
 export function researchLock(id) {
+  const lock = availabilityLock(id), item = itemAsSeen(id);
+  if (lock) return lock;
+  if (S.b < costAfterEarmark(item)) return `Need ${formatMoney(costAfterEarmark(item) - S.b)} more.`;
+  if (freeTeams() < 1) return 'All teams busy.';
+  return null;
+}
+// Why a package or milestone is not open to commission at all (money and free teams aside), or null if it is.
+export function availabilityLock(id) {
   const item = itemAsSeen(id);
   if (item.phase == 2 && !S.nasa) return 'Opens when NASA is established.';
   if (isVehicleArea(item.area) && !S.cur) return 'No rocket programme.';
@@ -79,8 +87,6 @@ export function researchLock(id) {
     if (lock) return lock;
   } else if (!isProposed(item)) return 'Not yet proposed by the engineers.';
   if (item.needsMilestone && !isVehicleArea(item.area) && !hasFirstMilestone(item.area)) return 'Unlocks after a first milestone in this area.';
-  if (S.b < costAfterEarmark(item)) return `Need ${formatMoney(costAfterEarmark(item) - S.b)} more.`;
-  if (freeTeams() < 1) return 'All teams busy.';
   return null;
 }
 export const commission = id => {
@@ -92,6 +98,7 @@ export const commission = id => {
     S.ear[item.area] = 0;
   }
   S.b -= cost;
+  S.rq = S.rq.filter(entry => entry.k || entry.id != id || entry.prog != (isVehicleArea(item.area) ? S.cur : null));
   S.jobs.push({ k: 'pk', id, prog: isVehicleArea(item.area) ? S.cur : null, t: item.time, tot: item.time });
   log(`[DESIGN] Started: ${item.name} (${formatMoney(item.cost)}).`, 'wn');
 };
@@ -148,7 +155,7 @@ export function finishResearch(id) {
   log(`[DESIGN] Complete: ${item.name}${isVehicleArea(item.area) && S.cur ? ` for the ${PROGRAMMES[S.cur].name}` : ''}. Publish a new blueprint revision to build it into airframes; its real effect is confirmed when one flies.`, 'ok');
   if (isMilestone(id)) addHistory(`Milestone: ${item.name}`);
   if (item.contract) {
-    S.b += item.contract;
+    earn(item.contract);
     log(`[CONTRACT] ${item.name} delivered. Contract payment +${formatMoney(item.contract)}.`, 'hd');
   }
   checkBreakthroughs();

@@ -21,7 +21,7 @@ import { DIRECTIVES, DIRECTIVE_NEWS } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES, SYMPTOMS, visibleSymptoms, findFix } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log, save, isConfirmed, addHistory, recordRunEvent, withProgramme } from '../core/state.js';
+import { S, log, save, isConfirmed, addHistory, recordRunEvent, withProgramme, earn } from '../core/state.js';
 import { designSpec, fixModifiers, trackingTiers, quoteLaunch } from './design.js';
 import { recoveryPlan, recoverPayload } from './recovery.js';
 import { FAILURE_WARNINGS, WARNING_SECONDS } from './telemetry.js';
@@ -29,9 +29,12 @@ import { confirmPackage, checkBreakthroughs } from './research.js';
 import { loseReputation, rangeDataPayment } from './economy.js';
 import { checkFirsts } from './race.js';
 import { recordBoosterFlight } from './manrate.js';
+import { usePad, damagePad } from './site.js';
 import { programmeOf, traitWeight, revealTraits, maturity } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
+import { recordFirsts } from './invitations.js';
+import { recordTeamFlight, recordFixTrials } from './team.js';
 
 // What is in the air right now: the UI's launch view (and the launch director) keep the flight or Mercury mission here.
 export const airborne = { flight: null, mission: null };
@@ -155,7 +158,8 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   const coreBurnTime = burnSeconds(core);
   // Reliability: the propellant's base, up to +15 points of experience with it, the design's offset,
   // up to -8 points for unproven packages, and up to +7 points as the programme matures.
-  const unproven = airframe.pk.filter(id => !isConfirmed(id)).length;
+  // Phase Two packages ride in the blueprint but belong to the capsule and the mission (rules/mercury.js counts them there).
+  const unproven = airframe.pk.filter(id => !isConfirmed(id) && !(BY_ID[id] && BY_ID[id].phase == 2)).length;
   const reliability = Math.min(.99, propellant.reliability + Math.min(.15, (S.fr[propellantName] || 0) * .015) + spec.r - Math.min(.08, unproven * .012) + .07 * maturity(programmeKey) / 100);
   return {
     airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over, plan: options.plan || null,
@@ -178,8 +182,10 @@ export function beginFlight(airframe, propellantName, payloadName, stage, load =
   if (quote.error) return null;
   S.b -= quote.cost;
   S.air.splice(S.air.indexOf(airframe), 1);
+  const pad = usePad(airframe);
   S.day += 7;
   const flight = makeFlight(airframe, propellantName, payloadName, stage, load, options);
+  flight.pad = pad;
   log(`--- LAUNCH SEQUENCE: ${airframe.label} (propellant ${Math.round(load * 100)}%) ---`, 'wn');
   log(`[DISPATCH] ${DIRECTIVE_NEWS[Math.min(4, S.dir)]}`, 'nar');
   if (flight.overNoGo) log('[TC] Proceeding over a NO-GO call.', 'bad');
@@ -504,7 +510,7 @@ function scienceReturn(flight, peak, why) {
   if (earned > 0) {
     // Half the value is paid now; 30% becomes the science bonus in every grant, if it beats the current one.
     const cash = Math.round(earned * .5);
-    S.b += cash;
+    earn(cash);
     S.pb = Math.max(S.pb, Math.round(earned * .3));
     log(`[SCIENCE] ${recovered || why == 'orbit' ? 'Full data return' : 'Telemetered data only'} from the ${flight.payload}: research contract +${formatMoney(cash)}.`, 'ok');
   } else if (!recovered && why != 'orbit') log(`[SCIENCE] The ${flight.payload} returned no usable data.`, 'wn');
@@ -526,7 +532,7 @@ export function endFlight(flight, ok, why) {
   return withProgramme(flight.programme, () => endFlightForProgramme(flight, ok, why));
 }
 function endFlightForProgramme(flight, ok, why) {
-  const tracking = flight.tracking;
+  const tracking = flight.tracking, recordsBefore = [S.hd, S.hs, S.hi];
   if (S.dev) {
     S.dev.fl++;
     recordRunEvent({ k: 'flight', n: S.dev.fl, af: flight.label, out: why, fail: flight.failure || undefined, peak: Math.round(flight.peakAltitude), spd: Math.round(flight.peakSpeed), dr: Math.round(flight.downrange), fuel: flight.propellant, load: +flight.load.toFixed(2), pay: flight.payload, stg: flight.stages.length, over: flight.overNoGo || undefined, plan: flight.plan ? `${flight.plan.elevation}° ${flight.plan.program}${flight.plan.aim != null ? ` aim ${flight.plan.aim}°` : ''}` : undefined });
@@ -537,6 +543,7 @@ function endFlightForProgramme(flight, ok, why) {
   let peak = Math.max(0, Math.round(flight.peakAltitude * (1 + altitudeQuality.noise / 2 * gaussian()) / altitudeQuality.rounding) * altitudeQuality.rounding);
   if (why == 'fail' || why == 'abort') {
     if (why == 'fail') {
+      damagePad(flight.pad, flight.time);
       const lastPlot = flight.lastReadings.alt ? formatAltitude(flight.lastReadings.alt.value, flight.lastReadings.alt.quality) : null;
       log(`T+${flight.time}s | TRACK LOST. Radio carrier lost.${lastPlot ? ' Last plot ' + lastPlot + '.' : ''}`, 'bad');
       if (S.crew.rso) log('[RSO] Destruct command sent. Debris fell inside the range.', 'wn');
@@ -587,7 +594,7 @@ function endFlightForProgramme(flight, ok, why) {
     S.fr[flight.propellant] = (S.fr[flight.propellant] || 0) + 1;
     const rangeData = rangeDataPayment(peak);
     if (rangeData) {
-      S.b += rangeData;
+      earn(rangeData);
       log(`[DOD] Range data contract for the flight: +${formatMoney(rangeData)}.`, 'ok');
     }
     const science = scienceReturn(flight, peak, why);
@@ -595,7 +602,7 @@ function endFlightForProgramme(flight, ok, why) {
     const directive = DIRECTIVES[S.dir];
     if (directive && (why == 'orbit' || (peak >= directive.altitudeKm * 1000 && directive.altitudeKm < 120))) {
       const reward = why == 'orbit' ? Math.round(directive.reward * (S.rvd.r_sat ? .6 : 1.3)) : directive.reward;
-      S.b += reward;
+      earn(reward);
       S.rep = Math.min(100, S.rep + 10);
       addHistory(`Directive met: ${directive.name}`);
       log(`[DIRECTIVE FULFILLED] ${directive.name}. Reward +${formatMoney(reward)}${why == 'orbit' ? (S.rvd.r_sat ? ' (cut: the Soviets were first)' : ' (bonus: first in orbit)') : ''}.`, 'hd');
@@ -613,19 +620,23 @@ function endFlightForProgramme(flight, ok, why) {
   recordBoosterFlight(flight.airframe, ok && why != 'abort');
   learnFromFlight(flight, ok);
   recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
+  recordFirsts(flight);
+  recordTeamFlight(ok && why != 'abort', ok ? peak : 0, [S.hd, S.hs, S.hi].filter((record, index) => record != recordsBefore[index]).length, !!flight.byDirector);
+  recordFixTrials(flight.programme, ok && why != 'abort', flight.airframe);
   revealTraits(flight.programme);
   save();
 }
 
 // MERCURY BOOSTERS: one of your airframes flies its normal physics and failure model with a capsule aboard, from liftoff to burnout.
-// options.load: the propellant load the mission plan chose (rules/mercury.js boosterPlan), full by default.
+// options.load: the propellant load the mission plan chose (rules/mercury.js boosterPlan), full by default; options.payload: the spacecraft
+// aboard, the Mercury capsule by default.
 export const totalBurnTime = flight => flight.stages.reduce((sum, eachStage) => sum + burnSeconds(eachStage), 0);
 // Returns { flight, failure: the mode or null, short: it fell back before burnout, fraction: share of the burn flown, altitude, speed }.
 export function boosterRun(airframe, propellantName, stage, options = {}) {
   return withProgramme(programmeOf(airframe), () => boosterRunForProgramme(airframe, propellantName, stage, options));
 }
 function boosterRunForProgramme(airframe, propellantName, stage, options) {
-  const flight = makeFlight(airframe, propellantName, 'Mercury Capsule', stage, options.load || 1, options), burn = totalBurnTime(flight);
+  const flight = makeFlight(airframe, propellantName, options.payload || 'Mercury Capsule', stage, options.load || 1, options), burn = totalBurnTime(flight);
   let result;
   // A failure already showing its warning at burnout still strikes.
   do result = step(flight); while ((result == 'tick' || result == 'sep') && (flight.stages[flight.stages.length - 1].fuel > 0 || flight.pending) && flight.time < 2000);
@@ -636,6 +647,7 @@ export function boosterFailed(flight) {
   withProgramme(flight.programme, () => {
     openIncident(flight, flight.tracking, null);
     learnFromFlight(flight, false);
+    recordTeamFlight(false);
     revealTraits(flight.programme);
   });
   S.fr[flight.propellant] = S.fr[flight.propellant] || 0;
@@ -644,6 +656,8 @@ export function boosterSucceeded(flight) {
   withProgramme(flight.programme, () => {
     S.fr[flight.propellant] = (S.fr[flight.propellant] || 0) + 1;
     learnFromFlight(flight, true);
+    recordTeamFlight(true);
+    recordFixTrials(flight.programme, true, flight.airframe);
     for (const id of flight.airframe.pk) if (BY_ID[id] && BY_ID[id].phase != 2) confirmPackage(id, 'Flight');
     checkBreakthroughs();
     revealTraits(flight.programme);

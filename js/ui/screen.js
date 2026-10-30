@@ -1,26 +1,30 @@
-// THE SCREEN: the header, era and control-room theme, the directive panel, the desk drawer, and redrawing every panel.
+// THE SCREEN: the top bar, the era banners, the directive message, switching apps, and redrawing every panel.
 // The game clock marks the screen dirty when something changes; main.js redraws it then, and refreshes the timers otherwise.
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES, DIRECTIVE_NEWS, ERAS } from '../data/history.js';
 import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { S, load, logSink, today, formatDate, findJob } from '../core/state.js';
 import { era } from '../rules/design.js';
-import { grant } from '../rules/economy.js';
-import { nasaReady, SPACE_ACT_DAY } from '../rules/race.js';
+import { grant, payroll, programmeProgress } from '../rules/economy.js';
+import { nasaReady, SPACE_ACT_DAY, sovietProgress, intelligenceEstimate } from '../rules/race.js';
 import { roomLevel } from '../rules/launch-site.js';
 import { buildRate } from '../rules/factory.js';
+import { itemAsSeen } from '../rules/research.js';
 import { catchUp, ensureStarter } from '../rules/game.js';
 import { renderControlRoom, renderLaunchForm, renderCampaign } from './launch-panel.js';
 import { launchView, renderPad } from './launch-view.js';
 import { renderResearchDesk } from './design-bureau.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
+import { renderMail, mailWaiting } from './mail.js';
 import { renderTrajectory } from './trajectory.js';
-import { renderHangar, renderFacilities } from './hangar.js';
+import { renderHangar } from './hangar.js';
+import { renderFacilities } from './site-plan.js';
 import { renderStaff, renderLaunchCrew } from './personnel.js';
 import { renderRace } from './race-and-summaries.js';
-import { renderAstronautOffice, renderMissionPlanner, mercuryDirectiveHTML, memorialHTML, sectionSummaryHTML } from './mercury-panels.js';
-import { $, setHTML } from './dom.js';
+import { MERCURY_DIRECTIVES } from '../data/mercury.js';
+import { renderAstronautOffice, renderMissionPlanner, mercuryDirectiveHTML, mercuryDirectiveTrack, memorialHTML, sectionSummaryHTML } from './mercury-panels.js';
+import { $, setHTML, escapeHtml } from './dom.js';
 
 let dirty = 1, shownEra = -1, shownRoom = -1, desk = '';
 export const markDirty = () => {
@@ -57,42 +61,107 @@ logSink.fn = (text, style) => {
   while (loop.children.length > LOOP_LINES) loop.lastChild.remove();
 };
 
-// THE DESKS: '' is the control room alone; any other desk opens its drawer over the room. Picking the open desk again closes it.
-const DESK_TITLES = { rd: 'RESEARCH & DESIGN', hangar: 'DRAWING OFFICE, FACTORY & HANGAR', base: 'LAUNCH SITE & BASE', crew: 'PERSONNEL & LAUNCH CREW', astro: 'ASTRONAUT OFFICE' };
+// THE APPS: '' is Mail, the home screen; 'watch' is the control room; the rest are the desks. One app fills the screen at a time.
+const DESK_TITLES = { '': 'Mail', watch: 'Watch', rd: 'Research & Design', hangar: 'Drawing Office, Factory & Hangar', base: 'Launch Site & Base', crew: 'People & Launch Crew', astro: 'Astronaut Office' };
 export function showDesk(name) {
-  desk = name == desk ? '' : name;
-  applyDesk();
-}
-// Open a desk without toggling (the flight result's incident button).
-export function openDesk(name) {
   desk = name;
   applyDesk();
 }
-// The R&D button counts incidents waiting for you: records analysis, a call on the findings, or a fix.
+export const openDesk = showDesk;
+// Opening the pad for a countdown brings up Watch (ui/launch-view.js).
+export const openWatch = () => showDesk('watch');
+// The Research button counts incidents waiting for you: records analysis, a call on the findings, or a fix.
+// The Mail button counts messages that ask for a decision.
 function applyDesk() {
   if (desk == 'astro' && !S.nasa) desk = '';
-  $('#drawer').hidden = !desk;
-  $('#drawer-t').textContent = DESK_TITLES[desk] || '';
+  $('#drawer-t').textContent = DESK_TITLES[desk];
   document.querySelectorAll('[data-deskpane]').forEach(pane => pane.hidden = pane.dataset.deskpane != desk);
   document.querySelectorAll('.rail [data-desk]').forEach(button => button.classList.toggle('on', button.dataset.desk == desk));
+  document.querySelectorAll('header.top .ctx').forEach(block => block.classList.toggle('in', block.dataset.on.split(' ').includes(desk || 'mail')));
   const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag').length, badge = $('#badge-rd');
   badge.hidden = !waiting;
   badge.textContent = waiting;
+  const decisions = mailWaiting(), mailBadge = $('#badge-mail');
+  mailBadge.hidden = !decisions;
+  mailBadge.textContent = decisions;
+  renderMiniClock();
 }
 
-// THE HEADER: speed, date (and catch-up), the next appropriation, budget, reputation and records.
+// THE SMALL MISSION CLOCK in the top bar: a copy of the pad's clock, phase, milestones and readouts, shown while another
+// app covers Watch. The pad's phase line (#padph) can start with the count or mission time ("T-00:10 COUNTING");
+// in flight the clock strip (#mclock) holds the time, so the phase is shown without it.
+function renderMiniClock() {
+  const box = $('#miniclock');
+  box.hidden = !launchView.count || desk == 'watch';
+  if (box.hidden) return;
+  const phase = $('#padph').textContent.match(/^(T[+-][\d:]+)?\s*(.*)$/), flying = !$('#fl').hidden;
+  $('#miniclockt').textContent = flying ? $('#mclock').textContent : phase[1] || '';
+  $('#miniclockph').textContent = phase[2];
+  setHTML($('#miniphases'), flying ? $('#phases').innerHTML : '');
+  setHTML($('#minireads'), flying ? $('#readouts').innerHTML : '');
+}
+
+// THE HEADER: speed, date (and catch-up), the next appropriation, budget, reputation, payroll and records.
 export function renderHeader() {
   document.querySelectorAll('[data-spd]').forEach(button => button.classList.toggle('on', +button.dataset.spd == (S.speed ?? 1)));
   $('#dt').textContent = today();
   const speedUp = catchUp();
   $('#cu').textContent = speedUp > 1.05 ? ` ×${speedUp.toFixed(1)}, catching up with history` : '';
-  $('#gt').textContent = S.gt;
+  $('#gt').textContent = Math.max(1, Math.ceil(S.gt / speedUp));
   $('#ga').textContent = formatMoney(grant());
   $('#bg').textContent = formatMoney(S.b);
   $('#rp').textContent = Math.round(S.rep) + '%';
+  $('#pay').textContent = formatMoney(payroll());
   $('#ra').textContent = Math.round(S.hi || 0).toLocaleString() + ' m';
   $('#rv').textContent = Math.round(S.hs || 0).toLocaleString() + ' m/s';
-  $('#rd').textContent = ((S.hd || 0) / 1000).toFixed(S.hd < 1e5 ? 1 : 0) + ' km';
+  $('#rec').title = `Altitude and speed records. Furthest downrange: ${((S.hd || 0) / 1000).toFixed(S.hd < 1e5 ? 1 : 0)} km.`;
+  renderHeaderResearch();
+  renderTracker();
+}
+// THE HEADER RESEARCH BAR: the research package closest to finishing, and how many others are in work.
+function renderHeaderResearch() {
+  const research = S.jobs.filter(job => job.k == 'pk').sort((a, b) => a.t - b.t), nearest = research[0];
+  const others = research.length > 1 ? ` +${research.length - 1} more` : '';
+  // The name is cut short if it must be; the time left and the count of others always show.
+  $('#hres').textContent = nearest ? itemAsSeen(nearest.id).name : 'None in work';
+  $('#hres').title = $('#hres').textContent;
+  $('#hrest').textContent = nearest ? ` · ${nearest.t}s${others}` : '';
+  $('#hresbar').style.width = nearest ? Math.round((1 - nearest.t / Math.max(1, nearest.tot)) * 100) + '%' : '0';
+}
+// THE DIRECTIVE AND RACE BLOCKS in the top bar (index.html says on which apps): the directive and how close it
+// is, and the race with the Soviets. When a directive is met, its block says so for a few seconds.
+const DIRECTIVE_MET_SHOWN_MS = 8000;
+let shownDirective = null, directiveMet = null;
+function directiveTrack() {
+  if (S.nasa) return mercuryDirectiveTrack();
+  const directive = DIRECTIVES[S.dir];
+  if (!directive) return null;
+  // The satellite directive is about speed (7,000 m/s at 120 km); the others are about altitude.
+  if (directive.altitudeKm >= 120) return { label: `${S.dir + 1} of ${DIRECTIVES.length}`, name: directive.name, status: `best ${Math.round(S.hs || 0).toLocaleString()} of 7,000 m/s`, fraction: Math.min(1, (S.hs || 0) / 7000) };
+  return { label: `${S.dir + 1} of ${DIRECTIVES.length}`, name: directive.name, status: `best ${((S.hi || 0) / 1000).toFixed(1)} of ${directive.altitudeKm} km`, fraction: Math.min(1, (S.hi || 0) / (directive.altitudeKm * 1000)) };
+}
+function noteDirectiveMet() {
+  const phase = S.nasa && S.p2 ? 'p2' : 'p1', index = phase == 'p2' ? S.p2.dir : S.dir;
+  if (shownDirective && shownDirective.phase == phase && index > shownDirective.index) {
+    const met = (phase == 'p2' ? MERCURY_DIRECTIVES : DIRECTIVES)[index - 1];
+    directiveMet = { name: met.name, reward: met.reward, until: Date.now() + DIRECTIVE_MET_SHOWN_MS };
+  }
+  shownDirective = { phase, index };
+}
+function renderTracker() {
+  noteDirectiveMet();
+  const track = directiveTrack(), bar = (fraction, kind = '') => `<span class="bar${kind}"><i style="width:${Math.round(fraction * 100)}%"></i></span>`;
+  let directive;
+  if (directiveMet && Date.now() < directiveMet.until) directive = `<span class="lbl ok">DIRECTIVE MET</span><b class="ok">${escapeHtml(directiveMet.name)} +${formatMoney(directiveMet.reward)}</b>`;
+  else if (track) directive = `<span class="lbl">DIRECTIVE ${track.label}</span><b>${escapeHtml(track.name)}${track.fraction == null ? '' : bar(track.fraction)}<span class="s">${track.status}</span></b>`;
+  else directive = `<span class="lbl">DIRECTIVES</span><b class="ok">All current directives met</b>`;
+  setHTML($('#ctxdir'), directive);
+  // The race: your programme against the intelligence range for the Soviets, toward a satellite and then a cosmonaut.
+  const ours = programmeProgress(), theirs = sovietProgress(), estimate = intelligenceEstimate();
+  const standing = theirs.done ? '' : ours > theirs.hi ? ' · <span class="ok">AHEAD</span>' : ours < theirs.lo ? ' · <span class="bad">BEHIND</span>' : ' · <span class="wn">LEVEL</span>';
+  const soviet = theirs.done ? `<span class="bad">${S.nasa ? 'cosmonaut in orbit' : 'satellite in orbit'}</span>` : `${bar(theirs.lo, ' su')}${Math.round(theirs.lo * 100)}–${Math.round(theirs.hi * 100)}%`;
+  setHTML($('#ctxrace'), `<span class="lbl">RACE${standing}</span><b>You ${bar(ours)}${Math.round(ours * 100)}% · Soviets ${soviet}</b>`);
+  $('#ctxrace').title = `Open the race report in Mail.${estimate ? ` Soviets next: ${estimate.what}, ${estimate.lo} to ${estimate.hi}.` : ''}`;
 }
 function banner(subtitle, title, body) {
   const box = $('#bn');
@@ -101,12 +170,10 @@ function banner(subtitle, title, body) {
   box.innerHTML = `<div class="d">${subtitle}</div><h1>${title}</h1><div>${body}</div>`;
   box.className = 's';
 }
-// The era and the control room set the page theme; a new one (or a bigger room) is announced with a banner.
+// A new era (or a bigger control room) is announced with a banner. The look stays the same; only names change with the era.
 function applyEra() {
-  const current = era(), level = roomLevel(), root = document.documentElement;
-  root.dataset.era = current;
-  root.dataset.room = level;
-  $('#era').textContent = `${S.nasa ? 'PROJECT MERCURY' : ERAS[current].name} • ${1946 + Math.floor(S.day / 360)}`;
+  const current = era(), level = roomLevel();
+  $('#era').textContent = `${S.nasa ? (S.p2 && S.p2.fl.gem ? 'PROJECT GEMINI' : 'PROJECT MERCURY') : ERAS[current].name} • ${1946 + Math.floor(S.day / 360)}`;
   $('#site').textContent = ROOMS[level].name;
   // Labels that change with the era: data-l="early|middle|late".
   document.querySelectorAll('[data-l]').forEach(node => node.textContent = node.dataset.l.split('|')[current]);
@@ -120,7 +187,7 @@ function applyEra() {
   }
 }
 
-// THE DIRECTIVE PANEL: the Phase One directive, the Space Act and NASA, then the Mercury directive.
+// THE DIRECTIVE MESSAGE: the Phase One directive, the Space Act and NASA, then the Mercury directive.
 function directiveHTML() {
   const directive = DIRECTIVES[S.dir];
   let html = directive
@@ -157,6 +224,7 @@ export function render() {
   renderFacilities();
   renderStaff();
   renderLaunchCrew();
+  renderMail();
   applyDesk();
 }
 // Between redraws, only the header, the countdown figures and bars on jobs, and the factory queue change.
@@ -176,8 +244,8 @@ export function refreshTimers() {
     if (!item) return;
     const progress = Math.round((item.tot - item.t) / item.tot * 100);
     node.textContent = `${progress}% (${Math.ceil(item.t / buildRate(item))}s)`;
-    const bar = document.querySelector(`[data-qb="${node.dataset.q}"]`);
-    if (bar) bar.style.width = progress + '%';
+    // Mail and the Hangar both show the item on the floor, so every bar for it moves.
+    document.querySelectorAll(`[data-qb="${node.dataset.q}"]`).forEach(bar => bar.style.width = progress + '%');
   });
 }
 // One-off overlays: the memorial after a crew is lost, then the Section 1 summary.
@@ -202,6 +270,9 @@ export function initUI() {
   ensureStarter();
   $('#fl').hidden = true;
   $('#lc').hidden = false;
+  // The small clock follows the pad's clock strip as it changes, many times a second in flight.
+  const followPad = new MutationObserver(renderMiniClock);
+  for (const node of [$('#padph'), $('#mclock'), $('#phases'), $('#readouts')]) followPad.observe(node, { childList: true, characterData: true, subtree: true, attributes: true });
   logSink.fn('[SYSTEM] Radar tracking and a radio beacon are online. Expect approximate data only.', '');
   logSink.fn('[SYSTEM] Appropriations arrive every 30 seconds.', '');
   render();

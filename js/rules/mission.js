@@ -4,25 +4,36 @@
 // A mission is one object, made by beginMission and advanced by stepMission:
 //   capsule (from S.p2.veh), type (a MISSION_TYPES entry), missionType (its key), systems (capsuleSystems), booster (the airframe)
 //   propellant, staged, crew (an astronaut, an animal { animalName, species }, or null), crewChoice (what the planner picked)
+//   second (Gemini: the pilot beside the command pilot, or null), evaPlanned (Gemini: a spacewalk is in the flight plan),
+//   targetPlan (Gemini: 'rdv' to rendezvous with the Agena target, 'dock' to dock with it, or null)
 //   time (mission seconds), events: [{ time, kind }] still to happen, script: scripted transcript lines still to come
 //   transcript: [{ t: seconds, w: speaker, x: text, c: style }] (saved as S.p2.lastTx, so the keys stay short)
 //   log: what happened, in words; pending: { key, question, ground } a decision waiting for an answer
 //   outcome: what went wrong or right (see newOutcome); latent: a fault the poll missed; overNoGo: launched over a NO-GO
 //   altitudeScale, speedScale: the profile scaled to the booster; callSign; boost: the booster run; rescued: the man-rating
 //   redundancy rode out a booster fault; retroWillFail; trace: altitudes for the plotting board; done
-//   faults: spacecraft systems that failed (keys of SYSTEM_FAULTS), investigated when the mission ends
+//   faults: spacecraft systems that failed (keys of SYSTEM_FAULTS), investigated when the mission ends; pad: the launch complex used (rules/site.js)
+//   In orbit (Section 2) also: fuel (attitude-control fuel, %), orbitsFlown, drifting (fuel-saving drift flight), retroTries,
+//   missKm (how far from the recovery ships the capsule will come down), shieldLoose, retropackKept, fuelAsked, oamsRetried (Gemini)
+//   outcome on Gemini also: manoeuvred (an orbit change), eva (a spacewalk done), ejected (the crew rode the ejection seats out),
+//   rendezvous (closed in on the target), docked
 import { formatMoney, gaussian, clamp } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES } from '../data/failures.js';
-import { MISSION_TYPES, MERCURY_DIRECTIVES, CHIMPANZEE_NAMES, MONKEY_NAMES, CAPSULE_NAMES, DECISIONS } from '../data/mercury.js';
-import { S, log, addHistory, save, isResearched, isConfirmed, recordRunEvent } from '../core/state.js';
+import { MISSION_TYPES, CHIMPANZEE_NAMES, MONKEY_NAMES, CAPSULE_NAMES, DECISIONS, ORBIT_SECONDS, RETROFIRE_AFTER_ORBITS, ORBITAL_ASCENT, ORBITAL_DESCENT,
+  ORBITAL_TIMES, FUEL_PER_ORBIT, DRIFTING_FUEL_PER_ORBIT, THRUSTER_FAULT_FUEL, RETRO_FUEL, LOW_FUEL, SPLASH_SPREAD_KM, LONG_WAIT_KM, TRACKING_STATIONS,
+  OAMS_BURN_FUEL, EVA_FUEL, RENDEZVOUS_FUEL, TARGET_DAYS } from '../data/mercury.js';
+import { S, log, addHistory, save, isResearched, isConfirmed, recordRunEvent, earn } from '../core/state.js';
 import { designSpec, quoteLaunch } from './design.js';
 import { loseReputation } from './economy.js';
 import { boosterRun, boosterFailed, boosterSucceeded } from './flight.js';
 import { recordBoosterFlight, isManRated } from './manrate.js';
 import { learn, teachingValue } from './knowledge.js';
-import { phaseTwo, boosterPlan, capsuleSystems, fulfilDirective } from './mercury.js';
-import { astronautById, simulatorTier } from './astronauts.js';
+import { phaseTwo, boosterPlan, capsuleSystems, fulfilDirective, openDirectives, targetLock, recordCapability } from './mercury.js';
+import { astronautById, simulatorTier, promoteBackup, assignedPilot } from './astronauts.js';
+import { recordMercuryFlight } from './budget.js';
+import { usePad, damagePad } from './site.js';
+import { checkFirsts } from './race.js';
 
 // Where the profile puts the capsule at a mission time: { alt (km), v (m/s), g }, interpolated between its points.
 const profileAt = (profile, time) => {
@@ -32,6 +43,35 @@ const profileAt = (profile, time) => {
   return { alt: from[1] + (to[1] - from[1]) * share, v: from[2] + (to[2] - from[2]) * share, g: from[3] + (to[3] - from[3]) * share };
 };
 const between = (low, high) => low + Math.random() * (high - low);
+
+// AN ORBITAL FLIGHT'S TIMELINE: the orbital mission type with this flight's retrofire, re-entry, parachute and splashdown times
+// and its profile (the climb to orbit, the orbits, then the descent counted from retrofire). Each flight gets its own copy.
+export function orbitalTimeline(orbits, missionType = 'mo') {
+  const retro = orbits * ORBIT_SECONDS + RETROFIRE_AFTER_ORBITS;
+  return {
+    ...MISSION_TYPES[missionType], orbits, retro, reentry: retro + ORBITAL_TIMES.reentry, chute: retro + ORBITAL_TIMES.chute, end: retro + ORBITAL_TIMES.end,
+    profile: [...ORBITAL_ASCENT, ...ORBITAL_DESCENT.map(([time, ...point]) => [retro + time, ...point])],
+  };
+}
+// Move everything still to come in an orbital flight by some seconds: a whole orbit later when the retros fail, earlier when it comes home early.
+function shiftTimeline(mission, seconds) {
+  const type = mission.type;
+  for (const key of ['retro', 'reentry', 'chute', 'end']) type[key] += seconds;
+  type.profile = [...ORBITAL_ASCENT, ...ORBITAL_DESCENT.map(([time, ...point]) => [type.retro + time, ...point])];
+  for (const event of mission.events) if (event.time > mission.time) event.time += seconds;
+  for (const line of mission.script || []) if (line.time > mission.time) line.time += seconds;
+  mission.events.sort((first, second) => first.time - second.time);
+}
+// HOW FAR ONE STEP MOVES THE MISSION CLOCK: five seconds with a pilot aboard, ten without. In orbit, from insertion to the run-up
+// to retrofire, the clock runs faster, so a flight of any length takes about ORBIT_STEPS steps there (a minute and a half on screen).
+const ORBIT_STEPS = 360;
+export function missionStepSeconds(mission) {
+  const normal = mission.crew && !mission.crew.species ? 5 : 10, type = mission.type;
+  if (!type.orbital || mission.time < type.sep + 60 || mission.time > type.retro - 180) return normal;
+  return Math.max(normal, Math.min(Math.round((type.retro - type.sep) / ORBIT_STEPS), Math.floor(type.retro - 180 - mission.time)));
+}
+// Which orbit the capsule is on (1 to the planned count), or 0 before insertion.
+export const currentOrbit = mission => mission.type.orbital && mission.time > mission.type.sep ? Math.min(mission.type.orbits, 1 + Math.floor((mission.time - mission.type.sep) / ORBIT_SECONDS)) : 0;
 const animalName = animal => `the ${animal.species} ${animal.animalName}`;
 const isAnimal = crew => !!(crew && crew.species);
 // The astronaut aboard, if a person is.
@@ -57,7 +97,8 @@ function transmit(mission, speaker, text, style = '') {
 function scriptFor(mission) {
   const pilot = pilotAboard(mission), onPlan = () => !mission.outcome.boosterFailed && !mission.outcome.aborted && !mission.done, lines = [];
   const add = (time, speaker, text, condition = onPlan) => lines.push({ time, speaker, text, condition });
-  if (mission.missionType == 'mr' && pilot) {
+  if (mission.type.orbital) orbitalScript(mission, add);
+  else if (mission.missionType == 'mr' && pilot) {
     const heartRate = () => Math.round(88 + (60 - pilot.t.com) * .9 + Math.random() * 12);
     add(0, 'CC', 'Liftoff. The clock is running.');
     add(2, 'P', 'Roger, clock is running. She\'s off the pad.');
@@ -94,36 +135,78 @@ function scriptFor(mission) {
   return lines.sort((first, second) => first.time - second.time);
 }
 
+// AN ORBITAL FLIGHT'S CALLS: the climb, insertion, the tracking stations on the first orbits and the run-up to retrofire.
+// Later orbits report from the orbit events, one line each, so a long flight does not flood the loop.
+function orbitalScript(mission, call) {
+  const pilot = pilotAboard(mission), type = mission.type, animal = isAnimal(mission.crew) ? mission.crew : null;
+  if (pilot) {
+    call(0, 'CC', 'Liftoff. The clock is running.');
+    call(3, 'P', 'Roger. The clock is operating. We\'re under way.');
+    call(45, 'P', 'Little bumpy along about here.');
+    call(130, 'CC', 'Booster engines off. Sustainer is pushing you on.');
+    call(type.sep + 25, 'P', 'Zero g and I feel fine. Capsule is turning around.');
+    call(type.sep + 40, 'CC', () => `${mission.callSign}, you have a go, at least ${type.orbits} orbit${type.orbits > 1 ? 's' : ''}.`);
+    if (S.fac.trknet) {
+      const stationCalls = [[900, 1, 'Canary CAPCOM. We have you on radar. Your systems look good.'], [1900, 3, 'Zanzibar here. Reading you loud and clear.'], [2700, 4, () => `Muchea CAPCOM. ${mission.callSign}, how are you doing?`], [3900, 5, 'Hawaii has you. Give us a fuel reading.'], [4800, 7, 'Texas CAPCOM. Everything looks fine from here.']];
+      for (let orbit = 0; orbit < Math.min(2, type.orbits); orbit++) for (const [offset, station, text] of stationCalls) call(type.sep + orbit * ORBIT_SECONDS + offset, 'CC', text);
+      call(type.sep + 2800, 'P', 'This is quite a view. I can see the lights of a city down there.');
+    }
+    if (S.crew.surg) call(type.sep + 1400, 'SURG', () => `Pulse ${Math.round(80 + (60 - pilot.t.com) * .6 + Math.random() * 10)}, blood pressure normal. He is doing fine.`);
+    call(type.retro - 120, 'CC', () => `${mission.callSign}, two minutes to retrofire. Retro attitude, please.`);
+    call(type.retro - 60, 'P', 'Retro attitude set. Retro warning light is on.');
+    call(type.retro + 600, 'P', 'Here comes the heat. A real fireball outside.');
+  } else {
+    call(0, 'FLT', 'Liftoff. Clock has started.');
+    call(40, 'TLM', 'Max q. Vehicle stable.');
+    call(type.sep + 8, 'TLM', 'Sustainer cutoff. Capsule separation. Orbit insertion under way.');
+    call(type.sep + 120, 'FLT', S.fac.trknet ? 'Bermuda confirms the orbit. Handing over down the network.' : 'Range has lost the capsule over the Atlantic. Waiting for it to come round.');
+    if (animal && animal.species == 'chimpanzee') call(type.sep + 900, 'SURG', () => `${animal.animalName} is working the levers on cue. Heart rate steady.`);
+    call(type.retro + 580, 'TLM', 'Entering the atmosphere.');
+  }
+}
+
 // BEGIN A MISSION: pay for the launch, take the capsule and booster, and roll every capsule failure up front with a time.
-// crew: 'none', 'chimp', 'monkey' or an astronaut id. options: { af: booster id, fuel, latent, over, wind }. Returns null if it cannot fly.
+// crew: 'none', 'chimp', 'monkey' or an astronaut id (on Gemini, the command pilot; the pilot is whoever is assigned the other seat).
+// options: { af: booster id, fuel, latent, over, wind, orbits (orbital flights), eva (Gemini: plan a spacewalk),
+//   target (Gemini: 'rdv' or 'dock' with the Agena target in orbit, given the rendezvous radar aboard) }.
+// Returns null if it cannot fly.
 export function beginMission(capsuleId, crewChoice, options = {}) {
   const state = phaseTwo(), capsule = state.veh.find(candidate => candidate.id == capsuleId), booster = S.air.find(airframe => airframe.id == options.af && airframe.st == 'r');
   if (!capsule || !booster) return null;
-  const type = MISSION_TYPES[capsule.mt], systems = capsuleSystems(capsule.cfg), propellant = options.fuel || 'Alcohol & LOX';
-  const plan = boosterPlan(booster, propellant, capsule.mt);
+  const systems = capsuleSystems(capsule.cfg, capsule.mt), propellant = options.fuel || 'Alcohol & LOX';
+  if (MISSION_TYPES[capsule.mt].orbital && !(options.orbits >= 1 && options.orbits <= systems.endurance)) return null;
+  const type = MISSION_TYPES[capsule.mt].orbital ? orbitalTimeline(options.orbits, capsule.mt) : MISSION_TYPES[capsule.mt];
+  const plan = boosterPlan(booster, propellant, capsule.mt), payload = type.payload || 'Mercury Capsule';
   if (!plan.ok) return null;
-  const quote = quoteLaunch(booster, propellant, 'Mercury Capsule', plan.staged, plan.load);
+  const quote = quoteLaunch(booster, propellant, payload, plan.staged, plan.load);
   if (quote.error) return null;
   S.b -= quote.cost;
   state.veh.splice(state.veh.indexOf(capsule), 1);
   S.air.splice(S.air.indexOf(booster), 1);
+  const pad = usePad(booster);
   S.day += 3;
   const crew = crewChoice == 'none' || !crewChoice ? null
     : crewChoice == 'chimp' ? { animalName: CHIMPANZEE_NAMES[state.chimp++ % CHIMPANZEE_NAMES.length], species: 'chimpanzee' }
     : crewChoice == 'monkey' ? { animalName: MONKEY_NAMES[state.monk++ % MONKEY_NAMES.length], species: 'rhesus monkey' }
     : astronautById(crewChoice);
+  const second = type.gemini && crew ? assignedPilot('gtp') || null : null;
   const mission = {
     capsule, type, missionType: capsule.mt, systems, booster, propellant, staged: plan.staged, crew, crewChoice, time: 0, events: [], log: [], transcript: [], pending: null,
-    outcome: newOutcome(), latent: options.latent || null, overNoGo: !!options.over, done: 0, trace: [],
+    outcome: newOutcome(), latent: options.latent || null, overNoGo: !!options.over, done: 0, trace: [], pad, second, evaPlanned: !!(second && options.eva),
+    targetPlan: second && options.target && !targetLock(capsule, options.target, crew, second) ? options.target : null,
     altitudeScale: clamp(plan.preview.peakAltitude / 1000 / type.reference.alt, .4, 2.5), speedScale: clamp(plan.preview.peakSpeed / type.reference.v, .4, 2.5),
   };
+  // An orbit is an orbit: the profile is not scaled to the booster.
+  if (type.orbital) mission.altitudeScale = mission.speedScale = 1;
   if (crew && !isAnimal(crew)) {
     crew.cap = crew.cap || `${CAPSULE_NAMES[(crew.id * 7) % CAPSULE_NAMES.length]} ${state.astros.length}`;
     mission.callSign = crew.cap;
   }
   const schedule = (time, kind) => mission.events.push({ time, kind });
-  log(`--- ${type.fullName.toUpperCase()}: capsule #${capsule.id} on ${booster.label}${crew ? ` with ${isAnimal(crew) ? animalName(crew) : crew.name}` : ''} ---`, 'wn');
-  transmit(mission, '', `${type.fullName} on ${booster.label}${mission.callSign ? `. Call sign ${mission.callSign}` : ''}${isAnimal(crew) ? `, with ${animalName(crew)} aboard` : ''}.`);
+  const orbitText = type.orbital ? `, ${type.orbits} orbit${type.orbits > 1 ? 's' : ''} planned` : '';
+  const crewText = crew ? ` with ${isAnimal(crew) ? animalName(crew) : crew.name}${second ? ` and ${second.name}` : ''}` : '';
+  log(`--- ${type.fullName.toUpperCase()}: capsule #${capsule.id} on ${booster.label}${crewText}${orbitText} ---`, 'wn');
+  transmit(mission, '', `${type.fullName} on ${booster.label}${mission.callSign ? `. Call sign ${mission.callSign}` : ''}${isAnimal(crew) ? `, with ${animalName(crew)} aboard` : ''}${orbitText}.`);
   // Two failures end a flight before it starts: the escape rocket firing on the pad (less likely with abort-sensing research),
   // and a booster shutting down after rising a few inches (the umbilical sequencing package prevents it).
   if (capsule.mt == 'lj' && Math.random() < .12 * (1 - Math.min(1, (systems.spec.as || 0) * 5))) {
@@ -136,17 +219,17 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   }
   // The booster: your airframe's own physics and failure model. The man-rating modifications give a failing booster a chance to ride it out.
   const boostEnd = type.boostEnd, rocketSpec = designSpec(Object.keys(S.pk));
-  const rescueChance = Math.min(.6, ((rocketSpec.mr || 0) + (capsule.mt == 'ma' ? rocketSpec.mab || 0 : 0)) * 2.5);
-  let boost = boosterRun(booster, propellant, plan.staged, { latent: mission.latent, wind: options.wind || 0, load: plan.load });
+  const rescueChance = Math.min(.6, ((rocketSpec.mr || 0) + (capsule.mt == 'ma' || type.orbital ? rocketSpec.mab || 0 : 0)) * 2.5);
+  let boost = boosterRun(booster, propellant, plan.staged, { latent: mission.latent, wind: options.wind || 0, load: plan.load, plan: plan.ascent, payload });
   if ((boost.failure || boost.short) && Math.random() < rescueChance) {
-    boost = boosterRun(booster, propellant, plan.staged, { wind: options.wind || 0, load: plan.load });
+    boost = boosterRun(booster, propellant, plan.staged, { wind: options.wind || 0, load: plan.load, plan: plan.ascent, payload });
     mission.rescued = 1;
   }
   mission.boost = boost;
   if (boost.failure || boost.short) schedule(Math.max(3, Math.min(boostEnd - 2, boost.fraction * boostEnd)), 'boosterFailure');
   else schedule(boostEnd - .5, 'cutoff');
   if (type.abortAt) schedule(type.abortAt, 'plannedAbort');
-  if (type.sep && capsule.mt == 'mr' && Math.random() < 1 - systems.reliability('tj')) schedule(type.sep + 2, 'tj');
+  if (type.sep && type.crewed && !type.gemini && Math.random() < 1 - systems.reliability('tj')) schedule(type.sep + 2, 'tj');
   if (capsule.mt == 'mr') {
     if (!isManRated(booster) && Math.random() < .2) schedule(boostEnd - 10, 'overspeed');
     if (Math.random() < 1 - systems.reliability('ac')) schedule(between(180, 260), 'att');
@@ -154,6 +237,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
     schedule(300, 'retro');
     if (Math.random() < 1 - systems.reliability('rr')) mission.retroWillFail = 1;
   }
+  if (type.orbital) scheduleOrbit(mission, schedule);
   if (type.reentry) schedule(type.reentry + 10, 'reentry');
   if (type.chute > 40) schedule(type.chute - 30, 'drogue');
   schedule(type.chute, 'chute');
@@ -161,6 +245,60 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   mission.events.sort((first, second) => first.time - second.time);
   mission.script = scriptFor(mission);
   return mission;
+}
+
+// IN ORBIT: insertion, one event as each orbit is completed (it spends attitude fuel), faults placed across the flight,
+// the heat-shield signal, and retrofire. Long flights are harder on the environmental control system.
+const SHIELD_SIGNAL_CHANCE = .2; // a faulty landing-bag switch, until the rewiring package is aboard
+function scheduleOrbit(mission, schedule) {
+  const type = mission.type, systems = mission.systems;
+  mission.fuel = 100;
+  mission.orbitsFlown = 0;
+  schedule(type.sep + 20, 'insertion');
+  for (let orbit = 1; orbit <= type.orbits; orbit++) schedule(type.sep + orbit * ORBIT_SECONDS, 'orbit');
+  if (Math.random() < 1 - systems.reliability('ac')) schedule(between(type.sep + 600, type.retro - 900), 'att');
+  if (Math.random() < (1 - systems.reliability('ec')) * (type.orbits > 3 ? 1.6 : 1)) schedule(between(type.sep + 300, type.retro - 600), 'ecs');
+  if (!(systems.spec.sg > 0) && Math.random() < SHIELD_SIGNAL_CHANCE) {
+    schedule(between(type.sep + 400, type.retro - 400), 'shieldSignal');
+    mission.shieldLoose = Math.random() < (1 - systems.reliability('lb')) * 2 ? 1 : 0; // the signal is usually false
+  }
+  if (type.gemini) scheduleGemini(mission, schedule);
+  schedule(type.retro, 'retro');
+  if (Math.random() < 1 - systems.reliability('rr')) mission.retroWillFail = 1;
+}
+// GEMINI IN ORBIT, with a crew: the orbit change on the first orbit (with the manoeuvring system aboard), the spacewalk on the third
+// (if planned and the suit is aboard), the rendezvous with the Agena target before the third orbit is out (if planned), and on
+// flights beyond four days the fuel cells may falter.
+const GEMINI_LONG_FLIGHT = 62;
+function scheduleGemini(mission, schedule) {
+  const type = mission.type, config = mission.capsule.cfg;
+  if (!mission.crew) return;
+  if (config.pk.includes('gm_oams')) schedule(type.sep + ORBIT_SECONDS * .6, 'oams');
+  if (mission.evaPlanned && type.orbits >= 3) schedule(type.sep + ORBIT_SECONDS * 2.2, 'eva');
+  if (mission.targetPlan) schedule(type.sep + Math.min(type.orbits - .6, 2.4) * ORBIT_SECONDS, 'rdv');
+  if (type.orbits > GEMINI_LONG_FLIGHT && Math.random() < 1 - mission.systems.reliability('ec')) schedule(between(type.sep + ORBIT_SECONDS * 2, type.sep + ORBIT_SECONDS * 12), 'cells');
+}
+// The fuel one orbit costs: full attitude hold for the first three, drifting after that, less with the fuel-economy work.
+// Gemini carries its own figures (MISSION_TYPES fuel).
+function orbitFuel(mission, orbit) {
+  const own = mission.type.fuel, perOrbit = orbit <= 3 ? (own ? own.hold : FUEL_PER_ORBIT) : (own ? own.drift : DRIFTING_FUEL_PER_ORBIT);
+  return perOrbit * (1 - (mission.systems.spec.af || 0)) * (mission.drifting ? .4 : 1);
+}
+// RETROFIRE in orbit decides where the capsule comes down. On the timer and on attitude it lands near the ships; fired by hand or
+// on the backup timer it runs long, and with too little fuel to hold attitude it can come down hundreds of km away, off attitude.
+function retrofire(mission, how) {
+  const outcome = mission.outcome, accuracy = 1 - .6 * (mission.systems.spec.rt || 0);
+  let miss = Math.abs(gaussian()) * SPLASH_SPREAD_KM * accuracy;
+  if (how != 'timer') miss += (how == 'backup' ? 30 : 50) + Math.random() * 60 * accuracy;
+  if (mission.fuel < RETRO_FUEL) {
+    miss += 150 + Math.random() * 250;
+    if (Math.random() < .5) outcome.offAttitude = 1;
+    report(mission, 'Not enough attitude fuel to hold the capsule steady while the retros burn.', 'wn');
+  }
+  if (outcome.offAttitude) miss += 80;
+  mission.fuel = Math.max(0, mission.fuel - RETRO_FUEL);
+  mission.missKm = Math.round(miss);
+  report(mission, `Retrofire. Recovery predicts splashdown ${mission.missKm} km from the ships.`, mission.missKm > LONG_WAIT_KM ? 'wn' : 'ok');
 }
 
 // THE CHANNELS Mission Control sees: a reading from the scaled profile with a little noise. { alt (km), v (m/s), g, temp (°C) }
@@ -185,6 +323,13 @@ const PILOT_CALLS = {
   ecs: [mission => `Suit temperature is climbing. Reading ${reading(mission).temp} degrees.`, 'Copy. Watch it.'],
   retro: ['No retro fire. Repeat, no retros.', 'We confirm, no retro fire.'],
   hatch: ['Hatch is gone! Water\'s coming in!', 'Helicopter is right over you!'],
+  oretro: ['No retros. I have no retro fire.', 'We confirm, no retro fire. Stand by.'],
+  shield: ['Say again? You want me to keep the retropack on?', 'We have a landing-bag light down here. Do not jettison until we are sure.'],
+  fuel: [mission => `Fuel is down to ${Math.round(mission.fuel)} percent on the automatic side.`, 'Copy. We are looking at a fuel plan.'],
+  eva: ['He\'s working hard out here. Visor\'s fogging up.', 'Copy. Watch his heart rate.'],
+  cells: ['Fuel cell oxygen pressure is falling. We\'re losing power.', 'We see it. Stand by for a power plan.'],
+  rdv: ['Radar\'s lost lock. I\'ve got the target visually, I think.', 'Copy. We\'re working a solution.'],
+  spin: ['We have serious problems here. We\'re tumbling end over end. We\'re disengaged from the Agena.', 'Roger. We\'re standing by.'],
 };
 export const isGroundDecision = key => !!DECISIONS[key].ground;
 // THE GROUND COMMAND LINK (data uplink): a capsule built with a command receiver takes commands from the ground while a station
@@ -277,7 +422,7 @@ function resolveDecision(mission, key, option, automatic) {
   const who = fromGround ? 'Test Conductor' : pilot ? pilot.name.split(' ')[1] : 'The automatic sequence';
   if (!automatic) announce(mission, who, fromGround ? 'TC' : 'P', option.text);
   if (key == 'abort') {
-    if (worked) towerFires(mission);
+    if (worked) abortFires(mission);
     else {
       outcome.lost = 1;
       report(mission, 'The booster breaks up with the capsule still attached.', 'bad');
@@ -324,10 +469,95 @@ function resolveDecision(mission, key, option, automatic) {
       else outcome.injured = 1;
       report(mission, outcome.lost ? 'The crew could not get clear of the flooding capsule.' : 'Pulled from the water exhausted and half-drowned.', 'bad');
     }
+  } else if (key == 'oretro') {
+    if (!worked) return retroMissed(mission);
+    if (pilot) transmit(mission, 'P', fromGround ? 'There they go on your command. I felt all three.' : 'Retros are firing. I can feel them. Good kick.');
+    retrofire(mission, fromGround ? 'ground' : option.backup ? 'backup' : 'manual');
+  } else if (key == 'shield') {
+    resolveShield(mission, option, worked);
+  } else if (key == 'fuel') {
+    if (option.soft) comeHomeEarly(mission);
+    else if (worked) {
+      mission.drifting = 1;
+      report(mission, 'Powered down and drifting. The fuel should last the flight.', 'ok');
+    } else report(mission, 'The fuel keeps falling.', 'wn');
+  } else if (key == 'eva') {
+    if (option.soft) report(mission, 'The spacewalker is back inside. The spacewalk was cut short with its tasks unfinished.', 'wn');
+    else if (worked) spacewalkDone(mission);
+    else {
+      mission.second.fat = Math.min(100, mission.second.fat + 30);
+      report(mission, 'Exhausted and half blind, the spacewalker struggles back in. The tasks are not done.', 'wn');
+    }
+  } else if (key == 'rdv') {
+    if (option.soft) report(mission, 'The rendezvous is called off. The target drifts on ahead.', 'wn');
+    else if (worked) rendezvousDone(mission);
+    else report(mission, 'The target slides away. The fuel for another try is gone.', 'wn');
+  } else if (key == 'spin') {
+    if (worked) report(mission, option.text.startsWith('Undock') ? 'Undocked, the crew stop the spin on the re-entry thrusters. Using them means coming home at the next chance.' : 'The spin slows once the Agena is shut down.', 'ok');
+    else {
+      outcome.injured = 1;
+      report(mission, 'The spin is stopped only after the crew have greyed out. They come home at the next chance.', 'bad');
+    }
+    if (!worked || option.text.startsWith('Undock')) comeHomeEarly(mission);
+  } else if (key == 'cells') {
+    if (option.soft || !worked) comeHomeEarly(mission);
+    else report(mission, 'The fuel cells are holding at low power. The flight goes on.', 'ok');
   } else if (key == 'pad') {
     mission.done = 1;
     resolvePadEmergency(mission, option, worked, state);
   }
+}
+// The rendezvous is made: a docking follows a quarter of an orbit later if one is planned.
+function rendezvousDone(mission) {
+  mission.outcome.rendezvous = 1;
+  recordCapability('rdv', mission.capsule, mission.booster);
+  checkFirsts({ rendezvous: 1 });
+  report(mission, 'Rendezvous: the Gemini is holding station a few metres from the Agena.', 'ok');
+  if (pilotAboard(mission)) transmit(mission, 'P', 'We\'re sitting here at about forty metres. No sweat.');
+  if (mission.targetPlan == 'dock') {
+    mission.events.push({ time: mission.time + ORBIT_SECONDS / 4, kind: 'dock' });
+    mission.events.sort((first, second) => first.time - second.time);
+  }
+}
+const spacewalkDone = mission => {
+  mission.outcome.eva = 1;
+  recordCapability('eva', mission.capsule, mission.booster);
+  report(mission, `${mission.second.name} is back inside after the spacewalk. The hatch is closed and the cabin repressurised.`, 'ok');
+};
+// The retros did not fire in orbit. The next chance is an orbit later; after a second miss the capsule cannot come home.
+function retroMissed(mission) {
+  mission.retroTries = (mission.retroTries || 0) + 1;
+  if (mission.retroTries >= 2) {
+    mission.outcome.lost = 1;
+    report(mission, `The retros will not fire. The capsule is stranded in orbit${mission.crew ? ', and its oxygen will not last' : ''}.`, 'bad');
+    mission.done = 1;
+    return;
+  }
+  report(mission, 'The retros still have not fired. Mission Control sets up another try one orbit later.', 'wn');
+  shiftTimeline(mission, ORBIT_SECONDS);
+  mission.fuel = Math.max(0, mission.fuel - orbitFuel(mission, 4));
+  mission.events.push({ time: mission.type.retro, kind: 'retro' });
+  mission.events.sort((first, second) => first.time - second.time);
+}
+// The heat-shield signal. Kept on, the retropack holds a loose shield in place (if its straps hold); jettisoned as planned, all is
+// well if the signal was false and deadly if the shield really is loose.
+function resolveShield(mission, option, worked) {
+  if (option.retropack == 'keep' && worked) {
+    mission.retropackKept = 1;
+    report(mission, 'The retropack stays on through re-entry.', 'ok');
+    return;
+  }
+  report(mission, option.retropack == 'keep' ? 'The retropack straps let go anyway: it falls away after retrofire.' : 'The retropack is jettisoned on schedule.', 'wn');
+  if (mission.shieldLoose) mission.shieldGone = 1;
+}
+// Short of fuel: retrofire at the end of the orbit just flown, and the orbits still planned are not flown.
+function comeHomeEarly(mission) {
+  const type = mission.type, oldRetro = type.retro;
+  const newRetro = Math.max(mission.time + 60, mission.orbitsFlown * ORBIT_SECONDS + RETROFIRE_AFTER_ORBITS);
+  mission.events = mission.events.filter(event => event.time <= mission.time || event.time >= oldRetro);
+  mission.script = (mission.script || []).filter(line => line.time <= mission.time || line.time >= oldRetro - 180);
+  shiftTimeline(mission, newRetro - oldRetro);
+  report(mission, `Coming home early: retrofire after orbit ${mission.orbitsFlown} of ${type.orbits}.`, 'wn');
 }
 // The booster that shut down on the pad: wait overnight (refurbish both), send a crew (risky), or vent the tanks (scrap the booster).
 function resolvePadEmergency(mission, option, worked, state) {
@@ -353,6 +583,19 @@ function resolvePadEmergency(mission, option, worked, state) {
     report(mission, 'The tanks are vented and the booster scrapped. The capsule is saved for reuse.', 'wn');
   }
 }
+// An abort: the escape tower on Mercury, the ejection seats or separation on Gemini.
+const abortFires = mission => mission.type.gemini ? geminiAbort(mission) : towerFires(mission);
+// Gemini 6A's pad shutdown: with no tower to fire, the crew keep their hands off the ejection handles, the pad crew safe the
+// booster, and spacecraft (or Agena) and booster can be readied to fly again.
+function geminiPadShutdown(mission, pilot) {
+  if (pilot) transmit(mission, 'P', 'Engine shutdown. We\'re staying put. Not pulling the ring.', 'bad');
+  report(mission, `${pilot ? 'The crew stay in their seats. ' : ''}The pad crew safe the booster, and ${mission.type.target ? 'the Agena' : 'spacecraft'} and booster go back to be readied again.`, 'wn');
+  phaseTwo().veh.push(mission.capsule);
+  mission.booster.st = 'r';
+  S.air.push(mission.booster);
+  mission.done = 1;
+  return 'end';
+}
 // The escape tower fires: if it works, the capsule skips straight to its parachutes.
 function towerFires(mission) {
   const outcome = mission.outcome;
@@ -360,11 +603,7 @@ function towerFires(mission) {
   if (Math.random() < mission.systems.reliability('et')) {
     report(mission, 'ESCAPE TOWER FIRES. The capsule is pulled clear of the booster.', 'wn');
     if (pilotAboard(mission)) transmit(mission, 'P', 'Tower fired! I\'m off the booster. Waiting on the chutes.');
-    mission.time = Math.max(mission.time, mission.type.chute - 1);
-    mission.events = mission.events.filter(event => event.kind == 'chute' || event.kind == 'splash');
-    mission.events.forEach(event => {
-      if (event.kind == 'splash') event.time = mission.type.chute + 60;
-    });
+    parachutesNext(mission);
   } else {
     outcome.lost = mission.crew ? (Math.random() < .7 ? 1 : 0) : 1;
     if (!outcome.lost) outcome.injured = 1;
@@ -372,9 +611,50 @@ function towerFires(mission) {
     mission.done = 1;
   }
 }
+// After a good abort the spacecraft skips straight to its parachutes. An orbital flight's parachutes are hours away on its
+// timeline: an abort brings them forward.
+function parachutesNext(mission) {
+  if (mission.type.orbital) Object.assign(mission.type, { chute: mission.time + 40, end: mission.time + 340 });
+  mission.time = Math.max(mission.time, mission.type.chute - 1);
+  mission.events = mission.events.filter(event => event.kind == 'chute' || event.kind == 'splash');
+  mission.events.forEach(event => {
+    if (event.kind == 'chute') event.time = mission.type.chute;
+    if (event.kind == 'splash') event.time = mission.type.chute + 60;
+  });
+}
+// GEMINI HAS NO ESCAPE TOWER. Low down the crew ride the ejection seats out (they come down on their own parachutes and the spacecraft
+// is lost); higher up the spacecraft separates and fires its retrorockets to pull clear, then comes down on its parachute.
+const EJECTION_SEAT_LIMIT = 70; // seconds after liftoff
+const STUCK_THRUSTER_SHARE = 4; // a stuck thruster while docked: this many times the attitude system's failure rate
+function geminiAbort(mission) {
+  const outcome = mission.outcome;
+  outcome.aborted = 1;
+  if (mission.time < EJECTION_SEAT_LIMIT) {
+    if (Math.random() < mission.systems.reliability('es')) {
+      outcome.ejected = 1;
+      if (Math.random() < .25) outcome.injured = 1;
+      report(mission, `EJECT. Both seats fire and the crew ride their parachutes down clear of the booster${outcome.injured ? ', one of them hurt on landing' : ''}. The spacecraft is lost.`, 'wn');
+    } else {
+      outcome.lost = 1;
+      report(mission, 'The ejection seats do not get the crew clear of the booster.', 'bad');
+    }
+    mission.done = 1;
+    return;
+  }
+  if (Math.random() < mission.systems.reliability('rr')) {
+    report(mission, 'The spacecraft separates and fires its retrorockets to pull clear of the booster.', 'wn');
+    if (pilotAboard(mission)) transmit(mission, 'P', 'We\'re off the booster. Waiting on the chute.');
+    parachutesNext(mission);
+  } else {
+    outcome.lost = 1;
+    report(mission, 'The spacecraft cannot pull clear of the breaking booster.', 'bad');
+    mission.done = 1;
+  }
+}
 function boosterDown(mission) {
   const boost = mission.boost;
   mission.outcome.boosterFailed = 1;
+  damagePad(mission.pad, mission.time);
   boosterFailed(boost.flight);
   recordBoosterFlight(mission.booster, false);
   report(mission, `BOOSTER MALFUNCTION: ${boost.short ? 'the booster cannot hold the climb with the capsule aboard' : FAILURE_MODES[boost.failure] ? FAILURE_MODES[boost.failure].name.toLowerCase() : 'cause unknown'}.`, 'bad');
@@ -417,6 +697,7 @@ const SYSTEM_FAULTS = {
   lb: 'The landing bag straps tear under the shock of opening',
   tj: 'The tower-jettison circuit has no backup path',
   as: 'The abort-sensing circuit misreads the booster\'s signals',
+  sg: 'The heat shield never moved: a faulty landing-bag switch sent the signal',
 };
 const systemFault = (mission, system) => {
   mission.faults = mission.faults || [];
@@ -448,6 +729,7 @@ const EVENTS = {
     outcome.padShutdown = 1;
     mission.time = 1;
     report(mission, 'Ignition. The booster rises a few inches, the engine shuts down, and it settles back onto the pad.', 'bad');
+    if (mission.type.gemini || mission.type.target) return geminiPadShutdown(mission, pilot);
     if (pilot) transmit(mission, 'P', 'Engine\'s shut down. I\'m still on the pad. Everything is quiet up here.', 'bad');
     report(mission, 'The escape tower jettisons and flies off; the drogue and main parachutes spill out over the side of the booster.', 'bad');
     if (raiseDecision(mission, 'pad')) return 'decide';
@@ -461,15 +743,15 @@ const EVENTS = {
   },
   boosterFailure(mission, pilot, outcome) {
     boosterDown(mission);
-    if (mission.missionType == 'bj' || mission.missionType == 'ma') {
+    if (mission.missionType == 'bj' || mission.missionType == 'ma' || (mission.type.gemini || mission.type.target) && !mission.crew) {
       outcome.lost = 1;
-      report(mission, 'With no escape tower on this flight, the capsule is lost with the booster.', 'bad');
+      report(mission, `With no escape tower on this flight, the ${mission.type.target ? 'Agena' : mission.type.gemini ? 'spacecraft' : 'capsule'} is lost with the booster.`, 'bad');
       mission.done = 1;
       return 'end';
     }
     if (Math.random() < mission.systems.reliability('as')) {
       report(mission, 'Abort sensing trips automatically.', 'wn');
-      towerFires(mission);
+      abortFires(mission);
     } else {
       systemFault(mission, 'as');
       if (raiseDecision(mission, 'abort')) return 'decide';
@@ -505,6 +787,7 @@ const EVENTS = {
   att(mission) {
     report(mission, 'Attitude control fault.', 'wn');
     systemFault(mission, 'ac');
+    if (mission.type.orbital) mission.fuel = Math.max(0, mission.fuel - THRUSTER_FAULT_FUEL * (1 - (mission.systems.spec.af || 0)));
     if (raiseDecision(mission, 'att')) return 'decide';
   },
   ecs(mission) {
@@ -516,17 +799,104 @@ const EVENTS = {
     if (mission.retroWillFail) {
       report(mission, 'Retrofire signal sent; no retro ignition.', 'wn');
       systemFault(mission, 'rr');
-      if (raiseDecision(mission, 'retro')) return 'decide';
+      if (raiseDecision(mission, mission.type.orbital ? 'oretro' : 'retro')) return 'decide';
+      if (mission.done) return 'end';
     } else {
       report(mission, 'Retrorockets fire on time.', 'ok');
       if (pilot) transmit(mission, 'P', 'Retro one... retro two... retro three. All three fired. Good kick.');
+      if (mission.type.orbital) retrofire(mission, 'timer');
     }
+  },
+  // ORBITAL EVENTS (Section 2).
+  // In orbit. An Agena target's flight ends here: it stays up for TARGET_DAYS.
+  insertion(mission, pilot, outcome) {
+    if (mission.type.target) {
+      phaseTwo().tgt = Math.round(S.day + TARGET_DAYS);
+      report(mission, `The Agena is in orbit, its lights on and its docking collar ready. It will last about three months.`, 'ok');
+      outcome.recovered = 1;
+      mission.done = 1;
+      return 'end';
+    }
+    report(mission, `Orbit insertion. ${mission.booster.label} has put the capsule in orbit: go for ${mission.type.orbits} orbit${mission.type.orbits > 1 ? 's' : ''}.`, 'ok');
+  },
+  // One orbit flown: the fuel it cost, a line on the loop, and the fuel decision if the tanks run low with orbits still to fly.
+  orbit(mission, pilot) {
+    mission.orbitsFlown++;
+    mission.fuel = Math.max(0, mission.fuel - orbitFuel(mission, mission.orbitsFlown));
+    const left = mission.type.orbits - mission.orbitsFlown;
+    transmit(mission, pilot ? 'CC' : 'TLM', `Orbit ${mission.orbitsFlown} complete over the Cape. ${left ? `${left} to go.` : 'Retrofire is next.'} Attitude fuel ${Math.round(mission.fuel)}%.`);
+    if (left > 0 && mission.fuel < LOW_FUEL && !mission.fuelAsked) {
+      mission.fuelAsked = 1;
+      report(mission, `Attitude-control fuel is down to ${Math.round(mission.fuel)}% with ${left} orbit${left > 1 ? 's' : ''} to go.`, 'wn');
+      if (raiseDecision(mission, 'fuel')) return 'decide';
+    }
+  },
+  // GEMINI EVENTS. The orbit change (Gemini 3): the manoeuvring thrusters fire, spending fuel. A misfire is tried once more an
+  // orbit later, if the flight lasts that long.
+  oams(mission, pilot) {
+    mission.fuel = Math.max(0, mission.fuel - OAMS_BURN_FUEL);
+    if (Math.random() < mission.systems.reliability('om')) {
+      mission.outcome.manoeuvred = 1;
+      report(mission, 'OAMS burn complete: the spacecraft has changed its orbit.', 'ok');
+      if (pilot) transmit(mission, 'P', 'Burn complete. We felt that one. New orbit coming up on the computer.');
+      return;
+    }
+    const retry = !mission.oamsRetried && mission.time + ORBIT_SECONDS < mission.type.retro - 600;
+    report(mission, `The manoeuvring thrusters misfire: the burn is cut short and the orbit barely changes.${retry ? ' The crew will try again next orbit.' : ''}`, 'wn');
+    if (retry) {
+      mission.oamsRetried = 1;
+      mission.events.push({ time: mission.time + ORBIT_SECONDS, kind: 'oams' });
+      mission.events.sort((first, second) => first.time - second.time);
+    }
+  },
+  // The spacewalk (Gemini 4): the cabin is depressurised and the pilot goes outside. Overheating and a fogged visor can cut it short.
+  eva(mission) {
+    report(mission, `Cabin depressurised. The hatch is open: ${mission.second.name} is outside the spacecraft.`, 'hd');
+    transmit(mission, 'CC', 'You look great out there. Take your time.');
+    checkFirsts({ eva: 1 });
+    mission.fuel = Math.max(0, mission.fuel - EVA_FUEL);
+    if (Math.random() < mission.systems.reliability('ev')) return void spacewalkDone(mission);
+    report(mission, 'The spacewalker is overheating and the visor is fogging.', 'wn');
+    if (raiseDecision(mission, 'eva')) return 'decide';
+  },
+  // The rendezvous (Gemini 6A): the burns to catch the target, then the radar's lock on it may fail.
+  rdv(mission) {
+    report(mission, 'The Gemini is closing on the Agena: radar lock, and the computer is working the burns.', 'cyan');
+    mission.fuel = Math.max(0, mission.fuel - RENDEZVOUS_FUEL);
+    if (Math.random() < mission.systems.reliability('rv')) return void rendezvousDone(mission);
+    if (raiseDecision(mission, 'rdv')) return 'decide';
+  },
+  // Docking (Gemini 8): the latches may not catch, and once docked a thruster may stick open and spin the pair.
+  dock(mission) {
+    if (Math.random() > mission.systems.reliability('rv')) return void report(mission, 'The docking latches do not catch. The crew back off; there is not the fuel for another try.', 'wn');
+    mission.outcome.docked = 1;
+    recordCapability('dock', mission.capsule, mission.booster);
+    checkFirsts({ dock: 1 });
+    report(mission, 'Docked: the Gemini\'s nose is latched into the Agena\'s collar, two spacecraft joined in orbit.', 'hd');
+    if (pilotAboard(mission)) transmit(mission, 'P', 'Flight, we are docked. It\'s a real smoothie.');
+    if (Math.random() < (1 - mission.systems.reliability('ac')) * STUCK_THRUSTER_SHARE) {
+      report(mission, 'A thruster has stuck open. The docked pair are rolling.', 'bad');
+      if (raiseDecision(mission, 'spin')) return 'decide';
+    }
+  },
+  // Failing fuel cells (Gemini 5): nursed along, or the flight comes home early.
+  cells(mission) {
+    report(mission, 'Fuel cell oxygen pressure is falling.', 'wn');
+    if (raiseDecision(mission, 'cells')) return 'decide';
+  },
+  // Friendship 7's Segment 51. Usually a faulty switch (investigated after the flight); sometimes the shield really has come loose.
+  shieldSignal(mission) {
+    report(mission, 'Telemetry: the landing-bag deploy signal is on. The heat shield may be loose.', 'bad');
+    systemFault(mission, mission.shieldLoose ? 'lb' : 'sg');
+    if (raiseDecision(mission, 'shield')) return 'decide';
   },
   // Re-entry: the heat shield may run hot (worse on the fast flights and off attitude), and the g-load may grey out a pilot
   // with poor endurance and no centrifuge training.
   reentry(mission, pilot, outcome) {
-    const heatChance = (1 - mission.systems.reliability('hs')) * (mission.missionType == 'bj' ? 1.3 : mission.missionType == 'ma' ? 1.4 : 1) * (outcome.offAttitude ? 1.8 : 1);
-    const gLoad = outcome.overspeed ? 15 : 11;
+    if (mission.shieldGone) return shieldLost(mission, pilot, outcome);
+    if (mission.retropackKept) report(mission, 'Burning pieces of the retropack stream past the capsule.', 'wn');
+    const heatChance = (1 - mission.systems.reliability('hs')) * (mission.missionType == 'bj' ? 1.3 : mission.missionType == 'ma' || mission.type.orbital ? 1.4 : 1) * (outcome.offAttitude ? 1.8 : 1) * (mission.retropackKept ? 1.3 : 1);
+    const gLoad = outcome.overspeed ? 15 : mission.type.gLoad || 11;
     if (Math.random() < heatChance) {
       outcome.heatDamage = 1;
       report(mission, 'Heat-shield temperatures far above prediction.', 'bad');
@@ -579,7 +949,8 @@ const EVENTS = {
   },
   // Splashdown: a hard landing, a long wait for the ships after an overshoot, and an early hatch on capsules with the explosive hatch.
   splash(mission, pilot, outcome) {
-    report(mission, outcome.overspeed ? 'Splashdown, 200 km beyond the planned area. The ships are hours away.' : 'Splashdown.', outcome.overspeed ? 'wn' : 'ok');
+    const farOff = mission.missKm > LONG_WAIT_KM; // an orbital flight that came down far from the ships
+    report(mission, outcome.overspeed ? 'Splashdown, 200 km beyond the planned area. The ships are hours away.' : mission.missKm != null ? `Splashdown, ${mission.missKm} km from the recovery ships.${farOff ? ' They are hours away.' : ''}` : 'Splashdown.', outcome.overspeed || farOff ? 'wn' : 'ok');
     if (pilot) {
       transmit(mission, 'P', 'Impact. Capsule is upright, no leaks.');
       transmit(mission, 'CC', `Welcome home, ${mission.callSign}.`);
@@ -590,7 +961,7 @@ const EVENTS = {
       if (mission.crew && Math.random() < .25) outcome.injured = 1;
       if (!mission.crew && Math.random() < (S.fac.recov ? .2 : .4)) outcome.sank = 1;
     }
-    if (outcome.overspeed && !outcome.sank && Math.random() < (S.fac.recov ? .1 : .25)) {
+    if ((outcome.overspeed || farOff) && !outcome.sank && Math.random() < (S.fac.recov ? .1 : .25)) {
       report(mission, 'The capsule is taking on water while it waits for the ships.', 'wn');
       if (!mission.crew || isAnimal(mission.crew)) outcome.sank = Math.random() < .5 ? 1 : 0;
     }
@@ -604,6 +975,24 @@ const EVENTS = {
   },
 };
 
+// The heat shield falls away in re-entry: almost always fatal for whoever is aboard.
+function shieldLost(mission, pilot, outcome) {
+  outcome.heatDamage = 1;
+  systemFault(mission, 'hs');
+  report(mission, 'The heat shield breaks away in re-entry.', 'bad');
+  if (pilot) transmit(mission, 'P', 'That\'s a real fireball outside. Something just went past the window!', 'bad');
+  outcome.lost = mission.crew ? (Math.random() < .8 ? 1 : 0) : 1;
+  if (!outcome.lost) {
+    outcome.injured = 1;
+    report(mission, 'The capsule holds together on what is left of the shield. Badly burned, but whole.', 'bad');
+    return;
+  }
+  report(mission, 'Signal lost during re-entry.', 'bad');
+  if (mission.crew) transmit(mission, 'CC', `${mission.callSign || 'Capsule'}, do you read? ... ${mission.callSign || 'Capsule'}, do you read?`, 'bad');
+  mission.done = 1;
+  return 'end';
+}
+
 // The flight director asks for an abort. Only possible while the escape tower is still on and there is one.
 export function manualAbort(mission) {
   if (mission.done || mission.pending) return;
@@ -613,7 +1002,7 @@ export function manualAbort(mission) {
   }
   report(mission, 'MANUAL ABORT commanded.', 'bad');
   mission.outcome.boosterFailed = 1;
-  towerFires(mission);
+  abortFires(mission);
 }
 
 // CLOSE OUT a mission: the crew, reputation, spacecraft packages confirmed, the directive, what was learned, and the record.
@@ -621,6 +1010,7 @@ export function manualAbort(mission) {
 export function endMission(mission) {
   const state = phaseTwo(), outcome = mission.outcome, pilot = pilotAboard(mission), animal = isAnimal(mission.crew) ? mission.crew : null;
   state.flights++;
+  recordMercuryFlight();
   const crewSafe = !outcome.lost, recovered = outcome.recovered || (mission.crew && crewSafe && !outcome.parachuteFailed);
   const ok = !outcome.boosterFailed && !outcome.aborted && !outcome.heatDamage && !outcome.parachuteFailed && !outcome.lost && !outcome.padShutdown && !outcome.strayLaunch && recovered;
   log('=== MISSION COMPLETE ===', ok ? 'ok' : 'wn');
@@ -635,7 +1025,7 @@ export function endMission(mission) {
     }
   }
   if (pilot && (outcome.padShutdown || outcome.strayLaunch)) log(`[ASTRONAUT OFFICE] ${pilot.name} climbs out once the booster is safe. The flight does not count; mission training stands.`, 'wn');
-  else if (pilot) recordPilotFlight(mission, pilot, outcome, state);
+  else for (const astronaut of [pilot, mission.second]) if (astronaut) recordPilotFlight(mission, astronaut, outcome, state);
   if (animal) {
     if (outcome.lost) {
       loseReputation('bio');
@@ -649,7 +1039,7 @@ export function endMission(mission) {
     log('[INVESTIGATION] The tail-plug cables pulled out in the wrong order and the booster read it as a cutoff command. New package proposed: Umbilical disconnect sequencing.', 'hd');
   }
   investigateFaults(mission, state);
-  if (mission.missionType == 'ma' && outcome.boosterFailed && !state.fl.maFail) {
+  if ((mission.missionType == 'ma' || mission.type.orbital && !mission.type.gemini) && outcome.boosterFailed && !state.fl.maFail) {
     state.fl.maFail = 1;
     log('[INVESTIGATION] The booster skin buckled where it meets the capsule adapter. New package proposed: booster stiffening band.', 'hd');
   }
@@ -659,17 +1049,20 @@ export function endMission(mission) {
       state.ma.ok++;
       if (!state.fl.maQual) {
         state.fl.maQual = 1;
-        S.b += 50000;
+        earn(50000);
         S.rep = Math.min(100, S.rep + 3);
         addHistory('Orbital booster qualified with a capsule');
         log('[MERCURY] Capsule and orbital booster fly together and the capsule is recovered. Orbital Mercury has a head start. Bonus +$50,000.', 'hd');
       }
     }
   }
-  const directive = MERCURY_DIRECTIVES[state.dir];
+  if (mission.type.orbital) orbitalRecords(mission, { crewSafe, recovered, pilot });
+  // One flight can meet more than one open directive (a fourteen-day flight that also docks).
   let met = false;
-  if (directive && directive.missionType == mission.missionType) met = directiveMet(directive.key, mission, { ok, crewSafe, recovered, pilot, animal, state });
-  if (met) fulfilDirective(directive, pilot);
+  for (const directive of openDirectives().filter(each => each.missionType == mission.missionType)) if (directiveMet(directive, mission, { ok, crewSafe, recovered, pilot, animal, state })) {
+    fulfilDirective(directive, pilot);
+    met = true;
+  }
   if (!outcome.padShutdown && !outcome.strayLaunch) {
     const value = teachingValue(mission.boost && mission.boost.flight.tracking);
     learn('c', (outcome.heatDamage || outcome.parachuteFailed || outcome.overheated || outcome.offAttitude ? 3 : 1.5) * value);
@@ -679,16 +1072,19 @@ export function endMission(mission) {
   recordRunEvent({
     k: 'mission', n: state.flights, type: mission.missionType, crew: pilot ? pilot.name : animal ? animal.species : 'none', booster: mission.booster.label, ok,
     abort: outcome.aborted || undefined, lost: outcome.lost || undefined, met: met || undefined, four: outcome.padShutdown || undefined, over: outcome.overspeed || undefined,
-    bfail: outcome.boosterFailed ? (mission.boost.failure || 'short') : undefined,
+    bfail: outcome.boosterFailed ? (mission.boost.failure || 'short') : undefined, orbits: mission.type.orbital ? mission.orbitsFlown : undefined,
   });
   save();
   return { ok, met, lost: !!outcome.lost };
 }
-// The pilot comes home tired, or is lost (the memorial, a stand-down and a heavy reputation cost), or is grounded injured.
+// The pilot comes home tired (the backup moves up), or is lost (the memorial, a stand-down and a heavy reputation cost), or is grounded injured.
 function recordPilotFlight(mission, pilot, outcome, state) {
   pilot.flights++;
+  if (mission.type.gemini) pilot.gem = 1;
+  const missionType = pilot.asg;
   pilot.asg = null;
   pilot.mt = 0;
+  promoteBackup(missionType);
   pilot.focus = 'rest';
   pilot.fat = Math.min(100, pilot.fat + 30);
   if (outcome.lost) {
@@ -705,9 +1101,17 @@ function recordPilotFlight(mission, pilot, outcome, state) {
     log(`[FLIGHT SURGEON] ${pilot.name} is injured and grounded for about ${S.crew.surg ? 'two' : 'four'} months.`, 'wn');
   }
 }
-// Has this flight met the current directive? Little Joe counts good aborts toward three, one with a monkey.
-function directiveMet(key, mission, { ok, crewSafe, recovered, pilot, animal, state }) {
-  const outcome = mission.outcome;
+// After an orbital flight: a day in orbit and a crew of two are contested firsts.
+const ORBITS_IN_A_DAY = 16;
+function orbitalRecords(mission, { crewSafe, recovered, pilot }) {
+  if (!pilot || !crewSafe || !recovered) return;
+  if (mission.orbitsFlown >= ORBITS_IN_A_DAY) checkFirsts({ dayInOrbit: 1 });
+  if (mission.second && mission.orbitsFlown >= 1) checkFirsts({ crew2: 1 });
+}
+// Has this flight met the current directive? Little Joe counts good aborts toward three, one with a monkey; orbital directives
+// need their number of orbits flown.
+function directiveMet(directive, mission, { ok, crewSafe, recovered, pilot, animal, state }) {
+  const outcome = mission.outcome, key = directive.key, orbitsDone = mission.orbitsFlown >= (directive.orbits || 0);
   if (key == 'bj') return recovered && !outcome.heatDamage && !outcome.boosterFailed;
   if (key == 'lj') {
     if (outcome.aborted && !outcome.parachuteFailed && !outcome.lost && !outcome.strayLaunch) {
@@ -720,5 +1124,14 @@ function directiveMet(key, mission, { ok, crewSafe, recovered, pilot, animal, st
   if (key == 'mr') return !mission.crew && ok;
   if (key == 'animal') return !!animal && animal.species == 'chimpanzee' && crewSafe && recovered && !outcome.boosterFailed && !outcome.padShutdown;
   if (key == 'crew') return !!pilot && crewSafe && recovered && !outcome.boosterFailed && !outcome.aborted;
+  if (key == 'mo') return !mission.crew && ok && orbitsDone;
+  if (key == 'oanimal') return !!animal && animal.species == 'chimpanzee' && crewSafe && recovered && !outcome.boosterFailed && orbitsDone;
+  if (key == 'ocrew' || key == 'oday') return !!pilot && crewSafe && recovered && !outcome.boosterFailed && !outcome.aborted && orbitsDone;
+  // Gemini: uncrewed, or both seats filled, with the orbit change and the spacewalk when the directive asks for them.
+  if (directive.project == 'gemini') {
+    const flown = directive.crew ? !!pilot && !!mission.second && crewSafe && recovered && !outcome.boosterFailed && !outcome.aborted : !mission.crew && ok;
+    return flown && orbitsDone && (!directive.manoeuvre || !!outcome.manoeuvred) && (!directive.eva || !!outcome.eva)
+      && (!directive.rendezvous || !!outcome.rendezvous) && (!directive.dock || !!outcome.docked);
+  }
   return false;
 }

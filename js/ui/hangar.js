@@ -1,16 +1,15 @@
-// HANGAR & BASE tab: the drawing office (blueprint revisions), the factory queue (new builds and upgrades, cancellable),
-// the hangar, and the base facilities.
+// HANGAR tab: the drawing office (blueprint revisions), the factory queue (new builds and upgrades, cancellable)
+// and the hangar. The base is on its own desk (ui/site-plan.js).
 import { formatMoney } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
 import { findFix } from '../data/failures.js';
-import { FACILITIES } from '../data/launch-site.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { MISSION_TYPES } from '../data/mercury.js';
-import { S, formatDate, findJob, withProgramme } from '../core/state.js';
+import { S, findJob, withProgramme } from '../core/state.js';
 import { designation } from '../rules/design.js';
 import { unitCost, batchCost, buildTime, draftChanges, experienceCarryover, lineLearning, lineExperience, retrofitQuote } from '../rules/production.js';
 import { buildTeams, buildRate, refundFor } from '../rules/factory.js';
-import { facilityLock } from '../rules/launch-site.js';
+import { reedPublishes } from '../rules/factory-lead.js';
 import { programmeBar } from './design-bureau.js';
 import { $, setHTML } from './dom.js';
 
@@ -25,6 +24,7 @@ function drawingOfficeHTML() {
   return `<div class="r"><span class="d">Published blueprint</span><b>${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev}</b></div><div class="m">${S.bp.pk.length} package${S.bp.pk.length == 1 ? '' : 's'} and ${fixCount} corrective fix${fixCount == 1 ? '' : 'es'} on the drawings.</div>`
     + (changes ? `<div class="c"><div class="t">DRAFT CHANGES FOR REV ${S.bp.rev + 1}</div><div class="m">${[...draft.packages.map(id => BY_ID[id].name), ...draft.fixes.map(mode => findFix(mode, S.fix[mode]).name)].join('; ')}.</div><div class="m">Publishing keeps about ${Math.round(experienceCarryover() * 100)}% of the production line's experience${draft.packages.some(id => id.startsWith('ms_')) ? ': a milestone means retooling the line' : ''}. Batching changes into fewer revisions keeps the line learning.</div><button data-a="publish">PUBLISH BLUEPRINT REV ${S.bp.rev + 1}</button><div class="m">Airframes already ordered keep their revision. Cancel them in the queue if you would rather wait.</div></div>`
       : '<div class="m">Every finished package and fix is on the published blueprint.</div>')
+    + (reedPublishes() ? `<div class="m" style="margin-top:8px">Margaret Reed publishes this rocket's blueprint while she runs its production${S.works.hold ? '. She is holding this draft: it would make the rocket heavier for its thrust' : ''}.</div>` : '')
     + `<div class="r" style="margin-top:8px"><span class="d">Auto-publish when draft changes reach</span><select data-ap="n" style="width:auto;margin:0">${AUTO_PUBLISH_CHOICES.map(count => `<option${S.ap.n == count ? ' selected' : ''}>${count}</option>`).join('')}</select></div><button data-a="aptog">AUTO-PUBLISH: ${S.ap.on ? 'ON' : 'OFF'}</button>`;
 }
 // The factory: ordering, line experience, build teams and the queue. Items on the floor show progress and refund half.
@@ -58,15 +58,4 @@ function airframeCard(airframe) {
     : quote ? `<div class="m">${quote.changes} change${quote.changes > 1 ? 's' : ''} behind Rev ${latest}.</div><button data-a="upgrade" data-id="${airframe.id}"${S.b < quote.cost ? ' disabled' : ''}>QUEUE UPGRADE TO REV ${latest} (${formatMoney(quote.cost)}, ${quote.time}s)</button>`
     : unpublishedNote(airframe);
   return `<div class="c"><div class="t">${airframe.label}, Rev ${airframe.rev || 1} | built ${airframe.built}</div>` + status + '</div>';
-}
-
-// BASE FACILITIES: control-room upgrades first, then range, test and recovery.
-function facilityCard(id) {
-  const facility = FACILITIES[id], lock = facilityLock(id), building = S.fb && S.fb[id];
-  return `<div class="c"><div class="r"><b>${facility.name}</b><span class="${S.fac[id] ? 'ok' : building ? 'wn' : 'd'}">${S.fac[id] ? 'Operational' : building ? 'Under construction' : 'Unbuilt'}</span></div><div class="m">${facility.description}${facility.consoles ? ` +${facility.consoles} console${facility.consoles > 1 ? 's' : ''}.` : ''}</div>${S.fac[id] ? '' : building ? `<div class="m">In service around ${formatDate(building)}.</div>` : `<button data-a="fac" data-id="${id}"${lock ? ' disabled' : ''}>BUILD (${formatMoney(facility.cost)}${facility.buildDays ? `, ${facility.buildDays} days` : ''})</button>${lock ? `<div class="m">${lock}</div>` : ''}`}</div>`;
-}
-export function renderFacilities() {
-  const ids = Object.keys(FACILITIES);
-  setHTML($('#fc'), `<div class="t">CONTROL ROOM</div><div class="m">Each upgrade moves you further from a military blockhouse and adds consoles for launch crew.</div>` + ids.filter(id => FACILITIES[id].controlRoom).map(facilityCard).join('')
-    + `<div class="t" style="margin-top:10px">RANGE, TEST & RECOVERY</div>` + ids.filter(id => !FACILITIES[id].controlRoom).map(facilityCard).join(''));
 }

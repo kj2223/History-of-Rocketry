@@ -4,18 +4,26 @@ import { formatMoney } from '../core/util.js';
 import { AREAS } from '../data/research.js';
 import { DAYS_PER_SECOND, DAYS_PER_SECOND_PHASE_TWO } from '../data/history.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log } from '../core/state.js';
+import { S, log, earn } from '../core/state.js';
 import { grant, defenseSupplement, payroll, programmeProgress } from './economy.js';
+import { budgetTick, payAppropriation } from './budget.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
-import { roomLevel, constructionTick } from './launch-site.js';
+import { roomLevel } from './launch-site.js';
+import { constructionTick, upkeep } from './site.js';
 import { createProgramme, isMature } from './programs.js';
 import { hasFirstMilestone, giveEarmark } from './research.js';
+import { startQueuedWork } from './queue.js';
 import { makeAirframe } from './production.js';
 import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost, factoryTick, autoPublishDue, publishBlueprint } from './factory.js';
 import { finishJob } from './jobs.js';
 import { ensurePhaseTwo, officeTick } from './astronaut-office.js';
 import { trainingTick } from './astronauts.js';
 import { directorUnlocked } from './campaign.js';
+import { remitTick, remitEarnedTick } from './remit.js';
+import { chenJoinTick, lanesTick } from './lanes.js';
+import { reedJoinTick, worksTick, reedPublishes } from './factory-lead.js';
+import { demandTick } from './orders.js';
+import { sharedTick } from './shared-research.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -35,8 +43,9 @@ export const catchUp = () => {
 };
 export const daysPerSecond = () => (S.nasa ? DAYS_PER_SECOND_PHASE_TWO : DAYS_PER_SECOND) * catchUp();
 
-// ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the appropriation and payroll every 30 seconds,
-// the Astronaut Office, the factory, engineering jobs, auto-publishing and programme maturity. Returns true if the page needs redrawing.
+// ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the appropriation and payroll every funding cycle,
+// the Astronaut Office, the factory, engineering jobs, Ellis's remit, Chen's research lanes and the shared lanes, Reed's factory, customer demand for
+// standing orders, auto-publishing and programme maturity. Returns true if the page needs redrawing.
 export function tickSecond() {
   let changed = false;
   if (S.dev) {
@@ -47,14 +56,16 @@ export function tickSecond() {
   S.day += days;
   if (constructionTick()) changed = true;
   if (sovietEventsTick()) changed = true;
-  S.gt--;
+  // A funding cycle is 30 seconds at the normal calendar; catching up with history brings paydays sooner, so a year pays the same.
+  S.gt -= catchUp();
   if (S.gt <= 0) {
-    S.gt = 30;
+    S.gt += 30;
     payDay();
     changed = true;
   }
   if (S.nasa) {
     ensurePhaseTwo();
+    if (budgetTick(days)) changed = true;
     trainingTick(days);
     if (officeTick(days)) changed = true;
   }
@@ -64,23 +75,40 @@ export function tickSecond() {
     finishJob(job);
     changed = true;
   }
-  if (autoPublishDue()) {
+  if (startQueuedWork()) changed = true;
+  if (remitEarnedTick()) changed = true;
+  if (remitTick()) changed = true;
+  if (chenJoinTick()) changed = true;
+  if (lanesTick()) changed = true;
+  if (sharedTick()) changed = true;
+  if (reedJoinTick()) changed = true;
+  if (worksTick()) changed = true;
+  if (demandTick()) changed = true;
+  if (!reedPublishes() && autoPublishDue()) {
     publishBlueprint(true);
     changed = true;
   }
   if (matureTick()) changed = true;
   return changed;
 }
-// The appropriation arrives, salaries go out, and the press office rebuilds a little reputation.
+// The appropriation arrives (NASA's from its yearly budget), salaries go out, and the press office rebuilds a little reputation.
 function payDay() {
-  const amount = grant();
-  S.b += amount;
-  const supplement = defenseSupplement();
-  log(`[FISCAL] Appropriation deposited: +${formatMoney(amount)}${supplement ? ` (includes a ${formatMoney(supplement)} Defense Department supplement: the Soviets are judged to be ahead)` : ''}`, 'ok');
+  if (S.fy) log(`[FISCAL] FY${S.fy.yr} appropriation paid: +${formatMoney(payAppropriation())}`, 'ok');
+  else {
+    const amount = grant();
+    S.b += amount;
+    const supplement = defenseSupplement();
+    log(`[FISCAL] Appropriation deposited: +${formatMoney(amount)}${supplement ? ` (includes a ${formatMoney(supplement)} Defense Department supplement: the Soviets are judged to be ahead)` : ''}`, 'ok');
+  }
   const salaries = payroll();
   if (salaries) {
     S.b = Math.max(0, S.b - salaries);
     log(`[PAYROLL] Salaries paid: -${formatMoney(salaries)}`, 'wn');
+  }
+  const running = upkeep();
+  if (running) {
+    S.b = Math.max(0, S.b - running);
+    log(`[BASE] Site upkeep: -${formatMoney(running)}`, 'wn');
   }
   if (S.staff.pr) S.rep = Math.min(100, S.rep + .5);
 }
@@ -101,7 +129,7 @@ function matureTick() {
     const programme = PROGRAMMES[kind];
     log(`[PROGRAMME] ${programme.name} is mature: the team understands this rocket well. New programmes can be proposed in the Design Bureau.`, 'hd');
     if (programme.contract) {
-      S.b += programme.contract;
+      earn(programme.contract);
       log(`[CONTRACT] ${(CONTRACT_NEWS[kind] || OTHER_CONTRACT_NEWS)(programme.name)}. Contract payment +${formatMoney(programme.contract)}.`, 'hd');
     }
   }
@@ -113,7 +141,7 @@ export const MAX_ENGINEERING_TEAMS = 6;
 export const engineeringTeamCost = () => 12000 + 6000 * (S.teams - 2);
 export const SPECIALISTS = {
   pr: { cost: 15000, news: 'Press office established. Failures now cost half the reputation, and reputation slowly recovers.' },
-  director: { cost: 25000, news: 'Launch director appointed. Set a campaign on the Launch tab and the director flies it for you.' },
+  director: { cost: 25000, news: 'Ruth Ellis appointed launch director. She leaves the PROP console; set a campaign on the Launch tab and she flies it for you.' },
 };
 // what: 'bteam', 'team', or a specialist's key.
 export function hire(what) {

@@ -6,6 +6,7 @@ import { findFix } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, isResearched, withProgramme } from '../core/state.js';
 import { programmeOf, believedWindow } from './programs.js';
+import { padLock } from './site.js';
 
 // The bare rocket of the programme in focus. With `estimated`, the figures the team believes (the middle of each window) instead of the truth.
 // Before any programme exists, a small default rocket.
@@ -32,7 +33,8 @@ export function designSpec(ids, estimated) {
   };
   for (const id of ids) {
     const done = S.pk[id];
-    if (done) for (const key in done.a) spec[key] += done.a[key];
+    // Keys not listed above (the later spacecraft work) start from zero.
+    if (done) for (const key in done.a) spec[key] = (spec[key] || 0) + done.a[key];
   }
   spec.tier = Math.max(0, Math.min(3, Math.floor(spec.i + 1e-9)));
   return spec;
@@ -93,6 +95,8 @@ function quoteForProgramme(airframe, propellantName, payloadName, stage, load) {
   if (payload.needs && !isResearched(payload.needs)) return { error: `The ${payloadName} needs ${BY_ID[payload.needs].name}.` };
   const spec = designSpec(airframe.pk), modifiers = fixModifiers(airframe.fix), staged = stage && hasBoosterStage(airframe);
   const cost = propellantCost(airframe, propellantName, load) + payload.cost + (staged ? STAGING_COST : 0) + rangeFee();
+  const pad = padLock(airframe);
+  if (pad) return { cost, error: pad };
   if (S.b < cost) return { cost, error: `Need ${formatMoney(cost - S.b)} more.` };
   // Research reaches the booster stage at half strength (see rules/flight.js).
   const half = x => 1 + (x - 1) * .5, design = programme.design, booster = programme.booster;

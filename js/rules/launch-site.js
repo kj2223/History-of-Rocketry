@@ -2,12 +2,14 @@
 import { formatMoney } from '../core/util.js';
 import { FACILITIES, STATIONS, CONTROL_ROOM_FACILITIES } from '../data/launch-site.js';
 import { FAULT_REPORTS, WIND_NAMES } from '../data/failures.js';
+import { CORE_TEAM } from '../data/team.js';
 import { BY_ID } from '../data/research.js';
 import { S, log, isConfirmed, freeTeams, addHistory, formatDate, withProgramme } from '../core/state.js';
 import { rangeFee } from './design.js';
 import { knowledgeFraction, systemOf } from './knowledge.js';
 import { programmeOf, traitsOf } from './programs.js';
 import { traitByKey } from '../data/programmes.js';
+import { siteStatus, directiveLock, orderConstruction } from './site.js';
 
 // The control-room level, 0 to 5: how many of the control-room upgrades are built.
 export const roomLevel = () => CONTROL_ROOM_FACILITIES.filter(id => S.fac[id]).length;
@@ -16,43 +18,56 @@ export const consoleCount = () => 3 + Object.keys(FACILITIES).reduce((sum, id) =
 // Who is on the net: the Test Conductor, then every hired station in table order.
 export const crewOnConsole = () => ['tc', ...Object.keys(STATIONS).filter(id => id != 'tc' && S.crew[id])];
 
+// THE CORE TEAM AT THE CONSOLES: while a station has no specialist hired, its core-team member covers it (data/team.js console),
+// if a console is free and the member has not moved on to a bigger job: Ellis once appointed launch director or while she
+// holds an engineering remit (rules/remit.js). Hiring the specialist frees them. A cover catches faults at COVER_SKILL of a
+// specialist's rate; the specialist's other effects (RSO destruct, TLM analysis records) need the hire.
+export const COVER_SKILL = .6;
+const memberMovedOn = member => member == 'ellis' && (!!S.staff.director || !!S.remit);
+// The stations covered now, { station: member }.
+export function coveredStations() {
+  const covered = {};
+  let free = consoleCount() - crewOnConsole().length;
+  for (const member in CORE_TEAM) {
+    const id = CORE_TEAM[member].console, station = STATIONS[id];
+    if (!station) continue;
+    if (free < 1 || S.crew[id] || memberMovedOn(member) || (station.requires && !S.fac[station.requires])) continue;
+    covered[id] = member;
+    free--;
+  }
+  return covered;
+}
+export const coveringMember = id => coveredStations()[id] || null;
+// Everyone on the launch board: the Test Conductor, then every hired or covered station in table order.
+export function boardCrew() {
+  const covered = coveredStations();
+  return ['tc', ...Object.keys(STATIONS).filter(id => id != 'tc' && (S.crew[id] || covered[id]))];
+}
+
 // Why a facility cannot be built, or null.
 export function facilityLock(id) {
   const facility = FACILITIES[id];
   if (!facility) return 'Unknown.';
   if (S.fac[id]) return 'Built.';
   if (S.fb && S.fb[id]) return `Under construction: in service around ${formatDate(S.fb[id])}.`;
+  if (siteStatus(id) == 'waiting') return 'Ordered: waiting for a free contractor crew.';
+  if (siteStatus(id) == 'mothballed') return 'Mothballed.';
   if (facility.nasa && !S.nasa) return 'Opens when NASA is established.';
   if (facility.requires && !S.fac[facility.requires]) return `Requires ${FACILITIES[facility.requires].name}.`;
   if (S.dir < facility.fromDirective) return `Available from directive ${facility.fromDirective + 1}.`;
+  if (directiveLock(id)) return directiveLock(id);
   if (S.b < facility.cost) return `Need ${formatMoney(facility.cost - S.b)} more.`;
   return null;
 }
+// Pay for a facility. In Phase One it is in service at once; from NASA on it goes to the contractor crews (rules/site.js).
 export function buildFacility(id) {
   if (facilityLock(id)) return;
   const facility = FACILITIES[id];
   S.b -= facility.cost;
-  if (facility.buildDays) {
-    S.fb = S.fb || {};
-    S.fb[id] = Math.round(S.day + facility.buildDays);
-    log(`[BASE] Construction begins: ${facility.name}. In service around ${formatDate(S.fb[id])}.`, 'wn');
-    return;
-  }
+  if (S.nasa) return orderConstruction(id);
   S.fac[id] = 1;
   if (facility.controlRoom) addHistory(`Control room: ${facility.name}`);
   log(`[BASE] ${facility.name} operational.`, 'ok');
-}
-// Facilities with a construction time come on line when their date arrives. Returns true if any did.
-export function constructionTick() {
-  if (!S.fb) return false;
-  let changed = false;
-  for (const id in S.fb) if (S.day >= S.fb[id]) {
-    delete S.fb[id];
-    S.fac[id] = 1;
-    log(`[BASE] ${FACILITIES[id].name} is in service.`, 'hd');
-    changed = true;
-  }
-  return changed;
 }
 
 // Why a launch-crew station cannot be hired, or null.
@@ -93,7 +108,8 @@ export function runPoll(airframe, propellant, stage) {
 }
 function runPollForProgramme(airframe, propellant, stage) {
   // The chance of a latent fault: more for unproven packages, staging and a little-flown propellant; less as the team knows the rocket.
-  const unproven = airframe.pk.filter(id => !isConfirmed(id)).length;
+  // Phase Two packages are the capsule's, not the booster's, so they do not count here.
+  const unproven = airframe.pk.filter(id => !isConfirmed(id) && !(BY_ID[id] && BY_ID[id].phase == 2)).length;
   const faultChance = Math.min(.55, .12 + .04 * unproven + (stage ? .08 : 0) + ((S.fr[propellant] || 0) < 3 ? .06 : 0)) * (1 - .35 * (knowledgeFraction('p') + knowledgeFraction('s') + knowledgeFraction('a')) / 3);
   // Which fault: each letter is a failure mode; repeats make it likelier. Staging adds separation, uncured traits add their own mode four times.
   const faultPool = 'ccpiivvsshf' + (stage ? 'xx' : '')
@@ -102,8 +118,8 @@ function runPollForProgramme(airframe, propellant, stage) {
   const windRoll = Math.random(), wind = windRoll < .6 ? 0 : windRoll < .9 ? 1 : 2;
   const hasForecast = !!S.fac.wx, flightDirectorBonus = S.crew.fd ? .15 : 0, lines = [];
   let detected = false;
-  for (const id of crewOnConsole()) {
-    const station = STATIONS[id];
+  for (const id of boardCrew()) {
+    const station = STATIONS[id], skill = id == 'tc' || S.crew[id] ? 1 : COVER_SKILL;
     let go = true, message = '', real = false, issue = '';
     if (id == 'tc') {
       // The Test Conductor's walkdown: a small chance to find any fault, better with knowledge of that system.
@@ -112,7 +128,7 @@ function runPollForProgramme(airframe, propellant, stage) {
         go = false; detected = true; real = true; issue = FAULT_REPORTS[fault];
         message = `Walkdown finds a problem: ${issue}.`;
       }
-    } else if (fault && !detected && station.catches.includes(fault) && Math.random() < .5 + flightDirectorBonus + .3 * knowledgeFraction(systemOf(fault))) {
+    } else if (fault && !detected && station.catches.includes(fault) && Math.random() < (.5 + flightDirectorBonus + .3 * knowledgeFraction(systemOf(fault))) * skill) {
       go = false; detected = true; real = true; issue = FAULT_REPORTS[fault];
       message = sentence(issue);
     } else if (id == 'rso' && hasForecast && wind == 2) {
@@ -172,7 +188,7 @@ export function troubleshoot(poll) {
 // GROUND TESTS confirm a package without flying it: propulsion on the test stand, spacecraft systems by qualification tests
 // (drop tests, altitude chambers, sled runs).
 export const isQualificationArea = area => area == 'c' || area == 'e';
-const TEST_STAND = { cost: 2000, time: 30 }, QUALIFICATION_TEST = { cost: 4000, time: 110 };
+export const TEST_STAND = { cost: 2000, time: 30 }, QUALIFICATION_TEST = { cost: 4000, time: 110 };
 export function groundTestLock(id) {
   const done = S.pk[id], area = BY_ID[id].area, test = isQualificationArea(area) ? QUALIFICATION_TEST : TEST_STAND;
   if (!isQualificationArea(area) && !S.fac.stand) return 'Needs the Static Engine Test Stand.';
@@ -188,6 +204,6 @@ export function groundTest(id) {
   if (groundTestLock(id)) return;
   const qualification = isQualificationArea(BY_ID[id].area), test = qualification ? QUALIFICATION_TEST : TEST_STAND;
   S.b -= test.cost;
-  S.jobs.push({ k: 'gt', id, t: test.time, tot: test.time });
+  S.jobs.push({ k: 'gt', id, prog: S.cur, t: test.time, tot: test.time });
   log(qualification ? `[QUALIFICATION] Ground tests scheduled for ${BY_ID[id].name} ($4,000).` : `[TEST STAND] Static firing scheduled for ${BY_ID[id].name} ($2,000).`, 'wn');
 }

@@ -6,11 +6,11 @@ import { PROPELLANTS } from '../data/launch.js';
 import { BY_ID } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS } from '../data/astronauts.js';
-import { MISSION_TYPES, MERCURY_DIRECTIVES, TESTING_REGIMES, OFFICE_DECISIONS, CHIMP_TRAINING_COST } from '../data/mercury.js';
+import { MISSION_TYPES, MERCURY_DIRECTIVES, TESTING_REGIMES, OFFICE_DECISIONS, CHIMP_TRAINING_COST, ORBIT_SECONDS } from '../data/mercury.js';
 import { S, formatDate, isResearched } from '../core/state.js';
-import { skillEstimate, isQualified, simulatorTier, activeAstronauts } from '../rules/astronauts.js';
-import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters } from '../rules/mercury.js';
-import { manRatingRecord, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
+import { skillEstimate, isQualified, simulatorTier, activeAstronauts, assignedPilot, backupPilot, assignmentName } from '../rules/astronauts.js';
+import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters, pilotMissionType, orbitChoices, orbitalBoosterCertified, targetUp, targetLock } from '../rules/mercury.js';
+import { manRatingRecord, cleanFlightsNeeded, MAN_RATING_RESEARCH, manRatingResearchFor, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
 import { quoteLaunch } from '../rules/design.js';
 import { $, escapeHtml, percent, setHTML } from './dom.js';
 
@@ -34,13 +34,24 @@ function astronautCard(astronaut, mode) {
   if (astronaut.st == 'medical') return html + '<div class="bad">Permanently grounded (heart condition). Works in the Astronaut Office.</div></div>';
   const status = astronaut.st == 'grounded' ? `Grounded (${Math.ceil(astronaut.gd / 30)} months)` : qualified ? 'Flight qualified' : `General training ${percent(training)}`;
   html += `<div class="r"><span class="d">${status}</span><b class="${astronaut.fat > 60 ? 'bad' : astronaut.fat > 35 ? 'wn' : 'ok'}">Fatigue ${Math.round(astronaut.fat)}</b></div><div class="bar"><i style="width:${training * 100}%"></i></div>`;
-  if (astronaut.asg) html += `<div class="r"><span class="d">Assigned: ${MISSION_TYPES[astronaut.asg].fullName}</span><b>${percent(astronaut.mt)} mission training</b></div><div class="bar"><i style="width:${astronaut.mt * 100}%"></i></div>`;
+  if (astronaut.asg || astronaut.bk || astronaut.nx) html += `<div class="r"><span class="d">${astronaut.asg ? 'Assigned' : astronaut.bk ? 'Backup' : 'Third crew'}: ${assignmentName(astronaut.asg || astronaut.bk || astronaut.nx)}</span><b>${percent(astronaut.mt)} mission training</b></div><div class="bar"><i style="width:${astronaut.mt * 100}%"></i></div>`;
   const rehearsed = Object.keys(astronaut.reh).filter(key => astronaut.reh[key]);
   if (rehearsed.length) html += `<div class="m">Rehearsed in the simulator: ${rehearsed.map(key => REHEARSALS[key].short).join(', ')}.</div>`;
-  html += `<div class="m">${astronaut.flights ? `${astronaut.flights} flight${astronaut.flights > 1 ? 's' : ''}. ` : ''}</div><select data-focus="${astronaut.id}">${Object.entries(TRAINING_FOCUS).filter(([key]) => key != 'msn' || astronaut.asg).map(([key, name]) => `<option value="${key}"${astronaut.focus == key ? ' selected' : ''}>Training: ${name}</option>`).join('')}</select>`;
-  if (qualified && !astronaut.asg) html += `<button data-a="asg" data-id="${astronaut.id}">ASSIGN AS PILOT FOR THE NEXT MERCURY-REDSTONE</button>`;
+  html += `<div class="m">${astronaut.flights ? `${astronaut.flights} flight${astronaut.flights > 1 ? 's' : ''}. ` : ''}</div><select data-focus="${astronaut.id}">${Object.entries(TRAINING_FOCUS).filter(([key]) => key != 'msn' || astronaut.asg || astronaut.bk || astronaut.nx).map(([key, name]) => `<option value="${key}"${astronaut.focus == key ? ' selected' : ''}>Training: ${name}</option>`).join('')}</select>`;
+  const missionType = pilotMissionType();
+  if (missionType == 'gt') return html + geminiSeatButtons(astronaut, qualified) + '</div>';
+  const flight = missionType == 'mo' ? 'ORBITAL MERCURY FLIGHT' : 'MERCURY-REDSTONE';
+  if (qualified && !astronaut.asg) html += `<button data-a="asg" data-id="${astronaut.id}">ASSIGN AS PILOT FOR THE NEXT ${flight}</button>`;
+  if (qualified && !astronaut.asg && !astronaut.bk && assignedPilot(missionType)) html += `<button data-a="bkp" data-id="${astronaut.id}">ASSIGN AS BACKUP (FLIES THE ${flight} AFTER)</button>`;
   return html + '</div>';
 }
+
+// Gemini has two seats, each with its own backup and third crew: [assignment key, seat name, assign action, backup action, third crew action].
+const GEMINI_SEAT_BUTTONS = [['gt', 'COMMAND PILOT', 'asg', 'bkp', 'nxp'], ['gtp', 'PILOT', 'asgp', 'bkpp', 'nxpp']];
+const geminiSeatButtons = (astronaut, qualified) => !qualified ? '' : GEMINI_SEAT_BUTTONS.map(([seat, name, assign, backup, third]) =>
+  (astronaut.asg != seat ? `<button data-a="${assign}" data-id="${astronaut.id}">GEMINI ${name}</button>` : '')
+  + (!astronaut.asg && !astronaut.bk && assignedPilot(seat) ? `<button data-a="${backup}" data-id="${astronaut.id}">BACKUP ${name}</button>` : '')
+  + (!astronaut.asg && !astronaut.bk && !astronaut.nx && backupPilot(seat) ? `<button data-a="${third}" data-id="${astronaut.id}">THIRD CREW ${name}</button>` : '')).join('');
 
 // A pending office decision, shown on the Astronaut Office and the Launch tab.
 export function officeDecisionHTML() {
@@ -83,10 +94,10 @@ ${state.mem.length ? `<div class="mem"><div class="t">IN MEMORIAM</div>${state.m
 export function manRatingBoardHTML() {
   const state = S.p2, booster = S.air.find(airframe => airframe.id == (state && state.lb)), kind = booster ? booster.prog : S.cur;
   const record = manRatingRecord(kind), tick = done => done ? '<b class="ok">✓</b>' : '<b class="d">○</b>', certified = isFamilyCertified(kind);
-  const name = PROGRAMMES[kind] ? PROGRAMMES[kind].name : 'Booster';
-  return `<div class="c"><div class="t">MAN-RATING BOARD</div><div class="m">A crew rides only a certified booster. Each rocket programme earns its own certification: ${CLEAN_FLIGHTS_NEEDED} clean flights in a row by one booster family (every revision since its last milestone) and the man-rating research. Any flight counts, Mercury or ordinary.</div>
-<div class="r"><span class="d">${name} family</span><b>Rev ${record.base} onward</b></div><div class="r"><span class="d">Clean flights in a row</span><b class="${record.streak >= CLEAN_FLIGHTS_NEEDED || certified ? 'ok' : ''}">${certified ? 'certified' : `${Math.min(record.streak, CLEAN_FLIGHTS_NEEDED)} of ${CLEAN_FLIGHTS_NEEDED}`}</b></div>
-${MAN_RATING_RESEARCH.map(id => `<div class="r"><span class="d">${BY_ID[id].name}</span>${tick(isResearched(id))}</div>`).join('')}
+  const name = PROGRAMMES[kind] ? PROGRAMMES[kind].name : 'Booster', needed = cleanFlightsNeeded(kind);
+  return `<div class="c"><div class="t">MAN-RATING BOARD</div><div class="m">A crew rides only a certified booster. Each rocket programme earns its own certification: ${needed} clean flights in a row by one booster family (every revision since its last milestone) and the man-rating research. Any flight counts, Mercury or ordinary.</div>
+<div class="r"><span class="d">${name} family</span><b>Rev ${record.base} onward</b></div><div class="r"><span class="d">Clean flights in a row</span><b class="${record.streak >= needed || certified ? 'ok' : ''}">${certified ? 'certified' : `${Math.min(record.streak, needed)} of ${needed}`}</b></div>
+${manRatingResearchFor(kind).map(id => `<div class="r"><span class="d">${BY_ID[id].name}</span>${tick(isResearched(id))}</div>`).join('')}
 <div class="r"><span class="d">Certified boosters</span><b class="${anyCertified() ? 'ok' : 'd'}">${certifiedNames().join('; ') || 'none yet'}</b></div></div>`;
 }
 
@@ -96,8 +107,12 @@ const SYSTEMS_SHOWN = {
   lj: [['et', 'Escape tower'], ['as', 'Abort sensing'], ['pc', 'Parachutes']],
   ma: [['hs', 'Heat shield'], ['ec', 'Environmental control'], ['pc', 'Parachutes']],
   mr: [['as', 'Abort sensing'], ['et', 'Escape tower'], ['tj', 'Tower jettison'], ['ac', 'Attitude control'], ['ec', 'Environmental control'], ['hs', 'Heat shield'], ['pc', 'Parachutes'], ['lb', 'Landing bag']],
+  mo: [['as', 'Abort sensing'], ['et', 'Escape tower'], ['ac', 'Attitude control'], ['ec', 'Environmental control'], ['rr', 'Retrorockets'], ['hs', 'Heat shield'], ['pc', 'Parachutes'], ['lb', 'Landing bag']],
+  gt: [['es', 'Ejection seats'], ['om', 'Manoeuvring thrusters'], ['ac', 'Attitude control'], ['ec', 'Environmental control'], ['ev', 'Spacewalk suit'], ['rv', 'Rendezvous radar'], ['rr', 'Retrorockets'], ['hs', 'Heat shield'], ['pc', 'Parachutes']],
+  ag: [['ac', 'Attitude control'], ['rv', 'Docking adapter']],
 };
 const kilometres = metres => `${Math.round(metres / 1000).toLocaleString()} km`;
+const hoursAloft = orbits => `about ${Math.round(orbits * ORBIT_SECONDS / 360) / 10} hours`;
 // THE MISSION PLANNER on the Launch tab: order capsules, then pair a capsule with a booster from the hangar, a propellant and a crew.
 export function renderMissionPlanner() {
   const state = S.p2, box = $('#pm');
@@ -115,12 +130,19 @@ export function renderMissionPlanner() {
   html += manRatingBoardHTML() + (state.lastTx ? '<button data-a="txview">LAST FLIGHT: AIR-TO-GROUND TRANSCRIPT</button>' : '');
   setHTML(box.querySelector('#mp'), html);
 }
-// The planner's choices are kept in S.p2: lv capsule, lb booster, lf propellant, lc crew. Missing or stale ones are filled in here.
+// The planner's choices are kept in S.p2: lv capsule, lb booster, lf propellant, lc crew, lo orbits. Missing or stale ones are filled in here.
 function flightPreparationHTML(state, capsules, boosters) {
   const capsule = capsules.find(candidate => candidate.id == state.lv) || capsules[0];
   state.lv = capsule.id;
-  const crewChoices = capsule.mt == 'mr' ? ['none', 'chimp', ...activeAstronauts().filter(astronaut => astronaut.asg == 'mr').map(astronaut => astronaut.id)] : capsule.mt == 'lj' ? ['none', 'monkey'] : ['none'];
+  const type = MISSION_TYPES[capsule.mt];
+  const crewChoices = type.crewed ? ['none', ...(type.gemini ? [] : ['chimp']), ...activeAstronauts().filter(astronaut => astronaut.asg == capsule.mt).map(astronaut => astronaut.id)] : capsule.mt == 'lj' ? ['none', 'monkey'] : ['none'];
   if (!crewChoices.includes(state.lc)) state.lc = 'none';
+  // Orbits: what the capsule's consumables allow, defaulting to what the directive in hand asks for.
+  const orbits = type.orbital ? orbitChoices(capsule.cfg, capsule.mt) : [];
+  if (type.orbital && !orbits.includes(state.lo)) {
+    const directive = MERCURY_DIRECTIVES[state.dir];
+    state.lo = orbits.find(count => count >= ((directive && directive.orbits) || 1)) || orbits[orbits.length - 1];
+  }
   const propellantFor = airframe => {
     const propellants = PROGRAMMES[airframe.prog].propellants;
     return propellants.includes(state.lf) ? state.lf : propellants[0];
@@ -133,42 +155,119 @@ function flightPreparationHTML(state, capsules, boosters) {
   const booster = boosters.find(airframe => airframe.id == state.lb);
   if (booster) state.lf = propellantFor(booster);
   const propellants = booster ? PROGRAMMES[booster.prog].propellants : Object.keys(PROPELLANTS);
-  const plan = booster && boosterPlan(booster, state.lf, capsule.mt), quote = booster && plan ? quoteLaunch(booster, state.lf, 'Mercury Capsule', plan.staged, plan.load) : null;
-  const systems = capsuleSystems(capsule.cfg), shown = SYSTEMS_SHOWN[capsule.mt];
+  const plan = booster && boosterPlan(booster, state.lf, capsule.mt), quote = booster && plan ? quoteLaunch(booster, state.lf, type.payload || 'Mercury Capsule', plan.staged, plan.load) : null;
+  const systems = capsuleSystems(capsule.cfg, capsule.mt), shown = SYSTEMS_SHOWN[capsule.mt];
   const lock = !booster ? 'No booster in the hangar. Order airframes at the Hangar desk.'
     : !plan.ok && plan.overLimit ? `${booster.label} would exceed its ${plan.preview.maxHeat >= 1 ? 'heating' : 'aerodynamic load'} limit with a capsule aboard (${Math.round(Math.max(plan.preview.maxHeat, plan.preview.maxQ) * 100)}% of limit).`
     : !plan.ok ? `${booster.label} cannot deliver ${needText(capsule.mt)} with a capsule aboard.`
     : quote.error ? quote.error
     : S.b < quote.cost ? `Need ${formatMoney(quote.cost - S.b)} more for propellant and the pad.`
-    : crewLock(state.lc, booster);
-  const crewName = choice => choice == 'none' ? 'No crew (instruments only)' : choice == 'chimp' ? 'Chimpanzee' : choice == 'monkey' ? 'Rhesus monkey' : `Astronaut: ${(state.astros.find(astronaut => astronaut.id == choice) || {}).name}`;
+    : crewLock(state.lc, booster, capsule.mt);
+  const second = type.gemini && assignedPilot('gtp');
+  const crewName = choice => choice == 'none' ? 'No crew (instruments only)' : choice == 'chimp' ? 'Chimpanzee' : choice == 'monkey' ? 'Rhesus monkey'
+    : `Astronaut${second ? 's' : ''}: ${(state.astros.find(astronaut => astronaut.id == choice) || {}).name}${second ? ` and ${second.name}` : ''}`;
   return `<div class="c"><div class="t">PREPARE A FLIGHT</div><select data-mv="1">${capsules.map(candidate => `<option value="${candidate.id}"${candidate.id == capsule.id ? ' selected' : ''}>${MISSION_TYPES[candidate.mt].capsuleName} #${candidate.id} (Rev ${candidate.cfg.rev}) • ${MISSION_TYPES[candidate.mt].name}</option>`).join('')}</select>
 <select data-mb="1">${boosters.length ? plans.map(({ airframe, plan: option }) => `<option value="${airframe.id}"${airframe.id == state.lb ? ' selected' : ''}>Booster: ${airframe.label}, Rev ${airframe.rev}${isManRated(airframe) ? ' • man-rated' : ''}${option.ok ? '' : option.overLimit ? ' • over its limits' : ' • too weak'}</option>`).join('') : '<option>No boosters in the hangar</option>'}</select>
 <select data-mf="1">${propellants.map(propellant => `<option${propellant == state.lf ? ' selected' : ''}>${propellant}</option>`).join('')}</select>
 <select data-mc="1">${crewChoices.map(choice => `<option value="${choice}"${choice == state.lc ? ' selected' : ''}>${crewName(choice)}</option>`).join('')}</select>
+${type.target ? `<div class="m">${agenaText()}</div>` : ''}${type.orbital && !type.target ? `<select data-mo="1">${orbits.map(count => `<option value="${count}"${count == state.lo ? ' selected' : ''}>${count} orbit${count > 1 ? 's' : ''} (${hoursAloft(count)})</option>`).join('')}</select>${type.gemini ? geminiNotesHTML(state, capsule, systems) : `<div class="m">The capsule's oxygen, coolant and batteries last ${systems.endurance} orbits${systems.endurance < 22 ? '; research stretches them' : ''}. Attitude fuel is spent holding the capsule steady, most of it in the first three orbits, and it must last through retrofire.</div>`}` : ''}
 ${booster ? `<div class="m">With the capsule aboard, ${booster.label} ${plan.staged ? '(staged)' : '(single stage)'}${plan.ok && plan.load < 1 ? `, off-loaded to ${Math.round(plan.load * 100)}% propellant to stay inside its limits,` : ''} should reach <b>${kilometres(plan.preview.peakAltitude)}</b> and <b>${Math.round(plan.preview.peakSpeed).toLocaleString()} m/s</b>. This mission needs ${needText(capsule.mt)}: ${plan.ok ? '<b class="ok">enough</b>' : plan.overLimit ? '<b class="bad">not safely</b>' : '<b class="bad">not enough</b>'}. Liftoff thrust-to-weight ${plan.preview.thrustToWeight.toFixed(2)}, peak skin heating ${Math.round(plan.preview.maxHeat * 100)}% and aero load ${Math.round(plan.preview.maxQ * 100)}% of limit.${quote && !quote.error ? ` Propellant and pad ${formatMoney(quote.cost)}.` : ''}</div>` : ''}
 <div class="m">Capsule systems${systems.unproven ? ` (${systems.unproven} unproven package${systems.unproven > 1 ? 's' : ''} aboard)` : ''}:</div><div class="rels">${shown.map(([key, name]) => `<div class="r"><span class="d">${name}</span><b class="${systems.reliability(key) < .85 ? 'bad' : systems.reliability(key) < .92 ? 'wn' : 'ok'}">${percent(systems.reliability(key))}</b></div>`).join('')}</div>
 <button data-a="mcount" class="big"${lock ? ' disabled' : ''}>BEGIN COUNTDOWN</button>${lock ? `<div class="m bad">${lock}</div>` : ''}</div>`;
 }
 
+// The Gemini planner's notes: how long the spacecraft lasts, the orbit change, and whether a spacewalk can be planned (state.le).
+function geminiNotesHTML(state, capsule, systems) {
+  const aboard = id => capsule.cfg.pk.includes(id);
+  const evaLock = !aboard('gm_eva') ? `the spacecraft was built without the ${BY_ID.gm_eva.name.toLowerCase()}` : !S.fac.altch ? 'needs the Altitude Chamber (Base desk) to clear the cabin for depressurisation' : null;
+  if (evaLock) state.le = 0;
+  const eva = evaLock ? `<div class="m">Spacewalk: ${evaLock}.</div>`
+    : `<select data-me="1"><option value="0"${state.le ? '' : ' selected'}>No spacewalk</option><option value="1"${state.le ? ' selected' : ''}>Spacewalk on the third orbit</option></select>`;
+  return `<div class="m">The spacecraft lasts ${systems.endurance} orbits${systems.endurance < 206 ? '; fuel cells and long-duration stores stretch it' : ''}. ${aboard('gm_oams') ? 'The manoeuvring thrusters change orbit on the first orbit.' : `Built without the ${BY_ID.gm_oams.name}: it cannot change orbit.`}</div>${eva}${targetHTML(state, capsule)}`;
+}
+// The rendezvous or docking choice (state.lr: 0, 'rdv' or 'dock'), each offered only when rules/mercury.js targetLock allows it.
+function targetHTML(state, capsule) {
+  const commander = assignedPilot('gt'), pilot = assignedPilot('gtp');
+  const locks = { rdv: targetLock(capsule, 'rdv', commander, pilot), dock: targetLock(capsule, 'dock', commander, pilot) };
+  if (state.lr && locks[state.lr]) state.lr = 0;
+  if (locks.rdv) return `<div class="m">Rendezvous: ${locks.rdv}.</div>`;
+  return `<select data-mr="1"><option value="0"${state.lr ? '' : ' selected'}>No rendezvous</option><option value="rdv"${state.lr == 'rdv' ? ' selected' : ''}>Rendezvous with the Agena</option>${locks.dock ? '' : `<option value="dock"${state.lr == 'dock' ? ' selected' : ''}>Rendezvous and dock with the Agena</option>`}</select>${locks.dock ? `<div class="m">Docking: ${locks.dock}.</div>` : ''}<div class="m">${agenaText()}</div>`;
+}
+const agenaText = () => targetUp() ? `An Agena target is in orbit until ${formatDate(S.p2.tgt)}.` : 'No Agena target in orbit. It stays up about three months once launched.';
+
 // THE MERCURY DIRECTIVE panel, with progress notes for the directive in hand.
 function sideNotesHTML(state) {
   const network = S.fac.trknet ? '<b class="ok">in service</b>' : S.fb && S.fb.trknet ? `under construction, in service around ${formatDate(S.fb.trknet)}` : '<b class="wn">not started</b> (Base desk)';
+  if (state.secDone) return `<div class="m">Mercury Worldwide Tracking Network: ${network}. Orbital-class booster man-rated: ${orbitalBoosterCertified() ? '<b class="ok">yes</b>' : 'not yet'}.</div>`;
   return `<div class="m">Mercury Worldwide Tracking Network (needed before a crew flies, not the radar): ${network}. Orbital qualification (optional): ${state.fl.maQual ? '<b class="ok">done</b>' : state.ma.n ? `${state.ma.n} flown, not yet successful` : 'not flown'}.</div>`;
+}
+// What Gemini still needs: the spacecraft design, Titan II and its pad, and the Gemini simulator.
+function geminiProgressHTML() {
+  const pad = S.fac.lc19 ? '<b class="ok">in service</b>' : S.fb && S.fb.lc19 ? `in service around ${formatDate(S.fb.lc19)}` : '<b class="wn">not built</b> (Base desk)';
+  const titan = !S.progs.titan ? '<b class="wn">not started</b> (R&D desk)' : isFamilyCertified('titan') ? '<b class="ok">man-rated</b>' : 'started, not yet man-rated';
+  return `<div class="m">Gemini spacecraft design: ${isResearched('gm_cap') ? '<b class="ok">done</b>' : 'not yet (R&D desk)'}. Titan II: ${titan}. Launch Complex 19: ${pad}. Gemini simulator: ${S.fac.gsim ? '<b class="ok">in service</b>' : 'not built, so crews train at half rate'}.</div>${capabilitiesHTML()}`;
+}
+// What Gemini has shown in flight, each on the configuration that showed it (rules/mercury.js recordCapability).
+const CAPABILITY_NAMES = { eva: 'Spacewalk', rdv: 'Rendezvous', dock: 'Docking' };
+function capabilitiesHTML() {
+  const records = S.p2.cap || [];
+  if (!records.length) return '';
+  return `<div class="m">Shown in flight: ${records.map(record => `${CAPABILITY_NAMES[record.k]} (${MISSION_TYPES[record.mt].capsuleName} Rev ${record.rev} on ${PROGRAMMES[record.by] ? PROGRAMMES[record.by].name : 'its booster'}, ${formatDate(record.d)})`).join('; ')}.</div>`;
 }
 export function mercuryDirectiveHTML() {
   const state = S.p2;
   if (!state) return '';
-  if (state.secDone) return `<div class="ok">Section 1 complete ${formatDate(state.secDone)}: an American has flown in space, and the country is committed to the Moon.</div><button data-a="sec1">VIEW SECTION 1 SUMMARY</button><div class="m">Section 2 (Mercury-Atlas and Gemini) is in development.</div>`;
+  const sectionOne = state.secDone ? `<div class="ok">Section 1 complete ${formatDate(state.secDone)}: an American has flown in space.</div><button data-a="sec1">VIEW SECTION 1 SUMMARY</button>` : '';
+  const mercury = state.mercDone ? `<div class="ok">Project Mercury complete ${formatDate(state.mercDone)}: an American has spent a day in orbit.</div>` : '';
+  if (state.gemDone) return `${sectionOne}${mercury}<div class="ok">Project Gemini complete ${formatDate(state.gemDone)}: two weeks in orbit, spacewalks, rendezvous and docking.</div><div class="m">Apollo is next.</div>`;
   const directive = MERCURY_DIRECTIVES[state.dir], key = directive.key;
+  // Gemini directives are counted on their own; the rest within their section.
+  const group = MERCURY_DIRECTIVES.map((each, index) => (each.project || each.section || 1) == (directive.project || directive.section || 1) ? index : -1).filter(index => index >= 0);
+  const [first, end] = [group[0], group[group.length - 1] + 1];
   let progress = '';
   if (key == 'lj') progress = `<div class="m">Good aborts so far: ${state.lj.ok} of 3. Monkey flight: ${state.lj.mk ? '<b class="ok">done</b>' : 'still needed'}.</div>`;
   if (key == 'animal' && state.ch.t < 1) progress = `<div class="m">${state.ch.on ? `Chimpanzee training ${percent(state.ch.t)}.` : 'Start chimpanzee training in the Astronaut Office.'}</div>`;
   if (key == 'rate') {
     const record = manRatingRecord();
-    progress = `<div class="m">Clean flights in a row: ${Math.min(record.streak, CLEAN_FLIGHTS_NEEDED)} of ${CLEAN_FLIGHTS_NEEDED} (${PROGRAMMES[S.cur] ? PROGRAMMES[S.cur].name : ''} Rev ${record.base}+ family). Research: ${MAN_RATING_RESEARCH.filter(isResearched).length} of ${MAN_RATING_RESEARCH.length}.</div>`;
+    progress = `<div class="m">Clean flights in a row: ${Math.min(record.streak, cleanFlightsNeeded())} of ${cleanFlightsNeeded()} (${PROGRAMMES[S.cur] ? PROGRAMMES[S.cur].name : ''} Rev ${record.base}+ family). Research: ${MAN_RATING_RESEARCH.filter(isResearched).length} of ${MAN_RATING_RESEARCH.length}.</div>`;
   }
-  return `<div class="t">Mercury directive ${state.dir + 1} of ${MERCURY_DIRECTIVES.length}: ${directive.name}</div><div class="m">${directive.description} Reward ${formatMoney(directive.reward)}.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
+  if (key == 'orate') progress = `<div class="m">Fly your orbital-class booster as ordinary launches or on orbital Mercury flights: every flight of its family counts. See the man-rating board.</div>`;
+  if (directive.project == 'gemini') progress = geminiProgressHTML();
+  // The parallel goals are listed together: fly them in any order.
+  if (directive.parallel) {
+    const goals = MERCURY_DIRECTIVES.filter(each => each.parallel), met = state.met || [];
+    return `${sectionOne}${mercury}<div class="t">Gemini goals, in any order: ${met.length} of ${goals.length} met</div>${goals.map(each => `<div class="m">${met.includes(each.key) ? '<b class="ok">✓ met</b>' : '<b>○</b>'} <b>${each.name}</b>: ${each.description} Reward ${formatMoney(each.reward)}.</div>`).join('')}<div class="m">A backup crew assigned in the Astronaut Office trains alongside the prime crew and flies next, so one goal can be prepared while another flies.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
+  }
+  return `${sectionOne}${mercury}<div class="t">${directive.project == 'gemini' ? 'Gemini directive' : directive.section ? `Section ${directive.section} directive` : 'Mercury directive'} ${state.dir - first + 1} of ${end - first}: ${directive.name}</div><div class="m">${directive.description} Reward ${formatMoney(directive.reward)}.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
+}
+
+// THE DIRECTIVE BLOCK in the top bar: the current Phase Two directive, how far along it is, and a short status.
+// fraction is the directive's own progress where the game measures one; otherwise it is null and the status is what to fly.
+export function mercuryDirectiveTrack() {
+  const state = S.p2;
+  if (!state || state.gemDone) return null;
+  const directive = MERCURY_DIRECTIVES[state.dir], key = directive.key;
+  if (directive.parallel) {
+    const goals = MERCURY_DIRECTIVES.filter(each => each.parallel), met = (state.met || []).length;
+    return { label: 'Gemini goals, any order', name: goals.filter(each => !(state.met || []).includes(each.key)).map(each => each.name).join(' · '), status: `${met} of ${goals.length} met`, fraction: met / goals.length };
+  }
+  const group = MERCURY_DIRECTIVES.map((each, index) => (each.project || each.section || 1) == (directive.project || directive.section || 1) ? index : -1).filter(index => index >= 0);
+  const label = `${directive.project == 'gemini' ? 'Gemini' : directive.section ? `Section ${directive.section}` : 'Mercury'} ${state.dir - group[0] + 1} of ${group.length}`;
+  let fraction = null, status = directive.description.split('. ')[0].replace(/\.$/, '');
+  if (key == 'lj') {
+    fraction = (Math.min(3, state.lj.ok) + (state.lj.mk ? 1 : 0)) / 4;
+    status = `${state.lj.ok} of 3 good aborts${state.lj.mk ? '' : ', monkey flight still needed'}`;
+  }
+  if (key == 'animal') {
+    fraction = Math.min(1, state.ch.t);
+    status = state.ch.t >= 1 ? 'chimpanzee trained' : state.ch.on ? `chimpanzee training ${percent(state.ch.t)}` : 'start chimpanzee training';
+  }
+  if (key == 'rate') {
+    const streak = Math.min(manRatingRecord().streak, cleanFlightsNeeded());
+    fraction = streak / cleanFlightsNeeded();
+    status = `${streak} of ${cleanFlightsNeeded()} clean flights in a row`;
+  }
+  return { label, name: directive.name, status, fraction };
 }
 
 // FULL-SCREEN OVERLAYS. The memorial is shown once, plainly.
@@ -182,5 +281,5 @@ export function sectionSummaryHTML() {
 <div><h2>THE ASTRONAUTS</h2>${state.astros.map(astronaut => `<div class="first"><span>${escapeHtml(astronaut.name)} <span class="d">${astronaut.svc}</span></span><b class="${astronaut.st == 'lost' ? 'bad' : 'd'}">${astronaut.st == 'lost' ? 'lost' : astronaut.st == 'medical' ? 'grounded' : `${astronaut.flights} flight${astronaut.flights == 1 ? '' : 's'}`}</b></div>`).join('')}
 <h2 style="margin-top:14px">THE RACE</h2><div class="m">First human in space: ${S.fs.f_human == 'us' ? '<b class="ok">you</b>' : '<b class="bad">the Soviet Union</b> (Vostok 1)'}. Mercury flights flown: ${state.flights}. Man-rated boosters: ${certifiedNames().join('; ') || 'none'}. Orbital qualification: ${state.fl.maQual ? 'done, a head start for orbit' : 'not yet'}.</div>
 <div class="m">Historically, NASA flew one more uncrewed Redstone in March 1961 to finish man-rating it. Vostok 1 flew on 12 April and Freedom 7 on 5 May. On 25 May the President asked Congress to land a man on the Moon before 1970.</div></div></div>
-<div class="m">Section 2 (Mercury-Atlas, Gemini and spacewalks) is in development. You can keep flying and training in the meantime.</div><button data-a="closesum">CONTINUE</button></div>`;
+<div class="m">Section 2 begins: Mercury goes to orbit. Your orbital-class booster must reach 7,000 m/s with a capsule aboard, and the capsule needs a shield for orbital re-entry. Assign a pilot for the first orbital flight in the Astronaut Office.</div><button data-a="closesum">CONTINUE</button></div>`;
 }

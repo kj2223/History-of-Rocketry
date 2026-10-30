@@ -1,16 +1,19 @@
-# THE TEST BUILD: on every push to dev, builds the Windows installer and portable .exe for playtesters.
-# Pull requests into dev build too, to check the build still works, but leave the prerelease alone.
-# The builds are attached to the "dev-build" prerelease, which is replaced each time, so its download links never change:
-#   https://github.com/kj2223/history-of-rocketry/releases/download/dev-build/ProjectVanguard-Setup.exe
-#   https://github.com/kj2223/history-of-rocketry/releases/download/dev-build/ProjectVanguard-Portable.exe
+# THE TEST BUILD: on every push to main, builds the Windows installer and portable .exe for playtesters
+# and publishes them as a numbered release: v0.3.0, v0.3.1 and so on, one number per merge.
+# The first two numbers come from "version" in package.json; change it to 0.4.0 to start the v0.4.x series.
+# Pull requests into main build too, to check the build still works, but publish nothing.
+# (dev holds the Python rewrite, which has its own workflow; the JS game reaches main from js-vanguard.)
+# The file names stay the same in every release, so these links always fetch the newest build:
+#   https://github.com/kj2223/history-of-rocketry/releases/latest/download/ProjectVanguard-Setup.exe
+#   https://github.com/kj2223/history-of-rocketry/releases/latest/download/ProjectVanguard-Portable.exe
 # The builds are unsigned, so Windows SmartScreen warns on first run (More info, then Run anyway).
 name: Windows test build
 
 on:
   push:
-    branches: [dev]
+    branches: [main]
   pull_request:
-    branches: [dev]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +26,8 @@ concurrency:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +36,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # The next number in the series: one more than the highest vX.Y.N release so far, or vX.Y.0 for the first.
+      - name: Pick the release number
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          SERIES=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
+          LAST=$(gh release list --limit 1000 --json tagName -q '.[].tagName' | { grep -E "^v${SERIES//./\\.}\.[0-9]+$" || true; } | sed "s/^v$SERIES\.//" | sort -n | tail -1)
+          VERSION="$SERIES.$([ -z "$LAST" ] && echo 0 || echo $(( LAST + 1 )))"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          npm version "$VERSION" --no-git-tag-version
       - run: npm run dist
       - uses: actions/upload-artifact@v4
         with:
@@ -38,14 +53,11 @@ jobs:
           path: |
             dist/ProjectVanguard-Setup.exe
             dist/ProjectVanguard-Portable.exe
-      # Pull requests only build and upload the artifact; the prerelease always holds what is on dev.
-      - name: Replace the dev-build prerelease
+      - name: Publish the release
         if: github.event_name != 'pull_request'
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
+          gh release create "v$VERSION" dist/ProjectVanguard-Setup.exe dist/ProjectVanguard-Portable.exe \
+            --target "$GITHUB_SHA" --title "Project Vanguard v$VERSION" --generate-notes --latest
+          # The rolling "dev-build" release from before numbered releases; the latest links replace it.
           gh release delete dev-build --yes --cleanup-tag || true
-          gh release create dev-build dist/ProjectVanguard-Setup.exe dist/ProjectVanguard-Portable.exe \
-            --prerelease --target "$GITHUB_SHA" --title "Test build (dev)" \
-            --notes "Built from dev at ${GITHUB_SHA::7}. Unsigned: if Windows SmartScreen appears, click More info, then Run anyway."

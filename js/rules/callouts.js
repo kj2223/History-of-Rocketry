@@ -13,9 +13,15 @@
 // THE FLIGHT'S EVENTS (flight.events, rules/flight.js): PROP calls ignition, the thrust climbing in thin air, staging ignition and
 // the cutoff against the planned time; the Test Conductor calls the rocket clear of the launcher; FIDO (or the RSO before there
 // is a FIDO) calls Mach one and max Q; BSTR calls booster cutoff and separation; TLM calls the payload's g when it is watched.
+//
+// THE CORE TEAM (data/team.js) is on the loop for every flight, with no console to hire: Daniel Vega, the pad lead, calls the liftoff with the
+// crew's flight count, and Samuel Morgan calls the apogee off the range radar before there is a FIDO, and any peak higher than
+// the best the range has measured.
 import { PAYLOADS } from '../data/launch.js';
 import { STATIONS } from '../data/launch-site.js';
+import { CORE_TEAM } from '../data/team.js';
 import { S, log } from '../core/state.js';
+import { coveredStations } from './launch-site.js';
 import { rollDescent, onPlannedStation } from './recovery.js';
 import { FAILURE_WARNINGS, warningLevel, canRetune, offLinkWarning } from './telemetry.js';
 import { burnSeconds, isPowered, hasEvent } from './flight.js';
@@ -52,20 +58,29 @@ const WARNING_CALLS = {
 };
 
 export function crewCallouts(flight) {
-  const said = flight.called || (flight.called = {}), watching = id => (flight.watch || []).includes(id);
-  // Each call is made once (key), and only with its station on console. bubble: the short form shown over the station.
+  const said = flight.called || (flight.called = {}), watching = id => (flight.watch || []).includes(id), covered = coveredStations();
+  // Each call is made once (key), and only with its station on console (hired, or covered by a core-team member, who is named).
+  // bubble: the short form shown over the station.
   const call = (station, key, text, style, bubble) => {
-    if (said[key] || (station != 'tc' && !S.crew[station])) return;
+    if (said[key] || (station != 'tc' && !S.crew[station] && !covered[station])) return;
     said[key] = 1;
-    log(`T+${flight.time}s | [${STATIONS[station].callSign}] ${text}`, style);
+    const cover = !S.crew[station] && covered[station];
+    log(`T+${flight.time}s | [${STATIONS[station].callSign}] ${cover ? `${CORE_TEAM[cover].name.split(' ')[1]}: ` : ''}${text}`, style);
     flight.bubbles = { [station]: { t: bubble, c: style == 'bad' ? 'no' : style == 'wn' ? 'wn' : 'go' } };
     flight.lastCalls = { ...flight.lastCalls, ...flight.bubbles };
+  };
+  // A core-team member's own call, on the loop only (calls they make while covering a console go through call above).
+  const teamCall = (member, key, text, style = '') => {
+    if (said[key]) return;
+    said[key] = 1;
+    log(`T+${flight.time}s | [${CORE_TEAM[member].callSign}] ${CORE_TEAM[member].name.split(' ')[1]}: ${text}`, style);
   };
   const stage = flight.stages[flight.stageIndex], lastStage = flight.stageIndex == flight.stages.length - 1, powered = isPowered(flight);
 
   const event = key => hasEvent(flight, key), dynamics = S.crew.fido ? 'fido' : 'rso'; // FIDO calls the trajectory; before FIDO, the RSO's radar
   // THE ENGINE AND THE CLIMB: ignition, clearing the launcher, the thrust building as the air thins, the sound barrier.
   if (flight.time <= 2 && flight.chamberShare > 0) call('prop', 'ignition', 'Ignition. Thrust building.', '', 'IGNITION');
+  if (event('liftoff')) teamCall('vega', 'liftoff', `Liftoff. Flight ${S.team.n + 1} for this crew.`);
   if (event('liftoff') && flight.altitude > 100) call('tc', 'clear', 'Clear of the launcher.', 'ok', 'CLEAR');
   if (powered && flight.thrustShare >= 1.08) call('prop', 'thrust', `Thrust ${Math.round(flight.thrustShare * 100)} percent of rated and climbing.`, '', `THRUST ${Math.round(flight.thrustShare * 100)}%`);
   if (event('mach1')) call(dynamics, 'mach', 'Mach one.', '', 'MACH 1');
@@ -127,6 +142,9 @@ export function crewCallouts(flight) {
   if (flight.time > 5 && flight.verticalSpeed <= 0 && !said.top) {
     said.top = 1;
     call('fido', 'apogee', `Apogee, ${km(flight.altitude)}.${planned ? ` Plan was ${km(planned.peakAltitude)}.` : ''}`, '', `APOGEE ${(flight.altitude / 1000).toFixed(1)} KM`);
+    const best = S.team.top && flight.altitude > S.team.top ? ' Higher than anything we have tracked.' : '';
+    if (!S.crew.fido) teamCall('morgan', 'peak', `Radar puts the peak near ${km(flight.altitude)}.${best}`, best ? 'ok' : '');
+    else if (best) teamCall('morgan', 'peak', best.trim(), 'ok');
     if (PAYLOADS[flight.payload].science) rollDescent(flight);
   }
   // RECOVERY FORCE: with a payload to bring home, the Recovery Controller stands the helicopters by at liftoff and sends them

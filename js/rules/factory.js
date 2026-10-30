@@ -3,7 +3,7 @@
 import { formatMoney } from '../core/util.js';
 import { BY_ID, isMilestone } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { S, log, withProgramme } from '../core/state.js';
+import { S, log, withProgramme, earn } from '../core/state.js';
 import { designation, airframeLabel } from './design.js';
 import { batchCost, buildTime, draftChanges, experienceCarryover, makeAirframe, retrofitQuote } from './production.js';
 import { startNewFamilyIfRedesigned } from './manrate.js';
@@ -65,7 +65,7 @@ export function cancelQueueItem(index) {
   const item = S.aq[index];
   if (!item) return;
   const refund = refundFor(index);
-  S.b += refund;
+  earn(refund);
   S.aq.splice(index, 1);
   if (item.k == 'retro') {
     const airframe = S.air.find(candidate => candidate.id == item.af);

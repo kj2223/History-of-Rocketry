@@ -6,13 +6,18 @@
 //   t      true skills { pil, sys, end, com }      bias   how far off the office's first impression is, per skill
 //   med    a hidden heart condition                kn     days of pre-selection testing (they reveal the person like training)
 //   dq     medically disqualified in testing       st     pool | active | grounded | medical | lost
-//   tday   training days                           reh    simulator rehearsals done, { emergency: 1 }
+//   tday   training days                           reh    simulator rehearsals done, { emergency: 1 }, and rdv once trained for rendezvous
 //   focus  a TRAINING_FOCUS key                    gd     days left grounded
 //   fat    fatigue, 0 to 100                       flights
-//   asg    the mission assigned ('mr'), or null    mt     mission training, 0 to 1      cap  capsule name, once flown
+//   asg    the mission assigned ('mr', 'mo', or a Gemini seat: 'gt' command pilot, 'gtp' pilot), or null
+//   mt     mission training, 0 to 1                cap  capsule name, once flown
+//   bk     the mission they back up, or null: a backup trains alongside the pilot and takes over the next flight
+//   nx     the third crew's mission, or null: they train too, become the backup after the next flight, and fly the one after
+//   gem    1 once they have flown Gemini (they train faster for the next one)
 import { gaussian } from '../core/util.js';
 import { FIRST_NAMES, LAST_NAMES, SERVICES, DEGREES, SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS, REHEARSAL_KEYS } from '../data/astronauts.js';
-import { S, log, addHistory } from '../core/state.js';
+import { MISSION_TYPES, GEMINI_SEATS, SECOND_GROUP_SIZE } from '../data/mercury.js';
+import { S, log, addHistory, isResearched } from '../core/state.js';
 import { scheduleOffice } from './astronaut-office.js';
 
 const pick = list => list[Math.floor(Math.random() * list.length)];
@@ -48,6 +53,24 @@ export function makePool(size = 16) {
   return pool;
 }
 
+// THE SECOND GROUP (Gemini): nine more astronauts join without a selection of your own, surnames not already in the office, and
+// start general training. As in 1962, NASA picked them from test pilots and the engineers' own candidates.
+export function joinSecondGroup() {
+  const astronauts = S.p2.astros, surnames = new Set(astronauts.map(astronaut => astronaut.name.split(' ')[1])), joined = [];
+  let id = Math.max(0, ...astronauts.map(astronaut => astronaut.id)) + 1;
+  while (joined.length < SECOND_GROUP_SIZE) {
+    const candidate = makeCandidate(id), surname = candidate.name.split(' ')[1];
+    if (surnames.has(surname)) continue;
+    surnames.add(surname);
+    candidate.st = 'active';
+    joined.push(candidate);
+    id++;
+  }
+  astronauts.push(...joined);
+  addHistory(`Second astronaut group selected (${joined.length})`);
+  log(`[ASTRONAUT OFFICE] The second astronaut group reports for training: ${joined.map(astronaut => astronaut.name).join(', ')}.`, 'hd');
+}
+
 // WHAT THE OFFICE BELIEVES: the estimate drifts toward the truth and the range shrinks with training days and testing.
 export const estimateWidth = astronaut => Math.round(24 / (1 + (astronaut.tday + (astronaut.kn || 0)) / 150));
 export const skillEstimate = (astronaut, skill) => {
@@ -78,6 +101,10 @@ export function selectCrew(ids) {
   return true;
 }
 
+// How far through mission training a Gemini crew is when they have trained for rendezvous.
+export const RENDEZVOUS_TRAINING = .6;
+// How much faster a Gemini veteran trains for another Gemini flight.
+export const GEMINI_VETERAN_TRAINING = 2;
 // TRAINING for some days. Rates scale with the facilities; simulator fidelity decides how much a session is worth.
 // Each skill grows more slowly as it nears 100, and at half rate when the astronaut is exhausted (fatigue over 60).
 export const simulatorTier = () => S.fac.msim ? 2 : S.fac.ptrain ? 1 : 0;
@@ -128,15 +155,25 @@ export function trainingTick(days) {
       improve('end', .02 * egressTank);
       astronaut.reh.hatch = astronaut.reh.hatch || (Math.random() < .01 * days * egressTank ? 1 : 0);
     }
-    if (focus == 'msn' && astronaut.asg) {
-      astronaut.mt = Math.min(1, astronaut.mt + days / 110 * (.5 + .5 * simulator));
+    // Gemini crews train at half rate until the Gemini mission simulator is built. A Gemini veteran (one who has flown Gemini)
+    // trains for the next Gemini flight faster: the spacecraft and procedures are already learned, only the new flight plan is not.
+    if (focus == 'msn' && crewMission(astronaut)) {
+      const gemini = GEMINI_SEATS.includes(crewMission(astronaut)), geminiWithoutSimulator = gemini && !S.fac.gsim ? .5 : 1;
+      const veteran = gemini && astronaut.gem ? GEMINI_VETERAN_TRAINING : 1;
+      astronaut.mt = Math.min(1, astronaut.mt + days / 110 * (.5 + .5 * simulator) * geminiWithoutSimulator * veteran);
       improve('sys', .02 * simulator);
       improve('pil', .02 * simulator);
+      // Rendezvous is trained for the mission, not picked up in general simulator time: a Gemini crew well into mission
+      // training once the rendezvous radar is researched.
+      if (GEMINI_SEATS.includes(crewMission(astronaut)) && isResearched('gm_rdv') && astronaut.mt >= RENDEZVOUS_TRAINING && !astronaut.reh.rdv) {
+        astronaut.reh.rdv = 1;
+        log(`[SIMULATOR] ${astronaut.name} has trained for rendezvous.`, 'cyan');
+      }
     }
     // A heart condition missed in selection may surface; anyone may be grounded for a while, more likely when tired.
     if (astronaut.med && Math.random() < .0025 * days) {
       astronaut.st = 'medical';
-      astronaut.asg = null;
+      astronaut.asg = astronaut.bk = astronaut.nx = null;
       astronaut.mt = 0;
       log(`[FLIGHT SURGEON] A heart irregularity missed in selection has been found in ${astronaut.name}. Permanently grounded from flight; ${astronaut.name.split(' ')[0]} stays on in the Astronaut Office.`, 'bad');
       continue;
@@ -145,8 +182,8 @@ export function trainingTick(days) {
       astronaut.st = 'grounded';
       astronaut.gd = 60 + Math.random() * 180;
       log(`[FLIGHT SURGEON] ${astronaut.name} is grounded for about ${Math.round(astronaut.gd / 30)} months after a medical finding.`, 'wn');
-      if (astronaut.asg) {
-        astronaut.asg = null;
+      if (crewMission(astronaut)) {
+        astronaut.asg = astronaut.bk = astronaut.nx = null;
         astronaut.mt = 0;
       }
     }
@@ -164,9 +201,59 @@ export function assignPilot(id, missionType) {
     other.asg = null;
     other.mt = 0;
   }
+  // The backup keeps the mission training done so far.
+  if (astronaut.bk != missionType && astronaut.nx != missionType) astronaut.mt = 0;
   astronaut.asg = missionType;
+  astronaut.bk = astronaut.nx = null;
+  astronaut.focus = 'msn';
+  log(`[ASTRONAUT OFFICE] ${astronaut.name} is assigned as pilot for the next ${flightName(missionType)} flight. Mission training begins.`, 'ok');
+}
+// Assign a qualified astronaut as backup pilot: they train for the same flight and take over the one after it.
+export function assignBackup(id, missionType) {
+  const astronaut = astronautById(id);
+  if (!astronaut || !isQualified(astronaut) || astronaut.asg) return;
+  for (const other of S.p2.astros) if (other.bk == missionType) {
+    other.bk = null;
+    other.mt = 0;
+  }
+  if (astronaut.nx != missionType) astronaut.mt = 0;
+  astronaut.bk = missionType;
+  astronaut.nx = null;
+  astronaut.focus = 'msn';
+  log(`[ASTRONAUT OFFICE] ${astronaut.name} is backup pilot for the next ${flightName(missionType)} flight and will fly the one after it.`, 'ok');
+}
+// Assign a qualified astronaut to the third crew, as NASA rotated Gemini crews: they start mission training now, become the
+// backup after the next flight and fly the one after that, so three crews train at once.
+export function assignThirdCrew(id, missionType) {
+  const astronaut = astronautById(id);
+  if (!astronaut || !isQualified(astronaut) || astronaut.asg || astronaut.bk) return;
+  for (const other of S.p2.astros) if (other.nx == missionType) {
+    other.nx = null;
+    other.mt = 0;
+  }
+  astronaut.nx = missionType;
   astronaut.mt = 0;
   astronaut.focus = 'msn';
-  log(`[ASTRONAUT OFFICE] ${astronaut.name} is assigned as pilot for the next ${missionType == 'mr' ? 'Mercury-Redstone' : missionType} flight. Mission training begins.`, 'ok');
+  log(`[ASTRONAUT OFFICE] ${astronaut.name} joins the third crew for ${flightName(missionType)}: backup after the next flight, then prime.`, 'ok');
 }
+// After a flight the backup becomes the pilot, with the mission training already done.
+export function promoteBackup(missionType) {
+  const backup = backupPilot(missionType);
+  if (!backup) return;
+  backup.asg = missionType;
+  backup.bk = null;
+  log(`[ASTRONAUT OFFICE] ${backup.name} moves up from backup to pilot for the next ${flightName(missionType)} flight (${Math.round(backup.mt * 100)}% through mission training).`, 'ok');
+  const third = thirdCrew(missionType);
+  if (!third) return;
+  third.bk = missionType;
+  third.nx = null;
+  log(`[ASTRONAUT OFFICE] ${third.name} moves up from the third crew to backup (${Math.round(third.mt * 100)}% through mission training).`, 'ok');
+}
+const flightName = missionType => missionType == 'mr' ? 'Mercury-Redstone' : missionType == 'mo' ? 'orbital Mercury' : missionType == 'gt' ? 'Gemini (command pilot)' : missionType == 'gtp' ? 'Gemini (pilot)' : missionType;
+// What an assignment key is called on an astronaut's card.
+export const assignmentName = missionType => missionType == 'gt' ? 'Gemini flight, command pilot' : missionType == 'gtp' ? 'Gemini flight, pilot' : MISSION_TYPES[missionType].fullName;
 export const assignedPilot = missionType => (S.p2.astros || []).find(astronaut => astronaut.asg == missionType && astronaut.st == 'active');
+export const backupPilot = missionType => (S.p2.astros || []).find(astronaut => astronaut.bk == missionType && astronaut.st == 'active');
+export const thirdCrew = missionType => (S.p2.astros || []).find(astronaut => astronaut.nx == missionType && astronaut.st == 'active');
+// The mission an astronaut trains for, in any of the three crews.
+const crewMission = astronaut => astronaut.asg || astronaut.bk || astronaut.nx;

@@ -8,10 +8,10 @@ import { S, isResearched, isConfirmed, withProgramme, formatDate } from '../core
 import { designSpec, trackingTiers, rangeFee, propellantCost, hasBoosterStage, cannotOrbit, quoteLaunch } from '../rules/design.js';
 import { rangeDataPayment, DIRECTOR_SALARY } from '../rules/economy.js';
 import { SPECIALISTS } from '../rules/game.js';
-import { roomLevel, consoleCount, crewOnConsole } from '../rules/launch-site.js';
+import { roomLevel, consoleCount, boardCrew } from '../rules/launch-site.js';
 import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
 import { PART_CHANNELS, channelCapacity, availableChannels, watchedChannels } from '../rules/telemetry.js';
-import { CAMPAIGN_TARGETS, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
+import { CAMPAIGN_TARGETS, FLIGHTS_TO_PROVE, provenProgramme, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
 import { roomSVG, updateTrace } from './control-room.js';
 import { launchView, stationBubbles } from './launch-view.js';
 import { $, option, setHTML, escapeHtml, percent } from './dom.js';
@@ -21,12 +21,12 @@ import { $, option, setHTML, escapeHtml, percent } from './dom.js';
 // stageChosen: the player picked the stage setting for this airframe, so it is not reset to the full stack.
 // fuelFor: the programme the propellant was last defaulted for.
 // plan: the trajectory panel's flight plan (ui/trajectory.js), or null to fly the default.
-export const launchForm = { af: null, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null, plan: null };
+export const launchForm = { af: null, afPicked: 0, fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, load: 100, ch: null, plan: null };
 
 const payloadLocked = (payload, airframe) => (PAYLOADS[payload].satellite && cannotOrbit(airframe)) || (PAYLOADS[payload].needs && !isResearched(PAYLOADS[payload].needs));
 
 export function renderControlRoom() {
-  const level = roomLevel(), crew = crewOnConsole(), consoles = consoleCount();
+  const level = roomLevel(), crew = boardCrew(), consoles = consoleCount();
   $('#crt').textContent = ROOMS[level].name.toUpperCase();
   setHTML($('#cr'), roomSVG(level, crew, consoles, !!(airborne.flight || airborne.mission), stationBubbles()));
   $('#crm').textContent = `${ROOMS[level].description} ${crew.length} of ${consoles} console${consoles > 1 ? 's' : ''} staffed.`;
@@ -115,10 +115,17 @@ function estimateHTML(preview, payload, airframe) {
 // to start one. The rocket, propellant, payload and stage come from the launch form; the target, deadline and budget from here.
 export const campaignForm = { kind: 'ok', goal: 3, months: 12, budget: 100000 };
 const CAMPAIGN_MONTHS = [6, 12, 24], CAMPAIGN_BUDGETS = [50000, 100000, 200000, 400000];
-// The rocket a new campaign would fly: the launch form's airframe, or the programme in focus.
+// The rocket a new campaign would fly: the airframe you picked in the launch form, or else the proven rocket
+// (rules/campaign.js). The launch form's propellant and payload carry over where that rocket can use them.
 export function campaignRocket() {
-  const airframe = S.air.find(candidate => candidate.id == launchForm.af && candidate.st == 'r');
-  return airframe ? airframe.prog : S.cur;
+  const airframe = launchForm.afPicked && S.air.find(candidate => candidate.id == launchForm.af && candidate.st == 'r');
+  return airframe ? airframe.prog : provenProgramme();
+}
+export function campaignSettings() {
+  const prog = campaignRocket(), programme = PROGRAMMES[prog];
+  const fuel = programme.propellants.includes(launchForm.fuel) ? launchForm.fuel : programme.propellants[0];
+  const pay = PAYLOADS[launchForm.pay].satellite && !programme.canOrbit ? 'Inert Ballast' : launchForm.pay;
+  return { prog, fuel, pay, st: launchForm.st };
 }
 const campaignSummary = camp => `${PROGRAMMES[camp.prog].name}, ${targetText(camp.kind, camp.goal)}`;
 export function renderCampaign() {
@@ -126,8 +133,8 @@ export function renderCampaign() {
   panel.hidden = !directorUnlocked();
   if (panel.hidden) return;
   const camp = S.auto.camp, last = S.auto.last;
-  let html = row('Launch director', S.staff.director ? `${directorRank()}, ${directorExperience()} flight${directorExperience() == 1 ? '' : 's'} run` : 'not hired');
-  if (!S.staff.director) html += `<div class="m">The Aerobee flies routinely now. A launch director runs launches as campaigns: you set a target, a deadline and a budget, and the director orders airframes and flies until it is done, while you develop the next rocket. A new director is cautious and asks for guidance; it grows bolder and steadier with every flight. ${formatMoney(DIRECTOR_SALARY)} per funding cycle.</div><button data-a="hire" data-id="director"${S.b < SPECIALISTS.director.cost ? ' disabled' : ''}>HIRE LAUNCH DIRECTOR (${formatMoney(SPECIALISTS.director.cost)})</button>`;
+  let html = row('Launch director', S.staff.director ? `Ruth Ellis, ${directorRank()}, ${directorExperience()} flight${directorExperience() == 1 ? '' : 's'} run` : 'not appointed');
+  if (!S.staff.director) html += `<div class="m">The Aerobee flies routinely now. Ruth Ellis, who has reviewed every flight and failure, can run launches as campaigns: you set a target, a deadline and a budget, and she orders airframes and flies until it is done, while you develop the next rocket. She leaves the PROP console to do it. A new director is cautious and asks for guidance; she grows bolder and steadier with every flight. ${formatMoney(DIRECTOR_SALARY)} per funding cycle.</div><button data-a="hire" data-id="director"${S.b < SPECIALISTS.director.cost ? ' disabled' : ''}>APPOINT RUTH ELLIS LAUNCH DIRECTOR (${formatMoney(SPECIALISTS.director.cost)})</button>`;
   else if (camp) html += campaignHTML(camp);
   else html += campaignFormHTML();
   if (last && !camp) html += `<div class="m">Last campaign (${outcomeText(last.outcome)}): ${campaignSummary(last)}. ${last.n} flights, ${last.okn} successful, best ${(last.best / 1000).toFixed(1)} km, ${formatMoney(last.spent)} spent.</div>`;
@@ -147,9 +154,10 @@ function campaignHTML(camp) {
     + '<button data-a="cend">END CAMPAIGN</button>';
 }
 function campaignFormHTML() {
-  const prog = campaignRocket(), ready = !!(S.progs[prog] && S.progs[prog].ready), target = CAMPAIGN_TARGETS[campaignForm.kind];
+  const { prog, fuel, pay, st } = campaignSettings(), ready = !!(S.progs[prog] && S.progs[prog].ready), target = CAMPAIGN_TARGETS[campaignForm.kind];
   if (!target.goals.includes(campaignForm.goal)) campaignForm.goal = target.goals[1];
-  return `<div class="m">New campaign for the ${PROGRAMMES[prog].name}, as set in the launch form below: ${launchForm.fuel}, ${launchForm.pay}, ${launchForm.st ? 'full stack' : 'upper stage alone'}.</div>`
+  const why = launchForm.afPicked ? 'as set in the launch form below' : `the newest rocket with ${FLIGHTS_TO_PROVE} successful flights (pick an airframe below to choose another)`;
+  return `<div class="m">New campaign for the ${PROGRAMMES[prog].name}, ${why}: ${fuel}, ${pay}, ${st ? 'full stack' : 'upper stage alone'}.</div>`
     + `<select data-cf="kind">${Object.keys(CAMPAIGN_TARGETS).map(kind => option(kind, CAMPAIGN_TARGETS[kind].name, 0, campaignForm.kind)).join('')}</select>`
     + `<select data-cf="goal">${target.goals.map(goal => option(goal, `Target: ${targetText(campaignForm.kind, goal)}`, 0, campaignForm.goal)).join('')}</select>`
     + `<select data-cf="months">${CAMPAIGN_MONTHS.map(months => option(months, `Deadline: ${formatDate(S.day + months * 30)} (${months} months)`, 0, campaignForm.months)).join('')}</select>`

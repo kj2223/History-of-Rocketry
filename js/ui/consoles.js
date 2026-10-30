@@ -3,9 +3,10 @@
 // Each station reads only what it can see: a part channel shows only if it was picked for the flight (rules/telemetry.js).
 // Empty consoles say what they need. Nothing here changes the game.
 import { STATIONS } from '../data/launch-site.js';
+import { CORE_TEAM } from '../data/team.js';
 import { PAYLOADS } from '../data/launch.js';
 import { S } from '../core/state.js';
-import { stationLock } from '../rules/launch-site.js';
+import { stationLock, coveringMember } from '../rules/launch-site.js';
 import { airborne, formatAltitude, burnSeconds, isPowered } from '../rules/flight.js';
 import { PART_CHANNELS, partReading, warningLevel, canRetune } from '../rules/telemetry.js';
 import { predictedImpact, offPlanWords } from '../rules/callouts.js';
@@ -100,7 +101,7 @@ function countState(id, count) {
 
 // THE TILE for one station, staffed or not.
 function tile(id) {
-  const station = STATIONS[id], staffed = id == 'tc' || S.crew[id];
+  const station = STATIONS[id], cover = !S.crew[id] && coveringMember(id), staffed = id == 'tc' || S.crew[id] || cover;
   if (!staffed) {
     const lock = stationLock(id);
     return `<article class="con empty"><div class="con-hd"><i class="lamp"></i><b>${station.callSign}</b><span>${station.name}</span></div><div class="m">${lock ? 'Console empty. ' + lock : 'Console empty. Hire at the Crew desk.'}</div></article>`;
@@ -109,7 +110,8 @@ function tile(id) {
   const now = flight ? flightState(id, flight) : mission ? missionState(id, mission) : count && count.phase == 'count' ? countState(id, count)
     : state('Standing by', `${station.description.split('.')[0]}.`);
   const calls = (flight && flight.lastCalls) || (count && count.lastCalls) || {}, call = calls[id];
-  return `<article class="con ${now.level}"><div class="con-hd"><i class="lamp ${now.level}"></i><b>${station.callSign}</b><span>${station.name}</span></div>`
+  // A core-team member covering the console shows by name, until you hire the specialist.
+  return `<article class="con ${now.level}"><div class="con-hd"><i class="lamp ${now.level}"></i><b>${station.callSign}</b><span>${cover ? `${CORE_TEAM[cover].name}, covering` : station.name}</span></div>`
     + `<div class="con-read">${escapeHtml(now.text)}</div>`
     + (now.gauge == null ? '' : `<div class="bar"><i style="width:${Math.round(Math.max(0, Math.min(1, now.gauge)) * 100)}%"></i></div>`)
     + `<div class="m">${escapeHtml(now.work)}</div>`

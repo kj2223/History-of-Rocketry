@@ -14,11 +14,12 @@ import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, fo
 import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel, availableChannels, canRetune, offLinkWarning } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
-import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock } from '../rules/mission.js';
+import { chiefOnFailure } from '../rules/team.js';
+import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock, missionStepSeconds, currentOrbit } from '../rules/mission.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
-import { render, markDirty } from './screen.js';
+import { render, markDirty, openWatch } from './screen.js';
 import { $, setHTML } from './dom.js';
 
 // The launch view's state. count: the countdown in progress, or null:
@@ -30,10 +31,12 @@ import { $, setHTML } from './dom.js';
 // (a Mercury mission has no downrange track: null), lastEvents: its milestones (rules/flight.js), marked on the board. planned: the pre-flight prediction of the flight in the air, drawn under its track.
 export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null, lastEvents: [], planned: null };
 export const isBusy = () => !!launchView.count;
+export const isCounting = () => !!launchView.count && launchView.count.phase == 'count';
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
 
 function openPad() {
+  openWatch();
   $('#pad').hidden = false;
   $('#home').hidden = true;
   $('#padlog').innerHTML = '';
@@ -106,7 +109,7 @@ export function renderPad() {
   if (count.shown && !pollDone) html += `<div class="m wn">${level >= 4 && S.crew.fd ? 'FLIGHT: "All stations, go/no-go for launch."' : 'Polling the stations…'}</div>`;
   if (pollDone && poll.lines.length == 1) html += '<div class="m">Nobody else is on the net. Launch crew hired in Personnel will catch faults before they fly.</div>';
   if (pollDone && poll.wk && poll.wind && airframe.pk) {
-    const windy = previewFlight(airframe, launchForm.fuel, launchForm.pay, launchForm.st, count.fuel, poll.wind, launchForm.plan);
+    const form = count.form || launchForm, windy = previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
     html += `<div class="r"><span class="d">Aero load in these winds</span><b class="${windy.maxQ > .85 ? 'bad' : windy.maxQ > .6 ? 'wn' : 'ok'}">${Math.round(windy.maxQ * 100)}% of limit</b></div>`;
   }
   if (count.hold) html += `<div class="t bad">HOLD: ${count.hold}</div>`;
@@ -128,12 +131,14 @@ function showFlightResult(result) {
 }
 
 // What failed, without the log: what the records show, the suspects the team cannot yet tell apart, and the way to the incident.
+const chiefSays = report => `<div class="m"><b>Ruth Ellis, Chief Engineer:</b> "${chiefOnFailure(report)}"</div>`;
 function failureReportHTML(report) {
-  if (!report.id) return `<div class="m">${report.note}</div>`;
+  if (!report.id) return `<div class="m">${report.note}</div>` + chiefSays(report);
   const seen = report.sym.length ? report.sym.map(symptom => SYMPTOMS[symptom].text).join('; ') : 'carrier and track lost, nothing more';
   return `<div class="m"><b>What we saw:</b> ${seen}.</div>`
     + (report.cand.length > 1 ? `<div class="m"><b>Suspects:</b> ${report.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div>` : '')
     + (report.note ? `<div class="m">${report.note}</div>` : '')
+    + chiefSays(report)
     + `<button data-a="incident" data-id="${report.id}" data-f="${report.prog}">OPEN INCIDENT #${report.id}</button>`;
 }
 // THE COUNT. A new countdown runs the go/no-go poll at once (its results are read out from T-15).
@@ -150,6 +155,8 @@ export function startCount() {
   const form = launchForm, airframe = S.air.find(candidate => candidate.id == form.af && candidate.st == 'r');
   if (!airframe || quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100).error) return;
   launchView.count = newCount(runPoll(airframe, form.fuel, form.st && hasBoosterStage(airframe) ? 1 : 0), form.load / 100, airframe.label);
+  // The settings go to the pad with the rocket, so changing the launch form during the count does not change this launch.
+  launchView.count.form = { fuel: form.fuel, pay: form.pay, st: form.st, plan: form.plan };
   openPad();
   runCount();
 }
@@ -203,7 +210,12 @@ function countTick() {
     }
     if (count.clock <= 0) {
       count.clock = 0;
-      return liftoff(count.override);
+      liftoff(count.override);
+      if (count.phase != 'count') return;
+      // Something changed during the count and the rocket cannot fly: hold at T-0 and say why, rather than counting on at zero.
+      count.hold = launchBlocker(count);
+      count.userHold = true;
+      redraw = true;
     }
   }
   if (redraw) renderPad();
@@ -225,6 +237,12 @@ export function holdDay() {
     log(`[PAD] LOX boil-off during the hold. Propellant now about ${Math.round(count.fuel * 100)}%.`, 'wn');
   }
 }
+function launchBlocker(count) {
+  if (count.mission) return 'The mission cannot launch as configured.';
+  const form = count.form, airframe = S.air.find(candidate => candidate.id == count.poll.af && candidate.st == 'r');
+  if (!airframe) return 'The airframe is no longer on the pad.';
+  return quoteLaunch(airframe, form.fuel, form.pay, form.st, count.fuel).error || 'The vehicle cannot launch.';
+}
 function liftoff(override) {
   if (!launchView.count) return;
   if (launchView.count.mission) return launchMission(override);
@@ -233,7 +251,8 @@ function liftoff(override) {
 
 // THE MISSION CLOCK STRIP under the plotting board: the clock, the flight's milestones, and what the tracking can read now.
 // phases: [{ name, reached }], in order; the one after the last reached is coming up. readouts: [{ label, text, none, lost, warn }].
-const clockFormat = seconds => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+// mm:ss, or h:mm:ss once a flight (an orbital one) passes an hour.
+const clockFormat = seconds => `${seconds >= 3600 ? `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}` : String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 function drawClockStrip(clock, phases, readouts) {
   $('#mclock').textContent = clock;
   // A milestone counts as passed once any later one is (a slow rocket may never show a clear max Q).
@@ -288,7 +307,7 @@ export function drawFlightInstruments(flight) {
     .map(id => `<button data-a="retune" data-id="${id}"${(flight.watch || []).includes(id) ? ' class="on"' : ''}>${PART_CHANNELS[id].label}</button>`).join('') : '');
 }
 function launchFlight(override) {
-  const count = launchView.count, poll = count.poll, form = launchForm;
+  const count = launchView.count, poll = count.poll, form = { ...count.form, ch: launchForm.ch };
   const airframe = S.air.find(candidate => candidate.id == poll.af && candidate.st == 'r');
   const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
@@ -373,14 +392,14 @@ export function startMissionCount() {
   const state = S.p2, capsule = state && state.veh.find(candidate => candidate.id == state.lv), booster = state && S.air.find(airframe => airframe.id == state.lb && airframe.st == 'r');
   if (!capsule || !booster) return;
   const crew = state.lc || 'none', propellant = state.lf || 'Alcohol & LOX', plan = boosterPlan(booster, propellant, capsule.mt);
-  if (!plan.ok || crewLock(crew, booster)) return;
-  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant });
+  if (!plan.ok || crewLock(crew, booster, capsule.mt)) return;
+  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo, eva: state.le, target: state.lr });
   openPad();
   runCount();
 }
 function launchMission(override) {
   const count = launchView.count, poll = count.poll;
-  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind });
+  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind, orbits: count.mission.orbits, eva: count.mission.eva, target: count.mission.target });
   if (!mission) return;
   airborne.mission = mission;
   mission.shownTranscript = 0;
@@ -398,7 +417,8 @@ function launchMission(override) {
   $('#ln').textContent = mission.crew && !mission.crew.species ? `${mission.crew.name} is aboard. Decisions in flight are theirs, with CAPCOM's help.` : 'Telemetry from the capsule.';
   launchView.flightTimer = setInterval(missionTick, 250);
 }
-// A quarter-second of the mission: five mission seconds with a pilot aboard, ten without. The clock stops for decisions.
+// A quarter-second of the mission: five mission seconds with a pilot aboard, ten without, faster in orbit (rules/mission.js
+// missionStepSeconds). The clock stops for decisions.
 function missionTick() {
   const mission = airborne.mission;
   if (!mission) return;
@@ -406,12 +426,13 @@ function missionTick() {
     $('#padph').textContent = 'DECISION';
     return;
   }
-  const result = stepMission(mission, mission.crew && !mission.crew.species ? 5 : 10);
+  const result = stepMission(mission, missionStepSeconds(mission));
   drawTranscript(mission);
   const now = reading(mission);
   mission.trace.push(Math.round(now.alt * 1000));
   const type = mission.type;
-  $('#padph').textContent = result == 'decide' ? 'DECISION' : `T+${Math.floor(mission.time / 60)}:${String(Math.floor(mission.time % 60)).padStart(2, '0')} ${mission.time < (type.sep || 40) ? 'POWERED FLIGHT' : mission.time < (type.reentry || type.chute) ? 'COAST' : mission.time < type.chute ? 'RE-ENTRY' : 'DESCENT AND RECOVERY'}`;
+  const coast = type.orbital && mission.time < type.retro ? `IN ORBIT (ORBIT ${currentOrbit(mission)} OF ${type.orbits})` : type.orbital && mission.time < type.reentry ? 'RETROFIRE' : 'COAST';
+  $('#padph').textContent = result == 'decide' ? 'DECISION' : `T+${Math.floor(mission.time / 60)}:${String(Math.floor(mission.time % 60)).padStart(2, '0')} ${mission.time < (type.sep || 40) ? 'POWERED FLIGHT' : mission.time < (type.reentry || type.chute) ? coast : mission.time < type.chute ? 'RE-ENTRY' : 'DESCENT AND RECOVERY'}`;
   drawMissionInstruments(mission);
   if (result == 'decide') renderPad();
   if (result == 'end') finishMission();
@@ -419,15 +440,18 @@ function missionTick() {
 function drawMissionInstruments(mission) {
   const now = reading(mission), type = mission.type, time = mission.time;
   const phases = [{ name: 'LIFTOFF', reached: time > 0 }];
-  if (type.sep) phases.push({ name: 'BOOSTER SEP', reached: time >= type.sep });
+  if (type.sep) phases.push({ name: type.orbital ? 'ORBIT' : 'BOOSTER SEP', reached: time >= type.sep });
+  if (type.orbital) phases.push({ name: 'RETROFIRE', reached: time >= type.retro });
   if (type.reentry) phases.push({ name: 'RE-ENTRY', reached: time >= type.reentry });
   phases.push({ name: 'CHUTE', reached: time >= type.chute }, { name: 'SPLASHDOWN', reached: false });
-  drawClockStrip(`T+${clockFormat(time)}`, phases, [
+  const readouts = [
     { label: 'ALTITUDE', text: `${now.alt.toFixed(1)} km` },
     { label: 'VELOCITY', text: `${Math.round(now.v)} m/s` },
     { label: 'G-LOAD', text: `${now.g.toFixed(1)} g` },
     { label: 'CABIN TEMP', text: `${now.temp} °C` },
-  ]);
+  ];
+  if (type.orbital) readouts.push({ label: 'ATT FUEL', text: `${Math.round(mission.fuel)}%`, warn: mission.fuel < 35 });
+  drawClockStrip(`T+${clockFormat(time)}`, phases, readouts);
   setHTML($('#uplink'), '');
 }
 function decisionHTML(mission) {

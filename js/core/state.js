@@ -15,6 +15,7 @@
 //           kinds: pk research package, inv investigation, fix corrective fix, rev design review,
 //                  gt ground test, retro hangar retrofit, dev programme design
 //   teams   engineering teams                      bteams  factory build teams (missing means 1)
+//   rq      work queue: research { id, prog } and records analyses { k: 'inv', id, prog }, started as teams free up (rules/queue.js)
 //   air     airframes in the hangar: { id, prog, pk, fix, rev, cost, st: r ready | queued | retro, built, label }
 //   aq      factory queue: { k: build | retro | msn, prog, cfg, cost, t: work left, tot: work in all, ... }
 //   fac     facilities in service, { id: 1 }       fb      facilities under construction, { id: day in service }
@@ -27,12 +28,21 @@
 //   rv      day each Soviet event happens (jittered per game)    rvd   Soviet events that have happened
 //   hist    programme history for the summaries: [{ d: day, t: text }]
 //   speed   time speed (0 paused, 1, 2, 4)          ap      auto-publish: { on, n: changes that trigger it }
-//   auto    the launch director: { xp: flights run, camp: the running campaign, cd: seconds to the next try, last: the last report }
-//           (rules/campaign.js)
+//   auto    the launch director (rules/campaign.js): { xp: flights run, camp: the running campaign, cd: seconds to the next try, last: the last report,
+//           inv: an invitation to a first (rules/invitations.js) }
 //   dev     the run log: { v, ps: play seconds, fl: flights, ev: events, snap: snapshots }
 //   nasa    day NASA was established (0 = not yet) cv      save version
 //   recn    payloads recovered (the search teams' experience, rules/recovery.js)
 //   p2      Phase Two (Mercury) state (see rules/mercury.js)
+//   fy      NASA's yearly budget (see rules/budget.js)
+//   cq      construction orders waiting for a crew    mb   mothballed buildings    pt   pads being readied (see rules/site.js)
+//   team    the core team's record: Ellis, Vega and Morgan (see rules/team.js)
+//   remit   Ellis's engineering remit, or null (see rules/remit.js)
+//   lanes   Chen's research lanes, or null (see rules/lanes.js)
+//   works   Reed's factory budget, or null (see rules/factory-lead.js)
+//   orders  standing flight orders and the customers' requests (see rules/orders.js)
+//   leads   the research leads you have hired (see rules/leads.js)
+//   shared  the shared research line (see rules/shared-research.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -58,12 +68,19 @@ export const GLOBAL_AREAS = ['r', 'c', 'e'];
 export const newBundle = () => ({ pk: {}, bt: {}, fix: {}, inc: [], known: {}, kn: {}, ear: {}, bp: { rev: 1, pk: [], fix: {} }, line: { xp: 0 }, mrate: null });
 
 export const newGameState = () => ({
-  b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], teams: 2, air: [], aq: [], fac: {},
+  b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], rq: [], teams: 2, air: [], aq: [], fac: {},
   nid: 1, prod: 0, ok: 0, fr: {}, gt: 30, sg: 0, hs: 0, hd: 0, crew: {}, fs: {}, rvd: {},
   rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
-  fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3,
+  fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3, pt: {},
   staff: { pr: 0, director: 0, ta: 0 },
-  auto: { xp: 0, camp: null, cd: 15, last: null },
+  auto: { xp: 0, camp: null, cd: 15, last: null, inv: null },
+  team: { n: 0, ok: 0, rev: 0, fix: 0, dir: 0, rec: 0, top: 0, held: 0, watch: [] },
+  remit: null,
+  lanes: null,
+  works: null,
+  orders: { by: {}, reqs: [], n: 1, due: 0 },
+  leads: {},
+  shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
 });
 
 export const S = newGameState();
@@ -132,6 +149,8 @@ export const load = () => {
       // Saves from before launch campaigns hold the director's old standing orders: replace them with an empty campaign record.
       if ('on' in S.auto) S.auto = newGameState().auto;
       for (const event of RIVAL) if (!(event.id in S.rv)) S.rv[event.id] = jitterSovietDate(event.day);
+      // Saves from before launch pads that already have an Atlas get its pad, so their next launch is not held up.
+      if (!saved.pt && saved.progs && saved.progs.atlas) S.fac.lc14 = 1;
     }
   } catch (e) {}
 };
@@ -163,6 +182,11 @@ export const log = (text, style = '') => {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const formatDate = day => `${MONTHS[Math.floor(day % 360 / 30) % 12]} ${1946 + Math.floor(day / 360)}`;
 export const today = () => formatDate(S.day);
+// Money coming in other than the appropriation: rewards, contracts, refunds. NASA's budget counts it (rules/budget.js).
+export const earn = amount => {
+  S.b += amount;
+  if (S.fy) S.fy.inc += amount;
+};
 
 // Programme history for the end-of-phase summaries. Keeps the latest 80 entries.
 export const addHistory = text => {
