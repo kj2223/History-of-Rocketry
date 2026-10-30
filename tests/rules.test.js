@@ -1174,3 +1174,66 @@ test('a lane takes its experiments once the routine work is done, and says why w
   assert.equal(laneJob('p').id, next.id);
   assert.equal(laneIdleReason('s'), 'no BSTR yet');
 });
+
+// REED'S FACTORY BUDGET (rules/factory-lead.js): she keeps airframes on hand, upgrades them and publishes balanced blueprints.
+const reedOnTheAerobee = async cap => {
+  const factoryLead = await import('../js/rules/factory-lead.js');
+  S.air.push(readyProgramme('aerobee'));
+  S.cur = 'aerobee';
+  S.b = 200000;
+  S.staff.director = 1;
+  factoryLead.reedJoinTick();
+  assert.equal(factoryLead.startWorks(cap), null);
+  return factoryLead;
+};
+
+test('Reed joins with the launch director and keeps airframes on hand within her budget', async () => {
+  const { reedJoinTick, startWorks, worksTick, raiseWorks, AIRFRAMES_ON_HAND } = await import('../js/rules/factory-lead.js');
+  const { memberJoined } = await import('../js/rules/team.js');
+  assert.ok(!reedJoinTick() && !memberJoined('reed'), 'not before a launch director');
+  assert.ok(startWorks(20000), 'no budget before she joins');
+  await reedOnTheAerobee(20000);
+  assert.ok(memberJoined('reed'));
+  worksTick();
+  worksTick();
+  const onHand = () => S.air.filter(airframe => airframe.prog == 'aerobee').length + S.aq.filter(item => item.k == 'build' && item.prog == 'aerobee').length;
+  assert.equal(onHand(), AIRFRAMES_ON_HAND, 'one airframe ready, one ordered, no more');
+  assert.equal(S.works.built, 1);
+  S.air = S.air.filter(airframe => airframe.prog != 'aerobee');
+  S.works.cap = S.works.spent + 100;
+  worksTick();
+  assert.equal(S.works.dry, 'another airframe', 'the budget cannot cover the next order');
+  raiseWorks();
+  assert.equal(S.works.dry, null);
+});
+
+test('Reed holds a blueprint that lowers thrust-to-weight until the engine work catches up, or you say publish', async () => {
+  const { worksTick, publishHeld, draftThrustToWeightChange, BALANCE_TOLERANCE } = await reedOnTheAerobee(80000);
+  giveResearch(['prs']); // more propellant and a little dry mass: heavier for the same thrust
+  assert.ok(draftThrustToWeightChange() < -BALANCE_TOLERANCE);
+  worksTick();
+  assert.equal(S.bp.rev, 1, 'held, not published');
+  assert.ok(S.works.hold < 0);
+  giveResearch(['noz']); // more thrust
+  assert.ok(draftThrustToWeightChange() >= -BALANCE_TOLERANCE);
+  worksTick();
+  assert.equal(S.bp.rev, 2, 'balanced again: published');
+  assert.equal(S.works.hold, null);
+  giveResearch(['alloy']);
+  S.pk.alloy.a = { f: 30 }; // a tank change with nothing to balance it
+  worksTick();
+  assert.equal(S.bp.rev, 2);
+  publishHeld();
+  assert.equal(S.bp.rev, 3, 'you can publish the held draft yourself');
+});
+
+test('Reed upgrades a ready airframe that is behind the published blueprint', async () => {
+  const { worksTick } = await reedOnTheAerobee(80000);
+  giveResearch(['noz']);
+  worksTick();
+  assert.equal(S.bp.rev, 2);
+  const upgrade = S.aq.find(item => item.k == 'retro' && item.prog == 'aerobee');
+  assert.ok(upgrade, 'the ready airframe goes back for an upgrade');
+  assert.equal(S.works.retro, 1);
+  assert.equal(S.aq.filter(item => item.k == 'build').length, 1, 'the airframe away for its upgrade still counts as on hand');
+});

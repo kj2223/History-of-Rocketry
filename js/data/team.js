@@ -25,4 +25,8 @@ export const CORE_TEAM = {
     name: 'Alice Chen', role: 'Research Lead', callSign: 'R&D', speciality: 'Research programmes', joins: 'Once the Aerobee flies routinely',
     owns: 'Joins once the Aerobee flies routinely. With a research budget, she runs a lane in each system, led by its station engineer: PROP on propulsion, BSTR on structures and tankage, TLM on instrumentation, FIDO on aerodynamics.',
   },
+  reed: {
+    name: 'Margaret Reed', role: 'Factory Lead', callSign: 'FACTORY', speciality: 'Production', joins: 'Once you appoint a launch director',
+    owns: 'Joins once Ellis runs the launches. With a factory budget, she keeps a rocket\'s airframes on hand, upgrades them to each new blueprint and publishes the blueprint, holding back any change that would make the rocket heavier for its thrust until you say.',
+  },
 };

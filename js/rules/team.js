@@ -14,7 +14,7 @@ const plural = (count, word, many = word + 's') => `${count} ${count == 1 ? word
 const failures = () => S.team.n - S.team.ok;
 
 export const memberName = id => CORE_TEAM[id].name;
-// Whether a member is with the programme yet (S.team.joined: { member: 1 } for the leads who join later, rules/lanes.js).
+// Whether a member is with the programme yet (S.team.joined: { member: 1 } for the leads who join later, rules/lanes.js, rules/factory-lead.js).
 export const memberJoined = id => !CORE_TEAM[id].joins || !!(S.team.joined && S.team.joined[id]);
 export const joinedMembers = () => Object.keys(CORE_TEAM).filter(memberJoined);
 export const memberRole = id => CORE_TEAM[id].roles ? CORE_TEAM[id].roles[S.staff.director ? 'after' : 'before'] : CORE_TEAM[id].role;
@@ -62,6 +62,7 @@ export function fixFailedTrial(mode) {
 export function memberRecord(id) {
   const team = S.team;
   if (id == 'ellis') return `${plural(team.n, 'flight')}, ${plural(failures(), 'failure')}, ${plural(team.rev, 'review')} led, ${plural(team.fix, 'fix', 'fixes')} signed into the designs, ${fixesHeld()} held${S.staff.director ? `, ${team.dir} run as launch director` : ''}`;
+  if (id == 'reed') return S.works ? `${plural(S.works.built, 'airframe')} ordered, ${plural(S.works.retro, 'upgrade')} on her budget` : 'no factory budget yet';
   if (id == 'chen') return S.lanes ? `${plural(S.lanes.jobs, 'package')} started by her lanes` : 'no research budget yet';
   if (id == 'vega') return `${plural(team.n, 'countdown')} run, ${team.ok} good`;
   return `${plural(team.n, 'flight')} tracked, ${plural(team.rec, 'record')} measured${team.top ? `, best peak ${(team.top / 1000).toFixed(1)} km` : ''}`;

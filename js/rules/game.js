@@ -21,6 +21,7 @@ import { trainingTick } from './astronauts.js';
 import { directorUnlocked } from './campaign.js';
 import { remitTick, remitEarnedTick } from './remit.js';
 import { chenJoinTick, lanesTick } from './lanes.js';
+import { reedJoinTick, worksTick, reedPublishes } from './factory-lead.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -76,7 +77,9 @@ export function tickSecond() {
   if (remitTick()) changed = true;
   if (chenJoinTick()) changed = true;
   if (lanesTick()) changed = true;
-  if (autoPublishDue()) {
+  if (reedJoinTick()) changed = true;
+  if (worksTick()) changed = true;
+  if (!reedPublishes() && autoPublishDue()) {
     publishBlueprint(true);
     changed = true;
   }
