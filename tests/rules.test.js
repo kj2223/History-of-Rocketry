@@ -821,6 +821,27 @@ test('a backup pilot trains alongside the pilot and moves up, training kept, onc
   assert.equal(backupPilot('mo'), undefined);
 });
 
+test('a third crew trains at the same time and moves up to backup after the next flight', async () => {
+  const { assignPilot, assignBackup, assignThirdCrew, promoteBackup, assignedPilot, backupPilot, thirdCrew } = await import('../js/rules/astronauts.js');
+  const { QUALIFICATION_DAYS } = await import('../js/data/astronauts.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.astros = [1, 2, 3].map(id => ({ id, name: `Pilot ${id}`, st: 'active', tday: QUALIFICATION_DAYS, t: { pil: 60, sys: 60, end: 60, com: 60 }, reh: {}, fat: 0, mt: 0, asg: null, bk: null, nx: null }));
+  assignPilot(1, 'gt');
+  assignBackup(2, 'gt');
+  assignThirdCrew(2, 'gt');
+  assert.equal(thirdCrew('gt'), undefined, 'the backup cannot also be the third crew');
+  assignThirdCrew(3, 'gt');
+  backupPilot('gt').mt = .9;
+  thirdCrew('gt').mt = .5;
+  assignedPilot('gt').asg = null;
+  promoteBackup('gt');
+  assert.equal(assignedPilot('gt').id, 2);
+  assert.equal(backupPilot('gt').id, 3);
+  assert.equal(backupPilot('gt').mt, .5, 'the third crew keeps its training');
+  assert.equal(thirdCrew('gt'), undefined);
+});
+
 // THE NASA BUDGET
 const openNasaBudget = async () => {
   const { budgetTick } = await import('../js/rules/budget.js');

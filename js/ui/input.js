@@ -19,7 +19,7 @@ import { startWorks, raiseWorks, endWorks, publishHeld } from '../rules/factory-
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
-import { selectCrew, setTrainingFocus, assignPilot, assignBackup } from '../rules/astronauts.js';
+import { selectCrew, setTrainingFocus, assignPilot, assignBackup, assignThirdCrew } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
 import { launchForm, campaignForm, campaignSettings } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
@@ -227,6 +227,8 @@ const GAME_ACTIONS = {
   bkp: id => assignBackup(+id, pilotMissionType()),
   asgp: id => assignPilot(+id, 'gtp'),
   bkpp: id => assignBackup(+id, 'gtp'),
+  nxp: id => assignThirdCrew(+id, 'gt'),
+  nxpp: id => assignThirdCrew(+id, 'gtp'),
   memok: () => {
     S.p2.memo = null;
     $('#sum').hidden = true;
