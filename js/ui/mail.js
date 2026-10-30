@@ -8,6 +8,8 @@ import { S } from '../core/state.js';
 import { nasaReady } from '../rules/race.js';
 import { itemAsSeen } from '../rules/research.js';
 import { memberName, memberRole } from '../rules/team.js';
+import { PROGRAMMES } from '../data/programmes.js';
+import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -15,7 +17,31 @@ import { $, setHTML, escapeHtml } from './dom.js';
 export const mail = { open: 'dir' };
 const KIND_NAMES = { decision: 'Decision', directive: 'Directive', report: 'Report', log: 'Log' };
 
-const waitingIncidents = () => S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag');
+const waitingIncidents = () => incidentsWithEllis() ? [] : S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag');
+
+// ELLIS'S REMIT (rules/remit.js): her offer once she has earned it, then the running remit, which asks for a decision when the cap
+// cannot cover her next job or she has referred findings to you.
+function remitMessage() {
+  const remit = S.remit, from = memberName('ellis'), role = memberRole('ellis');
+  if (!remit) {
+    if (!remitUnlocked() || !PROGRAMMES[S.cur]) return null;
+    const empty = !S.crew.prop ? ' I would leave the PROP console: hire a Propulsion Engineer at the Crew desk if you want it staffed.' : '';
+    return {
+      id: 'remit', kind: 'report', from, role, subject: 'I can take the routine engineering off your desk', pane: 'note',
+      body: `<p>Give me a spending cap for the ${escapeHtml(PROGRAMMES[S.cur].name)} and I will run its records analyses, fixes and test-stand runs myself, paying for each as it starts.${empty}</p><p class="m">${authorityText()} Anything outside that comes to you here.</p><div class="acts">${REMIT_CAPS.map(cap => `<button data-a="rstart" data-id="${cap}">${formatMoney(cap)} CAP</button>`).join('')}</div>`,
+    };
+  }
+  const referred = referredFindings(), name = escapeHtml(PROGRAMMES[remit.prog].name);
+  const asks = [];
+  if (referred.length) asks.push(`<p>I need your call on ${referred.map(incident => `#${incident.id} ${escapeHtml(incident.lab)} (${incident.conf} confidence)`).join(', ')}.</p>`);
+  if (remit.dry) asks.push(`<p>The cap cannot cover ${escapeHtml(remit.dry)}. Raise it, or close the remit and the work comes back to you.</p>`);
+  return {
+    id: 'remit', kind: asks.length ? 'decision' : 'report', from, role, pane: 'note',
+    subject: asks.length ? `The ${PROGRAMMES[remit.prog].name} remit needs you` : `Running the ${PROGRAMMES[remit.prog].name} engineering`,
+    body: asks.join('') + `<p>${remit.jobs} job${remit.jobs == 1 ? '' : 's'} started on the ${name}, ${formatMoney(remit.spent)} of ${formatMoney(remit.cap)} spent.</p><p class="m">${authorityText()}</p>`
+      + `<div class="acts">${referred.length ? '<button data-a="mailremit">OPEN THE INCIDENTS</button>' : ''}<button data-a="rraise">RAISE BY ${formatMoney(REMIT_RAISE)}</button><button data-a="rend">CLOSE THE REMIT</button></div>`,
+  };
+}
 
 function messages() {
   const list = [], camp = S.auto.camp;
@@ -23,6 +49,8 @@ function messages() {
     id: 'camp', kind: 'decision', from: memberName('vega'), role: memberRole('vega'), subject: 'The campaign needs your guidance', pane: 'note',
     body: `<p>${escapeHtml(camp.hold)}</p><p class="m">Fly the next one yourself from Watch, or tell me to go ahead.</p><div class="acts"><button data-a="cgo">GO AHEAD</button><button data-desk="watch">OPEN WATCH</button></div>`,
   });
+  const remit = remitMessage();
+  if (remit) list.push(remit);
   const incidents = waitingIncidents();
   if (incidents.length) list.push({
     id: 'inc', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: `${incidents.length} incident${incidents.length == 1 ? '' : 's'} waiting for you`, pane: 'note',
@@ -55,6 +83,8 @@ function sideHTML() {
   html += card(`FACTORY · ${S.aq.length} in the queue`, S.aq.length ? `<div class="m">Next out: ${S.aq[0].k == 'build' ? 'airframe' : S.aq[0].k == 'retro' ? 'retrofit' : 'spacecraft'} <span data-q="0"></span></div><div class="bar"><i data-qb="0"></i></div>` : '<div class="m">The factory floor is empty.</div>');
   const camp = S.auto.camp;
   if (camp) html += card(`CAMPAIGN · ${memberName('vega')}`, `<div class="r"><span>Flights flown</span><b>${camp.n}</b></div><div class="r"><span>Spent</span><b>${formatMoney(camp.spent)} of ${formatMoney(camp.budget)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(camp.spent / camp.budget * 100))}%"></i></div>`);
+  const remit = S.remit;
+  if (remit) html += card(`REMIT · ${memberName('ellis')}`, `<div class="r"><span>${escapeHtml(PROGRAMMES[remit.prog].name)}</span><b>${remit.jobs} job${remit.jobs == 1 ? '' : 's'}</b></div><div class="r"><span>Spent</span><b>${formatMoney(remit.spent)} of ${formatMoney(remit.cap)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(remit.spent / remit.cap * 100))}%"></i></div>`);
   html += '<div class="lbl sub">CORE TEAM</div>' + Object.keys(CORE_TEAM).map(id => `<div class="who"><i>${CORE_TEAM[id].name.split(' ').map(word => word[0]).join('')}</i><span><b>${memberName(id)}</b><span class="m">${memberRole(id)}</span></span></div>`).join('');
   return html;
 }

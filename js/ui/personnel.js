@@ -8,7 +8,7 @@ import { payroll } from '../rules/economy.js';
 import { instalment, spentThisYear, budgetUsed, request, automaticRequest, congressShare, nextBudget, operationsPerYear, CARRY_OVER, QUIET_DAYS, REQUEST_RANGE, EARLY_DAYS } from '../rules/budget.js';
 import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost } from '../rules/factory.js';
 import { engineeringTeamCost, MAX_ENGINEERING_TEAMS, SPECIALISTS } from '../rules/game.js';
-import { roomLevel, consoleCount, crewOnConsole, stationLock } from '../rules/launch-site.js';
+import { roomLevel, consoleCount, crewOnConsole, stationLock, coveringMember } from '../rules/launch-site.js';
 import { analysts, analystLock } from '../rules/trajectory.js';
 import { memberName, memberRole, memberRecord } from '../rules/team.js';
 import { $, setHTML } from './dom.js';
@@ -54,8 +54,8 @@ export function renderLaunchCrew() {
   const consoles = consoleCount(), staffed = crewOnConsole().length;
   let html = `<div class="r"><span class="d">Consoles staffed</span><b>${staffed} / ${consoles}</b></div><div class="m">${ROOMS[roomLevel()].name}. Control-room upgrades at the Base desk add consoles. Staffed stations can catch hidden faults during the countdown poll.</div>`;
   for (const id in STATIONS) {
-    const station = STATIONS[id], lock = stationLock(id), onConsole = id == 'tc' || S.crew[id];
-    html += `<div class="c"><div class="r"><b>${station.callSign} — ${station.name}</b><span class="${S.crew[id] || id == 'tc' ? 'ok' : 'd'}">${onConsole ? 'On console' : station.requires && !S.fac[station.requires] ? 'Locked' : 'Vacant'}</span></div><div class="m">${station.description}${station.salary ? ` ${formatMoney(station.salary)} per cycle.` : ''}</div>`
+    const station = STATIONS[id], lock = stationLock(id), onConsole = id == 'tc' || S.crew[id], cover = !onConsole && coveringMember(id);
+    html += `<div class="c"><div class="r"><b>${station.callSign} — ${station.name}</b><span class="${S.crew[id] || id == 'tc' ? 'ok' : cover ? 'wn' : 'd'}">${onConsole ? 'On console' : cover ? `Covered by ${CORE_TEAM[cover].name}` : station.requires && !S.fac[station.requires] ? 'Locked' : 'Vacant'}</span></div><div class="m">${station.description}${station.salary ? ` ${formatMoney(station.salary)} per cycle.` : ''}</div>`
       + (id == 'tc' ? '' : S.crew[id] ? `<button data-a="dismiss" data-id="${id}">RELEASE FROM CONSOLE</button>` : `<button data-a="crew" data-id="${id}"${lock ? ' disabled' : ''}>HIRE (${formatMoney(station.cost)})</button>${lock ? `<div class="m">${lock}</div>` : ''}`)
       + '</div>';
   }

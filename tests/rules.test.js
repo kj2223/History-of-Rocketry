@@ -396,18 +396,20 @@ test('part channels need the FM telemetry transmitter, and each multiplexing pac
   assert.deepEqual(watchedChannels({ pk: ['fm', 'mux', 'str', 'xdc'] }, ['q', 'pc', 'g']), ['q', 'pc'], 'no accelerometer aboard, so no payload g');
 });
 
-test('a station calls the flight only when it is staffed, and only the parts it is watching', async () => {
+test('a station calls the flight only when it is staffed or covered, and only the parts it is watching', async () => {
   const { crewCallouts } = await import('../js/rules/callouts.js');
   const { logSink } = await import('../js/core/state.js');
   const heard = [];
   logSink.fn = text => heard.push(text);
   const flight = (watch) => ({ time: 20, watch, stageIndex: 0, stages: [{ fuel: 50, thrust: 20000, isp: 200, flow: 10, residual: 0, litAt: 0 }], burnTime: 40, verticalSpeed: 500, altitude: 8000, downrange: 0, horizontalSpeed: 0, aeroLoad: .7, thrustShare: 1, payload: 'Inert Ballast' });
   crewCallouts(flight([]));
-  assert.equal(heard.length, 0, 'nobody on console');
+  assert.ok(heard.some(line => line.includes('[PROP] Ellis: Ten seconds to cutoff.')), 'Ellis covers the empty PROP console and speaks by name');
+  assert.ok(!heard.some(line => line.includes('[BSTR]')), 'no one covers BSTR');
+  heard.length = 0;
   S.crew.prop = 1;
   S.crew.bstr = 1;
   crewCallouts(flight([]));
-  assert.ok(heard.some(line => line.includes('[PROP] Ten seconds to cutoff.')));
+  assert.ok(heard.some(line => line.includes('[PROP] Ten seconds to cutoff.')), 'the hired engineer takes the console');
   assert.ok(!heard.some(line => line.includes('[BSTR]')), 'the aero load is not being watched');
   crewCallouts(flight(['q']));
   assert.ok(heard.some(line => line.includes('[BSTR] Max Q.')));
@@ -1021,4 +1023,87 @@ test('paydays come sooner while the calendar catches up with history', () => {
   assert.ok(speed > 2, 'the calendar is catching up');
   for (let second = 0; second < Math.ceil(30 / speed); second++) tickSecond();
   assert.ok(S.b > budget, 'one funding cycle of calendar has passed, so the appropriation is paid');
+});
+
+// THE CORE TEAM AT THE CONSOLES: Ellis, Vega and Morgan cover empty stations until a specialist is hired or they move on.
+test('the core team covers empty consoles until a specialist is hired or they take a bigger job', async () => {
+  const { boardCrew, coveringMember, crewOnConsole } = await import('../js/rules/launch-site.js');
+  assert.deepEqual(boardCrew(), ['tc', 'prop', 'rso'], 'Ellis on PROP and Vega on RSO from the first countdown');
+  assert.equal(coveringMember('prop'), 'ellis');
+  assert.deepEqual(crewOnConsole(), ['tc'], 'covers are not hires: the consoles stay free to hire into');
+  S.crew.prop = 1;
+  assert.equal(coveringMember('prop'), null, 'the hired engineer frees Ellis');
+  S.crew.prop = 0;
+  S.fac.tty = 1;
+  assert.equal(coveringMember('tlm'), 'morgan', 'Morgan takes TLM once the teleprinters are in');
+  S.staff.director = 1;
+  assert.equal(coveringMember('rso'), null, 'Vega leaves RSO when appointed launch director');
+  const airframe = readyProgramme('aerobee');
+  assert.deepEqual(runPoll(airframe, 'Alcohol & LOX', 0).lines.map(line => line.id), ['tc', 'prop', 'tlm'], 'covered stations answer the poll');
+});
+
+// ELLIS'S ENGINEERING REMIT (rules/remit.js).
+const remitReady = () => {
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.b = 200000;
+  S.team.rev = 3;
+  S.team.fix = 2;
+};
+test('Ellis earns a remit by her record, and leaves the PROP console to run it', async () => {
+  const { startRemit } = await import('../js/rules/remit.js');
+  const { coveringMember } = await import('../js/rules/launch-site.js');
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  assert.ok(startRemit(10000), 'not before she has led reviews and signed fixes');
+  remitReady();
+  assert.equal(startRemit(10000), null);
+  assert.equal(S.remit.prog, 'aerobee');
+  assert.equal(coveringMember('prop'), null);
+  assert.equal(S.b, 200000, 'a cap: nothing leaves the treasury until she spends it');
+});
+
+test('inside her remit Ellis analyses failures, signs off confident findings, refers the rest and builds the strongest fix the cap allows', async () => {
+  const { startRemit, remitTick, raiseRemit } = await import('../js/rules/remit.js');
+  remitReady();
+  startRemit(10000);
+  S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c'], ev: 1, st: 'open', t: 30, lab: 'open' });
+  remitTick();
+  assert.equal(S.inc[0].st, 'inv', 'she starts the records analysis');
+  assert.equal(S.remit.spent, 1500);
+  S.inc.push({ id: 2, mode: 'c', sym: [], cand: ['c', 'p'], ev: 1, st: 'found', dx: 'c', conf: 'high', t: 30, lab: 'sure' });
+  S.inc.push({ id: 3, mode: 'p', sym: [], cand: ['c', 'p'], ev: 1, st: 'found', dx: 'p', conf: 'moderate', t: 30, lab: 'unsure' });
+  remitTick();
+  assert.equal(S.inc[1].st, 'fixing', 'signed off and the fix started');
+  assert.equal(S.jobs.find(job => job.k == 'fix').f, 'baffle', 'the chamber redesign is past the cap, so the baffled injector');
+  assert.equal(S.inc[2].st, 'found');
+  assert.equal(S.inc[2].ref, 1, 'moderate confidence is referred to you');
+  assert.equal(S.remit.spent, 5500);
+  // With teams free but the cap nearly spent, she asks for more.
+  S.teams = 6;
+  S.inc.push({ id: 4, mode: 'p', sym: [], cand: ['p'], ev: 1, st: 'diag', dx: 'p', conf: 'high', t: 30, lab: 'pump' });
+  S.remit.cap = 6000;
+  remitTick();
+  assert.ok(S.remit.dry, 'the cap cannot cover a pump fix');
+  raiseRemit();
+  assert.equal(S.remit.dry, null);
+  remitTick();
+  assert.equal(S.inc[3].st, 'fixing');
+});
+
+test('a fix holds after three good flights, and her authority grows to moderate findings', async () => {
+  const { recordFix, recordFixTrials, fixesHeld, FLIGHTS_FOR_A_FIX_TO_HOLD } = await import('../js/rules/team.js');
+  const { signsOff, FIXES_HELD_FOR_MODERATE } = await import('../js/rules/remit.js');
+  remitReady();
+  assert.ok(!signsOff('moderate'));
+  recordFix('c');
+  recordFix('p');
+  recordFix('s');
+  S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s'], ev: 1, st: 'found', dx: 's', conf: 'high', t: 30, lab: 'again' });
+  acceptFinding(1);
+  for (let flight = 0; flight < FLIGHTS_FOR_A_FIX_TO_HOLD; flight++) recordFixTrials('aerobee', true);
+  assert.equal(fixesHeld(), 2, 'the separation fix came back, so only two held');
+  assert.equal(FIXES_HELD_FOR_MODERATE, 2);
+  assert.ok(signsOff('moderate'));
+  assert.ok(!signsOff('low'), 'low confidence always comes to you');
 });

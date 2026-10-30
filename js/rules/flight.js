@@ -33,7 +33,7 @@ import { usePad, damagePad } from './site.js';
 import { programmeOf, traitWeight, revealTraits, maturity } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
-import { recordTeamFlight } from './team.js';
+import { recordTeamFlight, recordFixTrials } from './team.js';
 
 // What is in the air right now: the UI's launch view (and the launch director) keep the flight or Mercury mission here.
 export const airborne = { flight: null, mission: null };
@@ -620,6 +620,7 @@ function endFlightForProgramme(flight, ok, why) {
   learnFromFlight(flight, ok);
   recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
   recordTeamFlight(ok && why != 'abort', ok ? peak : 0, [S.hd, S.hs, S.hi].filter((record, index) => record != recordsBefore[index]).length, !!flight.byDirector);
+  recordFixTrials(flight.programme, ok && why != 'abort');
   revealTraits(flight.programme);
   save();
 }
@@ -654,6 +655,7 @@ export function boosterSucceeded(flight) {
     S.fr[flight.propellant] = (S.fr[flight.propellant] || 0) + 1;
     learnFromFlight(flight, true);
     recordTeamFlight(true);
+    recordFixTrials(flight.programme, true);
     for (const id of flight.airframe.pk) if (BY_ID[id] && BY_ID[id].phase != 2) confirmPackage(id, 'Flight');
     checkBreakthroughs();
     revealTraits(flight.programme);

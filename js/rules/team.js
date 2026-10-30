@@ -3,9 +3,12 @@
 // here too: they speak from what the records show, never from the hidden cause. No DOM.
 //
 // S.team: { n: flights worked, ok: successful flights, rev: records analyses Ellis has led, fix: fixes signed into a design,
-//           dir: flights Vega has run as launch director, rec: records Morgan has measured, top: highest peak measured (m) }
+//           dir: flights Vega has run as launch director, rec: records Morgan has measured, top: highest peak measured (m),
+//           held: fixes that held, ru: 1 once Ellis has earned a remit (rules/remit.js), watch: fixes still on trial [{ p: programme, m: failure mode, ok: good flights since }] }
 import { CORE_TEAM } from '../data/team.js';
-import { S } from '../core/state.js';
+import { FAILURE_MODES } from '../data/failures.js';
+import { PROGRAMMES } from '../data/programmes.js';
+import { S, log } from '../core/state.js';
 
 const plural = (count, word, many = word + 's') => `${count} ${count == 1 ? word : many}`;
 const failures = () => S.team.n - S.team.ok;
@@ -23,12 +26,39 @@ export function recordTeamFlight(ok, peak = 0, records = 0, byDirector = false) 
   team.top = Math.max(team.top, peak);
 }
 export const recordReview = () => { S.team.rev++; };
-export const recordFix = () => { S.team.fix++; };
+
+// A FIX THAT HELD is Ellis's track record (rules/remit.js): a fix is on trial until its rocket flies FLIGHTS_FOR_A_FIX_TO_HOLD
+// good flights, and fails the trial if a later records analysis of that rocket is closed on the same failure mode.
+// Both are things the records show, never the hidden cause. Saves from before this have no held or watch.
+export const FLIGHTS_FOR_A_FIX_TO_HOLD = 3;
+export const fixesHeld = () => S.team.held || 0;
+const fixesOnTrial = () => S.team.watch || (S.team.watch = []);
+// A fix signed into the design of the programme in focus.
+export function recordFix(mode) {
+  S.team.fix++;
+  fixesOnTrial().push({ p: S.cur, m: mode, ok: 0 });
+}
+// After every flight of a programme.
+export function recordFixTrials(programme, ok) {
+  if (!ok) return;
+  for (const trial of fixesOnTrial().filter(candidate => candidate.p == programme)) {
+    if (++trial.ok < FLIGHTS_FOR_A_FIX_TO_HOLD) continue;
+    S.team.held = fixesHeld() + 1;
+    log(`[CHIEF] Ellis: the ${FAILURE_MODES[trial.m].name.toLowerCase()} fix on the ${PROGRAMMES[programme].name} has held for ${FLIGHTS_FOR_A_FIX_TO_HOLD} good flights.`, 'ok');
+  }
+  S.team.watch = fixesOnTrial().filter(trial => trial.ok < FLIGHTS_FOR_A_FIX_TO_HOLD);
+}
+// A records analysis of the programme in focus is closed on this failure mode: a fix on trial for it did not hold.
+export function fixFailedTrial(mode) {
+  if (!fixesOnTrial().some(trial => trial.p == S.cur && trial.m == mode)) return;
+  S.team.watch = fixesOnTrial().filter(trial => !(trial.p == S.cur && trial.m == mode));
+  log(`[CHIEF] Ellis: the ${FAILURE_MODES[mode].name.toLowerCase()} came back. That fix did not hold.`, 'wn');
+}
 
 // Each member's record, for the roster.
 export function memberRecord(id) {
   const team = S.team;
-  if (id == 'ellis') return `${plural(team.n, 'flight')}, ${plural(failures(), 'failure')}, ${plural(team.rev, 'review')} led, ${plural(team.fix, 'fix', 'fixes')} signed into the designs`;
+  if (id == 'ellis') return `${plural(team.n, 'flight')}, ${plural(failures(), 'failure')}, ${plural(team.rev, 'review')} led, ${plural(team.fix, 'fix', 'fixes')} signed into the designs, ${fixesHeld()} held`;
   if (id == 'vega') return `${plural(team.n, 'countdown')} run, ${team.ok} good${S.staff.director ? `, ${team.dir} as launch director` : ''}`;
   return `${plural(team.n, 'flight')} tracked, ${plural(team.rec, 'record')} measured${team.top ? `, best peak ${(team.top / 1000).toFixed(1)} km` : ''}`;
 }

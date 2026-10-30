@@ -9,7 +9,7 @@ import { retrofitQuote } from './production.js';
 import { finishResearch, confirmPackage, checkBreakthroughs } from './research.js';
 import { learn, knowledgeFraction, systemOf, SYSTEMS, REVIEW_COST, reviewTime, finishReview } from './knowledge.js';
 import { finishDesign, revealTraits } from './programs.js';
-import { recordReview, recordFix } from './team.js';
+import { recordReview, recordFix, fixFailedTrial } from './team.js';
 
 export const INVESTIGATION_COST = 1500;
 // Investigations go faster when the team knows the system involved: 25 seconds, up to 40% less.
@@ -59,6 +59,7 @@ function closeFinding(incident, mode, confidence) {
   incident.dx = mode;
   incident.conf = confidence;
   incident.st = 'diag';
+  fixFailedTrial(mode);
   if (mode == incident.mode) S.known[mode] = 1;
   log(`[INCIDENT #${incident.id}] Closed: ${FAILURE_MODES[mode].name.toLowerCase()} goes in the engineering file.`, 'wn');
 }
@@ -138,7 +139,7 @@ function finishInvestigation(id, extended) {
 }
 function finishFix(job) {
   S.fix[job.m] = job.f;
-  recordFix();
+  recordFix(job.m);
   learn(systemOf(job.m), 5);
   const incident = S.inc.find(candidate => candidate.id == job.id);
   if (incident && incident.st == 'fixing') incident.st = 'done';

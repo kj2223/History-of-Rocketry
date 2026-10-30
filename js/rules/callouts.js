@@ -21,6 +21,7 @@ import { PAYLOADS } from '../data/launch.js';
 import { STATIONS } from '../data/launch-site.js';
 import { CORE_TEAM } from '../data/team.js';
 import { S, log } from '../core/state.js';
+import { coveredStations } from './launch-site.js';
 import { rollDescent, onPlannedStation } from './recovery.js';
 import { FAILURE_WARNINGS, warningLevel, canRetune, offLinkWarning } from './telemetry.js';
 import { burnSeconds, isPowered, hasEvent } from './flight.js';
@@ -57,16 +58,18 @@ const WARNING_CALLS = {
 };
 
 export function crewCallouts(flight) {
-  const said = flight.called || (flight.called = {}), watching = id => (flight.watch || []).includes(id);
-  // Each call is made once (key), and only with its station on console. bubble: the short form shown over the station.
+  const said = flight.called || (flight.called = {}), watching = id => (flight.watch || []).includes(id), covered = coveredStations();
+  // Each call is made once (key), and only with its station on console (hired, or covered by a core-team member, who is named).
+  // bubble: the short form shown over the station.
   const call = (station, key, text, style, bubble) => {
-    if (said[key] || (station != 'tc' && !S.crew[station])) return;
+    if (said[key] || (station != 'tc' && !S.crew[station] && !covered[station])) return;
     said[key] = 1;
-    log(`T+${flight.time}s | [${STATIONS[station].callSign}] ${text}`, style);
+    const cover = !S.crew[station] && covered[station];
+    log(`T+${flight.time}s | [${STATIONS[station].callSign}] ${cover ? `${CORE_TEAM[cover].name.split(' ')[1]}: ` : ''}${text}`, style);
     flight.bubbles = { [station]: { t: bubble, c: style == 'bad' ? 'no' : style == 'wn' ? 'wn' : 'go' } };
     flight.lastCalls = { ...flight.lastCalls, ...flight.bubbles };
   };
-  // A core-team member's call: on the loop only, as they have no console in the pad room.
+  // A core-team member's own call, on the loop only (calls they make while covering a console go through call above).
   const teamCall = (member, key, text, style = '') => {
     if (said[key]) return;
     said[key] = 1;

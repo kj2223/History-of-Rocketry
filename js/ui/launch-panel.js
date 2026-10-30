@@ -8,7 +8,7 @@ import { S, isResearched, isConfirmed, withProgramme, formatDate } from '../core
 import { designSpec, trackingTiers, rangeFee, propellantCost, hasBoosterStage, cannotOrbit, quoteLaunch } from '../rules/design.js';
 import { rangeDataPayment, DIRECTOR_SALARY } from '../rules/economy.js';
 import { SPECIALISTS } from '../rules/game.js';
-import { roomLevel, consoleCount, crewOnConsole } from '../rules/launch-site.js';
+import { roomLevel, consoleCount, boardCrew } from '../rules/launch-site.js';
 import { airborne, previewFlight, formatAltitude } from '../rules/flight.js';
 import { PART_CHANNELS, channelCapacity, availableChannels, watchedChannels } from '../rules/telemetry.js';
 import { CAMPAIGN_TARGETS, FLIGHTS_TO_PROVE, provenProgramme, targetText, outcomeText, directorUnlocked, directorRank, directorExperience, directorMargin, VETERAN_MARGIN } from '../rules/campaign.js';
@@ -26,7 +26,7 @@ export const launchForm = { af: null, afPicked: 0, fuel: 'Alcohol & LOX', pay: '
 const payloadLocked = (payload, airframe) => (PAYLOADS[payload].satellite && cannotOrbit(airframe)) || (PAYLOADS[payload].needs && !isResearched(PAYLOADS[payload].needs));
 
 export function renderControlRoom() {
-  const level = roomLevel(), crew = crewOnConsole(), consoles = consoleCount();
+  const level = roomLevel(), crew = boardCrew(), consoles = consoleCount();
   $('#crt').textContent = ROOMS[level].name.toUpperCase();
   setHTML($('#cr'), roomSVG(level, crew, consoles, !!(airborne.flight || airborne.mission), stationBubbles()));
   $('#crm').textContent = `${ROOMS[level].description} ${crew.length} of ${consoles} console${consoles > 1 ? 's' : ''} staffed.`;
