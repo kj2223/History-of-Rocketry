@@ -58,9 +58,10 @@ export function startLanes(cap) {
   log(`[R&D] Chen opens research lanes on the ${PROGRAMMES[S.cur].name}, up to ${formatMoney(cap)}.`, 'cyan');
   return null;
 }
-export function raiseLanes() {
+// double: raise by the cap itself, for the budgets of a big programme.
+export function raiseLanes(double = false) {
   if (!S.lanes) return;
-  S.lanes.cap += LANE_RAISE;
+  S.lanes.cap += double ? S.lanes.cap : LANE_RAISE;
   S.lanes.dry = null;
   log(`[R&D] Chen's research budget raised to ${formatMoney(S.lanes.cap)}.`, 'ok');
 }

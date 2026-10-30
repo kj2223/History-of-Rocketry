@@ -29,9 +29,10 @@ export function startShared(cap) {
   log(`[R&D] Chen opens the shared research line, up to ${formatMoney(cap)}.`, 'cyan');
   return null;
 }
-export function raiseShared() {
+// double: raise by the cap itself, for the budgets of a big programme.
+export function raiseShared(double = false) {
   if (!S.shared.cap) return;
-  S.shared.cap += SHARED_RAISE;
+  S.shared.cap += double ? S.shared.cap : SHARED_RAISE;
   S.shared.dry = null;
   log(`[R&D] Shared research line raised to ${formatMoney(S.shared.cap)}.`, 'ok');
 }

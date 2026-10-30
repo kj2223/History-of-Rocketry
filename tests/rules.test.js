@@ -13,7 +13,7 @@ import { ensureStarter, hire, tickSecond, catchUp } from '../js/rules/game.js';
 import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
 import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
 import { makeAirframe, retrofitQuote } from '../js/rules/production.js';
-import { publishBlueprint } from '../js/rules/factory.js';
+import { publishBlueprint, holdForLaunch } from '../js/rules/factory.js';
 import { previewFlight, beginFlight, step, hasEvent } from '../js/rules/flight.js';
 import { designSpec } from '../js/rules/design.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
@@ -1659,4 +1659,34 @@ test('a new rocket starts less reliable than a well-flown one on the same propel
   const veteran = beginFlight(wac, 'Alcohol & LOX', 'Inert Ballast', 0, 1);
   const newcomer = withProgramme('aerobee', () => beginFlight(aerobee, 'Alcohol & LOX', 'Inert Ballast', 0, 1));
   assert.ok(veteran.reliability - newcomer.reliability > .015, `${veteran.reliability} vs ${newcomer.reliability}`);
+});
+
+// Aaron's reports from the manned-launch playthrough.
+test('one high flight meets every directive it clears, not just the current one', async () => {
+  const { endFlight } = await import('../js/rules/flight.js');
+  S.b = 1e6;
+  const wac = S.air.find(airframe => airframe.prog == 'wac');
+  const flight = beginFlight(wac, 'Alcohol & LOX', 'Inert Ballast', 0, 1);
+  let result;
+  do result = step(flight); while (result == 'tick' || result == 'sep');
+  flight.peakAltitude = 50000; // clears 3, 15 and 35 km, not 65
+  const before = S.b;
+  endFlight(flight, true, 'land');
+  assert.equal(S.dir, 3);
+  assert.ok(S.b - before >= 15000 + 35000 + 60000, 'all three rewards paid');
+});
+
+test('Reed does not take an airframe held for your launch, and a budget can be doubled', async () => {
+  const { worksTick, raiseWorks } = await reedOnTheAerobee(80000);
+  const airframe = S.air.find(candidate => candidate.prog == 'aerobee' && candidate.st == 'r');
+  holdForLaunch(airframe.id);
+  giveResearch(['noz']);
+  withProgramme('aerobee', () => publishBlueprint());
+  for (let second = 0; second < 3; second++) worksTick();
+  assert.equal(airframe.st, 'r', 'held: left alone');
+  holdForLaunch(airframe.id, false);
+  worksTick();
+  assert.equal(airframe.st, 'queued', 'released: upgraded');
+  raiseWorks(true);
+  assert.equal(S.works.cap, 160000);
 });

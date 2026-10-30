@@ -44,6 +44,14 @@ export function publishBlueprint(automatic) {
   log(`[DRAWING OFFICE] ${automatic ? 'Auto-published' : 'Published'} blueprint Rev ${S.bp.rev} with ${changes} change${changes > 1 ? 's' : ''}. The line keeps ${Math.round(keep * 100)}% of its experience (${before.toFixed(1)} to ${S.line.xp.toFixed(1)} units).`, 'ok');
 }
 
+// HELD FOR LAUNCH: an airframe you mean to fly yourself (airframe.hold, set from the launch form or by starting its count), or the
+// booster picked for the next Mercury or Gemini mission. Reed does not take it for an upgrade and Ellis does not fly it; you still can.
+export const heldForLaunch = airframe => !!airframe.hold || !!(S.p2 && S.p2.lb == airframe.id);
+export function holdForLaunch(id, on = true) {
+  const airframe = S.air.find(candidate => candidate.id == id);
+  if (airframe) airframe.hold = on ? 1 : 0;
+}
+
 // UPGRADES: a built airframe goes back through the factory queue to the published blueprint.
 export function queueRetrofit(id) {
   const airframe = S.air.find(candidate => candidate.id == id && candidate.st == 'r'), quote = airframe && retrofitQuote(airframe);
