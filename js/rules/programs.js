@@ -3,7 +3,7 @@
 // when the programme starts: they raise one failure mode (or cost performance) until found and cured.
 // The programme table itself is in data/programmes.js.
 import { formatMoney, gaussian } from '../core/util.js';
-import { PACKAGES, BY_ID } from '../data/research.js';
+import { PACKAGES, BY_ID, isMilestone } from '../data/research.js';
 import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, STAGE_TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
 import { S, log, addHistory, newBundle, recordRunEvent, earn } from '../core/state.js';
 
@@ -14,7 +14,11 @@ export const VEHICLE_AREAS = ['p', 's', 'i', 'a'];
 const PACKAGES_BY_AREA = {};
 for (const area of VEHICLE_AREAS) PACKAGES_BY_AREA[area] = PACKAGES.filter(item => item.area == area && !item.phase);
 // A programme that skipped a generation also takes on the slice of the rocket it skipped.
+// A lower stage researches its rocket's propulsion and structures packages, and nothing else.
+export const STAGE_AREAS = ['p', 's'];
 export function programmePackages(kind, area) {
+  const stageOf = PROGRAMMES[kind].stageOf;
+  if (stageOf) return STAGE_AREAS.includes(area) ? programmePackages(stageOf, area) : [];
   const list = PACKAGES_BY_AREA[area] || [];
   const slice = programme => {
     const count = Math.min(programme.packagesPerArea, list.length);
@@ -34,7 +38,8 @@ export function scaledForProgramme(item, kind) {
   const programme = PROGRAMMES[kind];
   if (!programme || !VEHICLE_AREAS.includes(item.area) && item.tier != 1) return item;
   const effects = {};
-  for (const key in item.effects) effects[key] = (key == 'f' || key == 'd') ? Math.round(item.effects[key] * programme.sizeScale * 10) / 10 : item.effects[key];
+  const scale = { f: programme.sizeScale, d: programme.dryScale || programme.sizeScale };
+  for (const key in item.effects) effects[key] = scale[key] ? Math.round(item.effects[key] * scale[key] * 10) / 10 : item.effects[key];
   return { ...item, cost: Math.round(item.cost * programme.costScale / 100) * 100, time: Math.round(item.time * programme.timeScale * .7), effects };
 }
 
@@ -95,6 +100,15 @@ export const stagesOf = kind => (PROGRAMMES[kind] && PROGRAMMES[kind].stages || 
 export const rocketOf = kind => PROGRAMMES[kind] && PROGRAMMES[kind].stageOf || kind;
 // A fix's key on an airframe: a lower stage's fixes ride in the rocket's blueprint and airframes as mode@stage.
 export const fixKeyFor = (kind, mode) => PROGRAMMES[kind] && PROGRAMMES[kind].stageOf ? `${mode}@${kind}` : mode;
+// STAGED RESEARCH: on a rocket with stage designs, a propulsion or structures package goes to one stage (the rocket's own design
+// being its top stage), the development lead's choice: the stage furthest behind in that system, the lower stage on a tie.
+// Returns the stage that would get it, or null if every stage has it. Milestones and other work belong to the rocket.
+export function researchTarget(id, kind = S.cur) {
+  const item = BY_ID[id], stages = stagesOf(kind);
+  if (!stages.length || !item || isMilestone(id) || !STAGE_AREAS.includes(item.area)) return S.progs[kind] && S.progs[kind].pk[id] ? null : kind;
+  const doneIn = stage => Object.keys(S.progs[stage].pk).filter(other => BY_ID[other] && BY_ID[other].area == item.area).length;
+  return [...stages, kind].filter(stage => !S.progs[stage].pk[id]).sort((first, second) => doneIn(first) - doneIn(second))[0] || null;
+}
 export const programmeOf = airframe => airframe && airframe.prog || S.cur;
 export const programmeData = (kind = S.cur) => PROGRAMMES[kind];
 

@@ -13,7 +13,7 @@ import { FACILITIES, STATIONS } from '../js/data/launch-site.js';
 import { PROGRAMMES } from '../js/data/programmes.js';
 import { researchLock, commission, itemsInArea } from '../js/rules/research.js';
 import { hasBoosterStage, quoteLaunch } from '../js/rules/design.js';
-import { unitCost, draftChanges } from '../js/rules/production.js';
+import { unitCost, draftChanges, draftSize } from '../js/rules/production.js';
 import { candidates, startLock, startProgramme, maturity, stagesOf } from '../js/rules/programs.js';
 import { tickSecond, hire, engineeringTeamCost, ensureStarter } from '../js/rules/game.js';
 import { orderAirframes, publishBlueprint } from '../js/rules/factory.js';
@@ -140,7 +140,7 @@ function run(seed) {
   while (t < MAX_MINUTES * 60 && S.dir < GOAL) {
     const reserve = unitCost() + 6000;
     if (DELEGATE) delegate(reserve);
-    { const draft = draftChanges(); if (!reedPublishes() && draft.packages.length + draft.fixes.length) publishBlueprint(); }
+    { const draft = draftChanges(); if (!reedPublishes() && draftSize(draft)) publishBlueprint(); }
     if (S.teams < 4 && S.b > engineeringTeamCost() + reserve + 15000) hire('team');
     for (const [kind, id] of BUY) {
       if (kind == 'fac' && !facilityLock(id) && S.b - FACILITIES[id].cost > reserve + 20000) buildFacility(id);

@@ -102,7 +102,7 @@ function quoteForProgramme(airframe, propellantName, payloadName, stage, load) {
   if (S.b < cost) return { cost, error: `Need ${formatMoney(cost - S.b)} more.` };
   // Research reaches the booster stage at half strength (see rules/flight.js); a stage with a design of its own flies its own figures.
   const half = x => 1 + (x - 1) * .5, design = programme.design, booster = programme.booster;
-  const lower = staged && programme.stages ? lowerStage(programmeOf(airframe), airframe, spec, propellant, load) : null;
+  const lower = staged && programme.stages ? lowerStage(programmeOf(airframe), airframe, propellant, load) : null;
   const lift = lower ? lower.thrust : staged ? booster.thr * half(spec.thr / design.thr * spec.t * modifiers.t) : spec.thr * spec.t * modifiers.t;
   const mass = spec.dry + spec.d + modifiers.d + spec.f * propellant.density * load + payload.mass
     + (lower ? lower.dry + lower.fuel : staged ? booster.dry * half(spec.dry / design.dry) + booster.fuel * half(spec.f / design.f) * load : 0);

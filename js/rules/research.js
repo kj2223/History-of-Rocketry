@@ -5,7 +5,7 @@ import { PACKAGES, MILESTONES, BY_ID, isMilestone, AREAS, formatEffect, breakthr
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, addHistory, isResearched, isConfirmed, freeTeams, findJob, earn } from '../core/state.js';
 import { learn, knowledgeFraction } from './knowledge.js';
-import { programmePackages, isInProgramme, scaledForProgramme, VEHICLE_AREAS, programmeData } from './programs.js';
+import { programmePackages, isInProgramme, scaledForProgramme, VEHICLE_AREAS, programmeData, stagesOf, researchTarget } from './programs.js';
 import { trackingTiers } from './design.js';
 
 export const isVehicleArea = area => VEHICLE_AREAS.includes(area);
@@ -20,8 +20,12 @@ export const areaCounts = area => {
   const items = itemsInArea(area).filter(item => !item.hiddenUntil || isResearched(item.id));
   return { done: items.filter(item => isResearched(item.id)).length, confirmed: items.filter(item => isConfirmed(item.id)).length, total: items.length };
 };
-// The research job for a package, if one is running. Vehicle work belongs to the programme in focus; global work to none.
-const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id && job.prog == (isVehicleArea(item.area) ? S.cur : null));
+// The research job for a package, if one is running. Vehicle work belongs to the programme in focus (or one of its stages,
+// rules/programs.js researchTarget); global work to none.
+export const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id
+  && (isVehicleArea(item.area) ? job.prog == S.cur || stagesOf(S.cur).includes(job.prog) : job.prog == null));
+// Done for good: on a rocket with stage designs, a package a stage can take is done once every stage has it.
+export const fullyResearched = id => isVehicleArea(BY_ID[id].area) && !isMilestone(id) && S.cur && stagesOf(S.cur).length ? !researchTarget(id) : isResearched(id);
 
 // MILESTONE RULES: tier-1 approaches are exclusive per area; tier 2 follows a tier-1 milestone plus confirmed packages; joint programmes need tier 1 in both areas.
 export const hasFirstMilestone = area => MILESTONES.some(milestone => milestone.area == area && milestone.tier == 1 && isResearched(milestone.id));
@@ -80,7 +84,7 @@ export function availabilityLock(id) {
   if (isVehicleArea(item.area) && !S.cur) return 'No rocket programme.';
   if (isVehicleArea(item.area) && S.progs[S.cur] && !S.progs[S.cur].ready) return 'The programme is still in detailed design.';
   if (isVehicleArea(item.area) && !isMilestone(id) && !isInProgramme(S.cur, id)) return 'Not part of this rocket programme.';
-  if (isResearched(id)) return 'Complete.';
+  if (fullyResearched(id)) return 'Complete.';
   if (researchJob(item)) return 'In progress.';
   if (isMilestone(id)) {
     const lock = milestoneLock(item);
@@ -99,8 +103,9 @@ export const commission = id => {
   }
   S.b -= cost;
   S.rq = S.rq.filter(entry => entry.k || entry.id != id || entry.prog != (isVehicleArea(item.area) ? S.cur : null));
-  S.jobs.push({ k: 'pk', id, prog: isVehicleArea(item.area) ? S.cur : null, t: item.time, tot: item.time });
-  log(`[DESIGN] Started: ${item.name} (${formatMoney(item.cost)}).`, 'wn');
+  const prog = isVehicleArea(item.area) ? researchTarget(id) : null;
+  S.jobs.push({ k: 'pk', id, prog, t: item.time, tot: item.time });
+  log(`[DESIGN] Started: ${item.name}${prog && prog != S.cur ? `, on the ${PROGRAMMES[prog].name}` : ''} (${formatMoney(item.cost)}).`, 'wn');
 };
 
 // CRASH PROGRAMMES (NASA era): overtime and outside contractors halve the time left on a running research job, once per job,
