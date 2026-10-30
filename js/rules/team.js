@@ -4,7 +4,7 @@
 //
 // S.team: { n: flights worked, ok: successful flights, rev: records analyses Ellis has led, fix: fixes signed into a design,
 //           dir: flights Ellis has run as launch director, rec: records Morgan has measured, top: highest peak measured (m),
-//           joined: { member: 1 } for the leads who joined later, held: fixes that held, ru: 1 once Ellis has earned a remit (rules/remit.js), watch: fixes still on trial [{ p: programme, m: failure mode, ok: good flights since }] }
+//           joined: { member: 1 } for the leads who joined later, held: fixes that held, ru: 1 once Ellis has earned a remit (rules/remit.js), watch: fixes still on trial [{ p: programme, m: failure mode, f: fix id, ok: good flights since }] }
 import { CORE_TEAM } from '../data/team.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
@@ -30,7 +30,7 @@ export function recordTeamFlight(ok, peak = 0, records = 0, byDirector = false) 
 }
 export const recordReview = () => { S.team.rev++; };
 
-// A FIX THAT HELD is Ellis's track record (rules/remit.js): a fix is on trial until its rocket flies FLIGHTS_FOR_A_FIX_TO_HOLD
+// A FIX THAT HELD is Ellis's track record (rules/remit.js): a fix is on trial until airframes carrying it fly FLIGHTS_FOR_A_FIX_TO_HOLD
 // good flights, and fails the trial if a later records analysis of that rocket is closed on the same failure mode.
 // Both are things the records show, never the hidden cause. Saves from before this have no held or watch.
 export const FLIGHTS_FOR_A_FIX_TO_HOLD = 3;
@@ -39,12 +39,14 @@ const fixesOnTrial = () => S.team.watch || (S.team.watch = []);
 // A fix signed into the design of the programme in focus.
 export function recordFix(mode) {
   S.team.fix++;
-  fixesOnTrial().push({ p: S.cur, m: mode, ok: 0 });
+  fixesOnTrial().push({ p: S.cur, m: mode, f: S.fix[mode], ok: 0 });
 }
-// After every flight of a programme.
-export function recordFixTrials(programme, ok) {
+// After every flight of a programme: a good flight counts for the fixes its airframe carries (a trial from an older save,
+// with no fix id, counts any fix for that failure mode).
+const carriesFix = (airframe, trial) => !!airframe.fix[trial.m] && (!trial.f || airframe.fix[trial.m] == trial.f);
+export function recordFixTrials(programme, ok, airframe) {
   if (!ok) return;
-  for (const trial of fixesOnTrial().filter(candidate => candidate.p == programme)) {
+  for (const trial of fixesOnTrial().filter(candidate => candidate.p == programme && carriesFix(airframe, candidate))) {
     if (++trial.ok < FLIGHTS_FOR_A_FIX_TO_HOLD) continue;
     S.team.held = fixesHeld() + 1;
     log(`[CHIEF] Ellis: the ${FAILURE_MODES[trial.m].name.toLowerCase()} fix on the ${PROGRAMMES[programme].name} has held for ${FLIGHTS_FOR_A_FIX_TO_HOLD} good flights.`, 'ok');

@@ -1097,12 +1097,16 @@ test('a fix holds after three good flights, and her authority grows to moderate 
   const { signsOff, FIXES_HELD_FOR_MODERATE } = await import('../js/rules/remit.js');
   remitReady();
   assert.ok(!signsOff('moderate'));
-  recordFix('c');
-  recordFix('p');
-  recordFix('s');
+  for (const mode of ['c', 'p', 's']) {
+    S.fix[mode] = mode + '_fix';
+    recordFix(mode);
+  }
   S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s'], ev: 1, st: 'found', dx: 's', conf: 'high', t: 30, lab: 'again' });
   acceptFinding(1);
-  for (let flight = 0; flight < FLIGHTS_FOR_A_FIX_TO_HOLD; flight++) recordFixTrials('aerobee', true);
+  const unfixed = { fix: {} }, fixed = { fix: { ...S.fix } };
+  for (let flight = 0; flight < FLIGHTS_FOR_A_FIX_TO_HOLD; flight++) recordFixTrials('aerobee', true, unfixed);
+  assert.equal(fixesHeld(), 0, 'good flights of airframes without the fixes prove nothing');
+  for (let flight = 0; flight < FLIGHTS_FOR_A_FIX_TO_HOLD; flight++) recordFixTrials('aerobee', true, fixed);
   assert.equal(fixesHeld(), 2, 'the separation fix came back, so only two held');
   assert.equal(FIXES_HELD_FOR_MODERATE, 2);
   assert.ok(signsOff('moderate'));
@@ -1220,7 +1224,10 @@ test('Reed holds a blueprint that lowers thrust-to-weight until the engine work 
   assert.equal(S.bp.rev, 2, 'balanced again: published');
   assert.equal(S.works.hold, null);
   giveResearch(['alloy']);
-  S.pk.alloy.a = { f: 30 }; // a tank change with nothing to balance it
+  S.pk.alloy.c = 0;
+  S.pk.alloy.a = { t: .5 }; // the truth is a big thrust gain, but nobody has measured it yet
+  S.pk.alloy.m = null;
+  assert.ok(draftThrustToWeightChange() < -BALANCE_TOLERANCE, 'Reed judges on the estimate (more propellant), not the hidden truth');
   worksTick();
   assert.equal(S.bp.rev, 2);
   publishHeld();
