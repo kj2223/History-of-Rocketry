@@ -7,8 +7,11 @@ import { CORE_TEAM } from '../data/team.js';
 import { S } from '../core/state.js';
 import { nasaReady } from '../rules/race.js';
 import { itemAsSeen } from '../rules/research.js';
-import { memberName, memberRole } from '../rules/team.js';
+import { memberName, memberRole, joinedMembers, memberJoined } from '../rules/team.js';
 import { PROGRAMMES } from '../data/programmes.js';
+import { STATIONS } from '../data/launch-site.js';
+import { AREAS } from '../data/research.js';
+import { LANES, LANE_CAPS, LANE_RAISE, laneLead, laneJob } from '../rules/lanes.js';
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -21,6 +24,32 @@ const waitingIncidents = () => incidentsWithEllis() ? [] : S.inc.filter(incident
 
 // ELLIS'S REMIT (rules/remit.js): her offer once she has earned it, then the running remit, which asks for a decision when the cap
 // cannot cover her next job or she has referred findings to you.
+// CHEN'S RESEARCH LANES (rules/lanes.js): her offer once she has joined, then the lanes at work, which ask for a decision when the
+// budget cannot cover the next package.
+const laneRows = () => Object.keys(LANES).map(area => {
+  const lead = laneLead(area);
+  return `<div class="r"><span>${AREAS[area]}</span><b class="${lead ? '' : 'd'}">${lead ? escapeHtml(lead.name) + (lead.pace < 1 ? ' (covering, slower)' : '') : `no ${STATIONS[LANES[area]].callSign} yet`}</b></div>`;
+}).join('');
+function lanesMessage() {
+  const lanes = S.lanes, from = memberName('chen'), role = memberRole('chen');
+  if (!memberJoined('chen')) return null;
+  if (!lanes) {
+    if (!PROGRAMMES[S.cur]) return null;
+    return {
+      id: 'lanes', kind: 'report', from, role, subject: 'Research lanes for the ' + PROGRAMMES[S.cur].name, pane: 'note',
+      body: `<p>Give me a research budget for the ${escapeHtml(PROGRAMMES[S.cur].name)} and each station engineer runs the routine research in their own system, on a team of their own. Your engineering teams stay yours for milestones, experiments and anything urgent.</p>${laneRows()}<p class="m">A lane with no engineer waits for one; hire them at the Crew desk. The lanes will not move together: expect the tanks to come in before the engines now and then, and watch the rocket's weight.</p><div class="acts">${LANE_CAPS.map(cap => `<button data-a="lstart" data-id="${cap}">${formatMoney(cap)} BUDGET</button>`).join('')}</div>`,
+    };
+  }
+  const name = PROGRAMMES[lanes.prog].name;
+  return {
+    id: 'lanes', kind: lanes.dry ? 'decision' : 'report', from, role, pane: 'note',
+    subject: lanes.dry ? `The ${name} research budget is spent` : `Research lanes on the ${name}`,
+    body: (lanes.dry ? `<p>The budget cannot cover ${escapeHtml(lanes.dry)}. Raise it, or close the lanes and the research comes back to you.</p>` : '')
+      + `<p>${lanes.jobs} package${lanes.jobs == 1 ? '' : 's'} started, ${formatMoney(lanes.spent)} of ${formatMoney(lanes.cap)} spent.</p>${laneRows()}`
+      + `<div class="acts"><button data-a="lraise">RAISE BY ${formatMoney(LANE_RAISE)}</button><button data-a="lend">CLOSE THE LANES</button></div>`,
+  };
+}
+
 function remitMessage() {
   const remit = S.remit, from = memberName('ellis'), role = memberRole('ellis');
   if (!remit) {
@@ -51,6 +80,8 @@ function messages() {
   });
   const remit = remitMessage();
   if (remit) list.push(remit);
+  const lanes = lanesMessage();
+  if (lanes) list.push(lanes);
   const incidents = waitingIncidents();
   if (incidents.length) list.push({
     id: 'inc', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: `${incidents.length} incident${incidents.length == 1 ? '' : 's'} waiting for you`, pane: 'note',
@@ -75,17 +106,22 @@ function sideHTML() {
   let html = card('NEXT LAUNCH', launchView.count
     ? `<div class="big">${escapeHtml(launchView.count.label)}</div><div class="m">Countdown or flight under way.</div><button class="pri" data-desk="watch">WATCH</button>`
     : `<div class="big">${ready ? `${ready} rocket${ready == 1 ? '' : 's'} ready` : 'Nothing ready to fly'}</div><div class="m">${ready ? 'Set up the launch in Watch.' : 'Order airframes in Hangar.'}</div><button class="pri" data-desk="watch">OPEN WATCH</button>`);
-  const research = S.jobs.filter(job => job.k == 'pk').sort((a, b) => a.t - b.t);
+  const research = S.jobs.filter(job => job.k == 'pk' && !job.ln).sort((a, b) => a.t - b.t);
   html += '<div class="lbl sub">IN YOUR TEAM\'S HANDS</div>';
   html += card(`RESEARCH · ${research.length} of ${S.teams} team${S.teams == 1 ? '' : 's'}`, research.length
     ? research.map(job => `<div class="r"><span>${escapeHtml(itemAsSeen(job.id).name)}</span><b data-j="${job.k + job.id}">${job.t}s</b></div><div class="bar"><i data-jb="${job.k + job.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>`).join('')
     : '<div class="m">No research in work. Teams are idle.</div>');
+  if (S.lanes) html += card(`RESEARCH LANES · ${memberName('chen')}`, Object.keys(LANES).map(area => {
+    const job = laneJob(area);
+    return `<div class="r"><span>${AREAS[area]}</span><b>${job ? `${job.t}s` : laneLead(area) ? 'idle' : 'no engineer'}</b></div>`
+      + (job ? `<div class="m">${escapeHtml(itemAsSeen(job.id).name)}</div><div class="bar"><i data-jb="${job.k + job.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '');
+  }).join('') + `<div class="r"><span>Spent</span><b>${formatMoney(S.lanes.spent)} of ${formatMoney(S.lanes.cap)}</b></div>`);
   html += card(`FACTORY · ${S.aq.length} in the queue`, S.aq.length ? `<div class="m">Next out: ${S.aq[0].k == 'build' ? 'airframe' : S.aq[0].k == 'retro' ? 'retrofit' : 'spacecraft'} <span data-q="0"></span></div><div class="bar"><i data-qb="0"></i></div>` : '<div class="m">The factory floor is empty.</div>');
   const camp = S.auto.camp;
   if (camp) html += card(`CAMPAIGN · ${memberName('ellis')}`, `<div class="r"><span>Flights flown</span><b>${camp.n}</b></div><div class="r"><span>Spent</span><b>${formatMoney(camp.spent)} of ${formatMoney(camp.budget)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(camp.spent / camp.budget * 100))}%"></i></div>`);
   const remit = S.remit;
   if (remit) html += card(`REMIT · ${memberName('ellis')}`, `<div class="r"><span>${escapeHtml(PROGRAMMES[remit.prog].name)}</span><b>${remit.jobs} job${remit.jobs == 1 ? '' : 's'}</b></div><div class="r"><span>Spent</span><b>${formatMoney(remit.spent)} of ${formatMoney(remit.cap)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(remit.spent / remit.cap * 100))}%"></i></div>`);
-  html += '<div class="lbl sub">CORE TEAM</div>' + Object.keys(CORE_TEAM).map(id => `<div class="who"><i>${CORE_TEAM[id].name.split(' ').map(word => word[0]).join('')}</i><span><b>${memberName(id)}</b><span class="m">${memberRole(id)}</span></span></div>`).join('');
+  html += '<div class="lbl sub">CORE TEAM</div>' + joinedMembers().map(id => `<div class="who"><i>${CORE_TEAM[id].name.split(' ').map(word => word[0]).join('')}</i><span><b>${memberName(id)}</b><span class="m">${memberRole(id)}</span></span></div>`).join('');
   return html;
 }
 
