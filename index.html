@@ -27,8 +27,10 @@
   <button id="rs" data-a="reset" class="danger" aria-label="Reset the game">RESET</button>
 </nav>
 
-<!-- THE TOP BAR: the open app, where and when you are, the money, and the game speed. While a countdown or flight is up
-     and another app is open, the small mission clock sits here; clicking it goes back to Watch. -->
+<!-- THE TOP BAR, on every app. The open app and the money (treasury and the next grant) and game speed always sit in
+     the same place; the other blocks are the ones that matter on the open app and slide in when you switch (data-on
+     lists the apps; ui/screen.js). While a countdown or flight is up and another app is open, the small mission clock
+     sits here; clicking it goes back to Watch. Clicking the directive or the race opens its message in Mail. -->
 <header class="top">
   <div class="brand"><h1 id="drawer-t">Mail</h1><div class="d"><span id="era"></span> · <span id="site"></span></div></div>
   <button id="miniclock" class="miniclock" data-desk="watch" hidden aria-label="Back to the launch">
@@ -36,17 +38,18 @@
     <span id="miniphases" class="phases"></span><span id="minireads" class="readouts"></span>
   </button>
   <div class="stats">
+    <button id="ctxdir" class="ctx trk" data-on="mail watch base astro" data-a="mailshow" data-id="dir" title="Open the directive in Mail"></button>
+    <button id="ctxrace" class="ctx trk" data-on="mail astro" data-a="mailshow" data-id="race"></button>
+    <div class="ctx hres" data-on="rd hangar"><span class="lbl">RESEARCH</span><b><span id="hres"></span><span id="hrest"></span></b><div class="bar"><i id="hresbar"></i></div></div>
+    <div class="ctx" data-on="rd hangar watch"><span class="lbl">RECORDS</span><b id="rec"><span id="ra">0 m</span> · <span id="rv">0 m/s</span></b></div>
+    <div class="ctx" data-on="base crew"><span class="lbl">REPUTATION</span><b id="rp"></b></div>
+    <div class="ctx" data-on="crew"><span class="lbl">PAYROLL</span><b><span id="pay"></span> / 30s</b></div>
+    <div class="ctx" data-on="mail base crew astro"><span class="lbl">DATE</span><b id="dt"></b><span id="cu" class="wn"></span></div>
     <div><span class="lbl" data-l="TREASURY|BUREAU OF THE BUDGET|FUNDING OFFICE"></span><b id="bg"></b></div>
     <div><span class="lbl">GRANT IN</span><b><span id="gt"></span>s · <span id="ga"></span></b></div>
-    <div><span class="lbl">REPUTATION</span><b id="rp"></b></div>
-    <div class="hres opt"><span class="lbl">RESEARCH</span><b><span id="hres"></span><span id="hrest"></span></b><div class="bar"><i id="hresbar"></i></div></div>
-    <div class="opt"><span class="lbl">RECORDS</span><b><span id="ra">0 m</span> · <span id="rv">0 m/s</span> · <span id="rd">0 km</span></b></div>
-    <div><span class="lbl">DATE</span><b id="dt"></b><span id="cu" class="wn"></span></div>
   </div>
   <div class="spd"><button data-spd="0">PAUSE</button><button data-spd="1">1×</button><button data-spd="2">2×</button><button data-spd="4">4×</button></div>
 </header>
-<!-- THE TRACKER LINE, on every app: the current directive and how close it is, and the race with the Soviets (ui/screen.js). -->
-<div id="track" class="track"></div>
 
 <main class="apps">
   <!-- MAIL (home): staff and outside messages on the left, the open one in the middle, and the work in your team's hands on the right (ui/mail.js). -->
