@@ -218,7 +218,7 @@ export function mercuryDirectiveHTML() {
   return `${sectionOne}${mercury}<div class="t">${directive.project == 'gemini' ? 'Gemini directive' : directive.section ? `Section ${directive.section} directive` : 'Mercury directive'} ${state.dir - first + 1} of ${end - first}: ${directive.name}</div><div class="m">${directive.description} Reward ${formatMoney(directive.reward)}.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
 }
 
-// THE TRACKER LINE under the top bar: the current Phase Two directive, how far along it is, and a short status.
+// THE DIRECTIVE BLOCK in the top bar: the current Phase Two directive, how far along it is, and a short status.
 // fraction is the directive's own progress where the game measures one; otherwise it is null and the status is what to fly.
 export function mercuryDirectiveTrack() {
   const state = S.p2;

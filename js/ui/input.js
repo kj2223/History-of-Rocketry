@@ -237,7 +237,7 @@ const GAME_ACTIONS = {
 const VIEW_ACTIONS = {
   // Mail: open a message, or go from Ellis's incident message to the incidents in Research.
   mailopen: id => openMail(id),
-  // From the tracker line under the top bar: open Mail on the directive or the race report.
+  // From the directive or race block in the top bar: open Mail on that message.
   mailshow: id => {
     openDesk('');
     openMail(id);

@@ -5,7 +5,7 @@ import { DIRECTIVES, DIRECTIVE_NEWS, ERAS } from '../data/history.js';
 import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { S, load, logSink, today, formatDate, findJob } from '../core/state.js';
 import { era } from '../rules/design.js';
-import { grant, programmeProgress } from '../rules/economy.js';
+import { grant, payroll, programmeProgress } from '../rules/economy.js';
 import { nasaReady, SPACE_ACT_DAY, sovietProgress, intelligenceEstimate } from '../rules/race.js';
 import { roomLevel } from '../rules/launch-site.js';
 import { buildRate } from '../rules/factory.js';
@@ -77,6 +77,7 @@ function applyDesk() {
   $('#drawer-t').textContent = DESK_TITLES[desk];
   document.querySelectorAll('[data-deskpane]').forEach(pane => pane.hidden = pane.dataset.deskpane != desk);
   document.querySelectorAll('.rail [data-desk]').forEach(button => button.classList.toggle('on', button.dataset.desk == desk));
+  document.querySelectorAll('header.top .ctx').forEach(block => block.classList.toggle('in', block.dataset.on.split(' ').includes(desk || 'mail')));
   const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag').length, badge = $('#badge-rd');
   badge.hidden = !waiting;
   badge.textContent = waiting;
@@ -100,7 +101,7 @@ function renderMiniClock() {
   setHTML($('#minireads'), flying ? $('#readouts').innerHTML : '');
 }
 
-// THE HEADER: speed, date (and catch-up), the next appropriation, budget, reputation and records.
+// THE HEADER: speed, date (and catch-up), the next appropriation, budget, reputation, payroll and records.
 export function renderHeader() {
   document.querySelectorAll('[data-spd]').forEach(button => button.classList.toggle('on', +button.dataset.spd == (S.speed ?? 1)));
   $('#dt').textContent = today();
@@ -110,9 +111,10 @@ export function renderHeader() {
   $('#ga').textContent = formatMoney(grant());
   $('#bg').textContent = formatMoney(S.b);
   $('#rp').textContent = Math.round(S.rep) + '%';
+  $('#pay').textContent = formatMoney(payroll());
   $('#ra').textContent = Math.round(S.hi || 0).toLocaleString() + ' m';
   $('#rv').textContent = Math.round(S.hs || 0).toLocaleString() + ' m/s';
-  $('#rd').textContent = ((S.hd || 0) / 1000).toFixed(S.hd < 1e5 ? 1 : 0) + ' km';
+  $('#rec').title = `Altitude and speed records. Furthest downrange: ${((S.hd || 0) / 1000).toFixed(S.hd < 1e5 ? 1 : 0)} km.`;
   renderHeaderResearch();
   renderTracker();
 }
@@ -126,8 +128,8 @@ function renderHeaderResearch() {
   $('#hrest').textContent = nearest ? ` · ${nearest.t}s${others}` : '';
   $('#hresbar').style.width = nearest ? Math.round((1 - nearest.t / Math.max(1, nearest.tot)) * 100) + '%' : '0';
 }
-// THE TRACKER LINE under the top bar, on every app: the directive and how close it is, and the race with the Soviets.
-// When a directive is met, the line says so for a few seconds. Clicking either half opens its message in Mail.
+// THE DIRECTIVE AND RACE BLOCKS in the top bar (index.html says on which apps): the directive and how close it
+// is, and the race with the Soviets. When a directive is met, its block says so for a few seconds.
 const DIRECTIVE_MET_SHOWN_MS = 8000;
 let shownDirective = null, directiveMet = null;
 function directiveTrack() {
@@ -150,15 +152,16 @@ function renderTracker() {
   noteDirectiveMet();
   const track = directiveTrack(), bar = (fraction, kind = '') => `<span class="bar${kind}"><i style="width:${Math.round(fraction * 100)}%"></i></span>`;
   let directive;
-  if (directiveMet && Date.now() < directiveMet.until) directive = `<span class="lbl ok">DIRECTIVE MET</span><b class="ok">${escapeHtml(directiveMet.name)}</b><span class="ok">+${formatMoney(directiveMet.reward)}</span>`;
-  else if (track) directive = `<span class="lbl">DIRECTIVE ${track.label}</span><b>${escapeHtml(track.name)}</b>${track.fraction == null ? '' : bar(track.fraction)}<span class="d next">${track.status}</span>`;
+  if (directiveMet && Date.now() < directiveMet.until) directive = `<span class="lbl ok">DIRECTIVE MET</span><b class="ok">${escapeHtml(directiveMet.name)} +${formatMoney(directiveMet.reward)}</b>`;
+  else if (track) directive = `<span class="lbl">DIRECTIVE ${track.label}</span><b>${escapeHtml(track.name)}${track.fraction == null ? '' : bar(track.fraction)}<span class="s">${track.status}</span></b>`;
   else directive = `<span class="lbl">DIRECTIVES</span><b class="ok">All current directives met</b>`;
+  setHTML($('#ctxdir'), directive);
   // The race: your programme against the intelligence range for the Soviets, toward a satellite and then a cosmonaut.
   const ours = programmeProgress(), theirs = sovietProgress(), estimate = intelligenceEstimate();
-  const standing = theirs.done ? '' : ours > theirs.hi ? '<b class="ok">AHEAD</b>' : ours < theirs.lo ? '<b class="bad">BEHIND</b>' : '<b class="wn">LEVEL</b>';
-  const soviet = theirs.done ? `<span class="bad">${S.nasa ? 'cosmonaut in orbit' : 'satellite in orbit'}</span>` : `${bar(theirs.lo, ' su')}<span class="d">${Math.round(theirs.lo * 100)}–${Math.round(theirs.hi * 100)}%</span>`;
-  const race = `<span class="lbl">RACE</span>${standing}<span>You</span>${bar(ours)}<span class="d">${Math.round(ours * 100)}%</span><span>Soviets</span>${soviet}${estimate ? `<span class="d next">Soviets next: ${estimate.what}, ${estimate.lo}–${estimate.hi}</span>` : ''}`;
-  setHTML($('#track'), `<button class="tdir" data-a="mailshow" data-id="dir" title="Open the directive in Mail">${directive}</button><button class="trace" data-a="mailshow" data-id="race" title="Open the race report in Mail">${race}</button>`);
+  const standing = theirs.done ? '' : ours > theirs.hi ? ' · <span class="ok">AHEAD</span>' : ours < theirs.lo ? ' · <span class="bad">BEHIND</span>' : ' · <span class="wn">LEVEL</span>';
+  const soviet = theirs.done ? `<span class="bad">${S.nasa ? 'cosmonaut in orbit' : 'satellite in orbit'}</span>` : `${bar(theirs.lo, ' su')}${Math.round(theirs.lo * 100)}–${Math.round(theirs.hi * 100)}%`;
+  setHTML($('#ctxrace'), `<span class="lbl">RACE${standing}</span><b>You ${bar(ours)}${Math.round(ours * 100)}% · Soviets ${soviet}</b>`);
+  $('#ctxrace').title = `Open the race report in Mail.${estimate ? ` Soviets next: ${estimate.what}, ${estimate.lo} to ${estimate.hi}.` : ''}`;
 }
 function banner(subtitle, title, body) {
   const box = $('#bn');

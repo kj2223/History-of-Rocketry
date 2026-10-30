@@ -65,16 +65,17 @@ button.danger{color:var(--bd);border-color:#5b2a30}button.danger:hover:not(:disa
 
 /* ==== THE SCREEN: a small operating system. The app rail down the left, the top bar, and one app filling the rest.
    Long panels scroll inside themselves; the page never scrolls. ==== */
-.app{height:100vh;display:grid;grid-template-columns:84px minmax(0,1fr);grid-template-rows:56px auto minmax(0,1fr)}
+.app{height:100vh;display:grid;grid-template-columns:84px minmax(0,1fr);grid-template-rows:56px minmax(0,1fr)}
 header.top{grid-column:2;display:flex;align-items:center;gap:20px;padding:0 18px;border-bottom:1px solid var(--ln);min-width:0}
-.brand{flex-shrink:0}.brand h1{font-size:1.05rem}.brand .d{font-size:.75rem}
-.stats{flex:1;display:flex;justify-content:flex-end;gap:20px;min-width:0;overflow:hidden}header.top:has(#miniclock:not([hidden])) .stats>.opt{display:none} /* the research bar and records make room for the mission clock */.stats>div{display:flex;flex-direction:column;white-space:nowrap}.stats b{font-family:var(--mono);font-weight:500;font-size:.85rem}
+.brand{flex:1 1 0;min-width:100px;white-space:nowrap}.brand h1{font-size:1.05rem;overflow:hidden;text-overflow:ellipsis}.brand .d{font-size:.75rem;overflow:hidden;text-overflow:ellipsis}
+.stats{flex:0 1 auto;display:flex;align-items:center;justify-content:flex-end;gap:14px;min-width:0;overflow:hidden}.stats>*{flex-shrink:0}.stats>div,.stats>button{display:flex;flex-direction:column;white-space:nowrap}.stats b{font-family:var(--mono);font-weight:500;font-size:.85rem}
 .lbl{font-size:.68rem;color:var(--dim);letter-spacing:.06em;font-weight:600}
 .spd{display:flex;flex-shrink:0}.spd button{padding:5px 9px;font-size:.72rem}
-.track{grid-column:2;display:flex;gap:6px;padding:4px 18px;border-bottom:1px solid var(--ln);background:var(--pn);min-width:0;font-size:.78rem}
-.track>button{display:flex;align-items:center;gap:8px;min-width:0;width:auto;margin:0;font-weight:400;padding:2px 8px;background:none;border-color:transparent;white-space:nowrap;overflow:hidden;font-size:.78rem}.track .tdir{flex:0 1 auto}.track .trace{flex:1 1 auto;justify-content:flex-end}
-.track .bar{display:inline-block;width:90px;flex-shrink:0;margin:0;position:relative}.track .bar.su i{background:var(--bd)}.track b{font-weight:600}.track .next{overflow:hidden;text-overflow:ellipsis;min-width:0}.track .lbl{text-transform:uppercase}
-.hres{width:260px}.hres b{display:flex;white-space:pre}.hres #hres{min-width:0;overflow:hidden;text-overflow:ellipsis}.hres #hrest{flex-shrink:0}.hres .bar{margin:3px 0 0}
+/* Blocks for the open app slide in when you switch apps; the money and speed stay put. */
+.ctx{display:none!important}.ctx.in{display:flex!important;animation:ctxin .3s ease-out}@keyframes ctxin{from{opacity:0;transform:translateY(-10px)}}
+.trk{flex-shrink:1!important;width:auto;margin:0;padding:0 6px;background:none;border-color:transparent;font-weight:400;text-align:left;min-width:150px;max-width:430px;overflow:hidden}.trk>b{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden}.trk .lbl{overflow:hidden;text-overflow:ellipsis}#ctxrace{flex-shrink:0!important;max-width:none}
+.trk .bar{display:inline-block;width:50px;flex-shrink:0;margin:0;position:relative}.trk .bar.su i{background:var(--bd)}.trk .lbl{text-transform:uppercase}.trk .s{font-family:var(--ft);font-weight:400;font-size:.75rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hres{width:220px}.hres b{display:flex;white-space:pre}.hres #hres{min-width:0;overflow:hidden;text-overflow:ellipsis}.hres #hrest{flex-shrink:0}.hres .bar{margin:3px 0 0}
 .miniclock{width:auto;margin:0;flex-shrink:0;max-width:560px;display:flex;align-items:center;gap:12px;padding:4px 12px;background:#10241f;border-color:#2a5a52;font-weight:400}
 .minihd{display:flex;align-items:baseline;gap:8px;white-space:nowrap}.minihd b{font:500 1.1rem var(--mono);color:var(--ac)}.minihd b.t{font:600 .72rem var(--ft);color:var(--wn)}
 .miniclock>span:empty{display:none}.miniclock .phases{width:220px}.miniclock .ph{font-size:.56rem}.miniclock .readouts{gap:2px 12px;font-size:.72rem;flex-wrap:nowrap;overflow:hidden}
