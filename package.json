@@ -1,7 +1,7 @@
 {
   "name": "project-vanguard",
   "productName": "Project Vanguard",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "A management game about the American space programme",
   "type": "module",
   "main": "desktop/main.js",
