@@ -1,4 +1,4 @@
-// THE SCREEN: the header, era and control-room theme, the directive panel, the desk drawer, and redrawing every panel.
+// THE SCREEN: the top bar, the era banners, the directive message, switching apps, and redrawing every panel.
 // The game clock marks the screen dirty when something changes; main.js redraws it then, and refreshes the timers otherwise.
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES, DIRECTIVE_NEWS, ERAS } from '../data/history.js';
@@ -16,6 +16,7 @@ import { launchView, renderPad } from './launch-view.js';
 import { renderResearchDesk } from './design-bureau.js';
 import { renderConsoles } from './consoles.js';
 import { renderPlot } from './plot.js';
+import { renderMail, mailWaiting } from './mail.js';
 import { renderTrajectory } from './trajectory.js';
 import { renderHangar } from './hangar.js';
 import { renderFacilities } from './site-plan.js';
@@ -59,36 +60,37 @@ logSink.fn = (text, style) => {
   while (loop.children.length > LOOP_LINES) loop.lastChild.remove();
 };
 
-// THE DESKS: '' is the control room alone; any other desk opens its drawer over the room. Picking the open desk again closes it.
-const DESK_TITLES = { rd: 'RESEARCH & DESIGN', hangar: 'DRAWING OFFICE, FACTORY & HANGAR', base: 'LAUNCH SITE & BASE', crew: 'PERSONNEL & LAUNCH CREW', astro: 'ASTRONAUT OFFICE' };
+// THE APPS: '' is Mail, the home screen; 'watch' is the control room; the rest are the desks. One app fills the screen at a time.
+const DESK_TITLES = { '': 'Mail', watch: 'Watch', rd: 'Research & Design', hangar: 'Drawing Office, Factory & Hangar', base: 'Launch Site & Base', crew: 'People & Launch Crew', astro: 'Astronaut Office' };
 export function showDesk(name) {
-  desk = name == desk ? '' : name;
-  applyDesk();
-}
-// Open a desk without toggling (the flight result's incident button).
-export function openDesk(name) {
   desk = name;
   applyDesk();
 }
-// The R&D button counts incidents waiting for you: records analysis, a call on the findings, or a fix.
+export const openDesk = showDesk;
+// Opening the pad for a countdown brings up Watch (ui/launch-view.js).
+export const openWatch = () => showDesk('watch');
+// The Research button counts incidents waiting for you: records analysis, a call on the findings, or a fix.
+// The Mail button counts messages that ask for a decision.
 function applyDesk() {
   if (desk == 'astro' && !S.nasa) desk = '';
-  $('#drawer').hidden = !desk;
-  $('#drawer-t').textContent = DESK_TITLES[desk] || '';
+  $('#drawer-t').textContent = DESK_TITLES[desk];
   document.querySelectorAll('[data-deskpane]').forEach(pane => pane.hidden = pane.dataset.deskpane != desk);
   document.querySelectorAll('.rail [data-desk]').forEach(button => button.classList.toggle('on', button.dataset.desk == desk));
   const waiting = S.inc.filter(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag').length, badge = $('#badge-rd');
   badge.hidden = !waiting;
   badge.textContent = waiting;
+  const decisions = mailWaiting(), mailBadge = $('#badge-mail');
+  mailBadge.hidden = !decisions;
+  mailBadge.textContent = decisions;
   renderMiniClock();
 }
 
-// THE SMALL MISSION CLOCK under the consoles: a copy of the pad's clock, phase, milestones and readouts, shown while a
-// desk drawer covers the pad. The pad's phase line (#padph) can start with the count or mission time ("T-00:10 COUNTING");
+// THE SMALL MISSION CLOCK in the top bar: a copy of the pad's clock, phase, milestones and readouts, shown while another
+// app covers Watch. The pad's phase line (#padph) can start with the count or mission time ("T-00:10 COUNTING");
 // in flight the clock strip (#mclock) holds the time, so the phase is shown without it.
 function renderMiniClock() {
   const box = $('#miniclock');
-  box.hidden = !launchView.count || !desk;
+  box.hidden = !launchView.count || desk == 'watch';
   if (box.hidden) return;
   const phase = $('#padph').textContent.match(/^(T[+-][\d:]+)?\s*(.*)$/), flying = !$('#fl').hidden;
   $('#miniclockt').textContent = flying ? $('#mclock').textContent : phase[1] || '';
@@ -129,11 +131,9 @@ function banner(subtitle, title, body) {
   box.innerHTML = `<div class="d">${subtitle}</div><h1>${title}</h1><div>${body}</div>`;
   box.className = 's';
 }
-// The era and the control room set the page theme; a new one (or a bigger room) is announced with a banner.
+// A new era (or a bigger control room) is announced with a banner. The look stays the same; only names change with the era.
 function applyEra() {
-  const current = era(), level = roomLevel(), root = document.documentElement;
-  root.dataset.era = current;
-  root.dataset.room = level;
+  const current = era(), level = roomLevel();
   $('#era').textContent = `${S.nasa ? (S.p2 && S.p2.fl.gem ? 'PROJECT GEMINI' : 'PROJECT MERCURY') : ERAS[current].name} • ${1946 + Math.floor(S.day / 360)}`;
   $('#site').textContent = ROOMS[level].name;
   // Labels that change with the era: data-l="early|middle|late".
@@ -148,7 +148,7 @@ function applyEra() {
   }
 }
 
-// THE DIRECTIVE PANEL: the Phase One directive, the Space Act and NASA, then the Mercury directive.
+// THE DIRECTIVE MESSAGE: the Phase One directive, the Space Act and NASA, then the Mercury directive.
 function directiveHTML() {
   const directive = DIRECTIVES[S.dir];
   let html = directive
@@ -185,6 +185,7 @@ export function render() {
   renderFacilities();
   renderStaff();
   renderLaunchCrew();
+  renderMail();
   applyDesk();
 }
 // Between redraws, only the header, the countdown figures and bars on jobs, and the factory queue change.

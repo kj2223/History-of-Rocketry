@@ -71,8 +71,9 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 
 | File | Draws |
 |---|---|
-| `index.html` | The one fixed screen: header, desk rail, the control room's three columns, and the desk drawer |
-| `ui/screen.js` | The header, era theme, directive panel, opening and closing desks, and `render()` for the whole page |
+| `index.html` | The one fixed screen, styled as a small operating system: the app rail, the top bar, and one app at a time (Mail, Watch, Research, Hangar, Site, People, Astronauts) |
+| `ui/screen.js` | The top bar, era banners, the directive message, switching apps, and `render()` for the whole page |
+| `ui/mail.js` | Mail, the home screen: the inbox built from the game state, the open message, and the work in your team's hands |
 | `ui/input.js` | Every click and select: `data-a` on a button names its action |
 | `ui/launch-panel.js` | The control-room picture and the launch form |
 | `ui/launch-view.js` | The pad under the plotting board: countdown, poll, the mission clock strip, Mercury flights and transcript |

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-era="0">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -7,45 +7,61 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<!-- One fixed screen: the header, the desk rail, and the control room. Nothing scrolls the page; long panels scroll inside themselves.
-     Every other desk (research, hangar, base, crew, astronauts) opens as a drawer over the room, which keeps running behind it. -->
+<!-- One fixed screen in the style of a small operating system: the app rail, the top bar, and the open app. Nothing scrolls the
+     page; long panels scroll inside themselves. Apps switch instantly and the game keeps running behind whichever is open. -->
 <div id="bn"></div><div id="sum" hidden></div>
 <div class="app">
 
+<!-- THE APP RAIL: the game is a small operating system. Mail is home; every desk is an app that fills the screen. -->
+<nav class="rail" aria-label="Apps">
+  <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l4 10-4 10-4-10z"/></svg>
+  <button data-desk="" class="on" aria-label="Mail"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>Mail<i class="badge" id="badge-mail" hidden></i></button>
+  <button data-desk="watch" aria-label="Watch: launches and the control room"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M6 17l4-6 4 3 5-8"/></svg>Watch</button>
+  <button data-desk="rd" id="desk-rd" aria-label="Research and design"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>Research<i class="badge" id="badge-rd" hidden></i></button>
+  <button data-desk="hangar" aria-label="Drawing office, factory and hangar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V10l9-6 9 6v11M7 21v-7h10v7"/></svg>Hangar</button>
+  <button data-desk="base" aria-label="Launch site and base"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M5 9l7-7 7 7M4 22h16"/></svg>Site</button>
+  <button data-desk="crew" aria-label="Personnel and launch crew"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5"/></svg>People</button>
+  <button data-desk="astro" id="desk-astro" aria-label="Astronaut Office" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM5 21c0-4 3-6 7-6s7 2 7 6"/></svg>Astronauts</button>
+  <div class="grow"></div>
+  <button data-a="runlog" aria-label="Run log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5zM8 9h8M8 13h8M8 17h5"/></svg>Run log</button>
+  <button id="rs" data-a="reset" class="danger" aria-label="Reset the game">RESET</button>
+</nav>
+
+<!-- THE TOP BAR: the open app, where and when you are, the money, and the game speed. While a countdown or flight is up
+     and another app is open, the small mission clock sits here; clicking it goes back to Watch. -->
 <header class="top">
-  <div class="brand"><h1>PROJECT VANGUARD</h1><div class="d"><span id="era"></span> · <span id="site"></span></div></div>
+  <div class="brand"><h1 id="drawer-t">Mail</h1><div class="d"><span id="era"></span> · <span id="site"></span></div></div>
+  <button id="miniclock" class="miniclock" data-desk="watch" hidden aria-label="Back to the launch">
+    <span class="minihd"><b id="miniclockt"></b><b id="miniclockph" class="t"></b></span>
+    <span id="miniphases" class="phases"></span><span id="minireads" class="readouts"></span>
+  </button>
   <div class="stats">
-    <div><span class="lbl">CALENDAR</span><b id="dt"></b><span id="cu" class="wn"></span></div>
-    <div><span class="lbl" data-l="TREASURY|BUREAU OF THE BUDGET|FUNDING OFFICE"></span><b id="bg" class="t"></b></div>
+    <div><span class="lbl" data-l="TREASURY|BUREAU OF THE BUDGET|FUNDING OFFICE"></span><b id="bg"></b></div>
     <div><span class="lbl">GRANT IN</span><b><span id="gt"></span>s · <span id="ga"></span></b></div>
     <div><span class="lbl">REPUTATION</span><b id="rp"></b></div>
-    <div class="hres"><span class="lbl">RESEARCH</span><b><span id="hres"></span><span id="hrest"></span></b><div class="bar"><i id="hresbar"></i></div></div>
-    <div><span class="lbl">RECORDS</span><b><span id="ra">0 m</span> · <span id="rv">0 m/s</span> · <span id="rd">0 km</span></b></div>
+    <div class="hres opt"><span class="lbl">RESEARCH</span><b><span id="hres"></span><span id="hrest"></span></b><div class="bar"><i id="hresbar"></i></div></div>
+    <div class="opt"><span class="lbl">RECORDS</span><b><span id="ra">0 m</span> · <span id="rv">0 m/s</span> · <span id="rd">0 km</span></b></div>
+    <div><span class="lbl">DATE</span><b id="dt"></b><span id="cu" class="wn"></span></div>
   </div>
   <div class="spd"><button data-spd="0">PAUSE</button><button data-spd="1">1×</button><button data-spd="2">2×</button><button data-spd="4">4×</button></div>
 </header>
 
-<nav class="rail" aria-label="Desks">
-  <button data-desk="" class="on" aria-label="Control room"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 20V9l7-5 7 5v11M9 20v-6h6v6"/></svg>ROOM</button>
-  <button data-desk="rd" id="desk-rd" aria-label="Research and design"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>R&amp;D<i class="badge" id="badge-rd" hidden></i></button>
-  <button data-desk="hangar" aria-label="Drawing office, factory and hangar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V10l9-6 9 6v11M7 21v-7h10v7"/></svg>HANGAR</button>
-  <button data-desk="base" aria-label="Launch site and base"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M5 9l7-7 7 7M4 22h16"/></svg>BASE</button>
-  <button data-desk="crew" aria-label="Personnel and launch crew"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5"/></svg>CREW</button>
-  <button data-desk="astro" id="desk-astro" aria-label="Astronaut Office" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM5 21c0-4 3-6 7-6s7 2 7 6"/></svg>ASTRO</button>
-  <div class="grow"></div>
-  <button data-a="runlog" aria-label="Run log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l3 3v15H5zM8 9h8M8 13h8M8 17h5"/></svg>LOG</button>
-  <button id="rs" data-a="reset" class="danger" aria-label="Reset the game">RESET</button>
-</nav>
-
-<main class="room-grid">
-  <!-- LEFT: what you are aiming for, and the range teleprinter -->
-  <section class="col left">
-    <div class="p"><h2 data-l="ACTIVE DOD DIRECTIVE|DEFENSE DEPARTMENT DIRECTIVE|NATIONAL SPACE OBJECTIVE"></h2><div id="dr"></div></div>
-    <div class="p"><h2 data-l="FIRSTS & FOREIGN INTELLIGENCE|THE MISSILE RACE|THE SPACE RACE"></h2><div id="race"></div></div>
-    <div class="p fill"><h2 data-l="COMMAND TELEMETRY LOG|TELEPRINTER & RANGE LOG|MISSION CONTROL LOG"></h2><div id="lg"></div></div>
+<main class="apps">
+  <!-- MAIL (home): staff and outside messages on the left, the open one in the middle, and the work in your team's hands on the right (ui/mail.js). -->
+  <section data-deskpane="" class="mail">
+    <div class="inbox"><div class="lbl">INBOX</div><div id="mlist"></div></div>
+    <article class="reader">
+      <div id="mhd"></div>
+      <div data-mailpane="dir"><div id="dr"></div></div>
+      <div data-mailpane="race"><div id="race"></div></div>
+      <div data-mailpane="log" class="logpane"><div id="lg"></div></div>
+      <div data-mailpane="note"><div id="mnote"></div></div>
+    </article>
+    <aside id="mside" class="today"></aside>
   </section>
 
-  <!-- CENTER: the plotting board, then the launch desk (or, from rollout to splashdown, the pad) -->
+  <!-- WATCH: the plotting board, then the launch desk (or, from rollout to splashdown, the pad), and every console, live. -->
+  <section data-deskpane="watch" class="room-grid">
   <section class="col center">
     <div class="p board">
       <div class="boardhd"><h2 id="boardt">PLOTTING BOARD</h2><button id="trajbtn" data-a="traj" hidden>TRAJECTORY</button></div>
@@ -70,38 +86,27 @@
       <div class="ct">COMMAND LOOP <span class="d">· newest first</span></div><div id="padlog"></div>
     </div>
   </section>
-
-  <!-- RIGHT: the room and every console, live -->
   <section class="col right">
     <div class="p roompic"><h2 id="crt">CONTROL ROOM</h2><div id="cr"></div><div class="m" id="crm"></div></div>
     <div id="cons" class="cons"></div>
-    <!-- A small copy of the mission clock strip, shown while a desk drawer covers the pad (screen.js renderMiniClock). -->
-    <div id="miniclock" class="miniclock" hidden>
-      <div class="minihd"><span class="lbl">MISSION CLOCK</span><b id="miniclockt"></b><b id="miniclockph" class="t"></b></div>
-      <div id="miniphases" class="phases"></div><div id="minireads" class="readouts"></div>
-    </div>
+  </section>
   </section>
 
-  <!-- THE DRAWER: the desk picked on the rail. It covers the left and centre columns; the consoles stay in view. -->
-  <section id="drawer" class="drawer" hidden>
-    <div class="drawer-hd"><h2 id="drawer-t"></h2><button data-desk="" class="close" aria-label="Close the desk">✕ CLOSE</button></div>
-    <div class="drawer-body">
-      <div data-deskpane="rd"><div id="rdesk"></div></div>
-      <div data-deskpane="hangar" class="g3">
-        <div class="p"><h2>DRAWING OFFICE</h2><div id="bp"></div></div>
-        <div class="p"><h2>FACTORY QUEUE</h2><div id="as"></div></div>
-        <div class="p"><h2>HANGAR</h2><div id="hg"></div></div>
-      </div>
-      <div data-deskpane="base"><div class="p"><h2>LAUNCH SITE &amp; BASE UPGRADES</h2><div id="fc"></div></div></div>
-      <div data-deskpane="crew" class="g2">
-        <div class="p"><h2>PERSONNEL &amp; PAYROLL</h2><div id="sf"></div></div>
-        <div class="p"><h2>LAUNCH CREW</h2><div id="crew"></div></div>
-      </div>
-      <div data-deskpane="astro" class="g2">
-        <div class="p"><h2>ASTRONAUT OFFICE</h2><div id="ao"></div></div>
-        <div class="p"><h2>TRAINING &amp; FLIGHT CONTROL</h2><div id="ao2"></div></div>
-      </div>
-    </div>
+  <!-- THE OTHER APPS -->
+  <section data-deskpane="rd" class="pane"><div id="rdesk"></div></section>
+  <section data-deskpane="hangar" class="pane g3">
+    <div class="p"><h2>DRAWING OFFICE</h2><div id="bp"></div></div>
+    <div class="p"><h2>FACTORY QUEUE</h2><div id="as"></div></div>
+    <div class="p"><h2>HANGAR</h2><div id="hg"></div></div>
+  </section>
+  <section data-deskpane="base" class="pane"><div class="p"><h2>LAUNCH SITE &amp; BASE UPGRADES</h2><div id="fc"></div></div></section>
+  <section data-deskpane="crew" class="pane g2">
+    <div class="p"><h2>PERSONNEL &amp; PAYROLL</h2><div id="sf"></div></div>
+    <div class="p"><h2>LAUNCH CREW</h2><div id="crew"></div></div>
+  </section>
+  <section data-deskpane="astro" class="pane g2">
+    <div class="p"><h2>ASTRONAUT OFFICE</h2><div id="ao"></div></div>
+    <div class="p"><h2>TRAINING &amp; FLIGHT CONTROL</h2><div id="ao2"></div></div>
   </section>
 </main>
 </div>
