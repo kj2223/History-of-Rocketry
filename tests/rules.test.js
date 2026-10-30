@@ -317,6 +317,7 @@ test('a standing order flies customer requests by itself and keeps flying after 
   assert.equal(S.auto.last.outcome, 'deadline');
   assert.ok(orderFor('aerobee').n > flownAtExpiry, 'the order keeps flying once the campaign is over');
   assert.ok(orderFor('aerobee').paid > 0, 'customers pay for good flights');
+  assert.ok(orderFor('aerobee').paid >= orderFor('aerobee').spent, 'customers reimburse every flight, so routine flying breaks even');
   assert.ok(orderFor('aerobee').spent <= orderFor('aerobee').cap);
 });
 
