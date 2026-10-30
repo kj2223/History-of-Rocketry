@@ -14,7 +14,8 @@
 import { formatMoney } from '../core/util.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, withProgramme } from '../core/state.js';
-import { designSpec, fixModifiers } from './design.js';
+import { baseDesign, fixModifiers } from './design.js';
+import { itemAsSeen } from './research.js';
 import { batchCost, draftChanges, retrofitQuote } from './production.js';
 import { orderAirframes, publishBlueprint, queueRetrofit } from './factory.js';
 import { memberJoined } from './team.js';
@@ -69,10 +70,19 @@ export function publishHeld() {
 export const reedPublishes = () => !!S.works && S.works.prog == S.cur;
 
 // LIFTOFF THRUST against the liftoff mass of a configuration of the programme in focus, as the engineers believe it, with full
-// tanks of alcohol and no payload. Only used to compare two configurations of the same rocket.
+// tanks of alcohol and no payload: the measured effect of each confirmed package, the research estimate of the rest (Reed
+// never sees the true effects). Only used to compare two configurations of the same rocket.
+const believedEffects = id => S.pk[id].c && S.pk[id].m ? S.pk[id].m : itemAsSeen(id).effects;
 function liftoffThrustToWeight(packages, fixes) {
-  const spec = designSpec(packages, true), modifiers = fixModifiers(fixes);
-  return spec.thr * spec.t * modifiers.t / (spec.dry + spec.d + modifiers.d + spec.f);
+  const base = baseDesign(true), modifiers = fixModifiers(fixes);
+  let thrust = 1, dryMass = base.dry + modifiers.d, propellant = base.f;
+  for (const id of packages) {
+    const effects = believedEffects(id);
+    thrust += effects.t || 0;
+    dryMass += effects.d || 0;
+    propellant += effects.f || 0;
+  }
+  return base.thr * thrust * modifiers.t / (dryMass + propellant);
 }
 // How the draft would change liftoff thrust-to-weight against the published blueprint: a fraction, negative if it lowers it.
 export function draftThrustToWeightChange() {

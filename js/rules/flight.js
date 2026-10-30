@@ -620,7 +620,7 @@ function endFlightForProgramme(flight, ok, why) {
   learnFromFlight(flight, ok);
   recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
   recordTeamFlight(ok && why != 'abort', ok ? peak : 0, [S.hd, S.hs, S.hi].filter((record, index) => record != recordsBefore[index]).length, !!flight.byDirector);
-  recordFixTrials(flight.programme, ok && why != 'abort');
+  recordFixTrials(flight.programme, ok && why != 'abort', flight.airframe);
   revealTraits(flight.programme);
   save();
 }
@@ -655,7 +655,7 @@ export function boosterSucceeded(flight) {
     S.fr[flight.propellant] = (S.fr[flight.propellant] || 0) + 1;
     learnFromFlight(flight, true);
     recordTeamFlight(true);
-    recordFixTrials(flight.programme, true);
+    recordFixTrials(flight.programme, true, flight.airframe);
     for (const id of flight.airframe.pk) if (BY_ID[id] && BY_ID[id].phase != 2) confirmPackage(id, 'Flight');
     checkBreakthroughs();
     revealTraits(flight.programme);
