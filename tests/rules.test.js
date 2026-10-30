@@ -225,6 +225,29 @@ test('a campaign closes at its deadline', () => {
   assert.equal(report.outcome, 'deadline');
 });
 
+// INVITATIONS (rules/invitations.js): a first waits for your answer, and proceeds by itself if you give none.
+test('Ellis invites you to a first: attending holds it for you, silence lets Flight Control proceed', async () => {
+  const { firstAboard, waitForInvitation, attendFirst, proceedWithFirst, INVITE_TURNS } = await import('../js/rules/invitations.js');
+  const airframe = readyProgramme('aerobee');
+  S.air.push(airframe);
+  assert.equal(firstAboard(airframe), 'the first flight of the Aerobee');
+  assert.ok(waitForInvitation(airframe), 'the invitation goes out and she waits');
+  attendFirst();
+  for (let turn = 0; turn < INVITE_TURNS + 2; turn++) assert.ok(waitForInvitation(airframe), 'attending: she waits for you');
+  proceedWithFirst();
+  assert.ok(!waitForInvitation(airframe), 'you change your mind and she flies it');
+  S.auto.inv = null;
+  let turns = 0;
+  while (waitForInvitation(airframe)) turns++;
+  assert.equal(turns, INVITE_TURNS, 'no answer: Flight Control proceeds after her turns run out');
+  S.progs.aerobee.fm = [];
+  assert.equal(firstAboard(airframe), null, 'flown, and no new milestone aboard');
+  airframe.pk.push('ms_test');
+  BY_ID.ms_test = { name: 'a test milestone' };
+  assert.equal(firstAboard(airframe), 'the first flight with a test milestone');
+  delete BY_ID.ms_test;
+});
+
 // STANDING ORDERS
 // An open incident holds routine flights until it is dealt with; these tests close them as a player or Ellis's remit would.
 const closeIncidents = kind => withProgramme(kind, () => S.inc.forEach(incident => incident.st = 'done'));

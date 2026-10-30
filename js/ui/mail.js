@@ -15,6 +15,7 @@ import { LANES, LANE_RAISE, laneLead, laneJob, laneIdleReason } from '../rules/l
 import { AIRFRAMES_ON_HAND, WORKS_RAISE, airframesOnHand, airframesWanted, worksIdleReason } from '../rules/factory-lead.js';
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
 import { ORDER_RAISE, standingOrders, orderFor, orderWaiting, ordersTotals, requestText } from '../rules/orders.js';
+import { DIRECTOR_CADENCE } from '../rules/auto.js';
 import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -107,7 +108,15 @@ function remitMessage() {
 }
 
 function messages() {
-  const list = [], camp = S.auto.camp;
+  const list = [], camp = S.auto.camp, invitation = S.auto.inv;
+  // ELLIS'S INVITATION to a first (rules/invitations.js): a decision until you answer it, then a note while you are to fly it.
+  if (invitation && !invitation.ok) list.push({
+    id: 'inv', kind: invitation.attend ? 'report' : 'decision', from: memberName('ellis'), role: memberRole('ellis'), pane: 'note',
+    subject: `You are invited to ${invitation.what}`,
+    body: invitation.attend
+      ? `<p>The pad is yours for ${escapeHtml(invitation.what)}. Fly it from Watch; the campaign waits until you do.</p><div class="acts"><button class="pri" data-desk="watch">OPEN WATCH</button><button data-a="iproceed">LET FLIGHT CONTROL PROCEED AFTER ALL</button></div>`
+      : `<p>The campaign's next flight is ${escapeHtml(invitation.what)}. Attend and fly it yourself from Watch, or let Flight Control proceed without you.</p><p class="m">If I hear nothing in about ${invitation.turns * DIRECTOR_CADENCE} seconds, Flight Control proceeds.</p><div class="acts"><button class="pri" data-a="iattend">ATTEND</button><button data-a="iproceed">LET FLIGHT CONTROL PROCEED</button></div>`,
+  });
   if (camp && camp.hold) list.push({
     id: 'camp', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: 'The campaign needs your guidance', pane: 'note',
     body: `<p>${escapeHtml(camp.hold)}</p><p class="m">Fly the next one yourself from Watch, or tell me to go ahead.</p><div class="acts"><button data-a="cgo">GO AHEAD</button><button data-desk="watch">OPEN WATCH</button></div>`,

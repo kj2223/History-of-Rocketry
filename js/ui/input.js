@@ -18,6 +18,7 @@ import { raiseLanes, endLanes } from '../rules/lanes.js';
 import { raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
 import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { approveBrief } from '../rules/brief.js';
+import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
@@ -190,6 +191,8 @@ const GAME_ACTIONS = {
   wraise: () => raiseWorks(),
   wend: () => endWorks(),
   wpub: () => publishHeld(),
+  iattend: () => attendFirst(),
+  iproceed: () => proceedWithFirst(),
   bstart: size => {
     const error = approveBrief(+size);
     if (error) log('[PROGRAMME] ' + error, 'bad');
