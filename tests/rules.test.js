@@ -1486,3 +1486,82 @@ test('Reed upgrades a ready airframe that is behind the published blueprint', as
   assert.equal(S.works.retro, 1);
   assert.equal(S.aq.filter(item => item.k == 'build').length, 1, 'the airframe away for its upgrade still counts as on hand');
 });
+
+// ACCEPTANCE (middle-path stage 7): a fresh save run by the delegated team, from the Aerobee to the Viking, through the cases a
+// player meets: a missing lead, a campaign that expires, a line whose budget runs out, shared research, and a save and reload.
+test('acceptance: the delegated team takes a fresh save from the Aerobee to the Viking', async () => {
+  const { save, load } = await import('../js/core/state.js');
+  const { approveBrief, briefLines } = await import('../js/rules/brief.js');
+  const { orderFor } = await import('../js/rules/orders.js');
+  const { laneIdleReason, endLanes } = await import('../js/rules/lanes.js');
+  const { endWorks } = await import('../js/rules/factory-lead.js');
+  const { hireLead } = await import('../js/rules/leads.js');
+  const { startShared } = await import('../js/rules/shared-research.js');
+  const store = {};
+  globalThis.localStorage = { getItem: key => store[key] ?? null, setItem: (key, value) => { store[key] = String(value); }, removeItem: key => { delete store[key]; } };
+  const play = (seconds, each = () => {}) => {
+    for (let second = 0; second < seconds; second++) {
+      tickSecond();
+      autoLaunch();
+      closeIncidents('aerobee');
+      if (S.progs.viking) closeIncidents('viking');
+      if (S.auto.camp && S.auto.camp.hold) goAhead();
+      S.b = Math.max(S.b, 150000);
+      each();
+    }
+  };
+  try {
+    // The Aerobee flies routinely: Chen joins, you appoint Ellis and Reed joins.
+    S.air.push(readyProgramme('aerobee'));
+    S.cur = 'aerobee';
+    S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+    S.hi = 60000;
+    S.b = 150000;
+    play(1);
+    hire('director');
+    play(1);
+    assert.deepEqual(briefLines('aerobee').map(line => line.state), ['free', 'free', 'free']);
+    assert.equal(approveBrief(0), null);
+    // A missing lead: no FIDO and no aero/thermal lead, so that lane says why it waits.
+    assert.equal(laneIdleReason('a'), 'no FIDO or lead yet');
+    assert.equal(hireLead('r', 'hartley'), null);
+    assert.equal(startShared(20000), null);
+    // A campaign alongside the orders, with a deadline it cannot meet.
+    assert.equal(startCampaign({ prog: 'aerobee', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal: 50, months: 2, budget: 1e6 }), null);
+    let flownAtExpiry = null, linesSpent = new Set();
+    play(4000, () => {
+      if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
+      if (orderFor('aerobee').hold && /cap/.test(orderFor('aerobee').hold)) linesSpent.add('flights');
+      if (S.lanes && S.lanes.dry) linesSpent.add('research');
+      if (S.works && S.works.dry) linesSpent.add('production');
+    });
+    assert.equal(S.auto.last.outcome, 'deadline', 'the campaign expired');
+    assert.ok(orderFor('aerobee').n > flownAtExpiry, 'routine flights carry on after it');
+    assert.ok(linesSpent.size, 'a lean brief runs out somewhere and says so');
+    assert.ok(S.shared.jobs > 0, 'the shared lane did research');
+    // Save and reload: the same game comes back and carries on.
+    save();
+    const saved = JSON.stringify(S);
+    S.b = 1;
+    load();
+    assert.equal(JSON.stringify(S), saved);
+    play(200);
+    // The Viking is ready: production and research move to it, and both rockets fly routine flights.
+    readyProgramme('viking');
+    assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee');
+    endLanes();
+    endWorks();
+    S.cur = 'viking';
+    assert.equal(approveBrief(0), null);
+    assert.ok(orderFor('viking') && orderFor('aerobee') && S.works.prog == 'viking' && S.lanes.prog == 'viking');
+    const vikingFlown = orderFor('viking').n;
+    play(3000, () => {
+      for (const prog of ['aerobee', 'viking']) if (orderFor(prog).hold) orderFor(prog).hold.startsWith('The cap') ? (orderFor(prog).cap += 25000, orderFor(prog).hold = null) : (orderFor(prog).hold = null);
+      if (S.works.dry) { S.works.cap += 20000; S.works.dry = null; }
+    });
+    assert.ok(S.works.built > 0, 'Reed builds Vikings');
+    assert.ok(orderFor('viking').n + orderFor('aerobee').n > vikingFlown, 'the orders keep flying');
+  } finally {
+    delete globalThis.localStorage;
+  }
+});

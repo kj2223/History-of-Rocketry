@@ -7,7 +7,8 @@
 //   - upgrades ready airframes that are behind the published blueprint, one at a time.
 // UNBALANCED: research lanes (rules/lanes.js) do not move together, and tank work can land before engine work. A draft that would
 // cut the rocket's liftoff thrust-to-weight by more than BALANCE_TOLERANCE is held, and comes to you in Mail: publish it now, or
-// let Reed hold it until the engine work catches up (she publishes as soon as the cut is back within the tolerance). While her budget runs, she does the publishing
+// let Reed hold it until the engine work catches up (she publishes as soon as the cut is back within the tolerance). A draft that
+// carries a fix for a failure is never held: the fix goes out with it. While her budget runs, she does the publishing
 // for that rocket and the Hangar's auto-publish leaves it alone. No DOM.
 //
 // S.works: { prog: the rocket, cap ($), spent ($), built: airframes ordered, retro: upgrades queued, dry: what the cap could not
@@ -126,7 +127,8 @@ function publishTurn(works) {
     return false;
   }
   const change = draftThrustToWeightChange();
-  if (change >= -BALANCE_TOLERANCE) {
+  if (change >= -BALANCE_TOLERANCE || draft.fixes.length) {
+    if (change < -BALANCE_TOLERANCE) log(`[FACTORY] Reed publishes the ${PROGRAMMES[works.prog].name} blueprint although it cuts liftoff thrust-to-weight by ${Math.round(-change * 100)}%: it carries a fix, and a fix does not wait.`, 'wn');
     works.hold = null;
     publishBlueprint(true);
     return true;
