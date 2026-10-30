@@ -205,8 +205,8 @@ export function refreshTimers() {
     if (!item) return;
     const progress = Math.round((item.tot - item.t) / item.tot * 100);
     node.textContent = `${progress}% (${Math.ceil(item.t / buildRate(item))}s)`;
-    const bar = document.querySelector(`[data-qb="${node.dataset.q}"]`);
-    if (bar) bar.style.width = progress + '%';
+    // Mail and the Hangar both show the item on the floor, so every bar for it moves.
+    document.querySelectorAll(`[data-qb="${node.dataset.q}"]`).forEach(bar => bar.style.width = progress + '%');
   });
 }
 // One-off overlays: the memorial after a crew is lost, then the Section 1 summary.
