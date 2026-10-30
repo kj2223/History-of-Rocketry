@@ -1,7 +1,8 @@
-// PERSONNEL tab: NASA's budget, payroll, build and engineering teams, the press office, and the launch crew on console.
+// PERSONNEL tab: NASA's budget, the core team, payroll, build and engineering teams, the press office, and the launch crew on console.
 // The launch director is hired and managed on the Launch tab (ui/launch-panel.js).
 import { formatMoney } from '../core/util.js';
 import { ROOMS, STATIONS, TRAJECTORY_ANALYSTS } from '../data/launch-site.js';
+import { CORE_TEAM } from '../data/team.js';
 import { S, formatDate } from '../core/state.js';
 import { payroll } from '../rules/economy.js';
 import { instalment, spentThisYear, budgetUsed, request, automaticRequest, congressShare, nextBudget, operationsPerYear, CARRY_OVER, QUIET_DAYS, REQUEST_RANGE, EARLY_DAYS } from '../rules/budget.js';
@@ -9,13 +10,14 @@ import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost } from '../rules/factory.js'
 import { engineeringTeamCost, MAX_ENGINEERING_TEAMS, SPECIALISTS } from '../rules/game.js';
 import { roomLevel, consoleCount, crewOnConsole, stationLock } from '../rules/launch-site.js';
 import { analysts, analystLock } from '../rules/trajectory.js';
+import { memberName, memberRole, memberRecord } from '../rules/team.js';
 import { $, setHTML } from './dom.js';
 
 const staffCard = (title, description, action) => `<div class="c"><div class="t">${title}</div><div class="m">${description}</div>${action}</div>`;
 export function renderStaff() {
   const box = $('#sf');
   if (!box) return;
-  setHTML(box, budgetHTML() + `<div class="r"><span class="d">Payroll per 30s funding cycle</span><b>${formatMoney(payroll())}</b></div>`
+  setHTML(box, budgetHTML() + coreTeamHTML() + `<div class="r"><span class="d">Payroll per 30s funding cycle</span><b>${formatMoney(payroll())}</b></div>`
     + staffCard(`BUILD TEAMS (${buildTeams()}/${MAX_BUILD_TEAMS})`, 'Factory crews. Each one works a different item in the build queue at the same time: airframes, upgrades, capsules. $800 per cycle for each team beyond the first.',
       buildTeams() < MAX_BUILD_TEAMS ? `<button data-a="hire" data-id="bteam"${S.b < buildTeamCost() ? ' disabled' : ''}>HIRE BUILD TEAM (${formatMoney(buildTeamCost())})</button>` : '<div class="ok">Fully staffed.</div>')
     + staffCard(`ENGINEERING TEAMS (${S.teams}/${MAX_ENGINEERING_TEAMS})`, 'Each team works one job at a time: packages, investigations, fixes, retrofits, ground tests. $1,200 per cycle for each team beyond the first two.',
@@ -23,6 +25,9 @@ export function renderStaff() {
     + staffCard('PUBLIC RELATIONS SPECIALIST', 'Halves the reputation lost to failures and slowly rebuilds it. $1,000 per cycle.',
       S.staff.pr ? '<div class="ok">On staff.</div>' : `<button data-a="hire" data-id="pr"${S.b < SPECIALISTS.pr.cost ? ' disabled' : ''}>HIRE PR SPECIALIST (${formatMoney(SPECIALISTS.pr.cost)})</button>`));
 }
+// THE CORE TEAM: the three people who have been with the programme from the start, each with their speciality and record.
+const coreTeamHTML = () => `<div class="c"><div class="t">CORE TEAM</div>${Object.keys(CORE_TEAM).map(id => `<div class="r"><b>${memberName(id)}</b><span class="d">${memberRole(id)}</span></div>`
+  + `<div class="m">${CORE_TEAM[id].speciality}. ${CORE_TEAM[id].owns} Record: ${memberRecord(id)}.</div>`).join('')}</div>`;
 // NASA'S BUDGET: this fiscal year so far, what Congress is likely to grant next, and the request the player can raise.
 const REQUEST_STEPS = [1, 1.1, 1.2, 1.3, 1.4, 1.5].filter(step => step >= REQUEST_RANGE[0] && step <= REQUEST_RANGE[1]);
 function budgetHTML() {

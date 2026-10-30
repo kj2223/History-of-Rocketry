@@ -37,6 +37,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | Directives, eras, historical firsts, Soviet dates, calendar speed | `data/history.js` |
 | Mercury and Gemini missions, directives, in-flight decisions, office decisions | `data/mercury.js` |
 | Astronaut names, skills, training focus | `data/astronauts.js` |
+| The core team: names, roles, specialities | `data/team.js` |
 | Grants, payroll, reputation losses | `rules/economy.js` |
 
 ### The rules, file by file
@@ -58,6 +59,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/trajectory.js` | The trajectory team: hiring analysts, goals, and the search for the best flight plan |
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
 | `rules/auto.js` | The launch director flying the running campaign |
+| `rules/team.js` | The core team's record (Ellis, Vega, Morgan) and what they say after failures and in records analyses |
 | `rules/race.js` | American firsts, Soviet events, intelligence, forming NASA |
 | `rules/manrate.js` | Man-rating boosters for crews (Titan II also needs its pogo cured) |
 | `rules/mercury.js` | Phase Two state, mission requirements, boosters for capsules, who may fly, capsules, directives, opening Gemini |

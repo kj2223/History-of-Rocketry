@@ -7,6 +7,7 @@ import { BY_ID } from '../js/data/research.js';
 import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
 import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
+import { FAILURE_MODES } from '../js/data/failures.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond } from '../js/rules/game.js';
 import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
@@ -461,6 +462,40 @@ test('an engine failure shows on chamber pressure for a few seconds first, and a
   endFlight(flight, false, 'abort');
   assert.equal(flight.failure, 'p');
   assert.equal(incidents(), before + 1);
+});
+
+// THE CORE TEAM: Ellis, Vega and Morgan keep their record across every flight and review.
+test('the core team records every flight, and the director\'s flights as Vega\'s', () => {
+  const report = runCampaign(2, 400000, 48);
+  assert.equal(S.team.n, report.n);
+  assert.equal(S.team.ok, report.okn);
+  assert.equal(S.team.dir, report.n, 'every campaign flight was run by Vega as launch director');
+  assert.ok(S.team.top > 0, 'Morgan measured the peaks');
+});
+
+test('Vega calls the liftoff with the crew\'s flight count, and Morgan calls a peak above the best measured', async () => {
+  const { crewCallouts } = await import('../js/rules/callouts.js');
+  const { logSink } = await import('../js/core/state.js');
+  const heard = [];
+  logSink.fn = text => heard.push(text);
+  S.team.n = 4;
+  S.team.top = 20000;
+  const flight = { time: 1, watch: [], stageIndex: 0, stages: [{ fuel: 0, thrust: 0, isp: 200, flow: 0, residual: 0, litAt: 0, out: 1 }], burnTime: 40, verticalSpeed: -1, altitude: 30000, downrange: 0, horizontalSpeed: 0, aeroLoad: 0, thrustShare: 0, payload: 'Inert Ballast', events: [{ key: 'liftoff' }] };
+  crewCallouts(flight);
+  flight.time = 60;
+  crewCallouts(flight);
+  logSink.fn = null;
+  assert.ok(heard.some(line => line.includes('[LD] Vega: Liftoff. Flight 5 for this crew.')));
+  assert.ok(heard.some(line => line.includes('[RANGE] Morgan: Radar puts the peak near 30.0 kilometres. Higher than anything we have tracked.')));
+});
+
+test('a records analysis is led by Ellis, and a fix she signs goes on her record', () => {
+  const incident = analysedIncident();
+  assert.equal(S.team.rev, 1);
+  acceptFinding(1);
+  S.jobs.push({ k: 'fix', id: incident.id, prog: 'aerobee', m: incident.dx, f: FAILURE_MODES[incident.dx].fixes[0].id, t: 1, tot: 1 });
+  tickSecond();
+  assert.equal(S.team.fix, 1);
 });
 
 test('a crash programme halves the time left on a NASA-era research job, once, for twice its cost', () => {

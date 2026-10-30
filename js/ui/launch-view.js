@@ -14,6 +14,7 @@ import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight, fo
 import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel, availableChannels, canRetune, offLinkWarning } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
+import { chiefOnFailure } from '../rules/team.js';
 import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock, missionStepSeconds, currentOrbit } from '../rules/mission.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
@@ -128,12 +129,14 @@ function showFlightResult(result) {
 }
 
 // What failed, without the log: what the records show, the suspects the team cannot yet tell apart, and the way to the incident.
+const chiefSays = report => `<div class="m"><b>Ruth Ellis, Chief Engineer:</b> "${chiefOnFailure(report)}"</div>`;
 function failureReportHTML(report) {
-  if (!report.id) return `<div class="m">${report.note}</div>`;
+  if (!report.id) return `<div class="m">${report.note}</div>` + chiefSays(report);
   const seen = report.sym.length ? report.sym.map(symptom => SYMPTOMS[symptom].text).join('; ') : 'carrier and track lost, nothing more';
   return `<div class="m"><b>What we saw:</b> ${seen}.</div>`
     + (report.cand.length > 1 ? `<div class="m"><b>Suspects:</b> ${report.cand.map(mode => FAILURE_MODES[mode].name).join(' / ')}</div>` : '')
     + (report.note ? `<div class="m">${report.note}</div>` : '')
+    + chiefSays(report)
     + `<button data-a="incident" data-id="${report.id}" data-f="${report.prog}">OPEN INCIDENT #${report.id}</button>`;
 }
 // THE COUNT. A new countdown runs the go/no-go poll at once (its results are read out from T-15).
