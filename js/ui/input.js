@@ -13,6 +13,7 @@ import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem } from
 import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
+import { startRemit, raiseRemit, endRemit } from '../rules/remit.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
@@ -170,6 +171,12 @@ const GAME_ACTIONS = {
   },
   cend: () => endCampaign('ended'),
   cgo: () => goAhead(),
+  rstart: cap => {
+    const error = startRemit(+cap);
+    if (error) log('[CHIEF] ' + error, 'bad');
+  },
+  rraise: () => raiseRemit(),
+  rend: () => endRemit(),
   fac: id => buildFacility(id),
   mothball: id => mothball(id),
   reopen: id => reopen(id),
@@ -215,6 +222,13 @@ const GAME_ACTIONS = {
 const VIEW_ACTIONS = {
   // Mail: open a message, or go from Ellis's incident message to the incidents in Research.
   mailopen: id => openMail(id),
+  // From Ellis's remit message: her rocket's incidents, with the findings she referred to you.
+  mailremit: () => {
+    if (S.remit && S.progs[S.remit.prog]) S.cur = S.remit.prog;
+    researchDesk.view = 'incidents';
+    openDesk('rd');
+    render();
+  },
   mailinc: () => {
     researchDesk.view = 'incidents';
     openDesk('rd');
