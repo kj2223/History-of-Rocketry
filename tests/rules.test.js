@@ -1591,3 +1591,15 @@ test('acceptance: the delegated team takes a fresh save from the Aerobee to the 
     delete globalThis.localStorage;
   }
 });
+
+// Aaron's report: after the WAC Corporal, rockets on the same propellant hardly failed. Experience is mostly the rocket's own.
+test('a new rocket starts less reliable than a well-flown one on the same propellant', () => {
+  S.b = 1e6;
+  S.fr['Alcohol & LOX'] = 20;
+  S.progs.wac.okf = 20;
+  const wac = S.air.find(airframe => airframe.prog == 'wac');
+  const aerobee = readyProgramme('aerobee');
+  const veteran = beginFlight(wac, 'Alcohol & LOX', 'Inert Ballast', 0, 1);
+  const newcomer = withProgramme('aerobee', () => beginFlight(aerobee, 'Alcohol & LOX', 'Inert Ballast', 0, 1));
+  assert.ok(veteran.reliability - newcomer.reliability > .015, `${veteran.reliability} vs ${newcomer.reliability}`);
+});

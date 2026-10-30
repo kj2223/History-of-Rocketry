@@ -30,7 +30,7 @@ import { loseReputation, rangeDataPayment } from './economy.js';
 import { checkFirsts } from './race.js';
 import { recordBoosterFlight } from './manrate.js';
 import { usePad, damagePad } from './site.js';
-import { programmeOf, traitWeight, revealTraits, maturity } from './programs.js';
+import { programmeOf, traitWeight, revealTraits, maturity, successfulFlights } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
 import { recordFirsts } from './invitations.js';
@@ -139,6 +139,9 @@ const readyStage = (eachStage, build, onTheDay, efficiency, residualShare) => {
   return { ...eachStage, dry: eachStage.dry * build.m, thrust: thrust * efficiency, isp: eachStage.isp * efficiency, vacuumIsp: eachStage.vacuumIsp * efficiency, flow, residual: eachStage.fuel * residualShare, litAt: null, out: 0 };
 };
 const roll = spread => 1 + spread * Math.max(-2, Math.min(2, gaussian()));
+// EXPERIENCE: reliability gained per successful flight, up to a ceiling. Handling a propellant carries from rocket to rocket;
+// most of the gain is the team learning one rocket's own engine, so each new design starts out less reliable than the last one ended.
+const PROPELLANT_EXPERIENCE = { perFlight: .01, max: .05 }, ROCKET_EXPERIENCE = { perFlight: .015, max: .1 };
 function makeFlightForProgramme(airframe, propellantName, payloadName, stage, load, options) {
   const programmeKey = programmeOf(airframe), programme = PROGRAMMES[programmeKey] || {};
   const spec = designSpec(airframe.pk, options.estimated), modifiers = fixModifiers(airframe.fix);
@@ -156,11 +159,13 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   const stages = stage && programme.booster ? [readyStage(boosterStage(programme, spec, modifiers, propellant, load), build, onTheDay, efficiency, residualShare()), core] : [core];
   stages[0].litAt = 0;
   const coreBurnTime = burnSeconds(core);
-  // Reliability: the propellant's base, up to +15 points of experience with it, the design's offset,
-  // up to -8 points for unproven packages, and up to +7 points as the programme matures.
+  // Reliability: the propellant's base, experience handling it (any rocket) and with this rocket's own engine and plumbing,
+  // the design's offset, up to -8 points for unproven packages, and up to +7 points as the programme matures.
   // Phase Two packages ride in the blueprint but belong to the capsule and the mission (rules/mercury.js counts them there).
   const unproven = airframe.pk.filter(id => !isConfirmed(id) && !(BY_ID[id] && BY_ID[id].phase == 2)).length;
-  const reliability = Math.min(.99, propellant.reliability + Math.min(.15, (S.fr[propellantName] || 0) * .015) + spec.r - Math.min(.08, unproven * .012) + .07 * maturity(programmeKey) / 100);
+  const experience = Math.min(PROPELLANT_EXPERIENCE.max, (S.fr[propellantName] || 0) * PROPELLANT_EXPERIENCE.perFlight)
+    + Math.min(ROCKET_EXPERIENCE.max, successfulFlights(programmeKey) * ROCKET_EXPERIENCE.perFlight);
+  const reliability = Math.min(.99, propellant.reliability + experience + spec.r - Math.min(.08, unproven * .012) + .07 * maturity(programmeKey) / 100);
   return {
     airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over, plan: options.plan || null,
     propellant: propellantName, payload: payloadName, satellite: !!payload.satellite, payloadMass: payload.mass, separationRisk: 1,
