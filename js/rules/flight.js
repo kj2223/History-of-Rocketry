@@ -33,6 +33,7 @@ import { usePad, damagePad } from './site.js';
 import { programmeOf, traitWeight, revealTraits, maturity, successfulFlights } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
+import { recordFirsts } from './invitations.js';
 import { recordTeamFlight, recordFixTrials } from './team.js';
 
 // What is in the air right now: the UI's launch view (and the launch director) keep the flight or Mercury mission here.
@@ -624,6 +625,7 @@ function endFlightForProgramme(flight, ok, why) {
   recordBoosterFlight(flight.airframe, ok && why != 'abort');
   learnFromFlight(flight, ok);
   recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
+  recordFirsts(flight);
   recordTeamFlight(ok && why != 'abort', ok ? peak : 0, [S.hd, S.hs, S.hi].filter((record, index) => record != recordsBefore[index]).length, !!flight.byDirector);
   recordFixTrials(flight.programme, ok && why != 'abort', flight.airframe);
   revealTraits(flight.programme);

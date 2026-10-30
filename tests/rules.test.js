@@ -225,6 +225,86 @@ test('a campaign closes at its deadline', () => {
   assert.equal(report.outcome, 'deadline');
 });
 
+// INVITATIONS (rules/invitations.js): a first waits for your answer, and proceeds by itself if you give none.
+test('Ellis invites you to a first: attending holds it for you, silence lets Flight Control proceed', async () => {
+  const { firstAboard, waitForInvitation, attendFirst, proceedWithFirst, INVITE_TURNS } = await import('../js/rules/invitations.js');
+  const airframe = readyProgramme('aerobee');
+  S.air.push(airframe);
+  assert.equal(firstAboard(airframe), 'the first flight of the Aerobee');
+  assert.ok(waitForInvitation(airframe), 'the invitation goes out and she waits');
+  attendFirst();
+  for (let turn = 0; turn < INVITE_TURNS + 2; turn++) assert.ok(waitForInvitation(airframe), 'attending: she waits for you');
+  proceedWithFirst();
+  assert.ok(!waitForInvitation(airframe), 'you change your mind and she flies it');
+  S.auto.inv = null;
+  let turns = 0;
+  while (waitForInvitation(airframe)) turns++;
+  assert.equal(turns, INVITE_TURNS, 'no answer: Flight Control proceeds after her turns run out');
+  S.progs.aerobee.fm = [];
+  assert.equal(firstAboard(airframe), null, 'flown, and no new milestone aboard');
+  airframe.pk.push('ms_test');
+  BY_ID.ms_test = { name: 'a test milestone' };
+  assert.equal(firstAboard(airframe), 'the first flight with a test milestone');
+  delete BY_ID.ms_test;
+});
+
+// STANDING ORDERS
+// An open incident holds routine flights until it is dealt with; these tests close them as a player or Ellis's remit would.
+const closeIncidents = kind => withProgramme(kind, () => S.inc.forEach(incident => incident.st = 'done'));
+test('a standing order flies customer requests by itself and keeps flying after a campaign expires', async () => {
+  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.staff.director = 1;
+  S.hi = 60000;
+  assert.equal(startCampaign({ prog: 'wac', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal: 50, months: 3, budget: 1e6 }), null);
+  assert.equal(startOrder('aerobee', 1e6), null);
+  let flownAtExpiry = null;
+  for (let second = 0; second < 3000; second++) {
+    tickSecond();
+    autoLaunch();
+    if (S.auto.camp && S.auto.camp.hold) goAhead();
+    closeIncidents('aerobee');
+    closeIncidents('wac');
+    if (orderFor('aerobee').hold) assert.fail(orderFor('aerobee').hold);
+    if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
+    S.b = Math.max(S.b, 200000);
+  }
+  assert.equal(S.auto.last.outcome, 'deadline');
+  assert.ok(orderFor('aerobee').n > flownAtExpiry, 'the order keeps flying once the campaign is over');
+  assert.ok(orderFor('aerobee').paid > 0, 'customers pay for good flights');
+  assert.ok(orderFor('aerobee').spent <= orderFor('aerobee').cap);
+});
+
+test('a standing order stops and asks you when its cap is spent', async () => {
+  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.staff.director = 1;
+  S.hi = 60000;
+  assert.equal(startOrder('aerobee', 10000), null);
+  for (let second = 0; second < 3000 && !orderFor('aerobee').hold; second++) {
+    tickSecond();
+    autoLaunch();
+    closeIncidents('aerobee');
+    S.b = Math.max(S.b, 200000);
+  }
+  assert.match(orderFor('aerobee').hold, /cap/);
+  assert.ok(orderFor('aerobee').spent <= 10000);
+});
+
+test('Ellis flies a request on the cheapest ordered rocket that reaches it, not the newest', async () => {
+  const { startOrder, orderFor, ordersTurn } = await import('../js/rules/orders.js');
+  S.air.push(readyProgramme('aerobee'), readyProgramme('viking'));
+  S.staff.director = 1;
+  startOrder('aerobee', 1e6);
+  startOrder('viking', 1e6);
+  S.b = 1e6;
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
+  ordersTurn(.85);
+  assert.equal(orderFor('aerobee').n, 1);
+  assert.equal(orderFor('viking').n, 0);
+});
+
 test('flights you fly yourself count towards the campaign; the director learns only from its own', () => {
   readyProgramme('aerobee');
   S.staff.director = 1;
@@ -847,6 +927,27 @@ test('a backup pilot trains alongside the pilot and moves up, training kept, onc
   assert.equal(backupPilot('mo'), undefined);
 });
 
+test('a third crew trains at the same time and moves up to backup after the next flight', async () => {
+  const { assignPilot, assignBackup, assignThirdCrew, promoteBackup, assignedPilot, backupPilot, thirdCrew } = await import('../js/rules/astronauts.js');
+  const { QUALIFICATION_DAYS } = await import('../js/data/astronauts.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.p2.astros = [1, 2, 3].map(id => ({ id, name: `Pilot ${id}`, st: 'active', tday: QUALIFICATION_DAYS, t: { pil: 60, sys: 60, end: 60, com: 60 }, reh: {}, fat: 0, mt: 0, asg: null, bk: null, nx: null }));
+  assignPilot(1, 'gt');
+  assignBackup(2, 'gt');
+  assignThirdCrew(2, 'gt');
+  assert.equal(thirdCrew('gt'), undefined, 'the backup cannot also be the third crew');
+  assignThirdCrew(3, 'gt');
+  backupPilot('gt').mt = .9;
+  thirdCrew('gt').mt = .5;
+  assignedPilot('gt').asg = null;
+  promoteBackup('gt');
+  assert.equal(assignedPilot('gt').id, 2);
+  assert.equal(backupPilot('gt').id, 3);
+  assert.equal(backupPilot('gt').mt, .5, 'the third crew keeps its training');
+  assert.equal(thirdCrew('gt'), undefined);
+});
+
 // THE NASA BUDGET
 const openNasaBudget = async () => {
   const { budgetTick } = await import('../js/rules/budget.js');
@@ -1265,7 +1366,85 @@ test('a lane takes its experiments once the routine work is done, and says why w
   assert.ok(next && next.dud, 'only experiments left, and the lead takes one');
   lanesTick();
   assert.equal(laneJob('p').id, next.id);
-  assert.equal(laneIdleReason('s'), 'no BSTR yet');
+  assert.equal(laneIdleReason('s'), 'no BSTR or lead yet');
+});
+
+// THE PROGRAMME BRIEF (rules/brief.js): one approval starts every free lead's line on the rocket in focus.
+test('one brief starts flights, production and research together, and Reed keeps one more airframe for the order', async () => {
+  const { approveBrief, briefLines, briefTotal, BRIEF_SIZES } = await import('../js/rules/brief.js');
+  const { chenJoinTick } = await import('../js/rules/lanes.js');
+  const { reedJoinTick, worksTick, airframesOnHand, airframesWanted, AIRFRAMES_ON_HAND } = await import('../js/rules/factory-lead.js');
+  const { orderFor } = await import('../js/rules/orders.js');
+  S.air.push(readyProgramme('aerobee'));
+  S.cur = 'aerobee';
+  S.b = 300000;
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  assert.deepEqual(briefLines('aerobee').map(line => line.state), ['no launch director yet', 'Reed has not joined yet', 'free'], 'only Chen before a launch director');
+  S.staff.director = 1;
+  reedJoinTick();
+  assert.equal(briefTotal('aerobee', 1), BRIEF_SIZES[1].flights + BRIEF_SIZES[1].production + BRIEF_SIZES[1].research);
+  assert.equal(approveBrief(1), null);
+  assert.ok(orderFor('aerobee') && S.works.prog == 'aerobee' && S.lanes.prog == 'aerobee', 'all three lines run');
+  assert.ok(approveBrief(1), 'nothing left to approve');
+  assert.equal(airframesWanted('aerobee'), AIRFRAMES_ON_HAND + 1, 'one more while the order flies');
+  for (let second = 0; second < 4; second++) worksTick();
+  assert.equal(airframesOnHand('aerobee'), AIRFRAMES_ON_HAND + 1);
+  readyProgramme('viking');
+  assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee', 'a busy lead is left out and says why');
+});
+
+// SHARED RESEARCH (rules/leads.js, rules/shared-research.js): hired leads run the shared areas' lanes and propose milestones.
+test('a hired lead runs the shared lane on the shared line, and proposes a milestone choice instead of starting it', async () => {
+  const { hireLead, openPosts, hiredLead } = await import('../js/rules/leads.js');
+  const { startShared, sharedTick, proposals, isChoice, approveProposal, notNow, sharedIdleReason } = await import('../js/rules/shared-research.js');
+  const { laneJob, chenJoinTick } = await import('../js/rules/lanes.js');
+  const { payroll } = await import('../js/rules/economy.js');
+  const { freeTeams } = await import('../js/core/state.js');
+  assert.deepEqual(openPosts(), [], 'no posts before Chen joins');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  assert.deepEqual(openPosts(), ['p', 's', 'i', 'a', 'r'], 'the development posts and Payloads & Recovery open with Chen; the spacecraft posts wait for NASA');
+  S.b = 500000;
+  const before = payroll();
+  assert.equal(hireLead('r', 'okafor'), null);
+  assert.equal(payroll() - before, hiredLead('r').salary);
+  assert.equal(sharedIdleReason('r'), 'the shared line is closed');
+  assert.equal(startShared(40000), null);
+  const teams = freeTeams();
+  sharedTick();
+  const job = laneJob('r');
+  assert.ok(job && job.prog == null && job.free, 'a routine package on the lane, shared, on no team of yours');
+  assert.equal(freeTeams(), teams);
+  S.jobs = [];
+  S.bt.r = 1; // a breakthrough opens the first milestones, which are a choice
+  assert.ok(proposals('r').length >= 2 && isChoice('r'));
+  sharedTick();
+  assert.equal(laneJob('r'), undefined, 'the lead waits for your call instead of carrying on');
+  assert.equal(sharedIdleReason('r'), 'a milestone proposal is waiting for you');
+  const pick = proposals('r')[0];
+  assert.equal(approveProposal(pick.id), null);
+  assert.equal(laneJob('r').id, pick.id, 'the approved milestone runs on the lead\'s lane');
+  S.jobs = [];
+  notNow('r');
+  assert.deepEqual(proposals('r'), []);
+});
+
+test('a development lead takes over a rocket lane from the console engineer, at their own pace', async () => {
+  const { hireLead } = await import('../js/rules/leads.js');
+  const { chenJoinTick, laneLead } = await import('../js/rules/lanes.js');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  S.crew.bstr = 1;
+  assert.equal(laneLead('s').pace, 1, 'BSTR leads until a lead is appointed');
+  assert.equal(laneLead('a'), null);
+  assert.equal(hireLead('a', 'lindqvist'), null);
+  assert.equal(hireLead('s', 'novak'), null);
+  assert.deepEqual(laneLead('a'), { name: 'Dr Victor Lindqvist', pace: 1.3 }, 'no FIDO needed: the aero lead owns development');
+  assert.equal(laneLead('s').name, 'Irene Novak');
+  assert.ok(hireLead('s', 'kowalski'), 'one lead per post');
 });
 
 // REED'S FACTORY BUDGET (rules/factory-lead.js): she keeps airframes on hand, upgrades them and publishes balanced blueprints.
@@ -1332,6 +1511,85 @@ test('Reed upgrades a ready airframe that is behind the published blueprint', as
   assert.ok(upgrade, 'the ready airframe goes back for an upgrade');
   assert.equal(S.works.retro, 1);
   assert.equal(S.aq.filter(item => item.k == 'build').length, 1, 'the airframe away for its upgrade still counts as on hand');
+});
+
+// ACCEPTANCE (middle-path stage 7): a fresh save run by the delegated team, from the Aerobee to the Viking, through the cases a
+// player meets: a missing lead, a campaign that expires, a line whose budget runs out, shared research, and a save and reload.
+test('acceptance: the delegated team takes a fresh save from the Aerobee to the Viking', async () => {
+  const { save, load } = await import('../js/core/state.js');
+  const { approveBrief, briefLines } = await import('../js/rules/brief.js');
+  const { orderFor } = await import('../js/rules/orders.js');
+  const { laneIdleReason, endLanes } = await import('../js/rules/lanes.js');
+  const { endWorks } = await import('../js/rules/factory-lead.js');
+  const { hireLead } = await import('../js/rules/leads.js');
+  const { startShared } = await import('../js/rules/shared-research.js');
+  const store = {};
+  globalThis.localStorage = { getItem: key => store[key] ?? null, setItem: (key, value) => { store[key] = String(value); }, removeItem: key => { delete store[key]; } };
+  const play = (seconds, each = () => {}) => {
+    for (let second = 0; second < seconds; second++) {
+      tickSecond();
+      autoLaunch();
+      closeIncidents('aerobee');
+      if (S.progs.viking) closeIncidents('viking');
+      if (S.auto.camp && S.auto.camp.hold) goAhead();
+      S.b = Math.max(S.b, 150000);
+      each();
+    }
+  };
+  try {
+    // The Aerobee flies routinely: Chen joins, you appoint Ellis and Reed joins.
+    S.air.push(readyProgramme('aerobee'));
+    S.cur = 'aerobee';
+    S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+    S.hi = 60000;
+    S.b = 150000;
+    play(1);
+    hire('director');
+    play(1);
+    assert.deepEqual(briefLines('aerobee').map(line => line.state), ['free', 'free', 'free']);
+    assert.equal(approveBrief(0), null);
+    // A missing lead: no FIDO and no aero/thermal lead, so that lane says why it waits.
+    assert.equal(laneIdleReason('a'), 'no FIDO or lead yet');
+    assert.equal(hireLead('r', 'hartley'), null);
+    assert.equal(startShared(20000), null);
+    // A campaign alongside the orders, with a deadline it cannot meet.
+    assert.equal(startCampaign({ prog: 'aerobee', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal: 50, months: 2, budget: 1e6 }), null);
+    let flownAtExpiry = null, linesSpent = new Set();
+    play(4000, () => {
+      if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
+      if (orderFor('aerobee').hold && /cap/.test(orderFor('aerobee').hold)) linesSpent.add('flights');
+      if (S.lanes && S.lanes.dry) linesSpent.add('research');
+      if (S.works && S.works.dry) linesSpent.add('production');
+    });
+    assert.equal(S.auto.last.outcome, 'deadline', 'the campaign expired');
+    assert.ok(orderFor('aerobee').n > flownAtExpiry, 'routine flights carry on after it');
+    assert.ok(linesSpent.size, 'a lean brief runs out somewhere and says so');
+    assert.ok(S.shared.jobs > 0, 'the shared lane did research');
+    // Save and reload: the same game comes back and carries on.
+    save();
+    const saved = JSON.stringify(S);
+    S.b = 1;
+    load();
+    assert.equal(JSON.stringify(S), saved);
+    play(200);
+    // The Viking is ready: production and research move to it, and both rockets fly routine flights.
+    readyProgramme('viking');
+    assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee');
+    endLanes();
+    endWorks();
+    S.cur = 'viking';
+    assert.equal(approveBrief(0), null);
+    assert.ok(orderFor('viking') && orderFor('aerobee') && S.works.prog == 'viking' && S.lanes.prog == 'viking');
+    const vikingFlown = orderFor('viking').n;
+    play(3000, () => {
+      for (const prog of ['aerobee', 'viking']) if (orderFor(prog).hold) orderFor(prog).hold.startsWith('The cap') ? (orderFor(prog).cap += 25000, orderFor(prog).hold = null) : (orderFor(prog).hold = null);
+      if (S.works.dry) { S.works.cap += 20000; S.works.dry = null; }
+    });
+    assert.ok(S.works.built > 0, 'Reed builds Vikings');
+    assert.ok(orderFor('viking').n + orderFor('aerobee').n > vikingFlown, 'the orders keep flying');
+  } finally {
+    delete globalThis.localStorage;
+  }
 });
 
 // Aaron's report: after the WAC Corporal, rockets on the same propellant hardly failed. Experience is mostly the rocket's own.

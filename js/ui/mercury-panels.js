@@ -8,7 +8,7 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { SKILLS, TRAINING_FOCUS, QUALIFICATION_DAYS, REHEARSALS } from '../data/astronauts.js';
 import { MISSION_TYPES, MERCURY_DIRECTIVES, TESTING_REGIMES, OFFICE_DECISIONS, CHIMP_TRAINING_COST, ORBIT_SECONDS } from '../data/mercury.js';
 import { S, formatDate, isResearched } from '../core/state.js';
-import { skillEstimate, isQualified, simulatorTier, activeAstronauts, assignedPilot, assignmentName } from '../rules/astronauts.js';
+import { skillEstimate, isQualified, simulatorTier, activeAstronauts, assignedPilot, backupPilot, assignmentName } from '../rules/astronauts.js';
 import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters, pilotMissionType, orbitChoices, orbitalBoosterCertified, targetUp, targetLock } from '../rules/mercury.js';
 import { manRatingRecord, cleanFlightsNeeded, MAN_RATING_RESEARCH, manRatingResearchFor, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
 import { quoteLaunch } from '../rules/design.js';
@@ -34,10 +34,10 @@ function astronautCard(astronaut, mode) {
   if (astronaut.st == 'medical') return html + '<div class="bad">Permanently grounded (heart condition). Works in the Astronaut Office.</div></div>';
   const status = astronaut.st == 'grounded' ? `Grounded (${Math.ceil(astronaut.gd / 30)} months)` : qualified ? 'Flight qualified' : `General training ${percent(training)}`;
   html += `<div class="r"><span class="d">${status}</span><b class="${astronaut.fat > 60 ? 'bad' : astronaut.fat > 35 ? 'wn' : 'ok'}">Fatigue ${Math.round(astronaut.fat)}</b></div><div class="bar"><i style="width:${training * 100}%"></i></div>`;
-  if (astronaut.asg || astronaut.bk) html += `<div class="r"><span class="d">${astronaut.asg ? 'Assigned' : 'Backup'}: ${assignmentName(astronaut.asg || astronaut.bk)}</span><b>${percent(astronaut.mt)} mission training</b></div><div class="bar"><i style="width:${astronaut.mt * 100}%"></i></div>`;
+  if (astronaut.asg || astronaut.bk || astronaut.nx) html += `<div class="r"><span class="d">${astronaut.asg ? 'Assigned' : astronaut.bk ? 'Backup' : 'Third crew'}: ${assignmentName(astronaut.asg || astronaut.bk || astronaut.nx)}</span><b>${percent(astronaut.mt)} mission training</b></div><div class="bar"><i style="width:${astronaut.mt * 100}%"></i></div>`;
   const rehearsed = Object.keys(astronaut.reh).filter(key => astronaut.reh[key]);
   if (rehearsed.length) html += `<div class="m">Rehearsed in the simulator: ${rehearsed.map(key => REHEARSALS[key].short).join(', ')}.</div>`;
-  html += `<div class="m">${astronaut.flights ? `${astronaut.flights} flight${astronaut.flights > 1 ? 's' : ''}. ` : ''}</div><select data-focus="${astronaut.id}">${Object.entries(TRAINING_FOCUS).filter(([key]) => key != 'msn' || astronaut.asg || astronaut.bk).map(([key, name]) => `<option value="${key}"${astronaut.focus == key ? ' selected' : ''}>Training: ${name}</option>`).join('')}</select>`;
+  html += `<div class="m">${astronaut.flights ? `${astronaut.flights} flight${astronaut.flights > 1 ? 's' : ''}. ` : ''}</div><select data-focus="${astronaut.id}">${Object.entries(TRAINING_FOCUS).filter(([key]) => key != 'msn' || astronaut.asg || astronaut.bk || astronaut.nx).map(([key, name]) => `<option value="${key}"${astronaut.focus == key ? ' selected' : ''}>Training: ${name}</option>`).join('')}</select>`;
   const missionType = pilotMissionType();
   if (missionType == 'gt') return html + geminiSeatButtons(astronaut, qualified) + '</div>';
   const flight = missionType == 'mo' ? 'ORBITAL MERCURY FLIGHT' : 'MERCURY-REDSTONE';
@@ -46,11 +46,12 @@ function astronautCard(astronaut, mode) {
   return html + '</div>';
 }
 
-// Gemini has two seats, each with its own backup: [assignment key, seat name, assign action, backup action].
-const GEMINI_SEAT_BUTTONS = [['gt', 'COMMAND PILOT', 'asg', 'bkp'], ['gtp', 'PILOT', 'asgp', 'bkpp']];
-const geminiSeatButtons = (astronaut, qualified) => !qualified ? '' : GEMINI_SEAT_BUTTONS.map(([seat, name, assign, backup]) =>
+// Gemini has two seats, each with its own backup and third crew: [assignment key, seat name, assign action, backup action, third crew action].
+const GEMINI_SEAT_BUTTONS = [['gt', 'COMMAND PILOT', 'asg', 'bkp', 'nxp'], ['gtp', 'PILOT', 'asgp', 'bkpp', 'nxpp']];
+const geminiSeatButtons = (astronaut, qualified) => !qualified ? '' : GEMINI_SEAT_BUTTONS.map(([seat, name, assign, backup, third]) =>
   (astronaut.asg != seat ? `<button data-a="${assign}" data-id="${astronaut.id}">GEMINI ${name}</button>` : '')
-  + (!astronaut.asg && !astronaut.bk && assignedPilot(seat) ? `<button data-a="${backup}" data-id="${astronaut.id}">BACKUP ${name}</button>` : '')).join('');
+  + (!astronaut.asg && !astronaut.bk && assignedPilot(seat) ? `<button data-a="${backup}" data-id="${astronaut.id}">BACKUP ${name}</button>` : '')
+  + (!astronaut.asg && !astronaut.bk && !astronaut.nx && backupPilot(seat) ? `<button data-a="${third}" data-id="${astronaut.id}">THIRD CREW ${name}</button>` : '')).join('');
 
 // A pending office decision, shown on the Astronaut Office and the Launch tab.
 export function officeDecisionHTML() {

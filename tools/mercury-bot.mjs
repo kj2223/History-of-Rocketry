@@ -20,7 +20,7 @@ import { nasaReady, formNasa } from '../js/rules/race.js';
 import { directiveDone, openDirectives, boosterPlan, crewLock, orderCapsule, requirementText, capsuleSystems, targetUp } from '../js/rules/mercury.js';
 import { beginMission, stepMission, endMission, decisionOptions, decisionOdds, chooseOption, missionStepSeconds } from '../js/rules/mission.js';
 import { chooseTestingRegime, startChimpTraining, answerOfficeDecision } from '../js/rules/astronaut-office.js';
-import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot } from '../js/rules/astronauts.js';
+import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot, assignThirdCrew, thirdCrew } from '../js/rules/astronauts.js';
 import { manRatingResearchDone, isManRated, isFamilyCertified } from '../js/rules/manrate.js';
 import { setRequest, REQUEST_RANGE } from '../js/rules/budget.js';
 
@@ -203,6 +203,11 @@ export function playMercury(game) {
     for (const seat of seats) if (orbital && assignedPilot(seat) && !backupPilot(seat)) {
       const best = state.astros.filter(astronaut => isQualified(astronaut) && !astronaut.asg && !(gemini && astronaut.bk)).sort((first, second) => skill(second) - skill(first))[0];
       if (best) assignBackup(best.id, seat);
+    }
+    // Gemini rotates three crews, as NASA did: a third crew trains for the flight after the backup's.
+    for (const seat of seats) if (gemini && backupPilot(seat) && !thirdCrew(seat)) {
+      const best = state.astros.filter(astronaut => isQualified(astronaut) && !astronaut.asg && !astronaut.bk && !astronaut.nx).sort((first, second) => skill(second) - skill(first))[0];
+      if (best) assignThirdCrew(best.id, seat);
     }
 
     // Research: spacecraft first, then the newest rocket; ground-test spacecraft work so it counts toward breakthroughs.

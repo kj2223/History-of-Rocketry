@@ -14,12 +14,17 @@ import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFindin
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { startRemit, raiseRemit, endRemit } from '../rules/remit.js';
-import { startLanes, raiseLanes, endLanes } from '../rules/lanes.js';
-import { startWorks, raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
+import { raiseLanes, endLanes } from '../rules/lanes.js';
+import { raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
+import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
+import { approveBrief } from '../rules/brief.js';
+import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
+import { hireLead } from '../rules/leads.js';
+import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
-import { selectCrew, setTrainingFocus, assignPilot, assignBackup } from '../rules/astronauts.js';
+import { selectCrew, setTrainingFocus, assignPilot, assignBackup, assignThirdCrew } from '../rules/astronauts.js';
 import { chooseTestingRegime, answerOfficeDecision, startChimpTraining, ensurePhaseTwo } from '../rules/astronaut-office.js';
 import { launchForm, campaignForm, campaignSettings } from './launch-panel.js';
 import { launchView, startCount, startFuelling, holdDay, closePad, finishFlight, renderPad, startMissionCount, showLastTranscript, drawFlightInstruments } from './launch-view.js';
@@ -185,19 +190,35 @@ const GAME_ACTIONS = {
   },
   rraise: () => raiseRemit(),
   rend: () => endRemit(),
-  lstart: cap => {
-    const error = startLanes(+cap);
-    if (error) log('[R&D] ' + error, 'bad');
-  },
   lraise: () => raiseLanes(),
   lend: () => endLanes(),
-  wstart: cap => {
-    const error = startWorks(+cap);
-    if (error) log('[FACTORY] ' + error, 'bad');
-  },
   wraise: () => raiseWorks(),
   wend: () => endWorks(),
   wpub: () => publishHeld(),
+  leadhire: id => {
+    const error = hireLead(...id.split(':'));
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  sstart: cap => {
+    const error = startShared(+cap);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  sraise: () => raiseShared(),
+  sclose: () => endShared(),
+  sapprove: id => {
+    const error = approveProposal(id);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  snot: area => notNow(area),
+  iattend: () => attendFirst(),
+  iproceed: () => proceedWithFirst(),
+  bstart: size => {
+    const error = approveBrief(+size);
+    if (error) log('[PROGRAMME] ' + error, 'bad');
+  },
+  oraise: prog => raiseOrder(prog),
+  oend: prog => endOrder(prog),
+  ores: prog => resumeOrder(prog),
   fac: id => buildFacility(id),
   mothball: id => mothball(id),
   reopen: id => reopen(id),
@@ -229,6 +250,8 @@ const GAME_ACTIONS = {
   bkp: id => assignBackup(+id, pilotMissionType()),
   asgp: id => assignPilot(+id, 'gtp'),
   bkpp: id => assignBackup(+id, 'gtp'),
+  nxp: id => assignThirdCrew(+id, 'gt'),
+  nxpp: id => assignThirdCrew(+id, 'gtp'),
   memok: () => {
     S.p2.memo = null;
     $('#sum').hidden = true;

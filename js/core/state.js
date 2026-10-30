@@ -28,8 +28,8 @@
 //   rv      day each Soviet event happens (jittered per game)    rvd   Soviet events that have happened
 //   hist    programme history for the summaries: [{ d: day, t: text }]
 //   speed   time speed (0 paused, 1, 2, 4)          ap      auto-publish: { on, n: changes that trigger it }
-//   auto    the launch director: { xp: flights run, camp: the running campaign, cd: seconds to the next try, last: the last report }
-//           (rules/campaign.js)
+//   auto    the launch director (rules/campaign.js): { xp: flights run, camp: the running campaign, cd: seconds to the next try, last: the last report,
+//           inv: an invitation to a first (rules/invitations.js) }
 //   dev     the run log: { v, ps: play seconds, fl: flights, ev: events, snap: snapshots }
 //   nasa    day NASA was established (0 = not yet) cv      save version
 //   recn    payloads recovered (the search teams' experience, rules/recovery.js)
@@ -40,6 +40,9 @@
 //   remit   Ellis's engineering remit, or null (see rules/remit.js)
 //   lanes   Chen's research lanes, or null (see rules/lanes.js)
 //   works   Reed's factory budget, or null (see rules/factory-lead.js)
+//   orders  standing flight orders and the customers' requests (see rules/orders.js)
+//   leads   the research leads you have hired (see rules/leads.js)
+//   shared  the shared research line (see rules/shared-research.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -70,11 +73,14 @@ export const newGameState = () => ({
   rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
   fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3, pt: {},
   staff: { pr: 0, director: 0, ta: 0 },
-  auto: { xp: 0, camp: null, cd: 15, last: null },
+  auto: { xp: 0, camp: null, cd: 15, last: null, inv: null },
   team: { n: 0, ok: 0, rev: 0, fix: 0, dir: 0, rec: 0, top: 0, held: 0, watch: [] },
   remit: null,
   lanes: null,
   works: null,
+  orders: { by: {}, reqs: [], n: 1, due: 0 },
+  leads: {},
+  shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
 });
 
 export const S = newGameState();
