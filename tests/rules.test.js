@@ -841,6 +841,19 @@ const flyToTheEnd = async mission => {
   return { result, steps };
 };
 
+test('the quiet stretch in orbit runs from just after insertion to the run-up to retrofire, and only in orbit', async () => {
+  const { inQuietOrbit } = await import('../js/rules/mission.js');
+  const mission = await orbitalFlight(3);
+  const { sep, retro } = mission.type;
+  mission.time = sep + 30;
+  assert.ok(!inQuietOrbit(mission), 'insertion still under way');
+  mission.time = sep + 60;
+  assert.ok(inQuietOrbit(mission));
+  mission.time = retro - 100;
+  assert.ok(!inQuietOrbit(mission), 'the run-up to retrofire is flown live');
+  assert.ok(!inQuietOrbit({ ...mission, time: 100, type: { ...mission.type, orbital: 0 } }), 'a suborbital hop has none');
+});
+
 test('an orbital flight flies its orbits on a fast clock, spends attitude fuel, and comes down where retrofire puts it', async () => {
   S.nasa = 1;
   S.p2 = newPhaseTwo();
