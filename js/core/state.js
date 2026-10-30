@@ -38,6 +38,7 @@
 //   cq      construction orders waiting for a crew    mb   mothballed buildings    pt   pads being readied (see rules/site.js)
 //   team    the core team's record: Ellis, Vega and Morgan (see rules/team.js)
 //   remit   Ellis's engineering remit, or null (see rules/remit.js)
+//   lanes   Chen's research lanes, or null (see rules/lanes.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -71,6 +72,7 @@ export const newGameState = () => ({
   auto: { xp: 0, camp: null, cd: 15, last: null },
   team: { n: 0, ok: 0, rev: 0, fix: 0, dir: 0, rec: 0, top: 0, held: 0, watch: [] },
   remit: null,
+  lanes: null,
 });
 
 export const S = newGameState();

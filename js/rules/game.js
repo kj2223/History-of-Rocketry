@@ -20,6 +20,7 @@ import { ensurePhaseTwo, officeTick } from './astronaut-office.js';
 import { trainingTick } from './astronauts.js';
 import { directorUnlocked } from './campaign.js';
 import { remitTick, remitEarnedTick } from './remit.js';
+import { chenJoinTick, lanesTick } from './lanes.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -40,7 +41,7 @@ export const catchUp = () => {
 export const daysPerSecond = () => (S.nasa ? DAYS_PER_SECOND_PHASE_TWO : DAYS_PER_SECOND) * catchUp();
 
 // ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the appropriation and payroll every funding cycle,
-// the Astronaut Office, the factory, engineering jobs, Ellis's remit, auto-publishing and programme maturity. Returns true if the page needs redrawing.
+// the Astronaut Office, the factory, engineering jobs, Ellis's remit, Chen's research lanes, auto-publishing and programme maturity. Returns true if the page needs redrawing.
 export function tickSecond() {
   let changed = false;
   if (S.dev) {
@@ -73,6 +74,8 @@ export function tickSecond() {
   if (startQueuedWork()) changed = true;
   if (remitEarnedTick()) changed = true;
   if (remitTick()) changed = true;
+  if (chenJoinTick()) changed = true;
+  if (lanesTick()) changed = true;
   if (autoPublishDue()) {
     publishBlueprint(true);
     changed = true;

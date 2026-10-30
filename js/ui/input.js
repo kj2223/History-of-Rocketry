@@ -14,6 +14,7 @@ import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFindin
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { startRemit, raiseRemit, endRemit } from '../rules/remit.js';
+import { startLanes, raiseLanes, endLanes } from '../rules/lanes.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
@@ -177,6 +178,12 @@ const GAME_ACTIONS = {
   },
   rraise: () => raiseRemit(),
   rend: () => endRemit(),
+  lstart: cap => {
+    const error = startLanes(+cap);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  lraise: () => raiseLanes(),
+  lend: () => endLanes(),
   fac: id => buildFacility(id),
   mothball: id => mothball(id),
   reopen: id => reopen(id),

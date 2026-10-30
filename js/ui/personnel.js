@@ -10,7 +10,7 @@ import { buildTeams, MAX_BUILD_TEAMS, buildTeamCost } from '../rules/factory.js'
 import { engineeringTeamCost, MAX_ENGINEERING_TEAMS, SPECIALISTS } from '../rules/game.js';
 import { roomLevel, consoleCount, crewOnConsole, stationLock, coveringMember } from '../rules/launch-site.js';
 import { analysts, analystLock } from '../rules/trajectory.js';
-import { memberName, memberRole, memberRecord } from '../rules/team.js';
+import { memberName, memberRole, memberRecord, joinedMembers } from '../rules/team.js';
 import { $, setHTML } from './dom.js';
 
 const staffCard = (title, description, action) => `<div class="c"><div class="t">${title}</div><div class="m">${description}</div>${action}</div>`;
@@ -25,8 +25,8 @@ export function renderStaff() {
     + staffCard('PUBLIC RELATIONS SPECIALIST', 'Halves the reputation lost to failures and slowly rebuilds it. $1,000 per cycle.',
       S.staff.pr ? '<div class="ok">On staff.</div>' : `<button data-a="hire" data-id="pr"${S.b < SPECIALISTS.pr.cost ? ' disabled' : ''}>HIRE PR SPECIALIST (${formatMoney(SPECIALISTS.pr.cost)})</button>`));
 }
-// THE CORE TEAM: the three people who have been with the programme from the start, each with their speciality and record.
-const coreTeamHTML = () => `<div class="c"><div class="t">CORE TEAM</div>${Object.keys(CORE_TEAM).map(id => `<div class="r"><b>${memberName(id)}</b><span class="d">${memberRole(id)}</span></div>`
+// THE CORE TEAM: the people who have been with the programme from the start and the leads who joined later, each with their speciality and record.
+const coreTeamHTML = () => `<div class="c"><div class="t">CORE TEAM</div>${joinedMembers().map(id => `<div class="r"><b>${memberName(id)}</b><span class="d">${memberRole(id)}</span></div>`
   + `<div class="m">${CORE_TEAM[id].speciality}. ${CORE_TEAM[id].owns} Record: ${memberRecord(id)}.</div>`).join('')}</div>`;
 // NASA'S BUDGET: this fiscal year so far, what Congress is likely to grant next, and the request the player can raise.
 const REQUEST_STEPS = [1, 1.1, 1.2, 1.3, 1.4, 1.5].filter(step => step >= REQUEST_RANGE[0] && step <= REQUEST_RANGE[1]);

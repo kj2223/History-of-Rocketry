@@ -30,6 +30,7 @@ export function coveredStations() {
   let free = consoleCount() - crewOnConsole().length;
   for (const member in CORE_TEAM) {
     const id = CORE_TEAM[member].console, station = STATIONS[id];
+    if (!station) continue;
     if (free < 1 || S.crew[id] || memberMovedOn(member) || (station.requires && !S.fac[station.requires])) continue;
     covered[id] = member;
     free--;

@@ -3,7 +3,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
-import { BY_ID } from '../js/data/research.js';
+import { BY_ID, isMilestone } from '../js/data/research.js';
 import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
 import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
@@ -1107,4 +1107,50 @@ test('a fix holds after three good flights, and her authority grows to moderate 
   assert.equal(FIXES_HELD_FOR_MODERATE, 2);
   assert.ok(signsOff('moderate'));
   assert.ok(!signsOff('low'), 'low confidence always comes to you');
+});
+
+// CHEN'S RESEARCH LANES (rules/lanes.js): each station engineer researches their own system, on a team of their own.
+test('Chen joins with the Aerobee unlock, and each lane is led by its station engineer or the core-team cover', async () => {
+  const { chenJoinTick, laneLead } = await import('../js/rules/lanes.js');
+  const { memberJoined } = await import('../js/rules/team.js');
+  assert.ok(!chenJoinTick() && !memberJoined('chen'), 'not before the Aerobee is routine');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  assert.ok(chenJoinTick() && memberJoined('chen'));
+  S.fac.tty = 1;
+  S.crew.bstr = 1;
+  assert.equal(laneLead('p').name, 'Ruth Ellis', 'Ellis covers PROP, so she leads propulsion at the cover pace');
+  assert.ok(laneLead('p').pace < 1);
+  assert.equal(laneLead('s').pace, 1, 'a hired BSTR leads structures at full pace');
+  assert.equal(laneLead('a'), null, 'no FIDO yet: the aero lane waits');
+});
+
+test('the lanes start routine packages cheapest first on their own teams, at the lead\'s pace, within the budget', async () => {
+  const { chenJoinTick, startLanes, lanesTick, laneJob, raiseLanes } = await import('../js/rules/lanes.js');
+  const { freeTeams } = await import('../js/core/state.js');
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  S.b = 200000;
+  S.crew.prop = 1;
+  S.crew.bstr = 1;
+  S.fac.tty = 1;
+  S.fac.plot = 1; // a console for Morgan to cover TLM from, after Vega takes RSO
+  assert.equal(startLanes(30000), null);
+  const teamsBefore = freeTeams();
+  lanesTick();
+  for (const area of ['p', 's', 'i']) assert.ok(laneJob(area), `the ${area} lane is working`);
+  assert.equal(laneJob('a'), undefined, 'no FIDO, no aero work');
+  assert.equal(freeTeams(), teamsBefore, 'lane work takes none of the shared teams');
+  const propulsion = laneJob('p'), telemetry = laneJob('i');
+  assert.equal(propulsion.tot, itemAsSeen(propulsion.id).time, 'a hired engineer works at full pace');
+  assert.ok(telemetry.tot > itemAsSeen(telemetry.id).time, 'Morgan, covering TLM, is slower');
+  assert.ok(itemsInArea('p').every(item => item.dud || isMilestone(item.id) || itemAsSeen(item.id).cost >= itemAsSeen(propulsion.id).cost || S.pk[item.id]), 'cheapest routine package first');
+  S.jobs = S.jobs.filter(job => !job.ln);
+  S.lanes.cap = S.lanes.spent + 100;
+  lanesTick();
+  assert.ok(S.lanes.dry, 'the budget cannot cover the next package');
+  raiseLanes();
+  assert.equal(S.lanes.dry, null);
 });
