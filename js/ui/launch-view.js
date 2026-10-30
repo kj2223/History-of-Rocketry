@@ -31,6 +31,7 @@ import { $, setHTML } from './dom.js';
 // (a Mercury mission has no downrange track: null), lastEvents: its milestones (rules/flight.js), marked on the board. planned: the pre-flight prediction of the flight in the air, drawn under its track.
 export const launchView = { count: null, countTimer: null, flightTimer: null, lastTrace: [], lastRangeTrace: null, lastEvents: [], planned: null };
 export const isBusy = () => !!launchView.count;
+export const isCounting = () => !!launchView.count && launchView.count.phase == 'count';
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
 
@@ -108,7 +109,7 @@ export function renderPad() {
   if (count.shown && !pollDone) html += `<div class="m wn">${level >= 4 && S.crew.fd ? 'FLIGHT: "All stations, go/no-go for launch."' : 'Polling the stations…'}</div>`;
   if (pollDone && poll.lines.length == 1) html += '<div class="m">Nobody else is on the net. Launch crew hired in Personnel will catch faults before they fly.</div>';
   if (pollDone && poll.wk && poll.wind && airframe.pk) {
-    const windy = previewFlight(airframe, launchForm.fuel, launchForm.pay, launchForm.st, count.fuel, poll.wind, launchForm.plan);
+    const form = count.form || launchForm, windy = previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
     html += `<div class="r"><span class="d">Aero load in these winds</span><b class="${windy.maxQ > .85 ? 'bad' : windy.maxQ > .6 ? 'wn' : 'ok'}">${Math.round(windy.maxQ * 100)}% of limit</b></div>`;
   }
   if (count.hold) html += `<div class="t bad">HOLD: ${count.hold}</div>`;
@@ -154,6 +155,8 @@ export function startCount() {
   const form = launchForm, airframe = S.air.find(candidate => candidate.id == form.af && candidate.st == 'r');
   if (!airframe || quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100).error) return;
   launchView.count = newCount(runPoll(airframe, form.fuel, form.st && hasBoosterStage(airframe) ? 1 : 0), form.load / 100, airframe.label);
+  // The settings go to the pad with the rocket, so changing the launch form during the count does not change this launch.
+  launchView.count.form = { fuel: form.fuel, pay: form.pay, st: form.st, plan: form.plan };
   openPad();
   runCount();
 }
@@ -207,7 +210,12 @@ function countTick() {
     }
     if (count.clock <= 0) {
       count.clock = 0;
-      return liftoff(count.override);
+      liftoff(count.override);
+      if (count.phase != 'count') return;
+      // Something changed during the count and the rocket cannot fly: hold at T-0 and say why, rather than counting on at zero.
+      count.hold = launchBlocker(count);
+      count.userHold = true;
+      redraw = true;
     }
   }
   if (redraw) renderPad();
@@ -228,6 +236,12 @@ export function holdDay() {
     count.fuel = Math.max(.05, count.fuel * .95);
     log(`[PAD] LOX boil-off during the hold. Propellant now about ${Math.round(count.fuel * 100)}%.`, 'wn');
   }
+}
+function launchBlocker(count) {
+  if (count.mission) return 'The mission cannot launch as configured.';
+  const form = count.form, airframe = S.air.find(candidate => candidate.id == count.poll.af && candidate.st == 'r');
+  if (!airframe) return 'The airframe is no longer on the pad.';
+  return quoteLaunch(airframe, form.fuel, form.pay, form.st, count.fuel).error || 'The vehicle cannot launch.';
 }
 function liftoff(override) {
   if (!launchView.count) return;
@@ -293,7 +307,7 @@ export function drawFlightInstruments(flight) {
     .map(id => `<button data-a="retune" data-id="${id}"${(flight.watch || []).includes(id) ? ' class="on"' : ''}>${PART_CHANNELS[id].label}</button>`).join('') : '');
 }
 function launchFlight(override) {
-  const count = launchView.count, poll = count.poll, form = launchForm;
+  const count = launchView.count, poll = count.poll, form = { ...count.form, ch: launchForm.ch };
   const airframe = S.air.find(candidate => candidate.id == poll.af && candidate.st == 'r');
   const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
