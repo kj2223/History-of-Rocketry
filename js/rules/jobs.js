@@ -29,6 +29,7 @@ export function startRetrofit(id) {
 export function startReview(area) {
   if (!SYSTEMS[area] || !SYSTEMS[area].modes || S.b < REVIEW_COST || freeTeams() < 1 || S.jobs.some(job => job.k == 'rev' && job.a == area)) return;
   S.b -= REVIEW_COST;
+  S.rq = S.rq.filter(entry => !(entry.k == 'rev' && entry.id == area && entry.prog == S.cur));
   const time = reviewTime(area);
   S.jobs.push({ k: 'rev', a: area, id: area, prog: S.cur, t: time, tot: time });
   log(`[DESIGN REVIEW] ${SYSTEMS[area].name}: a team begins a design review ($3,000).`, 'wn');
@@ -73,6 +74,7 @@ export function extendInvestigation(id) {
   if (incident && incident.st == 'found' && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
     S.b -= INVESTIGATION_COST;
     incident.st = 'inv';
+    S.rq = S.rq.filter(entry => !(entry.k == 'inv' && entry.id == incident.id && entry.prog == S.cur));
     const time = investigationTime(incident);
     S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time, x: 1 });
     log(`[INCIDENT #${incident.id}] The analysis is extended.`, 'wn');
@@ -84,6 +86,7 @@ export function chooseFix(id, fixId) {
   if (fix && incident.st == 'diag' && S.b >= fix.cost && freeTeams() > 0) {
     S.b -= fix.cost;
     incident.st = 'fixing';
+    S.rq = S.rq.filter(entry => !(entry.k == 'fix' && entry.id == incident.id && entry.prog == S.cur));
     S.jobs.push({ k: 'fix', id: incident.id, prog: S.cur, m: incident.dx, f: fix.id, t: fix.time, tot: fix.time });
     log(`[DESIGN] Implementing ${fix.name}.`, 'wn');
   }

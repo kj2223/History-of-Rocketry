@@ -4,7 +4,7 @@ import { S, save, resetState, log } from '../core/state.js';
 import { setRequest } from '../rules/budget.js';
 import { formNasa } from '../rules/race.js';
 import { commission, crashProgramme } from '../rules/research.js';
-import { queueResearch, queueAnalysis, unqueue, moveUpQueue } from '../rules/queue.js';
+import { queueResearch, queueAnalysis, queueFix, queueReview, unqueue, moveUpQueue } from '../rules/queue.js';
 import { startProgramme } from '../rules/programs.js';
 import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, groundTest } from '../rules/launch-site.js';
 import { mothball, reopen } from '../rules/site.js';
@@ -168,6 +168,8 @@ const GAME_ACTIONS = {
   unq: index => unqueue(+index),
   qup: index => moveUpQueue(+index),
   qinv: id => queueAnalysis(+id),
+  qfix: (id, button) => queueFix(+id, button.dataset.f),
+  qrev: id => queueReview(id),
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),
