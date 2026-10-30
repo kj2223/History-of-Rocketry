@@ -1154,3 +1154,23 @@ test('the lanes start routine packages cheapest first on their own teams, at the
   raiseLanes();
   assert.equal(S.lanes.dry, null);
 });
+
+// Aaron's report: the lanes stalled with experiments still on offer. Once the routine work is done, a lead takes the experiments.
+test('a lane takes its experiments once the routine work is done, and says why when it is idle', async () => {
+  const { chenJoinTick, startLanes, lanesTick, laneJob, laneIdleReason, nextPackage } = await import('../js/rules/lanes.js');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  readyProgramme('viking'); // the Viking's propulsion slice has experiments in it
+  S.cur = 'viking';
+  S.b = 200000;
+  S.crew.prop = 1;
+  startLanes(100000);
+  const routine = itemsInArea('p').filter(item => !item.dud && !isMilestone(item.id));
+  giveResearch(routine.map(item => item.id));
+  const next = nextPackage('p');
+  assert.ok(next && next.dud, 'only experiments left, and the lead takes one');
+  lanesTick();
+  assert.equal(laneJob('p').id, next.id);
+  assert.equal(laneIdleReason('s'), 'no BSTR yet');
+});

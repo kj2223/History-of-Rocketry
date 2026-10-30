@@ -11,7 +11,7 @@ import { memberName, memberRole, joinedMembers, memberJoined } from '../rules/te
 import { PROGRAMMES } from '../data/programmes.js';
 import { STATIONS } from '../data/launch-site.js';
 import { AREAS } from '../data/research.js';
-import { LANES, LANE_CAPS, LANE_RAISE, laneLead, laneJob } from '../rules/lanes.js';
+import { LANES, LANE_CAPS, LANE_RAISE, laneLead, laneJob, laneIdleReason } from '../rules/lanes.js';
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -113,7 +113,7 @@ function sideHTML() {
     : '<div class="m">No research in work. Teams are idle.</div>');
   if (S.lanes) html += card(`RESEARCH LANES · ${memberName('chen')}`, Object.keys(LANES).map(area => {
     const job = laneJob(area);
-    return `<div class="r"><span>${AREAS[area]}</span><b>${job ? `${job.t}s` : laneLead(area) ? 'idle' : 'no engineer'}</b></div>`
+    return `<div class="r"><span>${AREAS[area]}</span><b class="${job ? '' : 'd'}">${job ? `${job.t}s` : laneIdleReason(area)}</b></div>`
       + (job ? `<div class="m">${escapeHtml(itemAsSeen(job.id).name)}</div><div class="bar"><i data-jb="${job.k + job.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '');
   }).join('') + `<div class="r"><span>Spent</span><b>${formatMoney(S.lanes.spent)} of ${formatMoney(S.lanes.cap)}</b></div>`);
   html += card(`FACTORY · ${S.aq.length} in the queue`, S.aq.length ? `<div class="m">Next out: ${S.aq[0].k == 'build' ? 'airframe' : S.aq[0].k == 'retro' ? 'retrofit' : 'spacecraft'} <span data-q="0"></span></div><div class="bar"><i data-qb="0"></i></div>` : '<div class="m">The factory floor is empty.</div>');
