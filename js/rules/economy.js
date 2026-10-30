@@ -4,6 +4,7 @@ import { STATIONS, TRAJECTORY_ANALYSTS } from '../data/launch-site.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, isResearched } from '../core/state.js';
 import { instalment } from './budget.js';
+import { leadsPayroll } from './leads.js';
 
 // THE APPROPRIATION, paid every 30 seconds: a base, a bonus for the altitude record (up to $9,000), the science bonus,
 // $5,000 with the downrange ship; scaled by reputation (never below 20%), +10% per directive met, the Phase Two multiplier,
@@ -48,13 +49,14 @@ export function programmeProgress() {
 }
 
 // PAYROLL per 30-second cycle: build teams beyond the first, active astronauts, engineering teams beyond two, specialists,
-// trajectory analysts and launch crew.
+// trajectory analysts, launch crew and research leads.
 export const BUILD_TEAM_SALARY = 800, ASTRONAUT_SALARY = 600, ENGINEERING_TEAM_SALARY = 1200, PR_SALARY = 1000, DIRECTOR_SALARY = 2500;
 export const payroll = () => Math.max(0, (S.bteams || 1) - 1) * BUILD_TEAM_SALARY
   + (S.p2 ? (S.p2.astros || []).filter(astronaut => astronaut.st == 'active' || astronaut.st == 'grounded').length * ASTRONAUT_SALARY : 0)
   + Math.max(0, S.teams - 2) * ENGINEERING_TEAM_SALARY
   + (S.staff.pr ? PR_SALARY : 0) + (S.staff.director ? DIRECTOR_SALARY : 0) + (S.staff.ta || 0) * TRAJECTORY_ANALYSTS.salary
-  + Object.keys(S.crew).reduce((sum, station) => sum + (S.crew[station] && STATIONS[station] ? STATIONS[station].salary : 0), 0);
+  + Object.keys(S.crew).reduce((sum, station) => sum + (S.crew[station] && STATIONS[station] ? STATIONS[station].salary : 0), 0)
+  + leadsPayroll();
 
 // The Defense Department buys tracking data from every successful early flight: $2,500 plus $60 per km of peak altitude, up to $6,000.
 // Half that from directive 2; nothing once a satellite is up.

@@ -22,6 +22,8 @@ import { directorUnlocked } from './campaign.js';
 import { remitTick, remitEarnedTick } from './remit.js';
 import { chenJoinTick, lanesTick } from './lanes.js';
 import { reedJoinTick, worksTick, reedPublishes } from './factory-lead.js';
+import { demandTick } from './orders.js';
+import { sharedTick } from './shared-research.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -42,7 +44,8 @@ export const catchUp = () => {
 export const daysPerSecond = () => (S.nasa ? DAYS_PER_SECOND_PHASE_TWO : DAYS_PER_SECOND) * catchUp();
 
 // ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the appropriation and payroll every funding cycle,
-// the Astronaut Office, the factory, engineering jobs, Ellis's remit, Chen's research lanes, auto-publishing and programme maturity. Returns true if the page needs redrawing.
+// the Astronaut Office, the factory, engineering jobs, Ellis's remit, Chen's research lanes and the shared lanes, Reed's factory, customer demand for
+// standing orders, auto-publishing and programme maturity. Returns true if the page needs redrawing.
 export function tickSecond() {
   let changed = false;
   if (S.dev) {
@@ -77,8 +80,10 @@ export function tickSecond() {
   if (remitTick()) changed = true;
   if (chenJoinTick()) changed = true;
   if (lanesTick()) changed = true;
+  if (sharedTick()) changed = true;
   if (reedJoinTick()) changed = true;
   if (worksTick()) changed = true;
+  if (demandTick()) changed = true;
   if (!reedPublishes() && autoPublishDue()) {
     publishBlueprint(true);
     changed = true;

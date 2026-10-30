@@ -4,8 +4,9 @@
 //   p Propulsion: PROP     s Structures & Tankage: BSTR     i Instrumentation & Telemetry: TLM     a Aerodynamics & Thermal: FIDO
 // A lane has its own team, apart from the shared engineering teams, which stay yours for milestones, experiments and anything
 // urgent. Each lead takes the routine packages of their area, cheapest first, one at a time, then the experimental ones once the
-// routine work is done (an experiment can turn out a dead end; queue one yourself to have it sooner). A hired engineer works at full pace;
-// a core-team member covering the console (rules/launch-site.js) at COVER_SKILL; a lane with neither waits for its engineer.
+// routine work is done (an experiment can turn out a dead end; queue one yourself to have it sooner). A development lead you have hired
+// for the area (rules/leads.js) takes the lane over at their own pace; until then a hired station engineer leads it at full pace,
+// a core-team member covering the console (rules/launch-site.js) at COVER_SKILL, and a lane with none of them waits.
 // So the systems advance at different speeds: tanks can land before the engines, and the rocket gets heavier before it gets
 // stronger. Finished work goes into the blueprint as any other research does. No DOM.
 //
@@ -22,6 +23,7 @@ import { queuePosition } from './queue.js';
 import { coveringMember, COVER_SKILL } from './launch-site.js';
 import { directorUnlocked } from './campaign.js';
 import { memberJoined } from './team.js';
+import { hiredLead } from './leads.js';
 
 // The station whose engineer leads each lane.
 export const LANES = { p: 'prop', s: 'bstr', i: 'tlm', a: 'fido' };
@@ -37,12 +39,13 @@ export function chenJoinTick() {
   return true;
 }
 
-// Who leads a lane now: { name, pace }, or null when its station is empty.
+// Who leads a lane now: { name, pace, cover: a core-team member covering the console }, or null when no one can.
 export function laneLead(area) {
-  const station = LANES[area];
+  const station = LANES[area], lead = hiredLead(area);
+  if (lead) return { name: lead.name, pace: lead.pace };
   if (S.crew[station]) return { name: STATIONS[station].name, pace: 1 };
   const cover = coveringMember(station);
-  return cover ? { name: CORE_TEAM[cover].name, pace: COVER_SKILL } : null;
+  return cover ? { name: CORE_TEAM[cover].name, pace: COVER_SKILL, cover: 1 } : null;
 }
 export const laneJob = area => S.jobs.find(job => job.ln == area);
 
@@ -78,7 +81,7 @@ export function nextPackage(area) {
 // Why a lane has no package under way, for the Mail card: 'no engineer', the budget or treasury, or nothing proposed yet.
 export function laneIdleReason(area) {
   if (!S.lanes || laneJob(area)) return null;
-  if (!laneLead(area)) return `no ${STATIONS[LANES[area]].callSign} yet`;
+  if (!laneLead(area)) return `no ${STATIONS[LANES[area]].callSign} or lead yet`;
   const item = withProgramme(S.lanes.prog, () => nextPackage(area));
   if (!item) return 'nothing proposed yet';
   if (S.lanes.spent + item.cost > S.lanes.cap) return 'budget spent';
