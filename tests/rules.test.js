@@ -467,11 +467,11 @@ test('an engine failure shows on chamber pressure for a few seconds first, and a
 });
 
 // THE CORE TEAM: Ellis, Vega and Morgan keep their record across every flight and review.
-test('the core team records every flight, and the director\'s flights as Vega\'s', () => {
+test('the core team records every flight, and the director\'s flights as Ellis\'s', () => {
   const report = runCampaign(2, 400000, 48);
   assert.equal(S.team.n, report.n);
   assert.equal(S.team.ok, report.okn);
-  assert.equal(S.team.dir, report.n, 'every campaign flight was run by Vega as launch director');
+  assert.equal(S.team.dir, report.n, 'every campaign flight was run by Ellis as launch director');
   assert.ok(S.team.top > 0, 'Morgan measured the peaks');
 });
 
@@ -487,7 +487,7 @@ test('Vega calls the liftoff with the crew\'s flight count, and Morgan calls a p
   flight.time = 60;
   crewCallouts(flight);
   logSink.fn = null;
-  assert.ok(heard.some(line => line.includes('[LD] Vega: Liftoff. Flight 5 for this crew.')));
+  assert.ok(heard.some(line => line.includes('[PAD] Vega: Liftoff. Flight 5 for this crew.')));
   assert.ok(heard.some(line => line.includes('[RANGE] Morgan: Radar puts the peak near 30.0 kilometres. Higher than anything we have tracked.')));
 });
 
@@ -1037,9 +1037,10 @@ test('the core team covers empty consoles until a specialist is hired or they ta
   S.fac.tty = 1;
   assert.equal(coveringMember('tlm'), 'morgan', 'Morgan takes TLM once the teleprinters are in');
   S.staff.director = 1;
-  assert.equal(coveringMember('rso'), null, 'Vega leaves RSO when appointed launch director');
+  assert.equal(coveringMember('prop'), null, 'Ellis leaves PROP when appointed launch director');
+  assert.equal(coveringMember('rso'), 'vega', 'Vega stays on the pad and on RSO');
   const airframe = readyProgramme('aerobee');
-  assert.deepEqual(runPoll(airframe, 'Alcohol & LOX', 0).lines.map(line => line.id), ['tc', 'prop', 'tlm'], 'covered stations answer the poll');
+  assert.deepEqual(runPoll(airframe, 'Alcohol & LOX', 0).lines.map(line => line.id), ['tc', 'rso', 'tlm'], 'covered stations answer the poll');
 });
 
 // ELLIS'S ENGINEERING REMIT (rules/remit.js).

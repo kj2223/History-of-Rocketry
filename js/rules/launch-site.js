@@ -19,11 +19,11 @@ export const consoleCount = () => 3 + Object.keys(FACILITIES).reduce((sum, id) =
 export const crewOnConsole = () => ['tc', ...Object.keys(STATIONS).filter(id => id != 'tc' && S.crew[id])];
 
 // THE CORE TEAM AT THE CONSOLES: while a station has no specialist hired, its core-team member covers it (data/team.js console),
-// if a console is free and the member has not moved on to a bigger job: Vega once appointed launch director, Ellis while she
+// if a console is free and the member has not moved on to a bigger job: Ellis once appointed launch director or while she
 // holds an engineering remit (rules/remit.js). Hiring the specialist frees them. A cover catches faults at COVER_SKILL of a
 // specialist's rate; the specialist's other effects (RSO destruct, TLM analysis records) need the hire.
 export const COVER_SKILL = .6;
-const memberMovedOn = member => member == 'vega' ? !!S.staff.director : member == 'ellis' ? !!S.remit : false;
+const memberMovedOn = member => member == 'ellis' && (!!S.staff.director || !!S.remit);
 // The stations covered now, { station: member }.
 export function coveredStations() {
   const covered = {};
