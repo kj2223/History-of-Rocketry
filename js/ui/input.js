@@ -237,6 +237,11 @@ const GAME_ACTIONS = {
 const VIEW_ACTIONS = {
   // Mail: open a message, or go from Ellis's incident message to the incidents in Research.
   mailopen: id => openMail(id),
+  // From the tracker line under the top bar: open Mail on the directive or the race report.
+  mailshow: id => {
+    openDesk('');
+    openMail(id);
+  },
   // From Ellis's remit message: her rocket's incidents, with the findings she referred to you.
   mailremit: () => {
     if (S.remit && S.progs[S.remit.prog]) S.cur = S.remit.prog;

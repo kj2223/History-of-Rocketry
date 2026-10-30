@@ -218,6 +218,31 @@ export function mercuryDirectiveHTML() {
   return `${sectionOne}${mercury}<div class="t">${directive.project == 'gemini' ? 'Gemini directive' : directive.section ? `Section ${directive.section} directive` : 'Mercury directive'} ${state.dir - first + 1} of ${end - first}: ${directive.name}</div><div class="m">${directive.description} Reward ${formatMoney(directive.reward)}.</div>${progress}${sideNotesHTML(state)}${officeDecisionHTML()}`;
 }
 
+// THE TRACKER LINE under the top bar: the current Phase Two directive, how far along it is, and a short status.
+// fraction is the directive's own progress where the game measures one; otherwise it is null and the status is what to fly.
+export function mercuryDirectiveTrack() {
+  const state = S.p2;
+  if (!state || state.gemDone) return null;
+  const directive = MERCURY_DIRECTIVES[state.dir], key = directive.key;
+  const group = MERCURY_DIRECTIVES.map((each, index) => (each.project || each.section || 1) == (directive.project || directive.section || 1) ? index : -1).filter(index => index >= 0);
+  const label = `${directive.project == 'gemini' ? 'Gemini' : directive.section ? `Section ${directive.section}` : 'Mercury'} ${state.dir - group[0] + 1} of ${group.length}`;
+  let fraction = null, status = directive.description.split('. ')[0].replace(/\.$/, '');
+  if (key == 'lj') {
+    fraction = (Math.min(3, state.lj.ok) + (state.lj.mk ? 1 : 0)) / 4;
+    status = `${state.lj.ok} of 3 good aborts${state.lj.mk ? '' : ', monkey flight still needed'}`;
+  }
+  if (key == 'animal') {
+    fraction = Math.min(1, state.ch.t);
+    status = state.ch.t >= 1 ? 'chimpanzee trained' : state.ch.on ? `chimpanzee training ${percent(state.ch.t)}` : 'start chimpanzee training';
+  }
+  if (key == 'rate') {
+    const streak = Math.min(manRatingRecord().streak, cleanFlightsNeeded());
+    fraction = streak / cleanFlightsNeeded();
+    status = `${streak} of ${cleanFlightsNeeded()} clean flights in a row`;
+  }
+  return { label, name: directive.name, status, fraction };
+}
+
 // FULL-SCREEN OVERLAYS. The memorial is shown once, plainly.
 export function memorialHTML(memo) {
   return `<div class="memo"><div class="d">IN MEMORIAM</div><h1>${escapeHtml(memo.name)}</h1><div>Lost on the ${memo.mission}.</div><div class="m">Crewed flights are stood down while a review board finds out what went wrong.</div><button data-a="memok">CONTINUE</button></div>`;

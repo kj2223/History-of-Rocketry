@@ -5,8 +5,8 @@ import { DIRECTIVES, DIRECTIVE_NEWS, ERAS } from '../data/history.js';
 import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { S, load, logSink, today, formatDate, findJob } from '../core/state.js';
 import { era } from '../rules/design.js';
-import { grant } from '../rules/economy.js';
-import { nasaReady, SPACE_ACT_DAY } from '../rules/race.js';
+import { grant, programmeProgress } from '../rules/economy.js';
+import { nasaReady, SPACE_ACT_DAY, sovietProgress, intelligenceEstimate } from '../rules/race.js';
 import { roomLevel } from '../rules/launch-site.js';
 import { buildRate } from '../rules/factory.js';
 import { itemAsSeen } from '../rules/research.js';
@@ -22,8 +22,9 @@ import { renderHangar } from './hangar.js';
 import { renderFacilities } from './site-plan.js';
 import { renderStaff, renderLaunchCrew } from './personnel.js';
 import { renderRace } from './race-and-summaries.js';
-import { renderAstronautOffice, renderMissionPlanner, mercuryDirectiveHTML, memorialHTML, sectionSummaryHTML } from './mercury-panels.js';
-import { $, setHTML } from './dom.js';
+import { MERCURY_DIRECTIVES } from '../data/mercury.js';
+import { renderAstronautOffice, renderMissionPlanner, mercuryDirectiveHTML, mercuryDirectiveTrack, memorialHTML, sectionSummaryHTML } from './mercury-panels.js';
+import { $, setHTML, escapeHtml } from './dom.js';
 
 let dirty = 1, shownEra = -1, shownRoom = -1, desk = '';
 export const markDirty = () => {
@@ -113,6 +114,7 @@ export function renderHeader() {
   $('#rv').textContent = Math.round(S.hs || 0).toLocaleString() + ' m/s';
   $('#rd').textContent = ((S.hd || 0) / 1000).toFixed(S.hd < 1e5 ? 1 : 0) + ' km';
   renderHeaderResearch();
+  renderTracker();
 }
 // THE HEADER RESEARCH BAR: the research package closest to finishing, and how many others are in work.
 function renderHeaderResearch() {
@@ -123,6 +125,40 @@ function renderHeaderResearch() {
   $('#hres').title = $('#hres').textContent;
   $('#hrest').textContent = nearest ? ` · ${nearest.t}s${others}` : '';
   $('#hresbar').style.width = nearest ? Math.round((1 - nearest.t / Math.max(1, nearest.tot)) * 100) + '%' : '0';
+}
+// THE TRACKER LINE under the top bar, on every app: the directive and how close it is, and the race with the Soviets.
+// When a directive is met, the line says so for a few seconds. Clicking either half opens its message in Mail.
+const DIRECTIVE_MET_SHOWN_MS = 8000;
+let shownDirective = null, directiveMet = null;
+function directiveTrack() {
+  if (S.nasa) return mercuryDirectiveTrack();
+  const directive = DIRECTIVES[S.dir];
+  if (!directive) return null;
+  // The satellite directive is about speed (7,000 m/s at 120 km); the others are about altitude.
+  if (directive.altitudeKm >= 120) return { label: `${S.dir + 1} of ${DIRECTIVES.length}`, name: directive.name, status: `best ${Math.round(S.hs || 0).toLocaleString()} of 7,000 m/s`, fraction: Math.min(1, (S.hs || 0) / 7000) };
+  return { label: `${S.dir + 1} of ${DIRECTIVES.length}`, name: directive.name, status: `best ${((S.hi || 0) / 1000).toFixed(1)} of ${directive.altitudeKm} km`, fraction: Math.min(1, (S.hi || 0) / (directive.altitudeKm * 1000)) };
+}
+function noteDirectiveMet() {
+  const phase = S.nasa && S.p2 ? 'p2' : 'p1', index = phase == 'p2' ? S.p2.dir : S.dir;
+  if (shownDirective && shownDirective.phase == phase && index > shownDirective.index) {
+    const met = (phase == 'p2' ? MERCURY_DIRECTIVES : DIRECTIVES)[index - 1];
+    directiveMet = { name: met.name, reward: met.reward, until: Date.now() + DIRECTIVE_MET_SHOWN_MS };
+  }
+  shownDirective = { phase, index };
+}
+function renderTracker() {
+  noteDirectiveMet();
+  const track = directiveTrack(), bar = (fraction, kind = '') => `<span class="bar${kind}"><i style="width:${Math.round(fraction * 100)}%"></i></span>`;
+  let directive;
+  if (directiveMet && Date.now() < directiveMet.until) directive = `<span class="lbl ok">DIRECTIVE MET</span><b class="ok">${escapeHtml(directiveMet.name)}</b><span class="ok">+${formatMoney(directiveMet.reward)}</span>`;
+  else if (track) directive = `<span class="lbl">DIRECTIVE ${track.label}</span><b>${escapeHtml(track.name)}</b>${track.fraction == null ? '' : bar(track.fraction)}<span class="d next">${track.status}</span>`;
+  else directive = `<span class="lbl">DIRECTIVES</span><b class="ok">All current directives met</b>`;
+  // The race: your programme against the intelligence range for the Soviets, toward a satellite and then a cosmonaut.
+  const ours = programmeProgress(), theirs = sovietProgress(), estimate = intelligenceEstimate();
+  const standing = theirs.done ? '' : ours > theirs.hi ? '<b class="ok">AHEAD</b>' : ours < theirs.lo ? '<b class="bad">BEHIND</b>' : '<b class="wn">LEVEL</b>';
+  const soviet = theirs.done ? `<span class="bad">${S.nasa ? 'cosmonaut in orbit' : 'satellite in orbit'}</span>` : `${bar(theirs.lo, ' su')}<span class="d">${Math.round(theirs.lo * 100)}–${Math.round(theirs.hi * 100)}%</span>`;
+  const race = `<span class="lbl">RACE</span>${standing}<span>You</span>${bar(ours)}<span class="d">${Math.round(ours * 100)}%</span><span>Soviets</span>${soviet}${estimate ? `<span class="d next">Soviets next: ${estimate.what}, ${estimate.lo}–${estimate.hi}</span>` : ''}`;
+  setHTML($('#track'), `<button class="tdir" data-a="mailshow" data-id="dir" title="Open the directive in Mail">${directive}</button><button class="trace" data-a="mailshow" data-id="race" title="Open the race report in Mail">${race}</button>`);
 }
 function banner(subtitle, title, body) {
   const box = $('#bn');

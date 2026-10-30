@@ -65,12 +65,15 @@ button.danger{color:var(--bd);border-color:#5b2a30}button.danger:hover:not(:disa
 
 /* ==== THE SCREEN: a small operating system. The app rail down the left, the top bar, and one app filling the rest.
    Long panels scroll inside themselves; the page never scrolls. ==== */
-.app{height:100vh;display:grid;grid-template-columns:84px minmax(0,1fr);grid-template-rows:56px minmax(0,1fr)}
+.app{height:100vh;display:grid;grid-template-columns:84px minmax(0,1fr);grid-template-rows:56px auto minmax(0,1fr)}
 header.top{grid-column:2;display:flex;align-items:center;gap:20px;padding:0 18px;border-bottom:1px solid var(--ln);min-width:0}
 .brand{flex-shrink:0}.brand h1{font-size:1.05rem}.brand .d{font-size:.75rem}
 .stats{flex:1;display:flex;justify-content:flex-end;gap:20px;min-width:0;overflow:hidden}header.top:has(#miniclock:not([hidden])) .stats>.opt{display:none} /* the research bar and records make room for the mission clock */.stats>div{display:flex;flex-direction:column;white-space:nowrap}.stats b{font-family:var(--mono);font-weight:500;font-size:.85rem}
 .lbl{font-size:.68rem;color:var(--dim);letter-spacing:.06em;font-weight:600}
 .spd{display:flex;flex-shrink:0}.spd button{padding:5px 9px;font-size:.72rem}
+.track{grid-column:2;display:flex;gap:6px;padding:4px 18px;border-bottom:1px solid var(--ln);background:var(--pn);min-width:0;font-size:.78rem}
+.track>button{display:flex;align-items:center;gap:8px;min-width:0;width:auto;margin:0;font-weight:400;padding:2px 8px;background:none;border-color:transparent;white-space:nowrap;overflow:hidden;font-size:.78rem}.track .tdir{flex:0 1 auto}.track .trace{flex:1 1 auto;justify-content:flex-end}
+.track .bar{display:inline-block;width:90px;flex-shrink:0;margin:0;position:relative}.track .bar.su i{background:var(--bd)}.track b{font-weight:600}.track .next{overflow:hidden;text-overflow:ellipsis;min-width:0}.track .lbl{text-transform:uppercase}
 .hres{width:260px}.hres b{display:flex;white-space:pre}.hres #hres{min-width:0;overflow:hidden;text-overflow:ellipsis}.hres #hrest{flex-shrink:0}.hres .bar{margin:3px 0 0}
 .miniclock{width:auto;margin:0;flex-shrink:0;max-width:560px;display:flex;align-items:center;gap:12px;padding:4px 12px;background:#10241f;border-color:#2a5a52;font-weight:400}
 .minihd{display:flex;align-items:baseline;gap:8px;white-space:nowrap}.minihd b{font:500 1.1rem var(--mono);color:var(--ac)}.minihd b.t{font:600 .72rem var(--ft);color:var(--wn)}
