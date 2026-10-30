@@ -19,6 +19,8 @@ import { raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
 import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { approveBrief } from '../rules/brief.js';
 import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
+import { hireLead } from '../rules/leads.js';
+import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
 import { retuneChannel } from '../rules/telemetry.js';
@@ -191,6 +193,21 @@ const GAME_ACTIONS = {
   wraise: () => raiseWorks(),
   wend: () => endWorks(),
   wpub: () => publishHeld(),
+  leadhire: id => {
+    const error = hireLead(...id.split(':'));
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  sstart: cap => {
+    const error = startShared(+cap);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  sraise: () => raiseShared(),
+  sclose: () => endShared(),
+  sapprove: id => {
+    const error = approveProposal(id);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  snot: area => notNow(area),
   iattend: () => attendFirst(),
   iproceed: () => proceedWithFirst(),
   bstart: size => {

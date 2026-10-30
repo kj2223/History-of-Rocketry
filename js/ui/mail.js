@@ -16,6 +16,9 @@ import { AIRFRAMES_ON_HAND, WORKS_RAISE, airframesOnHand, airframesWanted, works
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
 import { ORDER_RAISE, standingOrders, orderFor, orderWaiting, ordersTotals, requestText } from '../rules/orders.js';
 import { DIRECTOR_CADENCE } from '../rules/auto.js';
+import { LEAD_POSTS } from '../data/leads.js';
+import { openPosts, hiredLead } from '../rules/leads.js';
+import { SHARED_AREAS, SHARED_CAPS, SHARED_RAISE, proposals, isChoice, sharedIdleReason } from '../rules/shared-research.js';
 import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -85,6 +88,34 @@ function briefMessage(prog) {
 // The rockets with a brief letter: any a lead runs, and the one in focus.
 const briefProgrammes = () => [...new Set([S.cur, ...standingOrders(), S.works?.prog, S.lanes?.prog].filter(prog => prog && PROGRAMMES[prog]))];
 
+// CHEN'S RESEARCH STAFF (rules/leads.js, rules/shared-research.js): the posts open to fill, each with its two candidates; the
+// shared research line and its lanes; and the leads' milestone proposals, which ask for a decision.
+function researchStaffMessage() {
+  if (!memberJoined('chen')) return null;
+  const posts = openPosts(), shared = S.shared, staffed = SHARED_AREAS.filter(area => hiredLead(area));
+  const asks = SHARED_AREAS.filter(area => proposals(area).length);
+  if (!posts.length && !staffed.length) return null;
+  const postsHTML = posts.length ? `<div class="lbl">POSTS TO FILL</div>` + posts.map(area => `<div class="c"><div class="r"><b>${escapeHtml(LEAD_POSTS[area].title)}</b><span class="d">${AREAS[area]}</span></div>`
+    + LEAD_POSTS[area].candidates.map(candidate => `<div class="r"><span><b>${escapeHtml(candidate.name)}</b> · <span class="m">${escapeHtml(candidate.note)}</span></span><button data-a="leadhire" data-id="${area}:${candidate.id}">HIRE · ${candidate.pace > 1 ? 'quicker' : candidate.pace < 1 ? 'slower' : 'steady'} · ${formatMoney(candidate.salary)}/cycle</button></div>`).join('') + '</div>').join('') : '';
+  const lanesHTML = staffed.length ? `<div class="lbl">SHARED RESEARCH LINE</div><div class="c">` + SHARED_AREAS.map(area => {
+    const lead = hiredLead(area), job = laneJob(area), idle = sharedIdleReason(area);
+    return `<div class="r"><span>${AREAS[area]}</span><b class="${job ? '' : 'd'}">${lead ? escapeHtml(lead.name) : 'no lead'}${job ? `: ${escapeHtml(itemAsSeen(job.id).name)}, ${job.t}s` : idle ? `: ${idle}` : ''}</b></div>`;
+  }).join('') + (shared.cap
+    ? `<div class="r"><span>${shared.jobs} started</span><b>${formatMoney(shared.spent)} of ${formatMoney(shared.cap)}</b></div>${shared.dry ? `<p class="wn">The line cannot cover ${escapeHtml(shared.dry)}.</p>` : ''}<div class="acts"><button data-a="sraise">RAISE BY ${formatMoney(SHARED_RAISE)}</button><button data-a="sclose">CLOSE THE LINE</button></div>`
+    : `<div class="m">Open the line and each lead runs the routine research of their area under it. Milestones still come to you first.</div><div class="acts">${SHARED_CAPS.map(cap => `<button data-a="sstart" data-id="${cap}">${formatMoney(cap)} LINE</button>`).join('')}</div>`) + '</div>' : '';
+  const proposalsHTML = asks.map(area => {
+    const lead = hiredLead(area), busy = !!laneJob(area);
+    return `<div class="c"><div class="lbl">PROPOSAL · ${escapeHtml(lead.name)}</div>${isChoice(area) ? '<p class="wn">A choice: starting one approach closes the others.</p>' : ''}`
+      + proposals(area).map(milestone => `<div class="r"><span><b>${escapeHtml(milestone.name)}</b> · <span class="m">${escapeHtml(milestone.why || '')}</span></span><button data-a="sapprove" data-id="${milestone.id}"${busy || S.b < milestone.cost ? ' disabled' : ''}>APPROVE · ${formatMoney(milestone.cost)}</button></div>`).join('')
+      + `${busy ? '<div class="m">The lane is finishing a package; approve once it is done.</div>' : ''}<div class="acts"><button data-a="snot" data-id="${area}">NOT NOW</button></div></div>`;
+  }).join('');
+  return {
+    id: 'staff', kind: asks.length || shared.dry ? 'decision' : 'report', from: memberName('chen'), role: memberRole('chen'), pane: 'note',
+    subject: asks.length ? `${asks.length == 1 ? 'A milestone proposal' : 'Milestone proposals'} for you` : posts.length ? `${posts.length == 1 ? 'A research post' : 'Research posts'} to fill` : 'The shared research line',
+    body: proposalsHTML + postsHTML + lanesHTML,
+  };
+}
+
 function remitMessage() {
   const remit = S.remit, from = memberName('ellis'), role = memberRole('ellis');
   if (!remit) {
@@ -125,6 +156,8 @@ function messages() {
     const brief = briefMessage(prog);
     if (brief) list.push(brief);
   }
+  const staff = researchStaffMessage();
+  if (staff) list.push(staff);
   const remit = remitMessage();
   if (remit) list.push(remit);
   const incidents = waitingIncidents();

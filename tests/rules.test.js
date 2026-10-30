@@ -1368,6 +1368,43 @@ test('one brief starts flights, production and research together, and Reed keeps
   assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee', 'a busy lead is left out and says why');
 });
 
+// SHARED RESEARCH (rules/leads.js, rules/shared-research.js): hired leads run the shared areas' lanes and propose milestones.
+test('a hired lead runs the shared lane on the shared line, and proposes a milestone choice instead of starting it', async () => {
+  const { hireLead, openPosts, hiredLead } = await import('../js/rules/leads.js');
+  const { startShared, sharedTick, proposals, isChoice, approveProposal, notNow, sharedIdleReason } = await import('../js/rules/shared-research.js');
+  const { laneJob, chenJoinTick } = await import('../js/rules/lanes.js');
+  const { payroll } = await import('../js/rules/economy.js');
+  const { freeTeams } = await import('../js/core/state.js');
+  assert.deepEqual(openPosts(), [], 'no posts before Chen joins');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  assert.deepEqual(openPosts(), ['r'], 'Payloads & Recovery opens with Chen; the spacecraft posts wait for NASA');
+  S.b = 500000;
+  const before = payroll();
+  assert.equal(hireLead('r', 'okafor'), null);
+  assert.equal(payroll() - before, hiredLead('r').salary);
+  assert.equal(sharedIdleReason('r'), 'the shared line is closed');
+  assert.equal(startShared(40000), null);
+  const teams = freeTeams();
+  sharedTick();
+  const job = laneJob('r');
+  assert.ok(job && job.prog == null && job.free, 'a routine package on the lane, shared, on no team of yours');
+  assert.equal(freeTeams(), teams);
+  S.jobs = [];
+  S.bt.r = 1; // a breakthrough opens the first milestones, which are a choice
+  assert.ok(proposals('r').length >= 2 && isChoice('r'));
+  sharedTick();
+  assert.equal(laneJob('r'), undefined, 'the lead waits for your call instead of carrying on');
+  assert.equal(sharedIdleReason('r'), 'a milestone proposal is waiting for you');
+  const pick = proposals('r')[0];
+  assert.equal(approveProposal(pick.id), null);
+  assert.equal(laneJob('r').id, pick.id, 'the approved milestone runs on the lead\'s lane');
+  S.jobs = [];
+  notNow('r');
+  assert.deepEqual(proposals('r'), []);
+});
+
 // REED'S FACTORY BUDGET (rules/factory-lead.js): she keeps airframes on hand, upgrades them and publishes balanced blueprints.
 const reedOnTheAerobee = async cap => {
   const factoryLead = await import('../js/rules/factory-lead.js');

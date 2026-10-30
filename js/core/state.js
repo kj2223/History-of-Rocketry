@@ -41,6 +41,8 @@
 //   lanes   Chen's research lanes, or null (see rules/lanes.js)
 //   works   Reed's factory budget, or null (see rules/factory-lead.js)
 //   orders  standing flight orders and the customers' requests (see rules/orders.js)
+//   leads   the research leads you have hired (see rules/leads.js)
+//   shared  the shared research line (see rules/shared-research.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -77,6 +79,8 @@ export const newGameState = () => ({
   lanes: null,
   works: null,
   orders: { by: {}, reqs: [], n: 1, due: 0 },
+  leads: {},
+  shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
 });
 
 export const S = newGameState();
