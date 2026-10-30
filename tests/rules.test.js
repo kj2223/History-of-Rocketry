@@ -1320,6 +1320,31 @@ test('a lane takes its experiments once the routine work is done, and says why w
   assert.equal(laneIdleReason('s'), 'no BSTR yet');
 });
 
+// THE PROGRAMME BRIEF (rules/brief.js): one approval starts every free lead's line on the rocket in focus.
+test('one brief starts flights, production and research together, and Reed keeps one more airframe for the order', async () => {
+  const { approveBrief, briefLines, briefTotal, BRIEF_SIZES } = await import('../js/rules/brief.js');
+  const { chenJoinTick } = await import('../js/rules/lanes.js');
+  const { reedJoinTick, worksTick, airframesOnHand, airframesWanted, AIRFRAMES_ON_HAND } = await import('../js/rules/factory-lead.js');
+  const { orderFor } = await import('../js/rules/orders.js');
+  S.air.push(readyProgramme('aerobee'));
+  S.cur = 'aerobee';
+  S.b = 300000;
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  assert.deepEqual(briefLines('aerobee').map(line => line.state), ['no launch director yet', 'Reed has not joined yet', 'free'], 'only Chen before a launch director');
+  S.staff.director = 1;
+  reedJoinTick();
+  assert.equal(briefTotal('aerobee', 1), BRIEF_SIZES[1].flights + BRIEF_SIZES[1].production + BRIEF_SIZES[1].research);
+  assert.equal(approveBrief(1), null);
+  assert.ok(orderFor('aerobee') && S.works.prog == 'aerobee' && S.lanes.prog == 'aerobee', 'all three lines run');
+  assert.ok(approveBrief(1), 'nothing left to approve');
+  assert.equal(airframesWanted('aerobee'), AIRFRAMES_ON_HAND + 1, 'one more while the order flies');
+  for (let second = 0; second < 4; second++) worksTick();
+  assert.equal(airframesOnHand('aerobee'), AIRFRAMES_ON_HAND + 1);
+  readyProgramme('viking');
+  assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee', 'a busy lead is left out and says why');
+});
+
 // REED'S FACTORY BUDGET (rules/factory-lead.js): she keeps airframes on hand, upgrades them and publishes balanced blueprints.
 const reedOnTheAerobee = async cap => {
   const factoryLead = await import('../js/rules/factory-lead.js');
