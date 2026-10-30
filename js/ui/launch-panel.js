@@ -133,8 +133,8 @@ export function renderCampaign() {
   panel.hidden = !directorUnlocked();
   if (panel.hidden) return;
   const camp = S.auto.camp, last = S.auto.last;
-  let html = row('Launch director', S.staff.director ? `${directorRank()}, ${directorExperience()} flight${directorExperience() == 1 ? '' : 's'} run` : 'not hired');
-  if (!S.staff.director) html += `<div class="m">The Aerobee flies routinely now. A launch director runs launches as campaigns: you set a target, a deadline and a budget, and the director orders airframes and flies until it is done, while you develop the next rocket. A new director is cautious and asks for guidance; it grows bolder and steadier with every flight. ${formatMoney(DIRECTOR_SALARY)} per funding cycle.</div><button data-a="hire" data-id="director"${S.b < SPECIALISTS.director.cost ? ' disabled' : ''}>HIRE LAUNCH DIRECTOR (${formatMoney(SPECIALISTS.director.cost)})</button>`;
+  let html = row('Launch director', S.staff.director ? `Daniel Vega, ${directorRank()}, ${directorExperience()} flight${directorExperience() == 1 ? '' : 's'} run` : 'not appointed');
+  if (!S.staff.director) html += `<div class="m">The Aerobee flies routinely now. Daniel Vega, who has run the pad for every countdown, can run launches as campaigns: you set a target, a deadline and a budget, and the director orders airframes and flies until it is done, while you develop the next rocket. A new director is cautious and asks for guidance; it grows bolder and steadier with every flight. ${formatMoney(DIRECTOR_SALARY)} per funding cycle.</div><button data-a="hire" data-id="director"${S.b < SPECIALISTS.director.cost ? ' disabled' : ''}>APPOINT DANIEL VEGA LAUNCH DIRECTOR (${formatMoney(SPECIALISTS.director.cost)})</button>`;
   else if (camp) html += campaignHTML(camp);
   else html += campaignFormHTML();
   if (last && !camp) html += `<div class="m">Last campaign (${outcomeText(last.outcome)}): ${campaignSummary(last)}. ${last.n} flights, ${last.okn} successful, best ${(last.best / 1000).toFixed(1)} km, ${formatMoney(last.spent)} spent.</div>`;

@@ -1,0 +1,54 @@
+// THE CORE TEAM'S RECORD: Ruth Ellis, Daniel Vega and Samuel Morgan (data/team.js) work every flight together, and each keeps
+// the part of the record that belongs to their speciality. What they say after a failure and in a records analysis comes from
+// here too: they speak from what the records show, never from the hidden cause. No DOM.
+//
+// S.team: { n: flights worked, ok: successful flights, rev: records analyses Ellis has led, fix: fixes signed into a design,
+//           dir: flights Vega has run as launch director, rec: records Morgan has measured, top: highest peak measured (m) }
+import { CORE_TEAM } from '../data/team.js';
+import { S } from '../core/state.js';
+
+const plural = (count, word, many = word + 's') => `${count} ${count == 1 ? word : many}`;
+const failures = () => S.team.n - S.team.ok;
+
+export const memberName = id => CORE_TEAM[id].name;
+export const memberRole = id => CORE_TEAM[id].roles ? CORE_TEAM[id].roles[S.staff.director ? 'after' : 'before'] : CORE_TEAM[id].role;
+
+// After every flight and every Mercury boost. peak: as the range measured it (none for a boost); records: new records measured.
+export function recordTeamFlight(ok, peak = 0, records = 0, byDirector = false) {
+  const team = S.team;
+  team.n++;
+  if (ok) team.ok++;
+  if (byDirector) team.dir++;
+  team.rec += records;
+  team.top = Math.max(team.top, peak);
+}
+export const recordReview = () => { S.team.rev++; };
+export const recordFix = () => { S.team.fix++; };
+
+// Each member's record, for the roster.
+export function memberRecord(id) {
+  const team = S.team;
+  if (id == 'ellis') return `${plural(team.n, 'flight')}, ${plural(failures(), 'failure')}, ${plural(team.rev, 'review')} led, ${plural(team.fix, 'fix', 'fixes')} signed into the designs`;
+  if (id == 'vega') return `${plural(team.n, 'countdown')} run, ${team.ok} good${S.staff.director ? `, ${team.dir} as launch director` : ''}`;
+  return `${plural(team.n, 'flight')} tracked, ${plural(team.rec, 'record')} measured${team.top ? `, best peak ${(team.top / 1000).toFixed(1)} km` : ''}`;
+}
+
+// ELLIS AFTER A FAILURE, on the pad's failure report. report: flight.report (rules/flight.js openIncident).
+export function chiefOnFailure(report) {
+  const count = failures();
+  const opening = count == 1 ? 'Our first failure.' : `Failure ${count} in ${S.team.n} flights.`;
+  if (!report.id) return `${opening} Nothing new for the engineering file in this one.`;
+  if (report.cand.length > 1) return `${opening} The records cannot tell the suspects apart yet. I want an analysis before we fly this design again.`;
+  return `${opening} Only one thing looks like this on the records. An analysis should confirm it.`;
+}
+
+// A RECORDS ANALYSIS'S FINDINGS: Ellis signs them with a word on how far to trust them, and Morgan says how good the records were.
+// quality: the share of the evidence the tracking and telemetry captured (rules/jobs.js recordsQuality).
+const CHIEF_ON_CONFIDENCE = {
+  high: 'The records are clear. I would sign this.',
+  moderate: 'It fits the records, but so do the others.',
+  low: 'A guess with numbers on it. I would not bet the next airframe on it.',
+};
+export const chiefOnFindings = incident => CHIEF_ON_CONFIDENCE[incident.conf];
+export const rangeOnRecords = quality => quality < .2 ? 'Radar plots and not much else. Thin records to work from.'
+  : quality < .4 ? 'Usable records, with gaps where we were not looking.' : 'Good records. We saw most of what happened.';

@@ -95,7 +95,7 @@ export function goAhead() {
 // and a flight you fly yourself answers a request for guidance.
 export function recordCampaignFlight(flight, ok, peak, byDirector) {
   if (flight.programme == 'aerobee' && ok && !S.staff.director && S.progs.aerobee.okf == AEROBEE_FLIGHTS_TO_UNLOCK)
-    log('[LAUNCH] The Aerobee is flying routinely. A launch director could now run its launches as campaigns while you develop the next rocket. Hire one on the Launch tab.', 'hd');
+    log('[LAUNCH] The Aerobee is flying routinely. Daniel Vega could now run its launches as campaigns while you develop the next rocket. Appoint Vega launch director on the Launch tab.', 'hd');
   if (byDirector) {
     const rank = directorRank();
     S.auto.xp = directorExperience() + 1;

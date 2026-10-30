@@ -33,6 +33,7 @@ import { usePad, damagePad } from './site.js';
 import { programmeOf, traitWeight, revealTraits, maturity } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
+import { recordTeamFlight } from './team.js';
 
 // What is in the air right now: the UI's launch view (and the launch director) keep the flight or Mercury mission here.
 export const airborne = { flight: null, mission: null };
@@ -530,7 +531,7 @@ export function endFlight(flight, ok, why) {
   return withProgramme(flight.programme, () => endFlightForProgramme(flight, ok, why));
 }
 function endFlightForProgramme(flight, ok, why) {
-  const tracking = flight.tracking;
+  const tracking = flight.tracking, recordsBefore = [S.hd, S.hs, S.hi];
   if (S.dev) {
     S.dev.fl++;
     recordRunEvent({ k: 'flight', n: S.dev.fl, af: flight.label, out: why, fail: flight.failure || undefined, peak: Math.round(flight.peakAltitude), spd: Math.round(flight.peakSpeed), dr: Math.round(flight.downrange), fuel: flight.propellant, load: +flight.load.toFixed(2), pay: flight.payload, stg: flight.stages.length, over: flight.overNoGo || undefined, plan: flight.plan ? `${flight.plan.elevation}° ${flight.plan.program}${flight.plan.aim != null ? ` aim ${flight.plan.aim}°` : ''}` : undefined });
@@ -618,6 +619,7 @@ function endFlightForProgramme(flight, ok, why) {
   recordBoosterFlight(flight.airframe, ok && why != 'abort');
   learnFromFlight(flight, ok);
   recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
+  recordTeamFlight(ok && why != 'abort', ok ? peak : 0, [S.hd, S.hs, S.hi].filter((record, index) => record != recordsBefore[index]).length, !!flight.byDirector);
   revealTraits(flight.programme);
   save();
 }
@@ -642,6 +644,7 @@ export function boosterFailed(flight) {
   withProgramme(flight.programme, () => {
     openIncident(flight, flight.tracking, null);
     learnFromFlight(flight, false);
+    recordTeamFlight(false);
     revealTraits(flight.programme);
   });
   S.fr[flight.propellant] = S.fr[flight.propellant] || 0;
@@ -650,6 +653,7 @@ export function boosterSucceeded(flight) {
   withProgramme(flight.programme, () => {
     S.fr[flight.propellant] = (S.fr[flight.propellant] || 0) + 1;
     learnFromFlight(flight, true);
+    recordTeamFlight(true);
     for (const id of flight.airframe.pk) if (BY_ID[id] && BY_ID[id].phase != 2) confirmPackage(id, 'Flight');
     checkBreakthroughs();
     revealTraits(flight.programme);

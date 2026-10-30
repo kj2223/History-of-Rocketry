@@ -126,7 +126,7 @@ export const MAX_ENGINEERING_TEAMS = 6;
 export const engineeringTeamCost = () => 12000 + 6000 * (S.teams - 2);
 export const SPECIALISTS = {
   pr: { cost: 15000, news: 'Press office established. Failures now cost half the reputation, and reputation slowly recovers.' },
-  director: { cost: 25000, news: 'Launch director appointed. Set a campaign on the Launch tab and the director flies it for you.' },
+  director: { cost: 25000, news: 'Daniel Vega appointed launch director. Set a campaign on the Launch tab and the director flies it for you.' },
 };
 // what: 'bteam', 'team', or a specialist's key.
 export function hire(what) {

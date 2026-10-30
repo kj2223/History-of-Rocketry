@@ -19,7 +19,8 @@ import { queueLock, queuePosition, queueWait, queueEntries, analysisPosition, qu
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
 import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
-import { INVESTIGATION_COST, investigationTime } from '../rules/jobs.js';
+import { INVESTIGATION_COST, investigationTime, recordsQuality } from '../rules/jobs.js';
+import { chiefOnFindings, rangeOnRecords } from '../rules/team.js';
 import { $, setHTML } from './dom.js';
 
 // The job researching an item, for the programme it belongs to (vehicle areas) or the global bundle.
@@ -282,6 +283,7 @@ function findingsHTML(incident) {
   const lock = S.b < INVESTIGATION_COST ? ' (need funds)' : freeTeams() < 1 ? ' (teams busy)' : '';
   return `<div><b>Findings:</b> the team suspects <b>${FAILURE_MODES[incident.dx].name}</b> (${incident.conf} confidence).</div>`
     + `<div class="m">${[incident.dx, ...others].map(mode => `${FAILURE_MODES[mode].name} ${Math.round((mode == incident.dx ? incident.p : rest) * 100)}%`).join(' · ')}</div>`
+    + `<div class="m"><b>Ruth Ellis, Chief Engineer:</b> "${chiefOnFindings(incident)}" <b>Samuel Morgan, Range:</b> "${rangeOnRecords(recordsQuality())}"</div>`
     + `<button data-a="accept" data-id="${incident.id}">ACCEPT: ${FAILURE_MODES[incident.dx].name.toUpperCase()}</button>`
     + (others.length ? `<button data-a="extend" data-id="${incident.id}"${lock ? ' disabled' : ''}>EXTEND THE ANALYSIS: RULE ONE OUT (${formatMoney(INVESTIGATION_COST)}, ${investigationTime(incident)}s)${lock}</button>`
       + `<div class="m">Or overrule the team and name the cause yourself:</div>${others.map(mode => `<button data-a="name" data-id="${incident.id}" data-f="${mode}">IT WAS ${FAILURE_MODES[mode].name.toUpperCase()}</button>`).join('')}` : '');
