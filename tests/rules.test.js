@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID, isMilestone } from '../js/data/research.js';
 import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
-import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
+import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, queueFix, fixPosition, queueReview, reviewPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { grant } from '../js/rules/economy.js';
@@ -583,6 +583,32 @@ test('a queued records analysis goes ahead of queued research and starts when a 
   assert.equal(S.inc[0].st, 'inv');
   assert.equal(analysisPosition(1), -1);
   assert.equal(queuePosition(next), 0);
+});
+
+// Aaron's report: fixes, design reviews and extended analyses in the engineering file could not be queued.
+test('engineering-file work queues and starts when a team comes free', () => {
+  readyProgramme('aerobee');
+  S.cur = 'aerobee';
+  S.b = 100000;
+  S.inc.push({ id: 1, mode: 's', sym: [], cand: ['s', 'c'], ev: 1, st: 'diag', dx: 's', conf: 'high', t: 30, lab: 'test' });
+  S.inc.push({ id: 2, mode: 'c', sym: [], cand: ['c', 'p'], ev: 1, st: 'found', dx: 'c', p: .6, conf: 'moderate', t: 30, lab: 'test' });
+  commission('chute');
+  commission('bcn');
+  const fix = FAILURE_MODES.s.fixes[0].id;
+  queueFix(1, fix);
+  queueReview('p');
+  queueAnalysis(2);
+  assert.equal(analysisPosition(2), 0, 'the extended analysis goes first');
+  assert.equal(fixPosition(1), 1);
+  assert.equal(reviewPosition('p'), 2);
+  S.jobs.forEach(job => job.t = 1);
+  tickSecond();
+  assert.equal(S.inc[1].st, 'inv');
+  assert.ok(S.jobs.some(job => job.k == 'inv' && job.id == 2 && job.x), 'started as an extended analysis');
+  assert.equal(S.inc[0].st, 'fixing');
+  assert.ok(S.jobs.some(job => job.k == 'fix' && job.f == fix));
+  assert.equal(S.rq.length, 1, 'the review waits for the next team');
+  assert.equal(reviewPosition('p'), 0);
 });
 
 // Aaron's report: the R&D badge counted two incidents that were nowhere on the desk. A wrong diagnosis was filed under the true cause.
