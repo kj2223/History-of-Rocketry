@@ -28,6 +28,7 @@ import { beginFlight, previewFlight, step, takeReadings, endFlight } from './fli
 import { learn, teachingValue } from './knowledge.js';
 import { directorMargin } from './campaign.js';
 import { planLoad } from './auto.js';
+import { stagesOf } from './programs.js';
 
 // The caps you can set, and how much a raise adds.
 export const ORDER_CAPS = [25000, 50000, 100000];
@@ -96,7 +97,8 @@ function approvedPackages(prog) {
 }
 // Airframes Ellis can take for routine flights: ready, and not set aside (aside: why she would not plan a load on it).
 const readyAirframes = prog => S.air.filter(airframe => airframe.st == 'r' && airframe.prog == prog && !airframe.aside && !heldForLaunch(airframe)).sort((first, second) => second.pk.length - first.pk.length);
-const openIncident = prog => withProgramme(prog, () => S.inc.some(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag'));
+// An open incident on the rocket or on one of its lower stages (rules/stages.js).
+const openIncident = prog => [prog, ...stagesOf(prog)].some(kind => withProgramme(kind, () => S.inc.some(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag')));
 
 // DEMAND. Returns true if a request arrived or lapsed.
 export function demandTick() {

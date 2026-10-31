@@ -10,7 +10,7 @@ import { budgetTick, payAppropriation } from './budget.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
 import { roomLevel } from './launch-site.js';
 import { constructionTick, upkeep } from './site.js';
-import { createProgramme, isMature } from './programs.js';
+import { createProgramme, isMature, ensureStages } from './programs.js';
 import { hasFirstMilestone, giveEarmark } from './research.js';
 import { startQueuedWork } from './queue.js';
 import { makeAirframe } from './production.js';
@@ -53,6 +53,7 @@ export function tickSecond() {
     S.dev.ps++;
     if (S.dev.ps % 30 == 0) snapshot();
   }
+  ensureStages();
   const days = daysPerSecond();
   S.day += days;
   if (constructionTick()) changed = true;

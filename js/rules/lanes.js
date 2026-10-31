@@ -8,7 +8,8 @@
 // for the area (rules/leads.js) takes the lane over at their own pace; until then a hired station engineer leads it at full pace,
 // a core-team member covering the console (rules/launch-site.js) at COVER_SKILL, and a lane with none of them waits.
 // So the systems advance at different speeds: tanks can land before the engines, and the rocket gets heavier before it gets
-// stronger. Finished work goes into the blueprint as any other research does.
+// stronger. On a rocket with stage designs the lead puts each propulsion and structures package on the stage furthest behind
+// (rules/programs.js researchTarget). Finished work goes into the blueprint as any other research does.
 // Milestones are not routine: when one opens in a system, its lead proposes it in Mail and the lane waits for your answer, as the
 // shared lanes do (rules/shared-research.js). Approved, it starts on the lane, paid from the treasury and counted against the
 // budget; queued, your own teams take it; not now, and the lane carries on with routine work. No DOM.
@@ -28,6 +29,7 @@ import { coveringMember, COVER_SKILL } from './launch-site.js';
 import { directorUnlocked } from './campaign.js';
 import { memberJoined } from './team.js';
 import { hiredLead } from './leads.js';
+import { researchTarget } from './programs.js';
 
 // The station whose engineer leads each lane.
 export const LANES = { p: 'prop', s: 'bstr', i: 'tlm', a: 'fido' };
@@ -139,12 +141,13 @@ export function lanesTick() {
     return changed;
   });
 }
-// Starts a package or milestone on a lane, for the rocket in focus.
+// Starts a package or milestone on a lane, for the rocket in focus (or the stage of it furthest behind).
 function startOnLane(area, lead, item) {
   const time = Math.round(item.time / lead.pace);
   S.b -= item.cost;
   S.lanes.spent += item.cost;
   S.lanes.jobs++;
-  S.jobs.push({ k: 'pk', id: item.id, prog: S.cur, t: time, tot: time, free: 1, ln: area });
-  log(`[R&D] ${lead.name} starts ${item.name} in the ${AREAS[area].toLowerCase()} lane (${formatMoney(item.cost)}).`, 'wn');
+  const prog = researchTarget(item.id);
+  S.jobs.push({ k: 'pk', id: item.id, prog, t: time, tot: time, free: 1, ln: area });
+  log(`[R&D] ${lead.name} starts ${item.name} in the ${AREAS[area].toLowerCase()} lane${prog != S.cur ? `, on the ${PROGRAMMES[prog].name}` : ''} (${formatMoney(item.cost)}).`, 'wn');
 }

@@ -408,7 +408,11 @@ document.addEventListener('click', event => {
   else if (action == 'abort') {
     if (airborne.flight) finishFlight(0, 'abort');
     else if (airborne.mission) manualAbort(airborne.mission);
-  } else if (GAME_ACTIONS[action]) GAME_ACTIONS[action](id, button);
+  } else if (GAME_ACTIONS[action]) {
+    // A button inside a lower stage's block (ui/design-bureau.js) acts with that stage in focus.
+    const stage = button.closest('[data-stage]');
+    stage ? withProgramme(stage.dataset.stage, () => GAME_ACTIONS[action](id, button)) : GAME_ACTIONS[action](id, button);
+  }
   else if (action == 'reset') {
     if (!resetArmed) return armReset(button);
     resetGame(button);

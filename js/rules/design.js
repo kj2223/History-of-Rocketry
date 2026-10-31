@@ -7,6 +7,7 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { S, isResearched, withProgramme } from '../core/state.js';
 import { programmeOf, believedWindow } from './programs.js';
 import { padLock } from './site.js';
+import { lowerStage } from './stages.js';
 
 // The bare rocket of the programme in focus. With `estimated`, the figures the team believes (the middle of each window) instead of the truth.
 // Before any programme exists, a small default rocket.
@@ -43,7 +44,8 @@ export function designSpec(ids, estimated) {
 export const fixModifiers = fixes => {
   const modifiers = { t: 1, d: 0, g: 0, h: 0, c: 0, q: 0 };
   for (const mode in fixes) {
-    const fix = findFix(mode, fixes[mode]);
+    // A lower stage's fixes (mode@stage) change that stage only (rules/stages.js).
+    const fix = !mode.includes('@') && findFix(mode, fixes[mode]);
     if (fix) {
       modifiers.t *= fix.effects.t || 1;
       for (const key of ['d', 'g', 'h', 'c', 'q']) modifiers[key] += fix.effects[key] || 0;
@@ -78,7 +80,7 @@ export const propellantCost = (airframe, name, load = 1) => withProgramme(progra
 });
 
 // Staging and satellites come with the rocket: a programme either has them or it does not.
-export const hasBoosterStage = airframe => !!(PROGRAMMES[programmeOf(airframe)] || {}).booster;
+export const hasBoosterStage = airframe => !!((PROGRAMMES[programmeOf(airframe)] || {}).booster || (PROGRAMMES[programmeOf(airframe)] || {}).stages);
 export const cannotOrbit = airframe => !(PROGRAMMES[programmeOf(airframe)] || {}).canOrbit;
 
 // THE LAUNCH QUOTE: the cost of a launch, or why it cannot go. Returns { cost, error }; cost is missing when the choice is impossible.
@@ -98,11 +100,12 @@ function quoteForProgramme(airframe, propellantName, payloadName, stage, load) {
   const pad = padLock(airframe);
   if (pad) return { cost, error: pad };
   if (S.b < cost) return { cost, error: `Need ${formatMoney(cost - S.b)} more.` };
-  // Research reaches the booster stage at half strength (see rules/flight.js).
+  // Research reaches the booster stage at half strength (see rules/flight.js); a stage with a design of its own flies its own figures.
   const half = x => 1 + (x - 1) * .5, design = programme.design, booster = programme.booster;
-  const lift = staged ? booster.thr * half(spec.thr / design.thr * spec.t * modifiers.t) : spec.thr * spec.t * modifiers.t;
+  const lower = staged && programme.stages ? lowerStage(programmeOf(airframe), airframe, propellant, load) : null;
+  const lift = lower ? lower.thrust : staged ? booster.thr * half(spec.thr / design.thr * spec.t * modifiers.t) : spec.thr * spec.t * modifiers.t;
   const mass = spec.dry + spec.d + modifiers.d + spec.f * propellant.density * load + payload.mass
-    + (staged ? booster.dry * half(spec.dry / design.dry) + booster.fuel * half(spec.f / design.f) * load : 0);
+    + (lower ? lower.dry + lower.fuel : staged ? booster.dry * half(spec.dry / design.dry) + booster.fuel * half(spec.f / design.f) * load : 0);
   if (lift < mass * 9.81 * LIFTOFF_MARGIN) return { cost, error: 'Too heavy to lift off. Lighter payload or a stronger engine needed.' };
   return { cost };
 }

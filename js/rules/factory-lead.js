@@ -18,7 +18,7 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, withProgramme } from '../core/state.js';
 import { baseDesign, fixModifiers } from './design.js';
 import { itemAsSeen } from './research.js';
-import { batchCost, draftChanges, retrofitQuote } from './production.js';
+import { batchCost, draftChanges, draftSize, retrofitQuote } from './production.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, heldForLaunch } from './factory.js';
 import { memberJoined } from './team.js';
 import { orderFor } from './orders.js';
@@ -123,7 +123,7 @@ export function worksTick() {
 
 function publishTurn(works) {
   const draft = draftChanges();
-  if (!draft.packages.length && !draft.fixes.length) {
+  if (!draftSize(draft)) {
     works.hold = null;
     return false;
   }

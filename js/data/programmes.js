@@ -21,6 +21,8 @@
 //   needsGemini: opens only with Project Gemini; manRatingResearch: research its own man-rating needs as well as the usual
 //   headStart: share of the best earlier knowledge its team starts with, instead of HEAD_START.best (a missile already flight-tested)
 //   booster: the booster stage under the core (staged rockets): dry mass, fuel (kg), thr thrust (N), isp
+//   needsApollo: opens once Project Apollo has chosen its architecture; dryScale: sizes dry-mass effects apart from sizeScale
+//   stages: instead of a booster, the lower stages that are designs of their own (STAGE DESIGNS below, rules/stages.js)
 export const PROGRAMMES = {
   wac: {
     name: 'WAC Corporal', year: 1946, generation: 0,
@@ -69,7 +71,7 @@ export const PROGRAMMES = {
     name: 'Atlas', year: 1958, generation: 5, requires: ['vanguard', 'jupc'], anyRequirement: 1, needsNasa: 1,
     design: { dry: 300, f: 600, thr: 20000, g: 8, h: 2.8, q: 1.8, c: .8, r: -.05, i: 2.2 },
     cost: 200000, designTime: 75, unitCost: 60000, unitTime: 48, sizeScale: 6, costScale: 3, timeScale: 1.2, packagesPerArea: 6, learningRate: 3, traitRange: [3, 3],
-    propellants: ['Kerosene & LOX'], hasMilestones: 1, canOrbit: 1, booster: { dry: 1900, fuel: 15000, thr: 250000, isp: 280 },
+    propellants: ['Kerosene & LOX'], hasMilestones: 1, canOrbit: 1, stages: ['atlas1'],
     why: 'An intercontinental missile with steel-balloon tanks thin as a coin. Enough power to put a man in orbit, if it can be tamed.',
   },
   // Gemini's booster (Phase Two, Section 2). Opens with Project Gemini; a crew rides it only once its pogo is cured (manRatingResearch).
@@ -77,11 +79,46 @@ export const PROGRAMMES = {
     name: 'Titan II', year: 1962, generation: 6, requires: ['atlas', 'vanguard', 'jupc'], anyRequirement: 1, needsNasa: 1, needsGemini: 1, manRatingResearch: ['gm_pogo'], headStart: .6,
     design: { dry: 420, f: 900, thr: 33000, g: 9, h: 3, q: 2, c: .8, r: 0, i: 2.4 },
     cost: 240000, designTime: 80, unitCost: 75000, unitTime: 52, sizeScale: 7, costScale: 3.2, timeScale: 1.2, packagesPerArea: 6, learningRate: 3, traitRange: [1, 2],
-    propellants: ['Aerozine & N2O4'], hasMilestones: 1, canOrbit: 1, booster: { dry: 2300, fuel: 26000, thr: 380000, isp: 285 },
+    propellants: ['Aerozine & N2O4'], hasMilestones: 1, canOrbit: 1, stages: ['titan1'],
     why: 'An Air Force missile burning propellants that ignite on contact: no igniters, and it can sit fuelled for months. Strong enough to lift the two-man Gemini, but it shakes along its length (pogo) until that is cured.',
   },
+  // The first Saturn (Apollo step 3). Opens once Apollo has chosen how to reach the Moon (needsApollo): the rocket the Moon rocket
+  // grows from. Its own design is the S-IV, the first hydrogen stage; under it the S-I, eight H-1 engines round a cluster of tanks.
+  saturn1: {
+    name: 'Saturn I', year: 1964, generation: 7, requires: ['titan', 'atlas'], anyRequirement: 1, needsNasa: 1, needsApollo: 1, headStart: .5,
+    design: { dry: 750, f: 6500, thr: 45000, g: 8, h: 3, q: 2, c: .8, r: -.04, i: 2.6 },
+    cost: 400000, designTime: 100, unitCost: 150000, unitTime: 64, sizeScale: 40, dryScale: 12, costScale: 4, timeScale: 1.3, packagesPerArea: 6, learningRate: 3, traitRange: [2, 3],
+    propellants: ['Hydrogen & LOX'], hasMilestones: 1, canOrbit: 1, stages: ['sat1_si'],
+    why: 'Von Braun\'s team clusters eight proven engines under tanks borrowed from Redstone and Jupiter, and tops them with a stage burning liquid hydrogen: the most efficient fuel there is, and the hardest to handle.',
+  },
+  // STAGE DESIGNS (Apollo step 3): a lower stage with its own true figures, flaws, research, failures and fixes, kept in a bundle of
+  // its own (rules/stages.js). The rocket's own design is its top stage. stageOf: the rocket it belongs to; it is never started,
+  // built or flown alone. design: as a rocket's, but f is the propellant it carries (kg) and isp its engine's specific impulse (s).
+  // A stage researches the rocket's propulsion and structures packages (the development lead picks the stage for each one);
+  // sizeScale sizes their propellant effects to the stage, dryScale their dry-mass effects (a stage is mostly tank).
+  atlas1: {
+    name: 'Atlas booster section', engine: 'two LR89s', stageOf: 'atlas', year: 1958, generation: 5,
+    design: { dry: 1900, f: 15000, thr: 250000, isp: 280, g: 8, h: 2.8, q: 1.8, c: .8, r: -.02, i: 2.2 },
+    sizeScale: 150, dryScale: 38, costScale: 3, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    propellants: ['Kerosene & LOX'],
+    why: 'The Atlas is a stage and a half: two booster engines and their skirt drop away two minutes up, and the sustainer flies on alone on the same tanks.',
+  },
+  titan1: {
+    name: 'Titan II first stage', engine: 'LR87', stageOf: 'titan', year: 1962, generation: 6,
+    design: { dry: 2300, f: 26000, thr: 380000, isp: 285, g: 9, h: 3, q: 2, c: .8, r: 0, i: 2.4 },
+    sizeScale: 200, dryScale: 38, costScale: 3.2, timeScale: 1.2, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    propellants: ['Aerozine & N2O4'],
+    why: 'Twin-chamber LR87 engines on a stage of thin aluminium tanks: most of the Titan II\'s weight and nearly all of its thrust at liftoff.',
+  },
+  sat1_si: {
+    name: 'Saturn I first stage (S-I)', engine: 'eight H-1s', stageOf: 'saturn1', year: 1964, generation: 7,
+    design: { dry: 6500, f: 70000, thr: 1000000, isp: 289, g: 8, h: 3, q: 2, c: .8, r: -.02, i: 2.6 },
+    sizeScale: 540, dryScale: 110, costScale: 4, timeScale: 1.3, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
+    propellants: ['Kerosene & LOX'],
+    why: 'Eight H-1 engines, each a cousin of the Jupiter\'s, under a cluster of nine tanks. If one engine stops, the others can burn longer and still make orbit.',
+  },
 };
-export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas', 'titan'];
+export const PROGRAMME_ORDER = ['wac', 'aerobee', 'viking', 'redstone', 'vanguard', 'jupc', 'atlas', 'titan', 'saturn1'];
 export const MATURE = 45; // programme maturity (average team knowledge of the rocket) that opens the next programme
 export const FLIGHTS_TO_MATURE = 3; // and the rocket must also have flown this many successful flights of its own
 // What a new programme's team already knows: a share of the best knowledge on any earlier rocket, or of the rocket it grows out of.
@@ -104,6 +141,8 @@ export const TRAITS = [
   { key: 'weak', name: 'Engine short of rated thrust', statPenalty: { thr: -.08 }, why: 'The engine never quite delivers its rated thrust.' },
 ];
 export const traitByKey = key => TRAITS.find(trait => trait.key == key);
+// The flaws a lower stage can be born with: its engine, plumbing and tanks. Heating, fins and separation belong to the whole stack.
+export const STAGE_TRAITS = ['rough', 'pump', 'start', 'leak', 'thin', 'heavy', 'weak'];
 
 // The design figures the team does not know exactly. area: the knowledge area that narrows the window.
 // startWidth: how wide the window starts, as a fraction of the value either side (reliability: in points).

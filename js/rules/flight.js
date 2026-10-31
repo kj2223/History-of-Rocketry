@@ -30,11 +30,13 @@ import { loseReputation, rangeDataPayment } from './economy.js';
 import { checkFirsts } from './race.js';
 import { recordBoosterFlight } from './manrate.js';
 import { usePad, damagePad } from './site.js';
-import { programmeOf, traitWeight, revealTraits, maturity, successfulFlights } from './programs.js';
-import { learn, learnFromFlight, knowledgeFraction, systemOf } from './knowledge.js';
+import { programmeOf, traitWeight, revealTraits, maturity, successfulFlights, fixKeyFor } from './programs.js';
+import { learn, learnFromFlight, knowledgeFraction, systemOf, teachingValue } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
 import { recordFirsts } from './invitations.js';
 import { recordTeamFlight, recordFixTrials } from './team.js';
+import { lowerStage } from './stages.js';
+import { stagePackages } from './production.js';
 
 // What is in the air right now: the UI's launch view (and the launch director) keep the flight or Mercury mission here.
 export const airborne = { flight: null, mission: null };
@@ -58,8 +60,13 @@ export const flattestAim = tier => Math.ceil(90 - guidedPitch(tier) * 180 / Math
 //     p: the team's belief in its lead (found), review: 1 if from a design review }
 // The flight keeps a short report for the result card: flight.report = { note: one sentence, and for an incident on file:
 //   id, prog: its programme, sym: symptoms seen, cand: suspects }.
+// A failure pinned to a lower stage opens its incident in that stage's own file (rules/stages.js).
 function openIncident(flight, tracking, lastPlot) {
-  const mode = flight.failure, carried = flight.airframe.fix[mode];
+  if (flight.failStage) return withProgramme(flight.failStage, () => openIncidentInFocus(flight, tracking, lastPlot));
+  return openIncidentInFocus(flight, tracking, lastPlot);
+}
+function openIncidentInFocus(flight, tracking, lastPlot) {
+  const mode = flight.failure, carried = flight.airframe.fix[fixKeyFor(S.cur, mode)];
   if (carried) {
     loseReputation('residual');
     flight.report = { note: `${FAILURE_MODES[mode].name} struck despite the corrective design. Residual risk: nothing more to investigate.` };
@@ -88,7 +95,7 @@ function openIncident(flight, tracking, lastPlot) {
   // Every mode whose visible symptoms look the same is a candidate.
   const symptoms = visibleSymptoms(mode, tracking), signature = symptoms.join();
   const candidates = Object.keys(FAILURE_MODES).filter(other => visibleSymptoms(other, tracking).join() == signature);
-  const incident = { id: S.inc.reduce((highest, other) => Math.max(highest, other.id), 0) + 1, mode, sym: symptoms, cand: candidates, ev: 1, st: 'open', t: flight.time, lab: flight.airframe.label, plot: lastPlot };
+  const incident = { id: S.inc.reduce((highest, other) => Math.max(highest, other.id), 0) + 1, mode, sym: symptoms, cand: candidates, ev: 1, st: 'open', t: flight.time, lab: flight.failStage ? `${flight.airframe.label}, ${PROGRAMMES[flight.failStage].name}` : flight.airframe.label, plot: lastPlot };
   S.inc.push(incident);
   flight.report = { id: incident.id, prog: flight.programme, sym: symptoms, cand: candidates, note: candidates.length > 1 ? 'A new unexplained failure. Records analysis can narrow down the cause.' : '' };
   loseReputation(S.known[mode] ? 'known' : 'novel');
@@ -156,7 +163,9 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
     thrust: spec.thr * spec.t * modifiers.t,
     isp: propellant.isp * engineGain, vacuumIsp: propellant.vacuumIsp * engineGain,
   }, build, onTheDay, efficiency, residualShare());
-  const stages = stage && programme.booster ? [readyStage(boosterStage(programme, spec, modifiers, propellant, load), build, onTheDay, efficiency, residualShare()), core] : [core];
+  // A rocket with stage designs flies its lower stage's own figures, flaws and fixes (rules/stages.js); older rockets their booster.
+  const lower = stage && programme.stages ? lowerStage(programmeKey, airframe, propellant, load, options.estimated) : null;
+  const stages = lower || (stage && programme.booster) ? [readyStage(lower || boosterStage(programme, spec, modifiers, propellant, load), build, onTheDay, efficiency, residualShare()), core] : [core];
   stages[0].litAt = 0;
   const coreBurnTime = burnSeconds(core);
   // Reliability: the propellant's base, experience handling it (any rocket) and with this rocket's own engine and plumbing,
@@ -166,6 +175,8 @@ function makeFlightForProgramme(airframe, propellantName, payloadName, stage, lo
   const experience = Math.min(PROPELLANT_EXPERIENCE.max, (S.fr[propellantName] || 0) * PROPELLANT_EXPERIENCE.perFlight)
     + Math.min(ROCKET_EXPERIENCE.max, successfulFlights(programmeKey) * ROCKET_EXPERIENCE.perFlight);
   const reliability = Math.min(.99, propellant.reliability + experience + spec.r - Math.min(.08, unproven * .012) + .07 * maturity(programmeKey) / 100);
+  // A lower stage's reliability rests on its own design's offset and research in place of the top stage's.
+  if (lower) stages[0].reliability = Math.min(.99, reliability - spec.r + lower.r);
   return {
     airframe, spec, latent: options.latent || null, wind: options.wind || 0, overNoGo: !!options.over, plan: options.plan || null,
     propellant: propellantName, payload: payloadName, satellite: !!payload.satellite, payloadMass: payload.mass, separationRisk: 1,
@@ -263,12 +274,15 @@ export function takeReadings(flight, quiet) {
 
 // A failure strikes: at once (returns true), or, for a mode with a warning, after a few seconds of signs on its part channel
 // (flight.pending: { mode, from, at }; rules/telemetry.js shows the signs, and you can abort in the meantime).
+// A failure in a lower stage with a design of its own is pinned to it (failStage, or pending.stg while it shows its signs).
 function strike(flight, mode) {
+  const stage = flight.stages[flight.stageIndex].stage || null;
   if (!FAILURE_WARNINGS[mode]) {
     flight.failure = mode;
+    flight.failStage = stage;
     return true;
   }
-  flight.pending = { mode, from: flight.time, at: flight.time + WARNING_SECONDS.least + Math.floor(Math.random() * (WARNING_SECONDS.most - WARNING_SECONDS.least + 1)) };
+  flight.pending = { mode, stg: stage, from: flight.time, at: flight.time + WARNING_SECONDS.least + Math.floor(Math.random() * (WARNING_SECONDS.most - WARNING_SECONDS.least + 1)) };
   return false;
 }
 
@@ -445,6 +459,7 @@ export function step(flight) {
   // A failure already showing on its channel strikes when its warning runs out, powered or not.
   if (flight.pending && flight.time >= flight.pending.at) {
     flight.failure = flight.pending.mode;
+    flight.failStage = flight.pending.stg || null;
     return 'fail';
   }
   // Seconds since the upper stage lit (null before it has): staging failures strike as it lights.
@@ -463,7 +478,7 @@ export function step(flight) {
     const justSeparated = sinceStaging != null && sinceStaging <= 2;
     const spike = (flight.time <= 3 ? .012 : 0) + (justSeparated ? .04 : 0); // ignition and staging are risky moments
     const stress = Math.max(0, flight.gLoad / (flight.gLimit * (1 - .35 * Math.min(1, flight.deformation))) - .85) + Math.max(0, aeroLoad - .8) * .5;
-    const unreliability = 1 - flight.reliability;
+    const unreliability = 1 - (stage.reliability ?? flight.reliability), multipliers = stage.modeMultipliers || flight.modeMultipliers;
     const weights = {
       c: unreliability,
       p: unreliability * .8 * Math.min(2, stage.thrust * flight.chamberShare / flight.referenceThrust),
@@ -477,14 +492,14 @@ export function step(flight) {
     let weighted = 0, total = 0;
     for (const mode in weights) {
       total += weights[mode];
-      weighted += weights[mode] * (flight.modeMultipliers[mode] || 1);
+      weighted += weights[mode] * (multipliers[mode] || 1);
     }
     const chance = (unreliability * .15 + (flight.time < 40 ? flight.wind * .003 : 0) + stress * .05 + spike + Math.max(0, heating - .85) * .12 + flight.deformation * .15 + Math.max(0, aeroLoad - .7) * .1) * flight.hazardScale * weighted / total;
     if (Math.random() < chance) {
       let roll = Math.random() * weighted;
       let pick = 'c';
       for (const mode in weights) {
-        roll -= weights[mode] * (flight.modeMultipliers[mode] || 1);
+        roll -= weights[mode] * (multipliers[mode] || 1);
         if (roll <= 0) { pick = mode; break; }
       }
       if (strike(flight, pick)) return 'fail';
@@ -564,6 +579,7 @@ function endFlightForProgramme(flight, ok, why) {
       // Aborting ahead of a failure that was showing its signs: the vehicle was failing, so the engineers still investigate.
       if (flight.pending) {
         flight.failure = flight.pending.mode;
+        flight.failStage = flight.pending.stg || null;
         log(`T+${flight.time}s | Aborted ahead of a failure.`, 'wn');
         visibleSymptoms(flight.failure, tracking).forEach(symptom => log(`[ANALYSIS] Records indicate ${SYMPTOMS[symptom].text}.`, 'wn'));
         openIncident(flight, tracking, null);
@@ -625,12 +641,25 @@ function endFlightForProgramme(flight, ok, why) {
   checkBreakthroughs();
   recordBoosterFlight(flight.airframe, ok && why != 'abort');
   learnFromFlight(flight, ok);
+  stagesLearn(flight);
   recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
   recordFirsts(flight);
   recordTeamFlight(ok && why != 'abort', ok ? peak : 0, [S.hd, S.hs, S.hi].filter((record, index) => record != recordsBefore[index]).length, !!flight.byDirector);
   recordFixTrials(flight.programme, ok && why != 'abort', flight.airframe);
   revealTraits(flight.programme);
   save();
+}
+
+// A lower stage with a design of its own learns its engine and tanks from every flight it flies, and most from its own failures.
+// A stage that burned through to separation confirms the packages it carried.
+function stagesLearn(flight) {
+  const value = teachingValue(flight.tracking);
+  flight.stages.forEach((each, index) => each.stage && withProgramme(each.stage, () => {
+    for (const area of ['p', 's']) learn(area, .8 * value);
+    if (flight.failStage == each.stage) learn(systemOf(flight.failure), 2.5 * value);
+    else if (flight.stageIndex > index) for (const id of stagePackages(flight.airframe, each.stage)) confirmPackage(id, 'Flight');
+    revealTraits(each.stage);
+  }));
 }
 
 // MERCURY BOOSTERS: one of your airframes flies its normal physics and failure model with a capsule aboard, from liftoff to burnout.
@@ -653,6 +682,7 @@ export function boosterFailed(flight) {
   withProgramme(flight.programme, () => {
     openIncident(flight, flight.tracking, null);
     learnFromFlight(flight, false);
+    stagesLearn(flight);
     recordTeamFlight(false);
     revealTraits(flight.programme);
   });
@@ -662,6 +692,7 @@ export function boosterSucceeded(flight) {
   withProgramme(flight.programme, () => {
     S.fr[flight.propellant] = (S.fr[flight.propellant] || 0) + 1;
     learnFromFlight(flight, true);
+    stagesLearn(flight);
     recordTeamFlight(true);
     recordFixTrials(flight.programme, true, flight.airframe);
     for (const id of flight.airframe.pk) if (BY_ID[id] && BY_ID[id].phase != 2) confirmPackage(id, 'Flight');

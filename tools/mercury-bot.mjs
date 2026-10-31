@@ -10,8 +10,8 @@ import { FACILITIES, STATIONS } from '../js/data/launch-site.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { PROGRAMMES } from '../js/data/programmes.js';
 import { researchLock, commission, itemsInArea } from '../js/rules/research.js';
-import { unitCost, draftChanges } from '../js/rules/production.js';
-import { candidates, startLock, startProgramme } from '../js/rules/programs.js';
+import { unitCost, draftChanges, draftSize } from '../js/rules/production.js';
+import { candidates, startLock, startProgramme, stagesOf } from '../js/rules/programs.js';
 import { hire, engineeringTeamCost } from '../js/rules/game.js';
 import { orderAirframes, publishBlueprint, buildTeams, buildTeamCost } from '../js/rules/factory.js';
 import { startInvestigation, chooseFix, INVESTIGATION_COST } from '../js/rules/jobs.js';
@@ -182,7 +182,7 @@ export function playMercury(game) {
     for (const kind of readyProgrammes()) withProgramme(kind, () => {
       const draft = draftChanges();
       if (isFamilyCertified(kind) && draft.packages.some(isMilestone)) return;
-      if (draft.packages.length + draft.fixes.length) publishBlueprint();
+      if (draftSize(draft)) publishBlueprint();
     });
     if (S.teams < 6 && S.b > engineeringTeamCost() + reserve + 30000) hire('team');
     // Short of money: ask Congress for more next year.
@@ -226,7 +226,8 @@ export function playMercury(game) {
     for (const id of spacecraftResearch()) if (freeTeams() && !researchLock(id) && S.b - BY_ID[id].cost >= reserve) commission(id);
     for (const id of Object.keys(S.g.pk)) if (freeTeams() && !groundTestLock(id) && S.b > reserve) groundTest(id);
     for (const candidate of candidates()) if (!startLock(candidate) && S.b - PROGRAMMES[candidate].cost > reserve + 40000) startProgramme(candidate);
-    for (const kind of readyProgrammes()) withProgramme(kind, () => {
+    // Each rocket's incidents, then those of its lower stages (rules/stages.js).
+    for (const kind of readyProgrammes().flatMap(kind => [kind, ...stagesOf(kind)])) withProgramme(kind, () => {
       for (const incident of S.inc) {
         if (!freeTeams()) break;
         if (incident.st == 'open' && S.b - INVESTIGATION_COST >= reserve) startInvestigation(incident.id);
