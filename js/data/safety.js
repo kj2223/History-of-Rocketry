@@ -31,3 +31,9 @@ export const TESTS_PER_REVISION = 2;
 export const TESTS_RANGE = [0, 6];
 export const TEST_DAYS = 30;
 export const TEST_COST_SHARE = .15;
+// CUTTING CORNERS: once the reading team's risk appetite (rules/culture.js) passes CUT_FROM, each ground test may be signed off
+// without being run, with a chance of CUT_CHANCE at full appetite and full pressure (the strongest of press, public and Congress),
+// scaled down by both. LETTER_CHANCE: the chance an engineer writes to you about a test that was skipped.
+export const CUT_FROM = .5;
+export const CUT_CHANCE = .4;
+export const LETTER_CHANCE = .5;
