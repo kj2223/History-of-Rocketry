@@ -28,7 +28,8 @@ import { batchCost, blueprintConfig } from './production.js';
 import { orderAirframes, heldForLaunch } from './factory.js';
 import { beginFlight, previewFlight } from './flight.js';
 import { learn, teachingValue } from './knowledge.js';
-import { directorMargin } from './campaign.js';
+import { directorMargin, slipChance } from './campaign.js';
+import { scrubCost } from './launch-site.js';
 import { planLoad, directorPoll, flyToEnd, testFirst } from './auto.js';
 import { leansChaotic, acceptRisk } from './culture.js';
 import { stagesOf } from './programs.js';
@@ -223,6 +224,15 @@ function flyRequest(request, { airframe, plan, fuel, pay, prog }) {
     if (test) {
       order.spent += test.cost;
       return !!test.cost;
+    }
+    // A procedural slip, as on a campaign flight: fewer as the director gains experience (rules/campaign.js slipChance).
+    if (Math.random() < slipChance()) {
+      const slipCost = Math.min(S.b, scrubCost());
+      S.b -= slipCost;
+      S.day += 2;
+      order.spent += slipCost;
+      log(`[LAUNCH DIRECTOR] Procedural slip in the countdown of a customer flight: the director scrubs and starts over. Turnaround ${formatMoney(slipCost)}.`, 'wn');
+      return true;
     }
     const { poll, cost } = directorPoll(airframe, fuel, plan.stage);
     order.spent += cost;

@@ -105,6 +105,16 @@ test('a Mercury booster plan never counts a booster that is over its heating or 
   }
 });
 
+test('a booster too heavy to lift off on full tanks is off-loaded until it flies its mission', () => {
+  const titan = readyProgramme('titan');
+  // More propellant in the first stage than its engines can lift when full (a Titan II grown heavy with research).
+  S.progs.titan1.T.f *= 1.2;
+  assert.ok(previewFlight(titan, 'Aerozine & N2O4', 'Gemini Spacecraft', 1, 1).thrustToWeight < 1.05, 'too heavy on full tanks');
+  const plan = boosterPlan(titan, 'Aerozine & N2O4', 'gt');
+  assert.ok(plan.ok, 'a part load flies the Gemini mission');
+  assert.ok(plan.load < 1 && plan.preview.thrustToWeight > 1.05);
+});
+
 test('capsules need their research before they can be ordered', () => {
   S.nasa = 1;
   S.p2 = newPhaseTwo();
@@ -349,6 +359,25 @@ test('Ellis flies a request on the cheapest rocket that reaches it, whichever br
   ordersTurn(.85);
   assert.equal(standingOrder().n, 1);
   assert.equal(S.air.find(airframe => airframe.prog == 'viking').st, 'r', 'the Viking stays in the hangar');
+});
+test('a customer flight can slip in the countdown, as a campaign flight can', async () => {
+  const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
+  S.air.push(readyProgramme('aerobee'));
+  S.staff.director = 1;
+  assert.equal(startOrder('aerobee', 1e6), null);
+  S.b = 1e6;
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
+  const random = Math.random, day = S.day;
+  let first = true;
+  Math.random = () => first ? (first = false, 0) : random(); // the slip roll comes up
+  try {
+    ordersTurn(.85);
+  } finally {
+    Math.random = random;
+  }
+  assert.equal(standingOrder().n, 0, 'nothing flew');
+  assert.equal(S.day, day + 2, 'the slip costs two days');
+  assert.ok(standingOrder().spent > 0, 'and the turnaround is charged to the order');
 });
 test('with no cheap airframe ready, Ellis orders one rather than fly a dearer rocket', async () => {
   const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
@@ -1561,6 +1590,10 @@ test('a hired lead runs the shared lane on the shared line, and proposes a miles
   S.jobs = [];
   S.bt.r = 1; // a breakthrough opens the first milestones, which are a choice
   assert.ok(proposals('r').length >= 2 && isChoice('r'));
+  const queued = proposals('r')[1].id;
+  S.rq.push({ id: queued, prog: null }); // queued behind other work (no team free yet)
+  assert.ok(!proposals('r').some(milestone => milestone.id == queued), 'a milestone you have queued is not proposed again');
+  S.rq = [];
   sharedTick();
   assert.equal(laneJob('r'), undefined, 'the lead waits for your call instead of carrying on');
   assert.equal(sharedIdleReason('r'), 'a milestone proposal is waiting for you');
@@ -1994,4 +2027,19 @@ test('the bar moves in steps and stays in its range', async () => {
   assert.equal(limitFor('titan:eng'), .035);
   for (let press = 0; press < 20; press++) moveTests(-1);
   assert.equal(safetyBar().n, 0);
+});
+test('the launch director will not fly a crew past the bar, and a launch you order past it is a habit the culture keeps', async () => {
+  const { safetyTick, safetyBar, barVerdict, launchOverBar, components } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  for (const key of components('titan')) safetyBar().lim[key] = .005;
+  assert.match(barVerdict('titan'), /limit/);
+  for (const key of components('titan')) safetyBar().lim[key] = 1;
+  safetyBar().tgt = 0;
+  assert.equal(barVerdict('titan'), null);
+  assert.equal(barVerdict('atlas'), null, 'only crew rockets are judged');
+  launchOverBar('titan', 'a test');
+  assert.equal(S.cult.ev.at(-1).k, 'override');
 });
