@@ -15,6 +15,7 @@ import { formatMoney } from '../core/util.js';
 import { DAYS_PER_SECOND_PHASE_TWO } from '../data/history.js';
 import { payroll, phaseOneGrant, sovietGap } from './economy.js';
 import { upkeep } from './site.js';
+import { congressTrim } from './pressure.js';
 
 // Tune here.
 export const REQUEST_RANGE = [1, 1.5];         // how far the player may scale the automatic request up
@@ -70,10 +71,10 @@ export const request = () => Math.round(automaticRequest() * S.fy.rq);
 export function setRequest(scale) {
   S.fy.rq = Math.max(REQUEST_RANGE[0], Math.min(REQUEST_RANGE[1], scale));
 }
-// The share of the request Congress grants.
+// The share of the request Congress grants (less when Congress is impatient with Apollo, rules/pressure.js).
 const racePressure = () => Math.min(RACE_SHARE, Math.max(0, sovietGap() - .05));
 export const congressShare = () => Math.max(SHARE_RANGE[0], Math.min(SHARE_RANGE[1],
-  BASE_SHARE + REPUTATION_SHARE * S.rep / 100 + racePressure() + (budgetUsed() > 1 ? OVERSPENT_SHARE : 0) + ((S.p2 && S.p2.gmul) || 1) - 1)) / Math.sqrt(S.fy.rq);
+  BASE_SHARE + REPUTATION_SHARE * S.rep / 100 + racePressure() + (budgetUsed() > 1 ? OVERSPENT_SHARE : 0) + ((S.p2 && S.p2.gmul) || 1) - 1 - congressTrim())) / Math.sqrt(S.fy.rq);
 // Next year's budget if the year ended today.
 const thousands = (dollars, round = Math.round) => round(dollars / 1000) * 1000;
 export const nextBudget = () => Math.max(thousands(BUDGET_STEP[0] * S.fy.bud, Math.ceil), Math.min(thousands(BUDGET_STEP[1] * S.fy.bud, Math.floor), thousands(request() * congressShare())));

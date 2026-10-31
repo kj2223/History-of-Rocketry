@@ -36,6 +36,7 @@ import { recordMercuryFlight } from './budget.js';
 import { usePad, damagePad } from './site.js';
 import { checkFirsts } from './race.js';
 import { barVerdict, launchOverBar } from './safety.js';
+import { notePressure } from './pressure.js';
 
 // Where the profile puts the capsule at a mission time: { alt (km), v (m/s), g }, interpolated between its points.
 const profileAt = (profile, time) => {
@@ -1035,6 +1036,7 @@ export function endMission(mission) {
     } else log(`[PRESS] ${animalName(animal)} is recovered alive.${animal.species == 'chimpanzee' && !outcome.overspeed && !outcome.padShutdown ? ' It pulled its levers on cue all through the flight.' : ''}`.replace('[PRESS] the', '[PRESS] The'), 'ok');
   }
   if (!ok && !outcome.lost) S.rep = Math.max(0, S.rep - (outcome.boosterFailed ? 4 : 2));
+  if (pilot) notePressure(outcome.lost ? 'crewLost' : ok ? 'goodFlight' : 'failedFlight');
   // What the failures teach: each investigation proposes the package that cures it.
   if (outcome.padShutdown && !state.fl.four) {
     state.fl.four = 1;
