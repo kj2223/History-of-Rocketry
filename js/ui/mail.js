@@ -24,6 +24,8 @@ import { SHARED_AREAS, SHARED_CAPS, SHARED_RAISE, proposals, isChoice, sharedIdl
 import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
 import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
+import { TARGET_RANGE, LIMIT_RANGE, TESTS_RANGE } from '../data/safety.js';
+import { safetyBar, crewRockets, estimates, estimatedSafety, limitFor, componentName, designKey, testCost } from '../rules/safety.js';
 import { capabilityShown } from '../rules/mercury.js';
 import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure } from '../rules/culture.js';
 import { launchView } from './launch-view.js';
@@ -175,6 +177,27 @@ function apolloMessage() {
     body: `<p>Here are the three approaches, costed. The ranges are how sure the study is.</p><p class="m">${evidence < 3 ? 'Gemini has not yet flown everything a rendezvous needs. Each rendezvous, docking or spacewalk it flies firms up the risk figures of the two rendezvous approaches, so waiting buys certainty at the cost of schedule.' : 'Gemini has flown rendezvous, docking and spacewalks: the rendezvous risk figures are as firm as this study can make them.'}</p>${table}` };
 }
 
+// THE SAFETY BAR (rules/safety.js): the engineers' estimates for each crew rocket against the bar you set.
+const percent = chance => chance < .005 ? 'under 0.5%' : `${(chance * 100).toFixed(1)}%`;
+const stepper = (action, value, low, high, id = '') => `<button class="step" data-a="${action}" data-n="-1"${id ? ` data-id="${id}"` : ''}${value <= low ? ' disabled' : ''}>−</button><button class="step" data-a="${action}" data-n="1"${id ? ` data-id="${id}"` : ''}${value >= high ? ' disabled' : ''}>+</button>`;
+function safetyMessage() {
+  const bar = safetyBar();
+  if (!bar) return null;
+  const rockets = crewRockets().map(kind => {
+    const { tests, evidence, figures } = estimates(kind), safety = estimatedSafety(figures), testing = bar.j && bar.j.k == designKey(kind);
+    const rows = Object.entries(figures).map(([key, risk]) => `<div class="r"><span>${escapeHtml(componentName(key))}</span><span class="nw"><span class="d">tests ${percent(evidence[key])} · lead</span> <b class="${risk > limitFor(key) ? 'wn' : ''}">${percent(risk)}</b> <span class="d">limit ${percent(limitFor(key))}</span> ${stepper('sflim', limitFor(key), LIMIT_RANGE[0], LIMIT_RANGE[1], key)}</span></div>`).join('');
+    return `<div class="c"><div class="r"><b>${escapeHtml(PROGRAMMES[kind].name)}</b><span><span class="d">tests ${percent(estimatedSafety(evidence))} · lead</span> <b class="${safety < bar.tgt ? 'wn' : ''}">${percent(safety)} to orbit</b></span></div>`
+      + `<div class="m">${tests} ground test${tests == 1 ? '' : 's'} on this revision${testing ? `, one under way (${Math.max(1, Math.round(bar.j.d))} days)` : tests < bar.n ? `, ${formatMoney(testCost(kind))} each` : ''}.</div>${rows}</div>`;
+  }).join('');
+  return {
+    id: 'safety', kind: 'report', from: 'Office of Manned Space Flight', role: 'Safety and reliability', pane: 'note', subject: 'The safety bar for crewed launches',
+    body: '<p>Every crewed launch must clear this bar. For each part of a rocket\'s current revision you see two figures: the failure chance the tests support, and the lead\'s reading of it, which is what the launch is judged on. Each ground test firms the evidence up; none is ever exact.</p>'
+      + `<div class="r"><span>Target: chance of reaching orbit</span><span><b>${percent(bar.tgt)}</b> ${stepper('sftgt', bar.tgt, TARGET_RANGE[0], TARGET_RANGE[1])}</span></div>`
+      + `<div class="r"><span>Ground tests per new revision</span><span><b>${bar.n}</b> ${stepper('sftests', bar.n, TESTS_RANGE[0], TESTS_RANGE[1])}</span></div>`
+      + (rockets || '<div class="m">No crew rocket is in production yet.</div>'),
+  };
+}
+
 function remitMessage() {
   const remit = S.remit, from = memberName('ellis'), role = memberRole('ellis');
   if (!remit) {
@@ -236,6 +259,8 @@ function messages() {
   if (staff) list.push(staff);
   const apolloNote = apolloMessage();
   if (apolloNote) list.push(apolloNote);
+  const safety = safetyMessage();
+  if (safety) list.push(safety);
   const remit = remitMessage();
   if (remit) list.push(remit);
   const culture = cultureMessage();

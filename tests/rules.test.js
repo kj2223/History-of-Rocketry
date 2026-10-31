@@ -1940,3 +1940,55 @@ test('the S-I burns kerosene under a hydrogen upper stage, and the Saturn I can 
   assert.equal(previewFlight(saturn, 'Hydrogen & LOX', 'Apollo Boilerplate', 1, .8).orbit, true);
   assert.equal(previewFlight(titan, 'Aerozine & N2O4', 'Apollo Boilerplate', 1, 1).orbit, false);
 });
+
+// THE SAFETY BAR (Apollo step 4): estimates for each crew rocket's components, and ground tests that firm them up.
+test('the safety bar opens with the architecture, and the staff ground-test each new revision at a price', async () => {
+  const { safetyTick, safetyBar, crewRockets, testCost } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  S.b = 1e6;
+  assert.equal(safetyTick(1), false, 'no bar before the architecture is chosen');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  assert.ok(safetyBar());
+  assert.deepEqual(crewRockets(), ['titan']);
+  const before = S.b;
+  safetyTick(1);
+  assert.equal(before - S.b, testCost('titan'), 'a test is paid for when it starts');
+  for (let day = 0; day < 200; day++) safetyTick(1);
+  assert.equal(Object.values(safetyBar().t)[0], safetyBar().n, 'tests stop at the number you set');
+});
+test('the true figures leave the game dice alone, and tests narrow how far off the estimates are', async () => {
+  const { safetyTick, safetyBar, trueRisks, estimates, components, designKey } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  const dice = Math.random, sequence = () => [Math.random(), Math.random()];
+  Math.random = seeded(7);
+  trueRisks('titan');
+  const after = sequence();
+  Math.random = seeded(7);
+  assert.deepEqual(after, sequence(), 'the simulation flights roll their own dice');
+  Math.random = dice;
+  assert.deepEqual(Object.keys(trueRisks('titan')), components('titan'));
+  assert.deepEqual(components('titan'), ['titan1:eng', 'titan1:str', 'titan:eng', 'titan:str', 'titan:sep']);
+  const truth = trueRisks('titan'), key = 'titan1:eng', off = estimate => Math.abs(Math.log(estimate.evidence[key] / truth[key]));
+  const untested = estimates('titan');
+  safetyBar().t[designKey('titan')] = 6;
+  const tested = estimates('titan');
+  assert.ok(off(tested) < off(untested));
+  assert.ok(tested.figures[key] < tested.evidence[key], "the lead's reading is lower than the evidence");
+});
+test('the bar moves in steps and stays in its range', async () => {
+  const { safetyTick, safetyBar, moveTarget, moveLimit, moveTests, limitFor } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  for (let press = 0; press < 50; press++) moveTarget(1);
+  assert.equal(safetyBar().tgt, .99);
+  moveLimit('titan:eng', -1);
+  assert.equal(limitFor('titan:eng'), .035);
+  for (let press = 0; press < 20; press++) moveTests(-1);
+  assert.equal(safetyBar().n, 0);
+});

@@ -21,6 +21,7 @@ import { approveBrief } from '../rules/brief.js';
 import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
 import { hireLead } from '../rules/leads.js';
 import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
+import { moveTarget, moveLimit, moveTests } from '../rules/safety.js';
 import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
@@ -248,6 +249,9 @@ const GAME_ACTIONS = {
     const error = chooseArchitecture(key);
     if (error) log('[NASA] ' + error, 'bad');
   },
+  sftgt: (_, button) => moveTarget(+button.dataset.n),
+  sflim: (key, button) => moveLimit(key, +button.dataset.n),
+  sftests: (_, button) => moveTests(+button.dataset.n),
   iattend: () => attendFirst(),
   iproceed: () => proceedWithFirst(),
   bstart: size => {
