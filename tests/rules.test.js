@@ -26,6 +26,9 @@ import { filedModes, systemOf } from '../js/rules/knowledge.js';
 import { startInvestigation, acceptFinding, nameCause, extendInvestigation, finishJob } from '../js/rules/jobs.js';
 import { startCampaign, goAhead, directorMargin, recordCampaignFlight, provenProgramme, AEROBEE_FLIGHTS_TO_UNLOCK, FLIGHTS_TO_PROVE } from '../js/rules/campaign.js';
 import { runPoll } from '../js/rules/launch-site.js';
+import { cureLock, startCure, countFlight, curesReady } from '../js/rules/cures.js';
+import { FLIGHTS_TO_FIND_CURE } from '../js/data/programmes.js';
+import { revealTraits } from '../js/rules/programs.js';
 
 // The same small generator the balance bot uses.
 const seeded = seed => () => {
@@ -2080,4 +2083,39 @@ test('each pressure has its own effect: Congress trims the budget, the press lea
   pressure().press = 100;
   assert.ok(pressLeak('a test') > 0);
   assert.ok(S.rep < 50);
+});
+
+// FLAW CURES (rules/cures.js): every flaw that costs performance can be cured, after flying the flawed design to find the cause.
+test('an overweight structure is cured only after the flawed rocket has flown enough to find the cause', () => {
+  const airframe = readyProgramme('viking');
+  S.progs.viking.traits = [{ k: 'heavy', found: 1, at: 0 }];
+  S.b = 1e6;
+  assert.match(cureLock('viking', 'heavy'), new RegExp(`${FLIGHTS_TO_FIND_CURE} more times`));
+  for (let i = 0; i < FLIGHTS_TO_FIND_CURE; i++) countFlight('viking');
+  assert.equal(cureLock('viking', 'heavy'), null);
+  assert.deepEqual(curesReady('viking').map(cure => cure.traitKey), ['heavy']);
+  withProgramme('viking', () => startCure('viking', 'heavy'));
+  const job = S.jobs.find(each => each.k == 'cure');
+  withProgramme('viking', () => finishJob(job));
+  assert.equal(S.progs.viking.fix.heavy, 'lighten');
+  assert.equal(cureLock('viking', 'heavy'), 'Cured.');
+  // An airframe built with the cure flies the lighter structure; one built before it keeps the extra mass.
+  const flawed = withProgramme('viking', () => designSpec(airframe.pk, false, airframe.fix).dry);
+  const cured = withProgramme('viking', () => designSpec(airframe.pk, false, { heavy: 'lighten' }).dry);
+  assert.ok(Math.abs(flawed / cured - 1.15) < 1e-9);
+});
+
+test('any fix for thin tank walls also gives back the structural limit the flaw took', () => {
+  const airframe = readyProgramme('viking');
+  S.progs.viking.traits = [{ k: 'thin', found: 1, at: 0 }];
+  const limit = fixes => withProgramme('viking', () => designSpec(airframe.pk, false, fixes).g);
+  assert.ok(Math.abs(limit({}) / limit({ s: FAILURE_MODES.s.fixes[0].id }) - .85) < 1e-9);
+});
+
+test('a performance flaw with a failure mode also surfaces once the team knows that system well', () => {
+  readyProgramme('viking');
+  S.progs.viking.traits = [{ k: 'soak', found: 0 }];
+  S.progs.viking.kn.a = 40;
+  revealTraits('viking');
+  assert.equal(S.progs.viking.traits[0].found, 1);
 });

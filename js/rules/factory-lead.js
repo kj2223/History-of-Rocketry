@@ -91,7 +91,7 @@ export const reedPublishes = () => !!S.works && S.works.prog == S.cur;
 // never sees the true effects). Only used to compare two configurations of the same rocket.
 const believedEffects = id => S.pk[id].c && S.pk[id].m ? S.pk[id].m : itemAsSeen(id).effects;
 function liftoffThrustToWeight(packages, fixes) {
-  const base = baseDesign(true), modifiers = fixModifiers(fixes);
+  const base = baseDesign(true, fixes), modifiers = fixModifiers(fixes);
   let thrust = 1, dryMass = base.dry + modifiers.d, propellant = base.f;
   for (const id of packages) {
     const effects = believedEffects(id);
