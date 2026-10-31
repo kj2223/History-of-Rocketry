@@ -10,7 +10,7 @@ import { orderAirframes, heldForLaunch } from './factory.js';
 import { runPoll, scrub, scrubCost, troubleshoot, PAD_FIX_COST } from './launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight } from './flight.js';
 import { campaignExpired, endCampaign, directorMargin, slipChance, VETERAN_MARGIN } from './campaign.js';
-import { standingOrders, ordersTurn } from './orders.js';
+import { standingOrder, ordersTurn } from './orders.js';
 import { waitForInvitation } from './invitations.js';
 
 // The director tries every 15 seconds, and keeps $6,000 in the treasury for you.
@@ -42,7 +42,7 @@ export function planLoad(airframe, camp, margin) {
 // Returns true if anything happened.
 export function autoLaunch() {
   const camp = S.auto.camp;
-  if (!S.staff.director || (!camp && !standingOrders().length) || airborne.flight || --S.auto.cd > 0) return false;
+  if (!S.staff.director || (!camp && !standingOrder()) || airborne.flight || --S.auto.cd > 0) return false;
   S.auto.cd = DIRECTOR_CADENCE;
   if (camp && campaignExpired()) return true;
   if (camp && !camp.hold && withProgramme(camp.prog, () => directorTurn(camp))) return true;
