@@ -8,7 +8,7 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two: Section 1 to the first American in space, Section 2 through orbital Mercury and Gemini (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n (`SEED=5,7` plays several); `PHASE_ONE_ONLY=1` stops at orbit. The last line sums up the medians and names any stall (a stage reached but never finished); a stall makes the bot exit with an error.
 
-**Check for dead ends:** `npm run acceptance` replays the bot games that once stalled (`tools/acceptance.mjs`) and fails if any still does. It takes about half a minute.
+**Check for dead ends:** `npm run acceptance` replays the bot games that once stalled (`tools/acceptance.mjs`) and fails if any still does. It takes about a minute.
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
 
@@ -31,7 +31,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 |---|---|
 | Research packages and milestones (cost, time, effects) | `data/research.js` |
 | What the R&D desk says about a package (explainers, the engineers' confidence lines) | `data/research-notes.js` |
-| Rockets: design figures, costs, propellants, flaws | `data/programmes.js` |
+| Rockets: design figures, costs, propellants, flaws and their cures (and how many flights it takes to find a cure) | `data/programmes.js` |
 | Propellants (sea-level and vacuum Isp), payloads and pitch programs | `data/launch.js` |
 | Engine start and tail-off, residual propellant, drag through the sound barrier, gravity-turn steering, staging delays | the constants above `step()` in `rules/flight.js` |
 | Failure modes, symptoms and fixes | `data/failures.js` |
@@ -49,6 +49,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/game.js` | The tick, the calendar catch-up, hiring staff, the starting position, run-log snapshots |
 | `rules/research.js` | What can be commissioned, breakthroughs, earmarks, crash programmes, finishing and confirming packages |
 | `rules/programs.js` | Starting a rocket programme, its hidden true design and flaws, maturity |
+| `rules/cures.js` | Curing a flaw that costs performance, once the flawed rocket has flown enough to find the cause |
 | `rules/design.js` | What an airframe can do, launch quotes, recovery odds |
 | `rules/production.js` | Blueprint drafts, line learning, airframe and retrofit costs |
 | `rules/factory.js` | Build teams, ordering, publishing blueprints, the factory queue |

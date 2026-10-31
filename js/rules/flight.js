@@ -32,6 +32,7 @@ import { recordBoosterFlight } from './manrate.js';
 import { usePad, damagePad } from './site.js';
 import { programmeOf, traitWeight, revealTraits, maturity, successfulFlights, fixKeyFor } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf, teachingValue } from './knowledge.js';
+import { countFlight } from './cures.js';
 import { recordCampaignFlight } from './campaign.js';
 import { recordConfidence } from './culture.js';
 import { recordFirsts } from './invitations.js';
@@ -152,7 +153,7 @@ const roll = spread => 1 + spread * Math.max(-2, Math.min(2, gaussian()));
 const PROPELLANT_EXPERIENCE = { perFlight: .01, max: .05 }, ROCKET_EXPERIENCE = { perFlight: .015, max: .1 };
 function makeFlightForProgramme(airframe, propellantName, payloadName, stage, load, options) {
   const programmeKey = programmeOf(airframe), programme = PROGRAMMES[programmeKey] || {};
-  const spec = designSpec(airframe.pk, options.estimated), modifiers = fixModifiers(airframe.fix);
+  const spec = designSpec(airframe.pk, options.estimated, airframe.fix), modifiers = fixModifiers(airframe.fix);
   const propellant = PROPELLANTS[propellantName], payload = PAYLOADS[payloadName];
   const build = options.estimated ? AS_DRAWN : airframe.vr || AS_DRAWN;
   const onTheDay = options.estimated ? 1 : roll(DAY_TO_DAY_THRUST), efficiency = options.estimated ? 1 : roll(DAY_TO_DAY_ISP);
@@ -657,6 +658,7 @@ function endFlightForProgramme(flight, ok, why) {
 function stagesLearn(flight) {
   const value = teachingValue(flight.tracking);
   flight.stages.forEach((each, index) => each.stage && withProgramme(each.stage, () => {
+    countFlight(each.stage);
     for (const area of ['p', 's']) learn(area, .8 * value);
     if (flight.failStage == each.stage) learn(systemOf(flight.failure), 2.5 * value);
     else if (flight.stageIndex > index) for (const id of stagePackages(flight.airframe, each.stage)) confirmPackage(id, 'Flight');
