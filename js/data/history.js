@@ -66,6 +66,28 @@ export const V2_PROGRAMME = { start: 105, end: 2419, every: 39, ok: .7, peak: [8
 // What a failed V-2 did, one picked at random (the Army's records of the real failures).
 export const V2_FAILURES = ['lost a fin and tumbled', 'went off course and was destroyed by the range safety officer', 'cut off early in a guidance fault', 'broke up in the thin upper air', 'burned through its steam turbine'];
 
+// RIDE-ALONGS (rules/neighbours.js): the V-2 Panel sells nose space on the next Army V-2 to anyone with instruments ready. You pay
+// for the payload and the panel's fee; a good flight sends back a share of the payload's science (it shares the nose and the
+// telemetry), and the instruments teach your team. A failed V-2 loses the payload. Film has to come down in one piece: a good
+// flight still recovers it only RIDE_FILM_RECOVERY of the time. Payloads: those with science, no animals, no satellites.
+export const RIDE_FEE = 1500;
+export const RIDE_SHARE = .5;
+export const RIDE_FILM_RECOVERY = .6;
+export const RIDE_PAYLOADS = ['Sensor Suite', 'Cosmic-Ray Package', 'Film Camera'];
+// BUMPER: your WAC Corporal on top of a V-2, the first American two-stage rocket. Offered once the WAC Corporal has flown
+// BUMPER_OFFER.proven good flights, from BUMPER_OFFER.day (May 1948) while the V-2s still fly. It takes over the next
+// BUMPER_FLIGHTS V-2 launches, each costing BUMPER_COST (a WAC Corporal and the integration work), paid when it flies (a flight
+// waits a slot if the treasury is short). The upper stage separates with a chance that grows with your staging knowledge; the
+// last two fly from the new Florida range, long and low. Bumper flights count for the multi-stage and downrange firsts, never
+// for your altitude records or directives (most of the climb is the V-2's).
+export const BUMPER_OFFER = { proven: 3, day: 840 };
+export const BUMPER_FLIGHTS = 6;
+export const BUMPER_COST = 8000;
+export const BUMPER_SEPARATION = { base: .55, knowledge: .35 };
+export const BUMPER_PEAK = [250, 400];
+export const BUMPER_DOWNRANGE = [300, 400];
+export const BUMPER_FLORIDA = 2;
+
 // THE SOVIET PROGRAMME. Each event lands on its historical day, jittered by about 5% each game (core/state.js).
 // wire: the news report. short: how intelligence estimates describe it.
 export const RIVAL = [

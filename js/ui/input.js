@@ -20,6 +20,7 @@ import { raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
 import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { approveBrief } from '../rules/brief.js';
 import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
+import { bookRide, answerBumper } from '../rules/neighbours.js';
 import { hireLead } from '../rules/leads.js';
 import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
 import { moveTarget, moveLimit, moveTests, retest } from '../rules/safety.js';
@@ -255,6 +256,12 @@ const GAME_ACTIONS = {
   sftgt: (_, button) => moveTarget(+button.dataset.n),
   sflim: (key, button) => moveLimit(key, +button.dataset.n),
   sftests: (_, button) => moveTests(+button.dataset.n),
+  v2ride: name => {
+    const error = bookRide(name);
+    if (error) log('[V-2 PANEL] ' + error, 'bad');
+  },
+  bumpyes: () => answerBumper(true),
+  bumpno: () => answerBumper(false),
   sfretest: kind => retest(kind),
   rqans: answer => {
     const error = answerRequest(answer);
