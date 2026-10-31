@@ -2119,3 +2119,35 @@ test('a performance flaw with a failure mode also surfaces once the team knows t
   revealTraits('viking');
   assert.equal(S.progs.viking.traits[0].found, 1);
 });
+
+// THE RACE (rules/race.js): the Soviet calendar and who gets each first.
+test('every Soviet date lands within its jitter of history: 5% early on, at most 45 days from the late 1950s', async () => {
+  const { RIVAL } = await import('../js/data/history.js');
+  for (let game = 0; game < 50; game++) {
+    resetState();
+    for (const event of RIVAL) {
+      const spread = Math.min(event.day * .05, event.day > 4590 ? 45 : Infinity);
+      assert.ok(Math.abs(S.rv[event.id] - event.day) <= spread + .5, `${event.id} on day ${S.rv[event.id]}`);
+    }
+  }
+});
+
+test('a first is ours if we get there before the Soviets, and only matched (second) after them', async () => {
+  const { checkFirsts, sovietEventsTick } = await import('../js/rules/race.js');
+  const { FIRSTS } = await import('../js/data/history.js');
+  const onlySpaceOpen = () => FIRSTS.forEach(first => { if (first.id != 'f_space') S.fs[first.id] = 'us'; });
+  const spaceFlight = { ok: true, why: 'land', peak: 101000, spd: 1500, dr: 0, pay: 'Inert Ballast', rec: false, got: [], staged: false };
+  S.day = S.rv.r_space - 10;
+  onlySpaceOpen();
+  checkFirsts(spaceFlight);
+  assert.equal(S.fs.f_space, 'us');
+  resetState();
+  S.day = S.rv.r_space + 1;
+  sovietEventsTick();
+  assert.equal(S.fs.f_space, 'them');
+  onlySpaceOpen();
+  const before = S.b, reward = FIRSTS.find(first => first.id == 'f_space').cash;
+  checkFirsts(spaceFlight);
+  assert.equal(S.fs.f_space, 'second');
+  assert.equal(S.b - before, Math.round(reward * .4), 'a matched first pays 40% of the reward');
+});

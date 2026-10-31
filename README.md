@@ -8,7 +8,7 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two: Section 1 to the first American in space, Section 2 through orbital Mercury and Gemini (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n (`SEED=5,7` plays several); `PHASE_ONE_ONLY=1` stops at orbit. The last line sums up the medians and names any stall (a stage reached but never finished); a stall makes the bot exit with an error.
 
-**Check for dead ends:** `npm run acceptance` replays the bot games that once stalled (`tools/acceptance.mjs`) and fails if any still does. It takes about a minute.
+**Check for dead ends:** `npm run acceptance` replays the bot games that once stalled (`tools/acceptance.mjs`) and fails if any still does. It also saves and reloads one game when Gemini opens (`ROUNDTRIP=1`) and fails if that changes how the game plays out. It takes about a minute.
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
 

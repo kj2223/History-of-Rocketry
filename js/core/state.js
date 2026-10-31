@@ -45,7 +45,7 @@
 //   shared  the shared research line (see rules/shared-research.js)
 //   cult    the programme's culture and the team's confidence (see rules/culture.js)
 //   ops     Ellis running the Mercury tests, or null (see rules/flight-ops.js)
-import { RIVAL } from '../data/history.js';
+import { RIVAL, V2_PROGRAMME } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
 // Soviet dates vary run to run: about 5% early or late in the period, but no more than six weeks either way once the race is close (after day 4590).
@@ -85,6 +85,7 @@ export const newGameState = () => ({
   shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
   cult: { lean: 0, conf: 0, n: 0, tests: 0, ev: [] },
   ops: null,
+  v2: { n: 0, ok: 0, hi: 0, next: V2_PROGRAMME.start },
 });
 
 export const S = newGameState();
