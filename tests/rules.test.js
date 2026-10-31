@@ -2225,7 +2225,9 @@ test('every Soviet date lands within its jitter of history: 5% early on, at most
   for (let game = 0; game < 50; game++) {
     resetState();
     for (const event of RIVAL) {
-      const spread = Math.min(event.day * .05, event.day > 4590 ? 45 : Infinity);
+      // An event that follows another keeps its gap from it, so it carries that event's spread.
+      const timed = event.follows ? RIVAL.find(other => other.id == event.follows) : event;
+      const spread = Math.min(timed.day * .05, timed.day > 4590 ? 45 : Infinity);
       assert.ok(Math.abs(S.rv[event.id] - event.day) <= spread + .5, `${event.id} on day ${S.rv[event.id]}`);
     }
   }
