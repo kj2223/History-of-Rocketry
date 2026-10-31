@@ -106,3 +106,20 @@ test('a risk a lead accepts is logged and kept for the letter', async () => {
   acceptRisk('ellis', 'LAUNCH DIRECTOR', 'second');
   assert.deepEqual(acceptedRisks().map(risk => risk.t), ['second', 'first']);
 });
+
+test('Ellis takes the Mercury tests only once NASA is formed and she is launch director; a crewed series follows the first crewed flight', async () => {
+  const { startOps, seriesLock, greenlight } = await import('../js/rules/flight-ops.js');
+  const { newPhaseTwo } = await import('../js/rules/mercury.js');
+  assert.ok(startOps(100000), 'not before NASA');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.staff.director = 1;
+  assert.equal(startOps(100000), null);
+  assert.match(seriesLock('mr'), /first crewed/);
+  // GREENLIGHT THE NEXT 3: this launch and two more of its kind are approved in advance.
+  S.ops.ready = { kind: 'lj', what: 'a Little Joe', af: -1 };
+  greenlight(false, false, 3);
+  assert.equal(S.ops.pre.lj, 2);
+  assert.equal(S.ops.gl.lj, 1);
+  assert.equal(S.ops.ready, null);
+});
