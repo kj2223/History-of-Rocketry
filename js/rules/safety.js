@@ -20,6 +20,7 @@ import { hasBoosterStage } from './design.js';
 import { stagesOf } from './programs.js';
 import { apollo } from './apollo.js';
 import { riskAppetite, noteHabit } from './culture.js';
+import { pressLeak } from './pressure.js';
 
 // The figures are read by the Chief Engineer's team (Ellis): its own culture, guided by the organisation's (rules/culture.js).
 const READER = 'ellis';
@@ -115,6 +116,7 @@ export const testsPending = kind => !!safetyBar() && (safetyBar().t[designKey(ki
 export function launchOverBar(kind, verdict) {
   log(`[NASA] Crewed launch ordered past the safety bar: the ${PROGRAMMES[kind].name} flies although ${verdict}.`, 'bad');
   noteHabit('override', 1, `a crewed ${PROGRAMMES[kind].name} launched past the safety bar`);
+  pressLeak(`NASA flew a crew on the ${PROGRAMMES[kind].name} past its own safety bar`);
 }
 
 export const testCost = kind => Math.round(PROGRAMMES[kind].unitCost * TEST_COST_SHARE);
