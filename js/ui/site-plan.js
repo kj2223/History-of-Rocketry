@@ -4,7 +4,7 @@ import { formatMoney } from '../core/util.js';
 import { FACILITIES, CONTROL_ROOM_FACILITIES, ROOMS, SITE } from '../data/launch-site.js';
 import { S, formatDate } from '../core/state.js';
 import { facilityLock, roomLevel } from '../rules/launch-site.js';
-import { siteStatus, buildDaysOf, crewsBusy, waitingOrders, upkeep, upkeepOf, mothballLock, padBusyUntil } from '../rules/site.js';
+import { siteStatus, buildDaysOf, crewsBusy, contractorCrews, waitingOrders, upkeep, upkeepOf, mothballLock, padBusyUntil } from '../rules/site.js';
 import { $, setHTML } from './dom.js';
 
 export const siteView = { selected: 'ctrl' };
@@ -53,7 +53,7 @@ ${areas}${rangePads}${plots}</svg>`;
 
 // One building's card: what it does, its state, and what can be done with it now.
 function facilityCard(id) {
-  const facility = FACILITIES[id], lock = facilityLock(id), status = siteStatus(id), days = S.nasa ? buildDaysOf(id) : 0;
+  const facility = FACILITIES[id], lock = facilityLock(id), status = siteStatus(id), days = buildDaysOf(id);
   const order = `${formatMoney(facility.cost)}${days ? `, ${days} days` : ''}`;
   const action = status == 'built' ? (S.nasa && !mothballLock(id) ? `<button data-a="mothball" data-id="${id}">MOTHBALL (saves ${formatMoney(upkeepOf(id))} a cycle)</button>` : '')
     : status == 'building' ? `<div class="m">In service around ${formatDate(S.fb[id])}.</div>`
@@ -70,13 +70,13 @@ const selectedHTML = () => {
   if (FACILITIES[id]) return facilityCard(id);
   return '<div class="m">Click a plot on the plan to see the building.</div>';
 };
-// The contractor crews' work and the site's running cost (NASA only), then the buildings that can be ordered now.
+// The contractor crews' work, the site's running cost (NASA only), then the buildings that can be ordered now.
 function constructionHTML() {
   const building = Object.keys(S.fb || {}), waiting = waitingOrders();
-  const line = S.nasa ? `<div class="c"><div class="r"><b>CONSTRUCTION</b><span class="d">${crewsBusy()} / ${SITE.contractorCrews} contractor crews at work</span></div>`
+  const line = `<div class="c"><div class="r"><b>CONSTRUCTION</b><span class="d">${crewsBusy()} / ${contractorCrews()} contractor crew${contractorCrews() == 1 ? '' : 's'} at work</span></div>`
     + building.map(id => `<div class="r"><span>${FACILITIES[id].name}</span><span class="wn">in service ${formatDate(S.fb[id])}</span></div>`).join('')
     + waiting.map((id, index) => `<div class="r"><span class="d">${index + 1}. ${FACILITIES[id].name}</span><span class="d">waiting</span></div>`).join('')
-    + `<div class="r"><span class="d">Site upkeep</span><b>${formatMoney(upkeep())} a cycle</b></div><div class="m">From NASA's founding every building takes time to put up and costs upkeep. Mothball one to stop its upkeep (and its effect).</div></div>` : '';
+    + (S.nasa ? `<div class="r"><span class="d">Site upkeep</span><b>${formatMoney(upkeep())} a cycle</b></div><div class="m">Every building costs upkeep. Mothball one to stop its upkeep (and its effect).</div>` : '<div class="m">One contractor crew works the range, one building at a time. NASA brings a second crew.</div>') + '</div>';
   const ready = Object.keys(FACILITIES).filter(id => plotState(id) == 'open');
   return line + (ready.length ? `<div class="t" style="margin-top:8px">READY TO ORDER</div><div class="areas">${ready.map(facilityCard).join('')}</div>` : '');
 }

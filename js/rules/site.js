@@ -1,6 +1,6 @@
-// THE SITE from NASA's founding: construction by contractor crews, upkeep, mothballing, and the launch pads. No DOM.
-// In Phase One a building is in service the moment it is paid for (rules/launch-site.js); from NASA on, an order waits for one of
-// the contractor crews, takes its construction days, and then costs upkeep every funding cycle until it is mothballed.
+// THE SITE: construction by contractor crews, upkeep, mothballing, and the launch pads. No DOM.
+// An order waits for a contractor crew (one in Phase One, more from NASA's founding) and takes its construction days. From NASA
+// on, a building in service costs upkeep every funding cycle until it is mothballed.
 // A rocket programme with launch complexes of its own (FACILITIES pad) launches only from one of them that is free: after a
 // launch the pad is refurbished, and a vehicle that fails close to the pad puts it out of action for longer.
 //
@@ -19,6 +19,7 @@ export const buildDaysOf = id => FACILITIES[id].buildDays || Math.max(SITE.minim
 const underConstruction = () => Object.keys(S.fb || {});
 export const waitingOrders = () => S.cq || [];
 export const crewsBusy = () => underConstruction().length;
+export const contractorCrews = () => S.nasa ? SITE.contractorCrews : SITE.phaseOneCrews;
 // A building's place in the construction line: 'built', 'building', 'waiting', 'mothballed' or 'none'.
 export const siteStatus = id => S.fac[id] ? 'built' : S.fb && S.fb[id] ? 'building' : waitingOrders().includes(id) ? 'waiting' : S.mb && S.mb[id] ? 'mothballed' : 'none';
 // The success a building waits on, or null: an upgrade opens once its Mercury directive is met.
@@ -31,7 +32,7 @@ export function directiveLock(id) {
 // Order a building (already paid for): it starts at once if a contractor crew is free, otherwise it waits its turn.
 export function orderConstruction(id) {
   S.cq = [...waitingOrders(), id];
-  log(`[BASE] Ordered: ${FACILITIES[id].name}, ${buildDaysOf(id)} days of construction.${crewsBusy() >= SITE.contractorCrews ? ' It waits for a free contractor crew.' : ''}`, 'wn');
+  log(`[BASE] Ordered: ${FACILITIES[id].name}, ${buildDaysOf(id)} days of construction.${crewsBusy() >= contractorCrews() ? ' It waits for a free contractor crew.' : ''}`, 'wn');
   startWaitingOrders();
 }
 // Bring a mothballed building back: it goes through the construction line, with a short job.
@@ -42,7 +43,7 @@ export function reopen(id) {
   startWaitingOrders();
 }
 function startWaitingOrders() {
-  while (S.cq && S.cq.length && crewsBusy() < SITE.contractorCrews) {
+  while (S.cq && S.cq.length && crewsBusy() < contractorCrews()) {
     const id = S.cq.shift();
     S.fb = S.fb || {};
     S.fb[id] = Math.round(S.day + (S.mb && S.mb[id] ? SITE.reopenDays : buildDaysOf(id)));

@@ -4,7 +4,7 @@ import { FACILITIES, STATIONS, CONTROL_ROOM_FACILITIES } from '../data/launch-si
 import { FAULT_REPORTS, WIND_NAMES } from '../data/failures.js';
 import { CORE_TEAM } from '../data/team.js';
 import { BY_ID } from '../data/research.js';
-import { S, log, isConfirmed, freeTeams, addHistory, formatDate, withProgramme } from '../core/state.js';
+import { S, log, isConfirmed, freeTeams, formatDate, withProgramme } from '../core/state.js';
 import { rangeFee } from './design.js';
 import { knowledgeFraction, systemOf } from './knowledge.js';
 import { programmeOf, traitsOf } from './programs.js';
@@ -61,15 +61,11 @@ export function facilityLock(id) {
   if (S.b < facility.cost) return `Need ${formatMoney(facility.cost - S.b)} more.`;
   return null;
 }
-// Pay for a facility. In Phase One it is in service at once; from NASA on it goes to the contractor crews (rules/site.js).
+// Pay for a facility: it goes to the contractor crews (rules/site.js).
 export function buildFacility(id) {
   if (facilityLock(id)) return;
-  const facility = FACILITIES[id];
-  S.b -= facility.cost;
-  if (S.nasa) return orderConstruction(id);
-  S.fac[id] = 1;
-  if (facility.controlRoom) addHistory(`Control room: ${facility.name}`);
-  log(`[BASE] ${facility.name} operational.`, 'ok');
+  S.b -= FACILITIES[id].cost;
+  orderConstruction(id);
 }
 
 // Why a launch-crew station cannot be hired, or null.

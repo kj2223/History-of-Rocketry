@@ -38,13 +38,13 @@ export const FACILITIES = {
   lc12: { name: 'Launch Complex 12', cost: 80000, description: 'A second Atlas pad, so one Atlas can be readied while the other pad is refurbished after a launch.', requires: 'lc14', fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 120, pad: 'atlas', afterDirective: 'mo' },
 };
 
-// THE SITE from NASA's founding (rules/site.js). Phase One buildings go up the moment they are paid for, as before.
-//   contractorCrews: buildings under construction at once (more orders wait their turn)
+// THE SITE (rules/site.js). Every building goes up through the contractor crews; upkeep and mothballing start with NASA.
+//   contractorCrews: buildings under construction at once from NASA on (more orders wait their turn); phaseOneCrews: before NASA
 //   daysPerThousand: construction days per $1,000 of cost, for buildings without their own buildDays, and at least minimumDays
 //   upkeepPerYear: running cost a year as a share of a building's price; reopenDays: to bring a mothballed building back
 //   padTurnaround: days to refurbish a pad after a launch; padRepair: days to rebuild one after a vehicle fails close to it,
 //   within padDamageSeconds of liftoff
-export const SITE = { contractorCrews: 2, daysPerThousand: 1, minimumDays: 20, upkeepPerYear: .08, reopenDays: 20, padTurnaround: 20, padRepair: 75, padDamageSeconds: 15 };
+export const SITE = { contractorCrews: 2, phaseOneCrews: 1, daysPerThousand: 1, minimumDays: 20, upkeepPerYear: .08, reopenDays: 20, padTurnaround: 20, padRepair: 75, padDamageSeconds: 15 };
 // The control-room upgrades in order; the number built is the room level (0 to 5), an index into ROOMS.
 export const CONTROL_ROOM_FACILITIES = ['tty', 'plot', 'comp', 'mcc', 'wall'];
 export const ROOMS = [

@@ -1148,13 +1148,23 @@ test('without a Mercury flight reputation slips, and a flight ends the quiet spe
 });
 
 // THE SITE (rules/site.js): construction crews, upkeep, mothballing and launch pads.
-test('in Phase One a building is in service at once; from NASA on it waits for a contractor crew and its construction days', async () => {
+// Aaron's report: Phase One buildings went up the moment they were paid for, which was abusable.
+test('a building waits for a contractor crew and its construction days: one crew in Phase One, more from NASA on', async () => {
   const { buildFacility } = await import('../js/rules/launch-site.js');
   const { constructionTick, upkeep, buildDaysOf } = await import('../js/rules/site.js');
   const { SITE } = await import('../js/data/launch-site.js');
   S.b = 1e6;
   buildFacility('wx');
+  buildFacility('radar');
+  assert.ok(!S.fac.wx, 'paid for, not yet in service');
+  assert.deepEqual(Object.keys(S.fb), ['wx'], 'one crew in Phase One');
+  assert.deepEqual(S.cq, ['radar']);
+  S.day += buildDaysOf('wx');
+  constructionTick();
   assert.equal(S.fac.wx, 1);
+  assert.deepEqual(Object.keys(S.fb), ['radar'], 'the crew moves on to the next order');
+  S.day += buildDaysOf('radar');
+  constructionTick();
   assert.equal(upkeep(), 0, 'no upkeep before NASA');
   S.day = S.nasa = 4400;
   for (const id of ['centrifuge', 'egress', 'zerog']) buildFacility(id);
