@@ -85,7 +85,7 @@ export const PROGRAMMES = {
   // The first Saturn (Apollo step 3). Opens once Apollo has chosen how to reach the Moon (needsApollo): the rocket the Moon rocket
   // grows from. Its own design is the S-IV, the first hydrogen stage; under it the S-I, eight H-1 engines round a cluster of tanks.
   saturn1: {
-    name: 'Saturn I', year: 1964, generation: 7, requires: ['titan', 'atlas'], anyRequirement: 1, needsNasa: 1, needsApollo: 1, headStart: .5,
+    name: 'Saturn I', year: 1961, generation: 7, requires: ['titan', 'atlas'], anyRequirement: 1, needsNasa: 1, needsApollo: 1, headStart: .5,
     design: { dry: 750, f: 6500, thr: 45000, g: 8, h: 3, q: 2, c: .8, r: -.04, i: 2.6 },
     cost: 400000, designTime: 100, unitCost: 150000, unitTime: 64, sizeScale: 40, dryScale: 12, costScale: 4, timeScale: 1.3, packagesPerArea: 6, learningRate: 3, traitRange: [2, 3],
     propellants: ['Hydrogen & LOX'], hasMilestones: 1, canOrbit: 1, stages: ['sat1_si'],
@@ -111,7 +111,7 @@ export const PROGRAMMES = {
     why: 'Twin-chamber LR87 engines on a stage of thin aluminium tanks: most of the Titan II\'s weight and nearly all of its thrust at liftoff.',
   },
   sat1_si: {
-    name: 'Saturn I first stage (S-I)', engine: 'eight H-1s', stageOf: 'saturn1', year: 1964, generation: 7,
+    name: 'Saturn I first stage (S-I)', engine: 'eight H-1s', stageOf: 'saturn1', year: 1961, generation: 7,
     design: { dry: 6500, f: 70000, thr: 1000000, isp: 289, g: 8, h: 3, q: 2, c: .8, r: -.02, i: 2.6 },
     sizeScale: 540, dryScale: 110, costScale: 4, timeScale: 1.3, packagesPerArea: 0, learningRate: 3, traitRange: [1, 2],
     propellants: ['Kerosene & LOX'],

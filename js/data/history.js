@@ -28,12 +28,12 @@ export const ERAS = [
 // test(c) reads the flight's outcome (rules/flight.js). rivalEvent: the Soviet event that can claim it first, if any.
 export const FIRSTS = [
   { id: 'f_50', name: 'First rocket above 50 km', cash: 8000, reputation: 2, test: c => c.ok && c.peak >= 50000 },
-  { id: 'f_mach', name: 'First flight past 1,000 m/s', cash: 6000, reputation: 2, test: c => c.ok && c.spd >= 1000 },
-  { id: 'f_space', name: 'First American rocket into space (100 km)', cash: 20000, reputation: 6, test: c => c.ok && c.peak >= 100000, rivalEvent: 'r_space' },
-  { id: 'f_rec', name: 'First payload recovered from flight', cash: 5000, reputation: 2, test: c => c.rec },
-  { id: 'f_cosm', name: 'First cosmic-ray data from above 50 km', cash: 8000, reputation: 2, test: c => c.pay == 'Cosmic-Ray Package' && c.got > 0 && c.peak >= 50000 },
-  { id: 'f_photo', name: 'First photograph from 100 km', cash: 15000, reputation: 4, test: c => c.pay == 'Film Camera' && c.rec && c.peak >= 100000 },
-  { id: 'f_bio', name: 'First animal recovered alive from 80 km', cash: 15000, reputation: 6, test: c => c.pay == 'Primate Capsule' && c.rec && c.peak >= 80000, rivalEvent: 'r_dog' },
+  { id: 'f_mach', name: 'First American-built rocket past 1,000 m/s', cash: 6000, reputation: 2, test: c => c.ok && c.spd >= 1000 },
+  { id: 'f_space', name: 'First American-built rocket into space (100 km)', cash: 20000, reputation: 6, test: c => c.ok && c.peak >= 100000, rivalEvent: 'r_space' },
+  { id: 'f_rec', name: 'First payload recovered from an American-built rocket', cash: 5000, reputation: 2, test: c => c.rec },
+  { id: 'f_cosm', name: 'First cosmic-ray data from an American-built rocket above 50 km', cash: 8000, reputation: 2, test: c => c.pay == 'Cosmic-Ray Package' && c.got > 0 && c.peak >= 50000 },
+  { id: 'f_photo', name: 'First photograph from 100 km on an American-built rocket', cash: 15000, reputation: 4, test: c => c.pay == 'Film Camera' && c.rec && c.peak >= 100000 },
+  { id: 'f_bio', name: 'First animal recovered alive from 70 km', cash: 15000, reputation: 6, test: c => c.pay == 'Primate Capsule' && c.rec && c.peak >= 70000, rivalEvent: 'r_dog' },
   { id: 'f_stage', name: 'First successful multi-stage flight', cash: 10000, reputation: 3, test: c => c.ok && c.staged },
   { id: 'f_range', name: 'First flight 300 km downrange', cash: 8000, reputation: 2, test: c => c.ok && c.dr >= 300000 },
   { id: 'f_orbit', name: 'First artificial satellite', cash: 0, reputation: 0, test: c => c.why == 'orbit', rivalEvent: 'r_sat' },
@@ -44,15 +44,27 @@ export const FIRSTS = [
   { id: 'f_rdv', name: 'First rendezvous in orbit', cash: 40000, reputation: 6, test: c => !!c.rendezvous },
   { id: 'f_dock', name: 'First docking in orbit', cash: 50000, reputation: 8, test: c => !!c.dock, rivalEvent: 'r_kosmos' },
 ];
-// When the real US programme did each first, for the end-of-phase comparison.
+// When the real US programme did each first, for the end-of-phase comparison. The captured German V-2s at White Sands did several
+// of them first; those firsts are for American-built rockets in the game (the V-2s fly beside you, rules/neighbours.js), so the
+// comparison names the V-2 date as well.
 export const HISTORICAL_US_FIRSTS = {
-  f_50: 'Oct 1945, WAC Corporal', f_mach: 'Apr 1946, captured V-2', f_space: 'May 1946, V-2 at White Sands', f_rec: 'Oct 1946, V-2 film canister',
-  f_cosm: '1946, V-2 cosmic-ray counters', f_photo: 'Oct 1946, V-2 camera at 105 km', f_bio: 'Sep 1951, Aerobee (monkey Yorick)',
+  f_50: 'Oct 1945, WAC Corporal', f_mach: 'Captured V-2 first, Apr 1946', f_space: 'Mar 1948, Aerobee A5 at 117 km (a captured V-2 first, May 1946)',
+  f_rec: 'Captured V-2 first, Oct 1946 (film canister)', f_cosm: 'Captured V-2 first, 1946 (cosmic-ray counters)',
+  f_photo: 'Captured V-2 first, Oct 1946 (camera at 105 km)', f_bio: 'Sep 1951, Aerobee at 72 km (monkey Yorick and eleven mice)',
   f_stage: 'Feb 1949, Bumper-WAC', f_range: 'Jul 1950, Bumper-WAC from Cape Canaveral', f_orbit: 'Jan 1958, Explorer 1',
   f_human: 'May 1961, Freedom 7 (Vostok 1 had flown in April)', f_day: 'May 1963, Faith 7 (Vostok 2 had flown in August 1961)',
   f_crew2: 'Mar 1965, Gemini 3 (Voskhod 1 had flown three in October 1964)', f_eva: 'Jun 1965, Ed White on Gemini 4 (Leonov had walked in March)',
   f_rdv: 'Dec 1965, Gemini 6A and Gemini 7', f_dock: 'Mar 1966, Gemini 8 with an Agena',
 };
+
+// THE CAPTURED V-2s (rules/neighbours.js): the Army flew about sixty German V-2s at White Sands from April 1946 to September 1952,
+// with the scientists' instruments in the nose. They fly beside you on the range, on the Army's schedule: about a third failed, and
+// the best climbed to 187 km. They never claim your firsts (those are for American-built rockets).
+//   start, end: game days of the first and last launch; every: days between launches (each jittered by up to a third);
+//   ok: chance a flight goes well; peak: the range of a good flight's peak (km); record: the highest a V-2 can climb (km).
+export const V2_PROGRAMME = { start: 105, end: 2419, every: 39, ok: .7, peak: [80, 170], record: 187 };
+// What a failed V-2 did, one picked at random (the Army's records of the real failures).
+export const V2_FAILURES = ['lost a fin and tumbled', 'went off course and was destroyed by the range safety officer', 'cut off early in a guidance fault', 'broke up in the thin upper air', 'burned through its steam turbine'];
 
 // THE SOVIET PROGRAMME. Each event lands on its historical day, jittered by about 5% each game (core/state.js).
 // wire: the news report. short: how intelligence estimates describe it.
