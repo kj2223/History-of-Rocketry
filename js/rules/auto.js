@@ -3,14 +3,17 @@
 // the deadline passes or the budget is spent. A first invites you to attend before she flies it (rules/invitations.js): attended,
 // she leaves the count to Watch (ui/launch-view.js startDirectorCount). No DOM.
 import { formatMoney } from '../core/util.js';
-import { S, log, withProgramme } from '../core/state.js';
+import { S, log, withProgramme, isConfirmed } from '../core/state.js';
+import { BY_ID } from '../data/research.js';
+import { PROGRAMMES } from '../data/programmes.js';
 import { quoteLaunch, hasBoosterStage } from './design.js';
 import { batchCost } from './production.js';
 import { orderAirframes, heldForLaunch } from './factory.js';
-import { runPoll, scrub, scrubCost, troubleshoot, PAD_FIX_COST } from './launch-site.js';
+import { runPoll, scrub, scrubCost, troubleshoot, PAD_FIX_COST, groundTest, groundTestLock, TEST_STAND } from './launch-site.js';
 import { airborne, beginFlight, previewFlight, step, takeReadings, endFlight } from './flight.js';
 import { campaignExpired, endCampaign, directorMargin, slipChance, VETERAN_MARGIN } from './campaign.js';
-import { standingOrder, ordersTurn } from './orders.js';
+import { standingOrder, ordersTurn, openIncident } from './orders.js';
+import { leansSafe, acceptRisk } from './culture.js';
 import { waitForInvitation } from './invitations.js';
 
 // The director tries every 15 seconds, and keeps $6,000 in the treasury for you.
@@ -56,7 +59,18 @@ function directorTurn(camp) {
   // A first waits for your answer to her invitation (rules/invitations.js); attended, it goes to the pad for Watch.
   const invitation = waitForInvitation(airframe);
   if (invitation === true || S.auto.pad) return true;
-  const plan = planLoad(airframe, camp, camp.go ? VETERAN_MARGIN : directorMargin());
+  // THE CULTURE (rules/culture.js): a careful team waits for an open incident to be fixed and proves new engine work on the test
+  // stand first; any other team flies, and an open incident is a risk accepted.
+  const incident = openIncident(camp.prog), test = !incident && testFirst(airframe, camp.budget - camp.spent);
+  if (incident && leansSafe('ellis') || test) {
+    if (test && test.cost) camp.spent += test.cost;
+    const why = test ? test.why : `an incident on the ${PROGRAMMES[camp.prog].name} is still open`;
+    if (camp.wait != why) log(`[LAUNCH DIRECTOR] Waiting: ${why}.`, 'cyan');
+    camp.wait = why;
+    return !!(test && test.cost);
+  }
+  camp.wait = null;
+  const plan = planLoad(airframe, camp, camp.go ? Math.max(VETERAN_MARGIN, directorMargin()) : directorMargin());
   if (plan.reason) {
     camp.hold = camp.go ? `${airframe.label}: even at ${Math.round(VETERAN_MARGIN * 100)}% of the limits, ${plan.reason}. The design needs work, or fly it yourself.` : `${airframe.label}: ${plan.reason}. The director is not sure enough to fly it.`;
     log(`[LAUNCH DIRECTOR] Requesting guidance. ${camp.hold}`, 'wn');
@@ -94,6 +108,7 @@ function directorTurn(camp) {
   if (!flight) return false;
   flight.byDirector = true;
   camp.spent += quote.cost;
+  if (incident) acceptRisk('ellis', 'LAUNCH DIRECTOR', `${airframe.label} flies for the campaign with an incident still open.`);
   log(`[LAUNCH DIRECTOR] All stations GO. Flying ${airframe.label} at ${Math.round(plan.load * 100)}% propellant for the campaign.`, 'cyan');
   flyToEnd(flight);
   return true;
@@ -134,4 +149,23 @@ function orderForCampaign(camp, readyCount) {
   orderAirframes(1);
   camp.spent += cost;
   return true;
+}
+
+// A CAREFUL TEAM PROVES NEW ENGINE WORK FIRST: for a propulsion package aboard that is not yet confirmed and can go on the test
+// stand, she books the test from the money she has left (room) and waits for it. A package she cannot test (no stand, no free
+// team, no money) does not hold her up. Returns { why, cost } while she waits, or null.
+export function testFirst(airframe, room) {
+  if (!leansSafe('ellis')) return null;
+  return withProgramme(airframe.prog, () => {
+    for (const id of airframe.pk) {
+      if (!BY_ID[id] || isConfirmed(id)) continue;
+      if (S.jobs.some(job => job.k == 'gt' && job.id == id && job.prog == S.cur)) return { why: `${BY_ID[id].name} is on the test stand`, cost: 0 };
+      if (groundTestLock(id)) continue;
+      const before = S.b;
+      if (before - TREASURY_RESERVE < TEST_STAND.cost || room < TEST_STAND.cost) continue;
+      groundTest(id);
+      return { why: `${BY_ID[id].name} goes on the test stand before it flies`, cost: before - S.b };
+    }
+    return null;
+  });
 }
