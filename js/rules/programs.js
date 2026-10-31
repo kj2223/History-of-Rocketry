@@ -6,6 +6,7 @@ import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, BY_ID, isMilestone } from '../data/research.js';
 import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, STAGE_TRAITS, traitByKey, DESIGN_STATS, FLIGHTS_TO_FIND_CURE } from '../data/programmes.js';
 import { S, log, addHistory, newBundle, recordRunEvent, earn } from '../core/state.js';
+import { redstonePayment } from './corporal.js';
 
 // The four research areas that belong to a rocket (the others are global: see core/state.js).
 export const VEHICLE_AREAS = ['p', 's', 'i', 'a'];
@@ -165,6 +166,7 @@ export function startProgramme(kind) {
     earn(programme.igyFunding);
     log(`[CONGRESS] ${programme.name} is named the American satellite for the International Geophysical Year. A dedicated appropriation of ${formatMoney(programme.igyFunding)} comes with it.`, 'hd');
   }
+  if (kind == 'redstone') redstonePayment();
   addHistory(`${programme.name} programme started`);
   recordRunEvent({ k: 'prog', id: kind });
   return true;

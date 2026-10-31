@@ -2,7 +2,8 @@
 // team's hands. The messages are built fresh on every redraw from the game state; nothing here is saved.
 //   kind: decision (asks you for something, counted on the Mail button), directive, report or log
 import { formatMoney } from '../core/util.js';
-import { DIRECTIVES, RIDE_FEE, BUMPER_FLIGHTS, BUMPER_COST } from '../data/history.js';
+import { DIRECTIVES, RIDE_FEE, BUMPER_FLIGHTS, BUMPER_COST, CORPORAL_MILESTONES, CORPORAL_LATE_SHARE } from '../data/history.js';
+import { corporalJob, nextMilestone, milestoneDue } from '../rules/corporal.js';
 import { v2Flying, ridePayloads, rideCost, separationChance } from '../rules/neighbours.js';
 import { CORE_TEAM } from '../data/team.js';
 import { S, withProgramme, formatDate } from '../core/state.js';
@@ -23,8 +24,8 @@ import { LEAD_POSTS } from '../data/leads.js';
 import { openPosts, hiredLead, postCandidates } from '../rules/leads.js';
 import { SHARED_AREAS, SHARED_CAPS, SHARED_RAISE, proposals, isChoice, sharedIdleReason } from '../rules/shared-research.js';
 import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
-import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
-import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
+import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER, CENTRES } from '../data/apollo.js';
+import { apollo, apolloLead, studyDays, estimate, centres, centreClaim, centreRecord } from '../rules/apollo.js';
 import { TARGET_RANGE, LIMIT_RANGE, TESTS_RANGE } from '../data/safety.js';
 import { PRESSURES, SHIELDS } from '../data/pressure.js';
 import { HEARINGS } from '../data/hearing.js';
@@ -159,6 +160,21 @@ const ESTIMATE_TEXT = {
   risk: range => `${(range.low * 100).toFixed(1)}% to ${(range.high * 100).toFixed(1)}%`,
 };
 const ESTIMATE_LABELS = { cost: 'Development cost', years: 'To the first landing attempt', risk: 'Crew lost on a landing' };
+const ONE_FIGURE = { cost: value => millions(value), years: value => `${value.toFixed(1)} years`, risk: value => `${(value * 100).toFixed(1)}%` };
+// THE CENTRES' PITCHES beside the study (rules/apollo.js), and afterwards how each took the decision.
+const MOOD_WORDS = { keen: 'keen: it won', accepted: 'accepts the decision', resentful: 'resents the decision' };
+function centresHTML(state) {
+  const cen = centres();
+  return Object.entries(CENTRES).map(([key, centre]) => {
+    const bidder = cen[key], favourite = ARCHITECTURES[centre.favours];
+    if (!state.arch) return `<div class="c"><div class="r"><b>${escapeHtml(centre.head)}, ${escapeHtml(centre.place)}</b><span class="d">backs ${escapeHtml(favourite.name.toLowerCase())}</span></div><div class="m">"${escapeHtml(centre.pitch)}"</div>`
+      + ['cost', 'years', 'risk'].map(stat => `<div class="r"><span>Their figure: ${ESTIMATE_LABELS[stat].toLowerCase()}</span><b>${ONE_FIGURE[stat](centreClaim(key, stat))}</b></div>`).join('')
+      + `<div class="m">Track record: ${escapeHtml(centre.name)}'s past estimates came in about ${Math.round(centreRecord(key) * 100)}% under the final figures.</div></div>`;
+    const pace = Math.round(bidder.coop * 100);
+    return `<div class="c"><div class="r"><b>${escapeHtml(centre.head)}, ${escapeHtml(centre.place)}</b><span class="${bidder.mood == 'resentful' ? 'wn' : 'd'}">${MOOD_WORDS[bidder.mood]}</span></div><div class="r"><span>Its work runs at</span><b class="${pace < 95 ? 'wn' : ''}">${pace}% of its usual pace</b></div>`
+      + (bidder.mood != 'keen' && !bidder.cons ? `<div class="m">You could give ${escapeHtml(centre.place)} ${escapeHtml(centre.share.what)} to bring it round.</div><div class="acts"><button data-a="apshare" data-id="${key}"${S.b < centre.share.cost ? ' disabled' : ''}>GIVE ${escapeHtml(centre.place.toUpperCase())} THE WORK · ${formatMoney(centre.share.cost)}</button></div>` : '') + '</div>';
+  }).join('');
+}
 function apolloMessage() {
   const state = apollo();
   if (!state) return null;
@@ -180,9 +196,9 @@ function apolloMessage() {
       + ['cost', 'years', 'risk'].map(stat => `<div class="r"><span>${ESTIMATE_LABELS[stat]}</span><b>${ESTIMATE_TEXT[stat](estimate(key, stat))}</b></div>`).join('')
       + (state.arch ? (chosen ? '<div class="m"><b>Chosen.</b></div>' : '') : `<div class="acts"><button data-a="aparch" data-id="${key}">GO WITH ${architecture.name.toUpperCase()}</button></div>`) + '</div>';
   }).join('');
-  if (state.arch) return { ...base, kind: 'report', subject: `Apollo goes by ${ARCHITECTURES[state.arch].name.toLowerCase()}`, body: table };
+  if (state.arch) return { ...base, kind: 'report', subject: `Apollo goes by ${ARCHITECTURES[state.arch].name.toLowerCase()}`, body: table + '<p class="m">The centres:</p>' + centresHTML(state) };
   return { ...base, kind: 'decision', subject: 'The Apollo study has reported: choose the way to the Moon',
-    body: `<p>Here are the three approaches, costed. The ranges are how sure the study is.</p><p class="m">${evidence < 3 ? 'Gemini has not yet flown everything a rendezvous needs. Each rendezvous, docking or spacewalk it flies firms up the risk figures of the two rendezvous approaches, so waiting buys certainty at the cost of schedule.' : 'Gemini has flown rendezvous, docking and spacewalks: the rendezvous risk figures are as firm as this study can make them.'}</p>${table}` };
+    body: `<p>Here are the three approaches, costed. The ranges are how sure the study is.</p><p class="m">${evidence < 3 ? 'Gemini has not yet flown everything a rendezvous needs. Each rendezvous, docking or spacewalk it flies firms up the risk figures of the two rendezvous approaches, so waiting buys certainty at the cost of schedule.' : 'Gemini has flown rendezvous, docking and spacewalks: the rendezvous risk figures are as firm as this study can make them.'}</p>${table}<p class="m">The two big centres have each sent their own figures for the approach they want. Theirs are single numbers, not ranges, and each centre gains if its approach wins. A centre you overrule will work slower for a while, more so if the study's figures do not back you.</p>${centresHTML(state)}` };
 }
 
 // THE SAFETY BAR (rules/safety.js): the engineers' estimates for each crew rocket against the bar you set.
@@ -327,6 +343,25 @@ function bumperMessage() {
   };
 }
 
+// THE CORPORAL CONTRACT (rules/corporal.js): the Army's offer, then a running report while it lasts.
+function corporalMessage() {
+  const corp = S.corp;
+  if (!corp || corp.st == 'no' || (corp.st == 'done' && S.nasa)) return null;
+  const total = CORPORAL_MILESTONES.reduce((sum, each) => sum + each.pay, 0);
+  if (corp.st == 'offer') return {
+    id: 'corp', kind: 'decision', from: 'Army Ordnance', role: 'Guided missiles', pane: 'note', subject: 'Develop the Corporal guided missile for us',
+    body: `<p>The people who built your WAC Corporal know more about liquid rockets than anyone we have. We want a guided missile from them: the Corporal. Your sounding rockets carry on beside it.</p><p>${CORPORAL_MILESTONES.length} milestones, ${formatMoney(total)} in all. Each takes one of your engineering teams while it runs, and each has a date: one finished late pays ${Math.round(CORPORAL_LATE_SHARE * 100)}%. The work teaches your own rockets a little as it goes.</p>`
+      + CORPORAL_MILESTONES.map(each => `<div class="r"><span>${escapeHtml(each.name)}</span><b class="d">${formatMoney(each.pay)}</b></div>`).join('')
+      + '<p class="m">If you decline, the Army takes the Corporal elsewhere. If you deliver it, the Army backs your next missile programme.</p><div class="acts"><button class="pri" data-a="corpyes">TAKE THE CONTRACT</button><button data-a="corpno">DECLINE</button></div>',
+  };
+  const job = corporalJob(), next = nextMilestone();
+  return {
+    id: 'corp', kind: 'report', from: 'Army Ordnance', role: 'Guided missiles', pane: 'note', subject: corp.st == 'done' ? 'The Corporal is delivered' : `Corporal: ${corp.m} of ${CORPORAL_MILESTONES.length} milestones`,
+    body: corp.st == 'done' ? `<p>The Corporal is ours. The Army paid ${formatMoney(corp.paid)}${corp.late ? `, less for ${corp.late} late milestone${corp.late == 1 ? '' : 's'}` : ''}. When we want our next missile, we come to you first.</p>`
+      : `<p>${escapeHtml(next.name)}: ${job ? `a team is on it, ${job.t}s to go` : '<span class="wn">waiting for a free engineering team</span>'}. Due ${formatDate(milestoneDue(corp.m))}.</p><div class="r"><span>Paid so far</span><b>${formatMoney(corp.paid)} of ${formatMoney(total)}</b></div>`,
+  };
+}
+
 function messages() {
   const list = [], camp = S.auto.camp, invitation = S.auto.inv;
   // ELLIS'S INVITATION to a first (rules/invitations.js): a decision until you answer it, then a note while you are to fly it.
@@ -361,6 +396,8 @@ function messages() {
   if (operations) list.push(operations);
   const culture = cultureMessage();
   if (culture) list.push(culture);
+  const corporal = corporalMessage();
+  if (corporal) list.push(corporal);
   const bumper = bumperMessage();
   if (bumper) list.push(bumper);
   const v2Panel = v2PanelMessage();

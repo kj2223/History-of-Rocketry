@@ -4,6 +4,7 @@
 import { formatMoney } from '../core/util.js';
 import { FAILURE_MODES, findFix } from '../data/failures.js';
 import { S, log, freeTeams, withProgramme } from '../core/state.js';
+import { finishCorporalMilestone } from './corporal.js';
 import { trackingTiers, airframeLabel } from './design.js';
 import { retrofitQuote, rocketFixes } from './production.js';
 import { finishResearch, confirmPackage, checkBreakthroughs } from './research.js';
@@ -88,6 +89,7 @@ export function chooseFix(id, fixId) {
 // A finished job takes effect inside the programme it was started for.
 export function finishJob(job) {
   if (job.k == 'dev') return finishDesign(job.prog);
+  if (job.k == 'corp') return finishCorporalMilestone(job);
   return withProgramme(job.prog, () => finishJobForProgramme(job));
 }
 function finishJobForProgramme(job) {

@@ -106,3 +106,155 @@ test('Bumper is never offered before the WAC Corporal is proven', () => {
   neighboursTick();
   assert.equal(S.v2.bump, null);
 });
+
+// THE CORPORAL CONTRACT.
+import { corporalTick, answerCorporal, redstonePayment } from '../js/rules/corporal.js';
+import { CORPORAL_MILESTONES, CORPORAL_LATE_SHARE, CORPORAL_REDSTONE_PAYMENT } from '../js/data/history.js';
+import { finishJob } from '../js/rules/jobs.js';
+import { freeTeams } from '../js/core/state.js';
+
+const offerCorporal = () => {
+  createProgramme('aerobee');
+  S.progs.aerobee.okf = 3;
+  corporalTick();
+};
+
+test('the Corporal is offered at the Aerobee hand-off, not before', () => {
+  corporalTick();
+  assert.equal(S.corp, null);
+  offerCorporal();
+  assert.equal(S.corp.st, 'offer');
+});
+
+test('each Corporal milestone holds a team, pays on time and half when late, and the last one backs the Redstone', () => {
+  offerCorporal();
+  S.teams = 2;
+  answerCorporal(true);
+  const cash = S.b;
+  for (let index = 0; index < CORPORAL_MILESTONES.length; index++) {
+    corporalTick();
+    const job = S.jobs.find(each => each.k == 'corp');
+    assert.equal(job.m, index);
+    assert.equal(freeTeams(), 1, 'the contract holds one team');
+    if (index == 1) S.day = S.corp.d + CORPORAL_MILESTONES[1].due + 1;
+    S.jobs.splice(S.jobs.indexOf(job), 1);
+    finishJob(job);
+  }
+  const owed = CORPORAL_MILESTONES.reduce((sum, each, index) => sum + each.pay * (index == 1 ? CORPORAL_LATE_SHARE : 1), 0);
+  assert.equal(S.corp.st, 'done');
+  assert.equal(S.b - cash, owed);
+  redstonePayment();
+  redstonePayment();
+  assert.equal(S.b - cash, owed + CORPORAL_REDSTONE_PAYMENT, 'the Redstone payment comes once');
+});
+
+test('a declined Corporal never takes a team', () => {
+  offerCorporal();
+  answerCorporal(false);
+  corporalTick();
+  assert.equal(S.jobs.filter(job => job.k == 'corp').length, 0);
+});
+
+// THE SOVIET MOON RACE.
+import { openMoonRace, moonRaceTick, moonIntel, sovietAdapt } from '../js/rules/moon-race.js';
+import { RIVAL_MOON, INTEL_LAG } from '../js/data/history.js';
+
+const startMoonRace = () => {
+  S.nasa = 1;
+  S.p2 = { secDone: 1 };
+  moonRaceTick();
+};
+const runMoonRace = until => {
+  for (; S.day <= until; S.day += 5) moonRaceTick();
+};
+
+test('the Moon race opens with Section 2, its attempts dated like the other Section 2 events', () => {
+  moonRaceTick();
+  assert.equal(S.rm, null);
+  startMoonRace();
+  const lateness = S.rv.r_gagarin - 5502;
+  assert.equal(S.rm.m_luna9.day, RIVAL_MOON[0].day + lateness);
+  assert.equal(Object.keys(S.rmi).length, 3);
+});
+
+test('attempts wait for what they need, retry after failing, and are abandoned after their last try', () => {
+  startMoonRace();
+  const always = sovietAdapt.chance;
+  sovietAdapt.chance = attempt => attempt.id == 'm_n1' ? 0 : 1;
+  try {
+    runMoonRace(12000);
+  } finally {
+    sovietAdapt.chance = always;
+  }
+  assert.equal(S.rm.m_zond.st, 'done');
+  assert.ok(S.rm.m_zond.at >= S.rm.m_soyuz.at + 300, 'Zond waits for Soyuz');
+  assert.equal(S.rm.m_n1.st, 'gone');
+  assert.equal(S.rm.m_n1.n, 4);
+  assert.equal(S.rm.m_l3.st, 'gone', 'no landing without the rocket');
+  assert.equal(S.fs.f_moon, undefined);
+  assert.equal(S.fs.f_circum, 'them');
+});
+
+test('a Soviet first already won by America only makes the news', () => {
+  startMoonRace();
+  S.fs.f_softland = 'us';
+  const always = sovietAdapt.chance;
+  sovietAdapt.chance = () => 1;
+  try {
+    runMoonRace(S.rm.m_luna9.day);
+  } finally {
+    sovietAdapt.chance = always;
+  }
+  assert.equal(S.fs.f_softland, 'us');
+});
+
+test('intelligence keeps believing in an abandoned rocket for a while', () => {
+  startMoonRace();
+  const always = sovietAdapt.chance;
+  sovietAdapt.chance = () => 0;
+  try {
+    runMoonRace(S.rm.m_n1.day + 4 * 160);
+  } finally {
+    sovietAdapt.chance = always;
+  }
+  assert.equal(S.rm.m_n1.st, 'gone');
+  assert.ok(moonIntel().some(estimate => estimate.goal == 'landing'), 'still reported just after it is abandoned');
+  S.day = S.rm.m_n1.at + INTEL_LAG + 1;
+  assert.ok(!moonIntel().some(estimate => estimate.goal == 'landing'));
+});
+
+test('with the historical odds, a Soviet crew rarely reaches the Moon', () => {
+  let landed = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    Math.random = seeded(seed);
+    resetState();
+    startMoonRace();
+    runMoonRace(10800);
+    if (S.rm.m_l3.st == 'done') landed++;
+  }
+  assert.ok(landed >= 4 && landed <= 40, `Soviet landings: ${landed} of 200`);
+});
+
+// THE SOVIET PROGRAMME ADAPTS (Apollo step 5).
+import { sovietStanding, sovietPosture, rivalAdaptTick } from '../js/rules/rival-adapt.js';
+
+test('Moscow reads the race from the crewed-era firsts: behind, it pushes with riskier, sooner attempts; far ahead, it coasts', () => {
+  startMoonRace();
+  const attempt = RIVAL_MOON[0];
+  assert.equal(sovietPosture(), 'steady');
+  assert.equal(sovietAdapt.chance(attempt, .5), .5);
+  Object.assign(S.fs, { f_crew2: 'us', f_eva: 'us', f_dock: 'us' });
+  assert.ok(sovietStanding() < 0);
+  assert.equal(sovietPosture(), 'push');
+  assert.ok(sovietAdapt.chance(attempt, .5) < .5, 'hurried attempts fail more');
+  assert.ok(sovietAdapt.delay(attempt, 120) < 120, 'retries come sooner');
+  const before = S.rm.m_l3.day;
+  assert.ok(rivalAdaptTick(30), 'intelligence reports the change');
+  assert.ok(S.rm.m_l3.day < before, 'untried attempts are pulled forward');
+  for (let month = 0; month < 100; month++) rivalAdaptTick(30);
+  assert.ok(before - S.rm.m_l3.day <= 360, 'but only so far');
+  Object.assign(S.fs, { f_crew2: 'them', f_eva: 'them', f_dock: 'them', f_rdv: 'them' });
+  assert.equal(sovietPosture(), 'coast');
+  assert.ok(sovietAdapt.delay(attempt, 120) > 120);
+  assert.equal(sovietAdapt.chance(attempt, .5), .5);
+});
