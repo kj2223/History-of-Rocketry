@@ -48,9 +48,10 @@ const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 export const cultureLean = () => culture().lean;
 export const teamConfidence = () => culture().conf;
-// From 0 (as careful as a team gets) to 1 (pushing every rocket to the limit).
-export function riskAppetite() {
-  const lean = cultureLean(), start = .3 + .2 * lean, ceiling = .75 + .25 * lean;
+// From 0 (as careful as a team gets) to 1 (pushing every rocket to the limit). team: read one lead's team (its own lean, see
+// teamLean below) instead of the organisation's.
+export function riskAppetite(team = null) {
+  const lean = team ? teamLean(team) : cultureLean(), start = .3 + .2 * lean, ceiling = .75 + .25 * lean;
   return start + (ceiling - start) * teamConfidence();
 }
 

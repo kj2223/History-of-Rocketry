@@ -183,3 +183,5 @@ header.top{grid-column:2;display:flex;align-items:center;gap:20px;padding:0 18px
 .site-key{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.7rem;color:var(--dim);margin-top:4px}.site-key i{display:inline-block;width:10px;height:8px;margin-right:4px;border:1px solid var(--ln)}
 .site-key .plot-built i{background:var(--ac);border-color:var(--ac)}.site-key .plot-building i{border:1px dashed var(--wn)}.site-key .plot-waiting i{border:1px dotted var(--wn)}
 .site-key .plot-mothballed i{background:var(--ln)}.site-key .plot-open i{border-color:var(--ac)}
+button.step{width:auto;margin:0 0 0 4px;padding:2px 9px;font-size:.85em}
+.nw{white-space:nowrap}
