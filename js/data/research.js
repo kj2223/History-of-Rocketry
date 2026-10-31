@@ -188,7 +188,6 @@ export const AREAS = { p: 'Propulsion', s: 'Structures & Tankage', i: 'Instrumen
 // Confirmed packages needed in an area for [a breakthrough, the second milestone]. Phase Two areas are smaller.
 const BREAKTHROUGH_NEEDS = { c: [3, 6], e: [3, 5] };
 export const breakthroughNeeds = area => BREAKTHROUGH_NEEDS[area] || [5, 9];
-export const PHASE_TWO_AREAS = ['c', 'e'];
 
 // EFFECTS: how each effect key reads in the game. [name, display multiplier, unit]
 export const EFFECTS = {

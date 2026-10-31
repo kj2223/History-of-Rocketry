@@ -21,7 +21,7 @@ import { formatMoney, gaussian, clamp } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { MISSION_TYPES, CHIMPANZEE_NAMES, MONKEY_NAMES, CAPSULE_NAMES, DECISIONS, ORBIT_SECONDS, RETROFIRE_AFTER_ORBITS, ORBITAL_ASCENT, ORBITAL_DESCENT,
-  ORBITAL_TIMES, FUEL_PER_ORBIT, DRIFTING_FUEL_PER_ORBIT, THRUSTER_FAULT_FUEL, RETRO_FUEL, LOW_FUEL, SPLASH_SPREAD_KM, LONG_WAIT_KM, TRACKING_STATIONS,
+  ORBITAL_TIMES, FUEL_PER_ORBIT, DRIFTING_FUEL_PER_ORBIT, THRUSTER_FAULT_FUEL, RETRO_FUEL, LOW_FUEL, SPLASH_SPREAD_KM, LONG_WAIT_KM,
   OAMS_BURN_FUEL, EVA_FUEL, RENDEZVOUS_FUEL, TARGET_DAYS } from '../data/mercury.js';
 import { S, log, addHistory, save, isResearched, isConfirmed, recordRunEvent, earn } from '../core/state.js';
 import { designSpec, quoteLaunch } from './design.js';
@@ -334,7 +334,6 @@ const PILOT_CALLS = {
   rdv: ['Radar\'s lost lock. I\'ve got the target visually, I think.', 'Copy. We\'re working a solution.'],
   spin: ['We have serious problems here. We\'re tumbling end over end. We\'re disengaged from the Agena.', 'Roger. We\'re standing by.'],
 };
-export const isGroundDecision = key => !!DECISIONS[key].ground;
 // THE GROUND COMMAND LINK (data uplink): a capsule built with a command receiver takes commands from the ground while a station
 // can reach it and the Uplink Engineer is on console to send it. The Cape and Bermuda cover a Little Joe or a suborbital arc; Big Joe and the orbital flights run far downrange,
 // out of their reach, so those need the worldwide tracking network. Returns why no command can be sent, or null.

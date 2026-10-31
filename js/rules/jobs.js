@@ -35,17 +35,7 @@ export function startReview(area) {
   log(`[DESIGN REVIEW] ${SYSTEMS[area].name}: a team begins a design review ($3,000).`, 'wn');
 }
 // RECORDS ANALYSIS of an open incident.
-export function startInvestigation(id) {
-  const incident = S.inc.find(candidate => candidate.id == id);
-  if (incident && incident.st == 'open' && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
-    S.b -= INVESTIGATION_COST;
-    incident.st = 'inv';
-    S.rq = S.rq.filter(entry => !(entry.k == 'inv' && entry.id == incident.id && entry.prog == S.cur));
-    const time = investigationTime(incident);
-    S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time });
-    log(`[INCIDENT #${incident.id}] Records analysis under way.`, 'wn');
-  }
-}
+export const startInvestigation = id => runAnalysis(id, 'open', false);
 // THE FINDINGS: records analysis ends with the team's lead suspect and how sure it is (st 'found'). The call is yours:
 // accept the lead, name another suspect yourself (your gamble), or extend the analysis to rule a suspect out.
 export function acceptFinding(id) {
@@ -69,15 +59,17 @@ export function acceptAllFindings() {
   for (const kind of Object.keys(S.progs)) withProgramme(kind, () => S.inc.filter(incident => incident.st == 'found').forEach(incident => acceptFinding(incident.id)));
 }
 // Extending costs another analysis and rules out one suspect that is not the true cause, then the team draws a new conclusion.
-export function extendInvestigation(id) {
+export const extendInvestigation = id => runAnalysis(id, 'found', true);
+// Starts (or extends) the analysis of an incident that is at the given stage, if the money and a free team allow.
+function runAnalysis(id, stage, extended) {
   const incident = S.inc.find(candidate => candidate.id == id);
-  if (incident && incident.st == 'found' && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
+  if (incident && incident.st == stage && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
     S.b -= INVESTIGATION_COST;
     incident.st = 'inv';
     S.rq = S.rq.filter(entry => !(entry.k == 'inv' && entry.id == incident.id && entry.prog == S.cur));
     const time = investigationTime(incident);
-    S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time, x: 1 });
-    log(`[INCIDENT #${incident.id}] The analysis is extended.`, 'wn');
+    S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time, ...(extended ? { x: 1 } : {}) });
+    log(`[INCIDENT #${incident.id}] ${extended ? 'The analysis is extended.' : 'Records analysis under way.'}`, 'wn');
   }
 }
 // A CORRECTIVE FIX for a diagnosed incident.
