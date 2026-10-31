@@ -13,6 +13,7 @@ import { AREAS, MILESTONES, BY_ID } from '../data/research.js';
 import { S, log } from '../core/state.js';
 import { availabilityLock } from './research.js';
 import { laneJob, nextPackage } from './lanes.js';
+import { queuePosition } from './queue.js';
 import { hiredLead } from './leads.js';
 import { memberJoined } from './team.js';
 
@@ -42,8 +43,8 @@ export function endShared() {
   S.shared.cap = 0;
 }
 
-// The milestones a lead proposes in their area: open to start, and not put off.
-export const proposals = area => hiredLead(area) ? MILESTONES.filter(milestone => milestone.area == area && !availabilityLock(milestone.id) && !S.shared.skip.includes(milestone.id)) : [];
+// The milestones a lead proposes in their area: open to start, not queued, and not put off.
+export const proposals = area => hiredLead(area) ? MILESTONES.filter(milestone => milestone.area == area && !availabilityLock(milestone.id) && queuePosition(milestone.id) < 0 && !S.shared.skip.includes(milestone.id)) : [];
 // Whether a proposal is a choice: two or more first milestones, and starting one closes the others.
 export const isChoice = area => proposals(area).filter(milestone => milestone.tier == 1).length > 1;
 
