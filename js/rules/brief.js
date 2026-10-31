@@ -1,6 +1,6 @@
 // THE PROGRAMME BRIEF: one approval per rocket for the three leads who run it day to day (GDD v7.2 §6, middle-path stage 3).
 // A brief has three lines, each a spending cap held by its lead:
-//   flights:    Ellis's standing order (rules/orders.js)
+//   flights:    Ellis's standing order (rules/orders.js), which covers every rocket once one brief starts it
 //   production: Reed's factory budget (rules/factory-lead.js), sized to the order's cadence
 //   research:   Chen's research lanes (rules/lanes.js)
 // You approve the brief at one of BRIEF_SIZES and each lead who is free starts their line on the rocket in focus. A lead who has
@@ -10,7 +10,7 @@ import { formatMoney } from '../core/util.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log } from '../core/state.js';
 import { memberJoined } from './team.js';
-import { ORDER_CAPS, ordersUnlocked, orderFor, startOrder } from './orders.js';
+import { ORDER_CAPS, ordersUnlocked, standingOrder, startOrder } from './orders.js';
 import { WORKS_CAPS, startWorks } from './factory-lead.js';
 import { LANE_CAPS, startLanes } from './lanes.js';
 
@@ -25,7 +25,8 @@ export const BRIEF_SIZES = [
 //   'running' (its lead runs this rocket), 'free' (approving starts it), or the reason it is left out.
 export function briefLines(prog) {
   const ready = S.progs[prog] && S.progs[prog].ready;
-  const flights = orderFor(prog) ? 'running' : !ordersUnlocked() ? 'no launch director yet' : !ready ? 'not in production yet' : 'free';
+  const order = standingOrder();
+  const flights = order ? (order.prog == prog ? 'running' : `Ellis's order (in the ${PROGRAMMES[order.prog].name} brief) covers every rocket`) : !ordersUnlocked() ? 'no launch director yet' : !ready ? 'not in production yet' : 'free';
   const production = S.works && S.works.prog == prog ? 'running' : !memberJoined('reed') ? 'Reed has not joined yet'
     : S.works ? `Reed runs the ${PROGRAMMES[S.works.prog].name}` : !ready ? 'not in production yet' : 'free';
   const research = S.lanes && S.lanes.prog == prog ? 'running' : !memberJoined('chen') ? 'Chen has not joined yet'

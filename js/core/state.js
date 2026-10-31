@@ -40,7 +40,7 @@
 //   remit   Ellis's engineering remit, or null (see rules/remit.js)
 //   lanes   Chen's research lanes, or null (see rules/lanes.js)
 //   works   Reed's factory budget, or null (see rules/factory-lead.js)
-//   orders  standing flight orders and the customers' requests (see rules/orders.js)
+//   orders  Ellis's standing order and the customers' requests (see rules/orders.js)
 //   leads   the research leads you have hired (see rules/leads.js)
 //   shared  the shared research line (see rules/shared-research.js)
 import { RIVAL } from '../data/history.js';
@@ -78,7 +78,7 @@ export const newGameState = () => ({
   remit: null,
   lanes: null,
   works: null,
-  orders: { by: {}, reqs: [], n: 1, due: 0 },
+  orders: { o: null, reqs: [], n: 1, due: 0 },
   leads: {},
   shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
 });
@@ -149,6 +149,12 @@ export const load = () => {
       // Saves from before launch campaigns hold the director's old standing orders: replace them with an empty campaign record.
       if ('on' in S.auto) S.auto = newGameState().auto;
       for (const event of RIVAL) if (!(event.id in S.rv)) S.rv[event.id] = jitterSovietDate(event.day);
+      // Saves from when each rocket had its own standing order: one order now covers every rocket, under their caps combined.
+      if (S.orders.by) {
+        const old = Object.entries(S.orders.by);
+        S.orders.o = old.length ? old.reduce((order, [prog, each]) => ({ ...order, prog: order.prog || prog, cap: order.cap + each.cap, spent: order.spent + each.spent, n: order.n + each.n, okn: order.okn + each.okn, paid: order.paid + each.paid, hold: order.hold || each.hold }), { prog: null, cap: 0, spent: 0, n: 0, okn: 0, paid: 0, hold: null, pk: {}, aside: 0 }) : null;
+        delete S.orders.by;
+      }
       // Saves from before launch pads that already have an Atlas get its pad, so their next launch is not held up.
       if (!saved.pt && saved.progs && saved.progs.atlas) S.fac.lc14 = 1;
     }

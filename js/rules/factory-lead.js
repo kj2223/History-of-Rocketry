@@ -1,7 +1,7 @@
 // THE FACTORY LEAD: Margaret Reed joins once you appoint Ellis launch director, so the factory has its own lead once the launches
 // run themselves. Give her a factory budget (a spending cap, like Ellis's remit and Chen's lanes) for one rocket and she runs its
 // production:
-//   - keeps AIRFRAMES_ON_HAND airframes of it ready or in the queue, one more while a standing order flies it (rules/orders.js),
+//   - keeps AIRFRAMES_ON_HAND airframes of it ready or in the queue,
 //     ordering one at a time;
 //   - publishes the blueprint as finished research and fixes come in, unless the change is unbalanced (below);
 //   - upgrades ready airframes that are behind the published blueprint, one at a time.
@@ -21,12 +21,11 @@ import { itemAsSeen } from './research.js';
 import { batchCost, draftChanges, draftSize, retrofitQuote } from './production.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, heldForLaunch } from './factory.js';
 import { memberJoined } from './team.js';
-import { orderFor } from './orders.js';
 
 // How many airframes of her rocket Reed keeps ready or in the queue.
 export const AIRFRAMES_ON_HAND = 2;
-// How many she keeps of a rocket: one more while a standing order flies it, so routine flights do not wait on the factory.
-export const airframesWanted = prog => AIRFRAMES_ON_HAND + (orderFor(prog) && !orderFor(prog).hold ? 1 : 0);
+// How many she keeps of a rocket (Ellis orders her own for routine flights).
+export const airframesWanted = () => AIRFRAMES_ON_HAND;
 export const airframesOnHand = prog => S.air.filter(airframe => airframe.prog == prog && (airframe.st == 'r' || airframe.st == 'queued')).length
   + S.aq.filter(item => item.k == 'build' && item.prog == prog).length;
 // The budgets you can set, and how much a raise adds.
@@ -80,8 +79,8 @@ export function worksIdleReason() {
   if (!works || S.aq.some(item => item.prog == works.prog)) return null;
   if (works.hold) return 'holding an unbalanced blueprint for you';
   if (works.dry) return `budget cannot cover ${works.dry}`;
-  if (airframesOnHand(works.prog) < airframesWanted(works.prog)) return 'waiting for funds';
-  return `${airframesOnHand(works.prog)} of ${airframesWanted(works.prog)} on hand, nothing to upgrade`;
+  if (airframesOnHand(works.prog) < airframesWanted()) return 'waiting for funds';
+  return `${airframesOnHand(works.prog)} of ${airframesWanted()} on hand, nothing to upgrade`;
 }
 // Whether Reed does the publishing for the programme in focus (the Hangar's auto-publish then leaves it alone).
 export const reedPublishes = () => !!S.works && S.works.prog == S.cur;
@@ -152,7 +151,7 @@ function withinCap(works, what, cost) {
 
 function orderTurn(works) {
   // An airframe away for an upgrade still counts: it comes back.
-  if (airframesOnHand(works.prog) >= airframesWanted(works.prog)) return false;
+  if (airframesOnHand(works.prog) >= airframesWanted()) return false;
   const cost = batchCost(1);
   if (!withinCap(works, 'another airframe', cost) || S.b - cost < TREASURY_RESERVE) return false;
   orderAirframes(1);

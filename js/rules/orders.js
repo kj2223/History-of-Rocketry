@@ -1,18 +1,21 @@
-// STANDING FLIGHT ORDERS: once Ellis is launch director, a rocket can be given a standing order. It keeps flying routine flights
-// for outside customers under a spending cap, with no launch scheduling from you (GDD v7.2 §4, §6). The flights follow demand:
+// THE STANDING ORDER: once Ellis is launch director, she can be given a standing order. She keeps flying routine flights for
+// outside customers under one spending cap, with no launch scheduling from you (GDD v7.2 §4, §6). The flights follow demand:
 // the services and the research panels ask for flights to a profile (an altitude), and Ellis flies each one on the cheapest
-// rocket under order that reaches it, which need not be the newest. The customer reimburses each flight's launch and airframe,
-// and a good flight also pays the contract fee. Every flight
-// teaches the team: the rocket's own systems as any flight does, and the newest rocket a little as well (flight time on an older
-// rocket still counts, at a reduced rate). Good flights go into one rolling Mail report. An order stops and asks you when its
-// cap is spent or when Ellis cannot plan a safe load (a new configuration needs no approval: it was cleared with its blueprint); it waits by
-// itself while the treasury is short, while an incident on the rocket is open, or while no airframe is ready.
-// Campaigns run alongside: a campaign's flight goes first, and a campaign ending does not stop the orders. No DOM.
+// rocket you own that reaches it, which need not be the newest. When no airframe of that rocket is ready she orders one (rather
+// than spend a bigger rocket on it), and only that one. The customer reimburses each flight's launch and airframe, and a good
+// flight also pays the contract fee. Every flight teaches the team: the rocket's own systems as any flight does, and the newest
+// rocket a little as well (flight time on an older rocket still counts, at a reduced rate). Good flights go into one rolling
+// Mail report. The order stops and asks you when its cap is spent or when Ellis cannot plan a safe load (a new configuration
+// needs no approval: it was cleared with its blueprint); a rocket waits by itself while an incident on it is open, and the order
+// while the treasury is short. An airframe you hold for a launch is never hers. The order is started from a rocket's programme
+// brief (rules/brief.js) and covers every rocket. Campaigns run alongside: a campaign's flight goes first, and a campaign ending
+// does not stop the order. No DOM.
 //
-// S.orders: { by: { [prog]: order }, reqs: open requests, n: the next request id, due: the game day the next request arrives }
-//   order:   { cap ($), spent ($), n: flights, okn: good flights, paid ($ from customers), hold: why Ellis waits for you or null,
-//              pk: the packages of the configuration flying (a new milestone among an airframe's packages is noted in the log),
-//              aside: airframes set aside in a row because no safe load could be planned }
+// S.orders: { o: the order or null, reqs: open requests, n: the next request id, due: the game day the next request arrives }
+//   order:   { prog: the rocket whose brief started it, cap ($), spent ($), n: flights, okn: good flights, paid ($ from customers),
+//              hold: why Ellis waits for you or null, pk: { [prog]: the packages of the configuration flying } (a new milestone
+//              among an airframe's packages is noted in the log), aside: airframes set aside in a row because no safe load could
+//              be planned }
 // An airframe Ellis will not fly on routine flights carries aside: the reason; you can still fly it yourself.
 //   request: { id, who, pay: the payload flown, km: the altitude asked for, fee ($ on a good flight), by: the game day it lapses,
 //              why: why it is waiting }
@@ -21,7 +24,7 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { isMilestone } from '../data/research.js';
 import { S, log, earn, formatDate, withProgramme } from '../core/state.js';
 import { quoteLaunch } from './design.js';
-import { batchCost } from './production.js';
+import { batchCost, blueprintConfig } from './production.js';
 import { orderAirframes, heldForLaunch } from './factory.js';
 import { beginFlight, previewFlight } from './flight.js';
 import { learn, teachingValue } from './knowledge.js';
@@ -52,56 +55,53 @@ export const flightReimbursement = (launchCost, airframe) => launchCost + (airfr
 export const OLDER_ROCKET_SHARE = .3;
 
 export const ordersUnlocked = () => !!S.staff.director;
-export const orderFor = prog => S.orders.by[prog] || null;
-export const standingOrders = () => Object.keys(S.orders.by);
+export const standingOrder = () => S.orders.o;
 
-// Give a rocket a standing order. Returns an error text, or null if it started.
+// Give Ellis the standing order, from the brief of a ready rocket. Returns an error text, or null if it started.
 export function startOrder(prog, cap) {
   if (!ordersUnlocked()) return 'Appoint Ellis launch director first.';
   if (!S.progs[prog] || !S.progs[prog].ready || !PROGRAMMES[prog]) return 'That rocket is not ready to fly.';
-  if (orderFor(prog)) return 'That rocket already has a standing order.';
+  if (standingOrder()) return 'Ellis already has a standing order.';
   if (!(cap > 0)) return 'Set a spending cap.';
-  S.orders.by[prog] = { cap, spent: 0, n: 0, okn: 0, paid: 0, hold: null, pk: approvedPackages(prog) };
+  S.orders.o = { prog, cap, spent: 0, n: 0, okn: 0, paid: 0, hold: null, pk: {}, aside: 0 };
   if (!S.orders.due) S.orders.due = Math.round(S.day + 5);
-  log(`[LAUNCH DIRECTOR] Standing order: the ${PROGRAMMES[prog].name} flies routine customer flights, up to ${formatMoney(cap)}.`, 'cyan');
+  log(`[LAUNCH DIRECTOR] Standing order: routine customer flights on the cheapest rocket that reaches each request, up to ${formatMoney(cap)}.`, 'cyan');
   return null;
 }
 // double: raise by the cap itself, for the budgets of a big programme.
-export function raiseOrder(prog, double = false) {
-  const order = orderFor(prog);
+export function raiseOrder(double = false) {
+  const order = standingOrder();
   if (!order) return;
   order.cap += double ? order.cap : ORDER_RAISE;
   if (order.hold && order.hold.startsWith('The cap')) order.hold = null;
-  log(`[LAUNCH DIRECTOR] ${PROGRAMMES[prog].name} order raised to ${formatMoney(order.cap)}.`, 'cyan');
+  log(`[LAUNCH DIRECTOR] Standing order raised to ${formatMoney(order.cap)}.`, 'cyan');
 }
-export function endOrder(prog) {
-  const order = orderFor(prog);
+export function endOrder() {
+  const order = standingOrder();
   if (!order) return;
-  delete S.orders.by[prog];
-  log(`[LAUNCH DIRECTOR] ${PROGRAMMES[prog].name} order closed: ${order.n} flight${order.n == 1 ? '' : 's'}, ${order.okn} good, ${formatMoney(order.paid)} from customers, ${formatMoney(order.spent)} of ${formatMoney(order.cap)} spent.`, 'wn');
-  if (!standingOrders().length) S.orders.reqs = [];
+  S.orders.o = null;
+  S.orders.reqs = [];
+  log(`[LAUNCH DIRECTOR] Standing order closed: ${order.n} flight${order.n == 1 ? '' : 's'}, ${order.okn} good, ${formatMoney(order.paid)} from customers, ${formatMoney(order.spent)} of ${formatMoney(order.cap)} spent.`, 'wn');
 }
 // You answer Ellis's question about a load: the order flies again.
-export function resumeOrder(prog) {
-  const order = orderFor(prog);
+export function resumeOrder() {
+  const order = standingOrder();
   if (!order) return;
   order.hold = null;
   order.aside = 0;
-  order.pk = approvedPackages(prog);
-}
-// The packages of the newest ready airframe, or else the published blueprint.
-function approvedPackages(prog) {
-  const airframe = readyAirframes(prog)[0];
-  return airframe ? [...airframe.pk] : withProgramme(prog, () => [...S.bp.pk]);
 }
 // Airframes Ellis can take for routine flights: ready, and not set aside (aside: why she would not plan a load on it).
 const readyAirframes = prog => S.air.filter(airframe => airframe.st == 'r' && airframe.prog == prog && !airframe.aside && !heldForLaunch(airframe)).sort((first, second) => second.pk.length - first.pk.length);
+// The rocket as its published blueprint would build it, to judge whether one is worth ordering.
+const paperAirframe = prog => withProgramme(prog, () => ({ prog, ...blueprintConfig(), label: PROGRAMMES[prog].name }));
+// Every rocket in production, cheapest airframe first (lower stages fly as part of their rocket).
+const rocketsByCost = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready && PROGRAMMES[kind] && !PROGRAMMES[kind].stageOf).sort((first, second) => PROGRAMMES[first].unitCost - PROGRAMMES[second].unitCost);
 // An open incident on the rocket or on one of its lower stages (rules/stages.js).
 const openIncident = prog => [prog, ...stagesOf(prog)].some(kind => withProgramme(kind, () => S.inc.some(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag')));
 
 // DEMAND. Returns true if a request arrived or lapsed.
 export function demandTick() {
-  if (!standingOrders().length) return false;
+  if (!standingOrder()) return false;
   let changed = false;
   const before = S.orders.reqs.length;
   S.orders.reqs = S.orders.reqs.filter(request => request.by > S.day);
@@ -118,97 +118,92 @@ export function demandTick() {
   return changed;
 }
 
-// Why an order is not flying now, if it waits by itself (it clears when the cause does), or null.
-export function orderWaiting(prog) {
-  if (openIncident(prog)) return 'an incident on the rocket is still open';
-  if (!readyAirframes(prog).length) return 'no airframe ready';
+// Why the order is not flying now, if it waits by itself (it clears when the cause does), or null.
+export function orderWaiting() {
   if (S.b < TREASURY_RESERVE + 5000) return 'the treasury is short';
   return null;
 }
 
-// ELLIS'S TURN on the orders, when no campaign flight went this turn (rules/auto.js). Returns true if anything happened.
+// ELLIS'S TURN on the order, when no campaign flight went this turn (rules/auto.js). Returns true if anything happened.
 export function ordersTurn(margin = directorMargin()) {
-  if (!ordersUnlocked() || !standingOrders().length) return false;
-  let changed = supplyOrders();
+  const order = standingOrder();
+  if (!ordersUnlocked() || !order || order.hold || orderWaiting()) return false;
+  let changed = false;
   for (const request of S.orders.reqs) {
     const choice = chooseRocket(request, margin);
     request.why = choice.why || '';
+    if (choice.ordered) changed = true;
+    if (order.hold) return true;
     if (!choice.airframe) continue;
     return flyRequest(request, choice) || changed;
   }
   return changed;
 }
 
-// Each ordered rocket with nothing ready or on the floor gets one airframe ordered, inside its cap (Reed does this for hers).
-function supplyOrders() {
-  let changed = false;
-  for (const prog of standingOrders()) {
-    const order = orderFor(prog);
-    if (order.hold || (S.works && S.works.prog == prog)) continue;
-    const onHand = readyAirframes(prog).length + S.aq.filter(item => item.k == 'build' && item.prog == prog).length;
-    if (onHand) continue;
-    const cost = withProgramme(prog, () => batchCost(1));
-    if (order.spent + cost > order.cap) {
-      order.hold = `The cap cannot cover another airframe (${formatMoney(cost)}).`;
-      log(`[LAUNCH DIRECTOR] ${PROGRAMMES[prog].name} order: ${order.hold} Raise it or close the order.`, 'wn');
-      changed = true;
-      continue;
-    }
-    if (S.b - cost < TREASURY_RESERVE) continue;
-    withProgramme(prog, () => orderAirframes(1));
-    order.spent += cost;
-    changed = true;
-  }
-  return changed;
-}
-
-// The cheapest rocket under order whose planned load reaches the profile: { airframe, plan, fuel, pay } or { why }.
+// The cheapest rocket whose planned load reaches the profile. Returns { airframe, plan, fuel, pay, prog } to fly now, or
+// { why, ordered } when the request waits: for an airframe of that rocket (ordered now if none is on the floor), or because no
+// rocket reaches it. A rocket with nothing ready is judged by its blueprint.
 function chooseRocket(request, margin) {
-  const reasons = [];
-  const candidates = standingOrders().sort((first, second) => PROGRAMMES[first].unitCost - PROGRAMMES[second].unitCost);
-  for (const prog of candidates) {
-    const order = orderFor(prog), airframe = readyAirframes(prog)[0];
-    if (order.hold) continue;
-    const waiting = orderWaiting(prog);
-    if (waiting) {
-      reasons.push(`${PROGRAMMES[prog].name}: ${waiting}`);
+  const order = standingOrder(), reasons = [];
+  for (const prog of rocketsByCost()) {
+    const name = PROGRAMMES[prog].name;
+    if (openIncident(prog)) {
+      reasons.push(`${name}: an incident is still open`);
       continue;
     }
+    const ready = readyAirframes(prog)[0], airframe = ready || paperAirframe(prog);
     // A new configuration was cleared when its blueprint was signed into the design: she notes it and flies on.
-    if (airframe.pk.some(id => isMilestone(id) && !order.pk.includes(id))) {
-      order.pk = [...airframe.pk];
-      log(`[LAUNCH DIRECTOR] The ${PROGRAMMES[prog].name} flies its new configuration on routine flights from now on.`, 'cyan');
-    }
+    if (ready && order.pk[prog] && ready.pk.some(id => isMilestone(id) && !order.pk[prog].includes(id))) log(`[LAUNCH DIRECTOR] The ${name} flies its new configuration on routine flights from now on.`, 'cyan');
+    if (ready) order.pk[prog] = [...ready.pk];
     // The full stack where the rocket has a booster stage and it plans safely, else the upper stage alone.
     const fuel = PROGRAMMES[prog].propellants[0];
     const plans = [1, 0].map(st => withProgramme(prog, () => planLoad(airframe, { fuel, pay: request.pay, st }, margin))).filter(plan => !plan.reason);
-    // No safe plan: she sets the airframe aside for you to fly or look at, and carries on with the next. Two in a row means the
-    // design itself needs work, and the order waits for you.
     if (!plans.length) {
-      const reason = withProgramme(prog, () => planLoad(airframe, { fuel, pay: request.pay, st: 0 }, margin)).reason;
-      airframe.aside = reason;
-      order.aside = (order.aside || 0) + 1;
-      log(`[LAUNCH DIRECTOR] ${airframe.label} set aside from routine flights: ${reason}. Fly it yourself or look at the design.`, 'wn');
+      if (!ready) continue;
+      // No safe plan: she sets the airframe aside for you to fly or look at, and carries on with the next. Two in a row means
+      // the design itself needs work, and the order waits for you.
+      const reason = withProgramme(prog, () => planLoad(ready, { fuel, pay: request.pay, st: 0 }, margin)).reason;
+      ready.aside = reason;
+      order.aside++;
+      log(`[LAUNCH DIRECTOR] ${ready.label} set aside from routine flights: ${reason}. Fly it yourself or look at the design.`, 'wn');
       if (order.aside >= 2) {
-        order.hold = `Two ${PROGRAMMES[prog].name} airframes in a row could not be planned safely (${reason}). The design needs work before routine flights resume.`;
+        order.hold = `Two airframes in a row could not be planned safely (${reason}). The design needs work before routine flights resume.`;
         log(`[LAUNCH DIRECTOR] ${order.hold}`, 'wn');
+        return { why: order.hold };
       }
       continue;
     }
-    order.aside = 0;
     const reach = plans.map(plan => ({ plan, peak: withProgramme(prog, () => previewFlight(airframe, fuel, request.pay, plan.stage, plan.load).peakAltitude) }));
     const best = reach.find(each => each.peak >= request.km * 1000);
     if (!best) {
-      reasons.push(`the ${PROGRAMMES[prog].name} reaches about ${Math.round(Math.max(...reach.map(each => each.peak)) / 1000)} km`);
+      reasons.push(`the ${name} reaches about ${Math.round(Math.max(...reach.map(each => each.peak)) / 1000)} km`);
       continue;
     }
-    return { airframe, plan: best.plan, fuel, pay: request.pay, prog };
+    if (ready) {
+      order.aside = 0;
+      return { airframe: ready, plan: best.plan, fuel, pay: request.pay, prog };
+    }
+    // This rocket can do it but has nothing ready: wait for the one on the floor, or order one if the cap and treasury allow.
+    if (S.aq.some(item => item.k == 'build' && item.prog == prog)) return { why: `waiting for a ${name} airframe` };
+    const cost = withProgramme(prog, () => batchCost(1));
+    if (order.spent + cost > order.cap) {
+      order.hold = `The cap cannot cover another airframe (${formatMoney(cost)}, a ${name}).`;
+      log(`[LAUNCH DIRECTOR] Standing order: ${order.hold} Raise it or close the order.`, 'wn');
+      return { why: order.hold, ordered: true };
+    }
+    if (S.b - cost < TREASURY_RESERVE) {
+      reasons.push(`the treasury cannot cover a ${name} airframe`);
+      continue;
+    }
+    withProgramme(prog, () => orderAirframes(1));
+    order.spent += cost;
+    return { why: `waiting for a ${name} airframe`, ordered: true };
   }
-  return { why: reasons.join('; ') || 'no rocket under order can take it' };
+  return { why: reasons.join('; ') || 'no rocket can take it' };
 }
 
 function flyRequest(request, { airframe, plan, fuel, pay, prog }) {
-  const order = orderFor(prog);
+  const order = standingOrder();
   return withProgramme(prog, () => {
     const quote = quoteLaunch(airframe, fuel, pay, plan.stage, plan.load);
     if (quote.error) {
@@ -217,7 +212,7 @@ function flyRequest(request, { airframe, plan, fuel, pay, prog }) {
     }
     if (order.spent + quote.cost > order.cap) {
       order.hold = `The cap cannot cover the next flight (${formatMoney(quote.cost)}).`;
-      log(`[LAUNCH DIRECTOR] ${PROGRAMMES[prog].name} order: ${order.hold} Raise it or close the order.`, 'wn');
+      log(`[LAUNCH DIRECTOR] Standing order: ${order.hold} Raise it or close the order.`, 'wn');
       return true;
     }
     if (S.b - quote.cost < TREASURY_RESERVE) return false;
@@ -255,9 +250,4 @@ function teachNewest(prog, flight) {
   });
 }
 
-// The rolling report's numbers across all orders.
-export const ordersTotals = () => standingOrders().reduce((sum, prog) => {
-  const order = orderFor(prog);
-  return { n: sum.n + order.n, okn: sum.okn + order.okn, paid: sum.paid + order.paid };
-}, { n: 0, okn: 0, paid: 0 });
 export const requestText = request => `${request.who}: ${request.km} km, ${formatMoney(request.fee)}, open until ${formatDate(request.by)}`;
