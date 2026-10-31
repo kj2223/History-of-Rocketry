@@ -87,23 +87,35 @@ function directorTurn(camp) {
     log(`[LAUNCH DIRECTOR] Procedural slip in the countdown: the director scrubs and starts over. Turnaround ${formatMoney(cost)}.`, 'wn');
     return true;
   }
-  const poll = runPoll(airframe, camp.fuel, plan.stage), before = S.b;
-  if (poll.nogo && S.b >= PAD_FIX_COST) troubleshoot(poll);
-  if (poll.nogo && S.b >= scrubCost()) scrub(poll);
-  camp.spent += before - S.b;
+  const { poll, cost } = directorPoll(airframe, camp.fuel, plan.stage);
+  camp.spent += cost;
   if (poll.nogo) return true;
   const flight = beginFlight(airframe, camp.fuel, camp.pay, plan.stage, plan.load, { latent: poll.fault, wind: poll.wind });
   if (!flight) return false;
   flight.byDirector = true;
   camp.spent += quote.cost;
   log(`[LAUNCH DIRECTOR] All stations GO. Flying ${airframe.label} at ${Math.round(plan.load * 100)}% propellant for the campaign.`, 'cyan');
+  flyToEnd(flight);
+  return true;
+}
+
+// The director's go/no-go poll, for campaigns and standing orders: a NO-GO is troubleshot, then scrubbed, if the treasury allows.
+// Returns { poll, cost: what the pad work cost }.
+export function directorPoll(airframe, fuel, stage) {
+  const poll = runPoll(airframe, fuel, stage), before = S.b;
+  if (poll.nogo && S.b >= PAD_FIX_COST) troubleshoot(poll);
+  if (poll.nogo && S.b >= scrubCost()) scrub(poll);
+  return { poll, cost: before - S.b };
+}
+// Flies a director's flight to its end, recording telemetry, and closes it out. Returns how it ended ('fail' if it was lost).
+export function flyToEnd(flight) {
   let result;
   do {
     result = step(flight);
     if (result == 'tick') takeReadings(flight, true);
   } while (result == 'tick' || result == 'sep');
   endFlight(flight, result != 'fail', result);
-  return true;
+  return result;
 }
 
 // The director keeps one airframe in the factory queue behind the one on the pad, so the campaign does not wait on the factory.

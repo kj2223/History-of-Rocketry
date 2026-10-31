@@ -332,13 +332,7 @@ function launchFlight(override) {
   flight.warningTicks = 0;
   airborne.flight = flight;
   flight.countdown = 0;
-  clearInterval(launchView.countTimer);
-  launchView.countTimer = null;
-  count.phase = 'flight';
-  log('[TC] Ignition. Liftoff!', 'hd');
-  document.documentElement.classList.add('flying');
-  $('#fl').hidden = false;
-  renderPad();
+  enterFlight(count);
   drawFlightInstruments(flight);
   $('#ln').textContent = roomLevel() >= 2 ? 'Trajectory is plotted on the board above.' : 'No plotting board yet: radar calls are marked by hand above.';
   launchView.flightTimer = setInterval(flightTick, 250);
@@ -354,16 +348,12 @@ export function finishFlight(ok, why) {
   launchView.lastEvents = flight.events.slice();
   endFlight(flight, ok, why);
   airborne.flight = null;
-  document.documentElement.classList.remove('flying');
   if (launchView.count) {
     launchView.count.phase = 'done';
     launchView.count.result = { ok, why, report: flight.report };
     launchView.count.lastCalls = { ...flight.lastCalls, tc: FLIGHT_VERDICTS[why] };
   }
-  $('#fl').hidden = true;
-  markDirty();
-  render();
-  renderPad();
+  leaveFlight();
 }
 // A quarter-second of the flight: two seconds of flight time under power, 25 while coasting above the atmosphere.
 function flightTick() {
@@ -421,13 +411,7 @@ function launchMission(override) {
   $('#ctx').innerHTML = '';
   $('#comms').hidden = false;
   drawTranscript(mission);
-  clearInterval(launchView.countTimer);
-  launchView.countTimer = null;
-  count.phase = 'flight';
-  log('[TC] Ignition. Liftoff!', 'hd');
-  document.documentElement.classList.add('flying');
-  $('#fl').hidden = false;
-  renderPad();
+  enterFlight(count);
   drawMissionInstruments(mission);
   $('#ln').textContent = mission.crew && !mission.crew.species ? `${mission.crew.name} is aboard. Decisions in flight are theirs, with CAPCOM's help.` : 'Telemetry from the capsule.';
   launchView.flightTimer = setInterval(missionTick, 250);
@@ -486,11 +470,26 @@ function finishMission() {
   launchView.lastTrace = mission.trace.slice();
   launchView.lastRangeTrace = null;
   airborne.mission = null;
-  document.documentElement.classList.remove('flying');
   if (launchView.count) {
     launchView.count.phase = 'done';
     launchView.count.result = { ok: result.ok, met: result.met, lost: result.lost, text: mission.log.slice(-4).join(' ') };
   }
+  leaveFlight();
+}
+
+// Into the air, for a rocket or a mission: the count stops and the flight instruments open.
+function enterFlight(count) {
+  clearInterval(launchView.countTimer);
+  launchView.countTimer = null;
+  count.phase = 'flight';
+  log('[TC] Ignition. Liftoff!', 'hd');
+  document.documentElement.classList.add('flying');
+  $('#fl').hidden = false;
+  renderPad();
+}
+// Back from a flight or a mission: the flight instruments close and the screen redraws.
+function leaveFlight() {
+  document.documentElement.classList.remove('flying');
   $('#fl').hidden = true;
   markDirty();
   render();

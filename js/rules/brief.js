@@ -37,7 +37,6 @@ export function briefLines(prog) {
     { line: 'research', lead: 'chen', state: research },
   ];
 }
-export const briefRunning = prog => briefLines(prog).some(line => line.state == 'running');
 export const briefFree = prog => briefLines(prog).filter(line => line.state == 'free');
 // What approving at a size would commit, across the free lines.
 export const briefTotal = (prog, size) => briefFree(prog).reduce((sum, line) => sum + BRIEF_SIZES[size][line.line], 0);

@@ -26,11 +26,10 @@ import { S, log, earn, formatDate, withProgramme } from '../core/state.js';
 import { quoteLaunch } from './design.js';
 import { batchCost, blueprintConfig } from './production.js';
 import { orderAirframes, heldForLaunch } from './factory.js';
-import { runPoll, scrub, scrubCost, troubleshoot, PAD_FIX_COST } from './launch-site.js';
-import { beginFlight, previewFlight, step, takeReadings, endFlight } from './flight.js';
+import { beginFlight, previewFlight } from './flight.js';
 import { learn, teachingValue } from './knowledge.js';
 import { directorMargin } from './campaign.js';
-import { planLoad } from './auto.js';
+import { planLoad, directorPoll, flyToEnd } from './auto.js';
 import { stagesOf } from './programs.js';
 
 // The caps you can set, and how much a raise adds.
@@ -217,22 +216,14 @@ function flyRequest(request, { airframe, plan, fuel, pay, prog }) {
       return true;
     }
     if (S.b - quote.cost < TREASURY_RESERVE) return false;
-    const poll = runPoll(airframe, fuel, plan.stage), before = S.b;
-    if (poll.nogo && S.b >= PAD_FIX_COST) troubleshoot(poll);
-    if (poll.nogo && S.b >= scrubCost()) scrub(poll);
-    order.spent += before - S.b;
+    const { poll, cost } = directorPoll(airframe, fuel, plan.stage);
+    order.spent += cost;
     if (poll.nogo) return true;
     const flight = beginFlight(airframe, fuel, pay, plan.stage, plan.load, { latent: poll.fault, wind: poll.wind });
     if (!flight) return false;
     flight.byDirector = true;
     order.spent += quote.cost;
-    let result;
-    do {
-      result = step(flight);
-      if (result == 'tick') takeReadings(flight, true);
-    } while (result == 'tick' || result == 'sep');
-    const ok = result != 'fail';
-    endFlight(flight, ok, result);
+    const ok = flyToEnd(flight) != 'fail';
     order.n++;
     const costs = flightReimbursement(quote.cost, airframe);
     order.paid += costs;
