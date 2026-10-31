@@ -35,6 +35,7 @@ import { anyCertified, isManRated, manRatingRecord } from './manrate.js';
 import { assignedPilot, joinSecondGroup } from './astronauts.js';
 import { checkFirsts, openSovietSectionTwo } from './race.js';
 import { openApollo } from './apollo.js';
+import { standDownLock } from './requests.js';
 
 export const newPhaseTwo = () => ({
   v: 3, sec: 1, dir: 0, pool: [], astros: [], selDone: 0, sel: { st: 0, at: Math.round(S.day + 50), reg: null }, veh: [], flights: 0, mem: [], stand: 0, secDone: 0, memo: null, nv: 1, chimp: 0, monk: 0,
@@ -160,6 +161,7 @@ export function crewLock(crew, airframe, missionType = 'mr') {
     return null;
   }
   if (state.stand > S.day) return `Crewed flights are stood down after the loss of a crew until ${formatDate(state.stand)}.`;
+  if (standDownLock()) return standDownLock();
   if (state.dir < 4) return 'NASA will not fly a crew until an animal has flown and been recovered alive.';
   if (missionType == 'mo' && !directiveDone('oanimal')) return 'NASA will not fly a crew into orbit until a chimpanzee has orbited and been recovered alive.';
   if (missionType == 'gt' && !directiveDone('g1')) return 'NASA will not fly a crew on Gemini until an uncrewed Gemini has flown and been recovered.';

@@ -33,3 +33,31 @@ export const LEAK_REPUTATION = 6;
 export const PUBLIC_RANGE = [.75, 1.5];
 // How many headlines Mail keeps.
 export const HEADLINES = 8;
+
+// LEAD REQUESTS (rules/requests.js): once any pressure passes REQUEST_FROM, Ellis's team may pass it on as a request, at most one
+// open at a time and no sooner than REQUEST_GAP days after the last. The monthly chance is REQUEST_CHANCE times the strongest
+// pressure (as a share of 100), times one plus the team's lean (rules/culture.js: a chaotic team asks more, a careful one less).
+export const REQUEST_FROM = 50;
+export const REQUEST_GAP = 90;
+export const REQUEST_CHANCE = .35;
+// What each answer does to the pressures ({ press, pub, cong } added), and to reputation:
+//   accept: the pressure eases, the risk goes on the record;
+//   reasoned: a refusal with the evidence on file (offered only when the tests support it) costs little;
+//   refuse: a refusal with no reason given costs more;
+//   prove: "prove it with a test first" costs nothing now: a test runs and the request comes back with its result.
+export const ANSWERS = {
+  accept: { press: -2, pub: 0, cong: -5, rep: 0 },
+  reasoned: { press: 1, pub: 0, cong: 2, rep: 0 },
+  refuse: { press: 3, pub: 0, cong: 6, rep: 1 },
+};
+// SHIELDING THE CREW: what you can do yourself to take the heat off, each with its price and the days before you can do it again.
+//   briefing: the press and public ease, but a crewed flight that fails within VOUCH_DAYS costs VOUCH_REPUTATION more;
+//   standDown: the crews stand down for STAND_DOWN_DAYS (no crewed launches), and the public and press ease;
+//   testify: you go before Congress (data/hearing.js): the hearing sits in about two weeks and its outcome reads your record.
+export const SHIELDS = {
+  briefing: { name: 'Hold a press briefing', press: -15, pub: -6, cong: 0, cooldown: 120 },
+  standDown: { name: 'Stand the crews down for a month', press: -8, pub: -10, cong: 0, cooldown: 180 },
+  testify: { name: 'Testify before Congress', press: 0, pub: 0, cong: 0, cooldown: 360 },
+};
+export const VOUCH_DAYS = 90, VOUCH_REPUTATION = 4;
+export const STAND_DOWN_DAYS = 30;

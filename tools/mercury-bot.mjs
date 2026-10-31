@@ -27,6 +27,8 @@ import { STUDY_SIZES, ARCHITECTURE_ORDER } from '../js/data/apollo.js';
 import { decideRollover, startStudy, estimate, chooseArchitecture } from '../js/rules/apollo.js';
 import { capabilityShown } from '../js/rules/mercury.js';
 import { barVerdict, testsPending } from '../js/rules/safety.js';
+import { openRequest, reasonOnFile, answerRequest, shield, shieldReady } from '../js/rules/requests.js';
+import { pressure } from '../js/rules/pressure.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
 // The Gemini buildings open once Mercury is complete.
@@ -58,9 +60,17 @@ export function playMercury(game) {
     // Parallel goals met out of order count when they are met.
     while (S.p2 && report.directiveTimes.length < MERCURY_DIRECTIVES.filter(directive => directiveDone(directive.key)).length) report.directiveTimes.push(game.now() - report.nasaAt);
   };
+  // Pressure on Apollo: refuse a lead's request with the evidence on file when there is some, else have it proved by a test first,
+  // and refuse if the test still gives no reason; brief the press when they are hounding NASA.
+  const answerPressure = () => {
+    const request = openRequest();
+    if (request && !request.prove) answerRequest(reasonOnFile(request) ? 'reasoned' : request.pv ? 'refuse' : 'prove');
+    if (pressure() && pressure().press >= 75 && shieldReady('briefing')) shield('briefing');
+  };
   const advance = seconds => {
     game.advance(seconds);
     markDirectives();
+    answerPressure();
   };
 
   // The best ready airframe for a mission type: the cheapest programme whose airframe delivers what the mission needs.

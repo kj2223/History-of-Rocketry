@@ -37,6 +37,7 @@ import { usePad, damagePad } from './site.js';
 import { checkFirsts } from './race.js';
 import { barVerdict, launchOverBar } from './safety.js';
 import { notePressure } from './pressure.js';
+import { vouchedFailure } from './requests.js';
 
 // Where the profile puts the capsule at a mission time: { alt (km), v (m/s), g }, interpolated between its points.
 const profileAt = (profile, time) => {
@@ -1037,6 +1038,7 @@ export function endMission(mission) {
   }
   if (!ok && !outcome.lost) S.rep = Math.max(0, S.rep - (outcome.boosterFailed ? 4 : 2));
   if (pilot) notePressure(outcome.lost ? 'crewLost' : ok ? 'goodFlight' : 'failedFlight');
+  if (pilot && !ok) vouchedFailure();
   // What the failures teach: each investigation proposes the package that cures it.
   if (outcome.padShutdown && !state.fl.four) {
     state.fl.four = 1;
