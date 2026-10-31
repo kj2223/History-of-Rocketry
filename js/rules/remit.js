@@ -19,6 +19,7 @@ import { stagesOf, rocketOf } from './programs.js';
 import { INVESTIGATION_COST, startInvestigation, acceptFinding, chooseFix } from './jobs.js';
 import { groundTest, TEST_STAND } from './launch-site.js';
 import { fixesHeld } from './team.js';
+import { leansChaotic, acceptRisk } from './culture.js';
 import { curesReady, startCure } from './cures.js';
 
 // EARNED, NOT DATED: Ellis can take a remit once she has led this many records analyses and signed this many fixes.
@@ -109,7 +110,11 @@ function ellisTurn(remit) {
   let changed = false;
   for (const incident of S.inc.filter(candidate => candidate.st == 'found' && !candidate.ref)) {
     changed = true;
-    if (signsOff(incident.conf)) {
+    // A team leaning chaotic (rules/culture.js), or short of money, plays a moderate finding down and signs it off before her
+    // authority covers it: a risk accepted. Low-confidence findings still come to you.
+    const downplayed = !signsOff(incident.conf) && incident.conf == 'moderate' && leansChaotic('ellis');
+    if (downplayed) acceptRisk('ellis', 'CHIEF', `Ellis signs off incident #${incident.id} on moderate confidence before her record covers it.`);
+    if (signsOff(incident.conf) || downplayed) {
       log(`[CHIEF] Ellis signs off incident #${incident.id}: ${FAILURE_MODES[incident.dx].name.toLowerCase()} (${incident.conf} confidence).`, 'ok');
       acceptFinding(incident.id);
     } else {

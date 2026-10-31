@@ -11,6 +11,7 @@ import { formatMoney } from '../core/util.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, formatDate } from '../core/state.js';
 import { successfulFlights } from './programs.js';
+import { ellisMargin } from './culture.js';
 
 // The targets you can set: reach an altitude (km, as measured), or prove the rocket with a number of successful flights.
 export const CAMPAIGN_TARGETS = {
@@ -33,16 +34,16 @@ export function provenProgramme() {
   return ready.find(kind => successfulFlights(kind) >= FLIGHTS_TO_PROVE) || ready[0] || S.cur;
 }
 
-// THE DIRECTOR'S EXPERIENCE grows with every flight it runs, reaching full skill after 10.
-// A rookie keeps well inside the rocket's limits (60% of the aero load, heating and structural limits), asks you for
-// guidance when it cannot, and slips on procedure in one countdown in five (a scrub). A veteran flies to 85% of the limits,
-// the launch form's red line, and does not slip.
+// THE DIRECTOR'S EXPERIENCE grows with every flight it runs, reaching full skill after 10: a rookie slips on procedure in one
+// countdown in five (a scrub), a veteran does not. How close to the rocket's limits she flies comes from her team's risk
+// appetite (rules/culture.js): the culture you built and the confidence her crews have earned. A new careful team keeps near 60%
+// of the aero load and heating limits and asks you for guidance when it cannot; a confident chaotic one flies past the 85% red line.
 export const DIRECTOR_FULL_SKILL = 10;
 export const directorExperience = () => (S.auto && S.auto.xp) || 0;
 export const directorSkill = () => Math.min(1, directorExperience() / DIRECTOR_FULL_SKILL);
 export const directorRank = () => directorExperience() < 3 ? 'Rookie' : directorExperience() < DIRECTOR_FULL_SKILL ? 'Seasoned' : 'Veteran';
 export const VETERAN_MARGIN = .85;
-export const directorMargin = () => .6 + (VETERAN_MARGIN - .6) * directorSkill();
+export const directorMargin = () => ellisMargin();
 export const slipChance = () => .2 * (1 - directorSkill());
 
 // Start a campaign. form: { prog, fuel, pay, st, kind, goal, months, budget }. Returns an error text, or null if it started.
