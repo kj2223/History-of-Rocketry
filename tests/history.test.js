@@ -106,3 +106,51 @@ test('Bumper is never offered before the WAC Corporal is proven', () => {
   neighboursTick();
   assert.equal(S.v2.bump, null);
 });
+
+// THE CORPORAL CONTRACT.
+import { corporalTick, answerCorporal, redstonePayment } from '../js/rules/corporal.js';
+import { CORPORAL_MILESTONES, CORPORAL_LATE_SHARE, CORPORAL_REDSTONE_PAYMENT } from '../js/data/history.js';
+import { finishJob } from '../js/rules/jobs.js';
+import { freeTeams } from '../js/core/state.js';
+
+const offerCorporal = () => {
+  createProgramme('aerobee');
+  S.progs.aerobee.okf = 3;
+  corporalTick();
+};
+
+test('the Corporal is offered at the Aerobee hand-off, not before', () => {
+  corporalTick();
+  assert.equal(S.corp, null);
+  offerCorporal();
+  assert.equal(S.corp.st, 'offer');
+});
+
+test('each Corporal milestone holds a team, pays on time and half when late, and the last one backs the Redstone', () => {
+  offerCorporal();
+  S.teams = 2;
+  answerCorporal(true);
+  const cash = S.b;
+  for (let index = 0; index < CORPORAL_MILESTONES.length; index++) {
+    corporalTick();
+    const job = S.jobs.find(each => each.k == 'corp');
+    assert.equal(job.m, index);
+    assert.equal(freeTeams(), 1, 'the contract holds one team');
+    if (index == 1) S.day = S.corp.d + CORPORAL_MILESTONES[1].due + 1;
+    S.jobs.splice(S.jobs.indexOf(job), 1);
+    finishJob(job);
+  }
+  const owed = CORPORAL_MILESTONES.reduce((sum, each, index) => sum + each.pay * (index == 1 ? CORPORAL_LATE_SHARE : 1), 0);
+  assert.equal(S.corp.st, 'done');
+  assert.equal(S.b - cash, owed);
+  redstonePayment();
+  redstonePayment();
+  assert.equal(S.b - cash, owed + CORPORAL_REDSTONE_PAYMENT, 'the Redstone payment comes once');
+});
+
+test('a declined Corporal never takes a team', () => {
+  offerCorporal();
+  answerCorporal(false);
+  corporalTick();
+  assert.equal(S.jobs.filter(job => job.k == 'corp').length, 0);
+});

@@ -86,6 +86,7 @@ export const newGameState = () => ({
   cult: { lean: 0, conf: 0, n: 0, tests: 0, ev: [] },
   ops: null,
   v2: { n: 0, ok: 0, hi: 0, next: V2_PROGRAMME.start, ride: null, bump: null },
+  corp: null,
 });
 
 export const S = newGameState();
