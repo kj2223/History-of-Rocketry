@@ -21,6 +21,7 @@ import { itemAsSeen } from './research.js';
 import { batchCost, draftChanges, draftSize, retrofitQuote } from './production.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, heldForLaunch } from './factory.js';
 import { memberJoined } from './team.js';
+import { cultureLean, acceptRisk, LEAN_TO_ACT } from './culture.js';
 
 // How many airframes of her rocket Reed keeps ready or in the queue.
 export const AIRFRAMES_ON_HAND = 2;
@@ -90,7 +91,7 @@ export const reedPublishes = () => !!S.works && S.works.prog == S.cur;
 // never sees the true effects). Only used to compare two configurations of the same rocket.
 const believedEffects = id => S.pk[id].c && S.pk[id].m ? S.pk[id].m : itemAsSeen(id).effects;
 function liftoffThrustToWeight(packages, fixes) {
-  const base = baseDesign(true), modifiers = fixModifiers(fixes);
+  const base = baseDesign(true, fixes), modifiers = fixModifiers(fixes);
   let thrust = 1, dryMass = base.dry + modifiers.d, propellant = base.f;
   for (const id of packages) {
     const effects = believedEffects(id);
@@ -127,8 +128,13 @@ function publishTurn(works) {
     return false;
   }
   const change = draftThrustToWeightChange();
-  if (change >= -BALANCE_TOLERANCE || draft.fixes.length) {
-    if (change < -BALANCE_TOLERANCE) log(`[FACTORY] Reed publishes the ${PROGRAMMES[works.prog].name} blueprint although it cuts liftoff thrust-to-weight by ${Math.round(-change * 100)}%: it carries a fix, and a fix does not wait.`, 'wn');
+  // In a chaotic culture (rules/culture.js) Reed publishes an unbalanced draft rather than hold it: a risk accepted. Money pressure
+  // alone does not make her do it: a heavier blueprint is hard to undo, and with no money for the engine work that would cure it
+  // the rocket could be stuck short of performance for good (a dead end, not a risk).
+  const rushed = change < -BALANCE_TOLERANCE && !draft.fixes.length && cultureLean() >= LEAN_TO_ACT;
+  if (rushed) acceptRisk('reed', 'FACTORY', `Reed publishes the ${PROGRAMMES[works.prog].name} blueprint although it cuts liftoff thrust-to-weight by ${Math.round(-change * 100)}%.`);
+  if (change >= -BALANCE_TOLERANCE || draft.fixes.length || rushed) {
+    if (change < -BALANCE_TOLERANCE && !rushed) log(`[FACTORY] Reed publishes the ${PROGRAMMES[works.prog].name} blueprint although it cuts liftoff thrust-to-weight by ${Math.round(-change * 100)}%: it carries a fix, and a fix does not wait.`, 'wn');
     works.hold = null;
     publishBlueprint(true);
     return true;

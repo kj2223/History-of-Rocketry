@@ -5,6 +5,8 @@
 // A fix: riskMultiplier scales that mode's chance of striking (.3 = 70% less: a strong cure, above .3 a partial one),
 //   cost ($), time (seconds of a team's work), effects on the rocket: d dry mass (kg), t thrust (multiplier),
 //   g g-limit, h heat tolerance, q aero load limit, c drag.
+import { traitByKey } from './programmes.js';
+
 export const FAILURE_MODES = {
   c: {
     name: 'Combustion instability', symptoms: ['cut', 'osc'],
@@ -82,7 +84,13 @@ export const SYMPTOMS = {
 // The symptoms of a mode that these instruments would show.
 export const visibleSymptoms = (mode, tracking) => FAILURE_MODES[mode].symptoms.filter(symptom => SYMPTOMS[symptom].visible(tracking));
 // A lower stage's fix rides as mode@stage (rules/stages.js); it is the same fix.
-export const findFix = (mode, fixId) => FAILURE_MODES[mode.split('@')[0]].fixes.find(fix => fix.id == fixId);
+// A flaw with no failure mode (data/programmes.js TRAITS, cure) keeps its one cure under the flaw's key in place of a mode.
+export const findFix = (mode, fixId) => {
+  const key = mode.split('@')[0];
+  if (FAILURE_MODES[key]) return FAILURE_MODES[key].fixes.find(fix => fix.id == fixId);
+  const cure = traitByKey(key) && traitByKey(key).cure;
+  return cure && cure.id == fixId ? { ...cure, riskMultiplier: 1, effects: {} } : undefined;
+};
 
 // What a launch-crew station reports when it catches a latent fault in the pre-launch poll.
 export const FAULT_REPORTS = {

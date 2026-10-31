@@ -127,7 +127,10 @@ export const HEAD_START = { best: .25, parent: .4 };
 
 // Flaws a new rocket can be born with. The keys are stored in saves.
 //   mode: the failure mode it feeds (with weight times the usual chance) until a fix for that mode is in the design
-//   statPenalty: a performance penalty (fraction of the stat); stagedOnly: rolled only for rockets with a booster stage
+//   statPenalty: a performance penalty (fraction of the stat), lifted from airframes built with the flaw's cure (rules/cures.js)
+//   cure: for a flaw with no failure mode, the one fix that cures it: id (stored in saves), name, cost ($, times the rocket's
+//         costScale), time (seconds of a team's work). A flaw with a mode is cured by any fix for that mode.
+//   stagedOnly: rolled only for rockets with a booster stage
 export const TRAITS = [
   { key: 'rough', name: 'Rough combustion', mode: 'c', weight: 3, why: 'The injector and chamber resonate under load.' },
   { key: 'pump', name: 'Marginal turbopump', mode: 'p', weight: 3, why: 'The pump runs close to cavitation at full thrust.' },
@@ -137,9 +140,14 @@ export const TRAITS = [
   { key: 'sep', name: 'Unreliable separation', mode: 'x', weight: 4, stagedOnly: 1, why: 'Stages hang up or tumble at separation.' },
   { key: 'soak', name: 'Heat-soaked skin', mode: 'h', weight: 3, statPenalty: { h: -.15 }, why: 'The skin heats faster than the drawings predicted.' },
   { key: 'flut', name: 'Flutter-prone fins', mode: 'f', weight: 3, statPenalty: { q: -.15 }, why: 'The fins start to flutter well below their design load.' },
-  { key: 'heavy', name: 'Overweight structure', statPenalty: { dry: .15 }, why: 'The airframe came out heavier than the drawings.' },
-  { key: 'weak', name: 'Engine short of rated thrust', statPenalty: { thr: -.08 }, why: 'The engine never quite delivers its rated thrust.' },
+  { key: 'heavy', name: 'Overweight structure', statPenalty: { dry: .15 }, why: 'The airframe came out heavier than the drawings.',
+    cure: { id: 'lighten', name: 'Weight-reduction programme', cost: 12000, time: 60 } },
+  { key: 'weak', name: 'Engine short of rated thrust', statPenalty: { thr: -.08 }, why: 'The engine never quite delivers its rated thrust.',
+    cure: { id: 'uprate', name: 'Engine uprating', cost: 15000, time: 60 } },
 ];
+// A flaw that costs performance can always be cured, but the team must first fly the flawed design this many times after
+// finding the flaw before they know exactly what causes it (rules/cures.js).
+export const FLIGHTS_TO_FIND_CURE = 4;
 export const traitByKey = key => TRAITS.find(trait => trait.key == key);
 // The flaws a lower stage can be born with: its engine, plumbing and tanks. Heating, fins and separation belong to the whole stack.
 export const STAGE_TRAITS = ['rough', 'pump', 'start', 'leak', 'thin', 'heavy', 'weak'];

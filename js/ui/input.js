@@ -10,6 +10,7 @@ import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, ground
 import { mothball, reopen } from '../rules/site.js';
 import { airborne } from '../rules/flight.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem, holdForLaunch } from '../rules/factory.js';
+import { startCure } from '../rules/cures.js';
 import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
@@ -281,6 +282,7 @@ const GAME_ACTIONS = {
   name: (id, button) => nameCause(+id, button.dataset.f),
   publish: () => publishBlueprint(),
   upgrade: id => queueRetrofit(+id),
+  cure: id => { const [kind, traitKey] = id.split(':'); withProgramme(kind, () => startCure(kind, traitKey)); },
   afhold: id => holdForLaunch(+id, !(S.air.find(airframe => airframe.id == +id) || {}).hold),
   cancelq: id => cancelQueueItem(+id),
   aptog: () => S.ap.on = S.ap.on ? 0 : 1,

@@ -26,6 +26,7 @@ import { setRequest, REQUEST_RANGE } from '../js/rules/budget.js';
 import { STUDY_SIZES, ARCHITECTURE_ORDER } from '../js/data/apollo.js';
 import { decideRollover, startStudy, estimate, chooseArchitecture } from '../js/rules/apollo.js';
 import { capabilityShown } from '../js/rules/mercury.js';
+import { curesReady, startCure } from '../js/rules/cures.js';
 import { barVerdict, testsPending } from '../js/rules/safety.js';
 import { openRequest, reasonOnFile, answerRequest, shield, shieldReady } from '../js/rules/requests.js';
 import { pressure } from '../js/rules/pressure.js';
@@ -164,6 +165,8 @@ export function playMercury(game) {
           break;
         }
       }
+      // A flaw whose cause the team has found: order its cure (rules/cures.js).
+      for (const cure of curesReady(kind)) if (freeTeams() && S.b - cure.cost >= reserve) startCure(kind, cure.traitKey);
     });
   };
   // Apollo: the Mercury lead goes with the team, the full study once affordable, and the lowest-risk estimate once Gemini has
