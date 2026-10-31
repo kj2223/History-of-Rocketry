@@ -13,7 +13,7 @@ import { ensureStarter, hire, tickSecond, catchUp } from '../js/rules/game.js';
 import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages, ensureStages, stagesOf, researchTarget } from '../js/rules/programs.js';
 import { lowerStage } from '../js/rules/stages.js';
 import { PROPELLANTS } from '../js/data/launch.js';
-import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
+import { MATURE, FLIGHTS_TO_MATURE, PROGRAMMES } from '../js/data/programmes.js';
 import { makeAirframe, retrofitQuote, draftChanges, blueprintConfig } from '../js/rules/production.js';
 import { publishBlueprint, holdForLaunch } from '../js/rules/factory.js';
 import { previewFlight, beginFlight, step, hasEvent, endFlight } from '../js/rules/flight.js';
@@ -270,12 +270,12 @@ test('an attended first goes to the pad with her plan instead of flying unseen',
 // An open incident holds routine flights until it is dealt with; these tests close them as a player or Ellis's remit would.
 const closeIncidents = kind => withProgramme(kind, () => S.inc.forEach(incident => incident.st = 'done'));
 test('a standing order flies a new configuration without stopping to ask', async () => {
-  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  const { startOrder, standingOrder } = await import('../js/rules/orders.js');
   readyProgramme('aerobee');
   S.cur = 'aerobee';
   S.staff.director = 1;
   assert.equal(startOrder('aerobee', 1e6), null);
-  const flown = () => orderFor('aerobee').n;
+  const flown = () => standingOrder().n;
   for (let second = 0; second < 1500 && !flown(); second++) {
     tickSecond();
     autoLaunch();
@@ -292,13 +292,13 @@ test('a standing order flies a new configuration without stopping to ask', async
     closeIncidents('aerobee');
     for (const airframe of S.air) if (airframe.prog == 'aerobee' && !airframe.pk.includes('ms_test')) airframe.pk.push('ms_test');
     S.b = Math.max(S.b, 200000);
-    assert.equal(orderFor('aerobee').hold, null);
+    assert.equal(standingOrder().hold, null);
   }
   delete BY_ID.ms_test;
   assert.ok(flown() > before, 'it keeps flying with the new milestone aboard');
 });
 test('a standing order flies customer requests by itself and keeps flying after a campaign expires', async () => {
-  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  const { startOrder, standingOrder } = await import('../js/rules/orders.js');
   readyProgramme('aerobee');
   S.cur = 'aerobee';
   S.staff.director = 1;
@@ -312,44 +312,67 @@ test('a standing order flies customer requests by itself and keeps flying after 
     if (S.auto.camp && S.auto.camp.hold) goAhead();
     closeIncidents('aerobee');
     closeIncidents('wac');
-    if (orderFor('aerobee').hold) assert.fail(orderFor('aerobee').hold);
-    if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
+    if (standingOrder().hold) assert.fail(standingOrder().hold);
+    if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = standingOrder().n;
     S.b = Math.max(S.b, 200000);
   }
   assert.equal(S.auto.last.outcome, 'deadline');
-  assert.ok(orderFor('aerobee').n > flownAtExpiry, 'the order keeps flying once the campaign is over');
-  assert.ok(orderFor('aerobee').paid > 0, 'customers pay for good flights');
-  assert.ok(orderFor('aerobee').paid >= orderFor('aerobee').spent, 'customers reimburse every flight, so routine flying breaks even');
-  assert.ok(orderFor('aerobee').spent <= orderFor('aerobee').cap);
+  assert.ok(standingOrder().n > flownAtExpiry, 'the order keeps flying once the campaign is over');
+  assert.ok(standingOrder().paid > 0, 'customers pay for good flights');
+  assert.ok(standingOrder().paid >= standingOrder().spent, 'customers reimburse every flight, so routine flying breaks even');
+  assert.ok(standingOrder().spent <= standingOrder().cap);
 });
 
 test('a standing order stops and asks you when its cap is spent', async () => {
-  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  const { startOrder, standingOrder } = await import('../js/rules/orders.js');
   readyProgramme('aerobee');
   S.staff.director = 1;
   S.hi = 60000;
   assert.equal(startOrder('aerobee', 10000), null);
-  for (let second = 0; second < 3000 && !orderFor('aerobee').hold; second++) {
+  for (let second = 0; second < 3000 && !standingOrder().hold; second++) {
     tickSecond();
     autoLaunch();
     closeIncidents('aerobee');
     S.b = Math.max(S.b, 200000);
   }
-  assert.match(orderFor('aerobee').hold, /cap/);
-  assert.ok(orderFor('aerobee').spent <= 10000);
+  assert.match(standingOrder().hold, /cap/);
+  assert.ok(standingOrder().spent <= 10000);
 });
 
-test('Ellis flies a request on the cheapest ordered rocket that reaches it, not the newest', async () => {
-  const { startOrder, orderFor, ordersTurn } = await import('../js/rules/orders.js');
+test('Ellis flies a request on the cheapest rocket that reaches it, whichever brief started the order', async () => {
+  const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
   S.air.push(readyProgramme('aerobee'), readyProgramme('viking'));
   S.staff.director = 1;
-  startOrder('aerobee', 1e6);
-  startOrder('viking', 1e6);
+  assert.equal(startOrder('viking', 1e6), null);
   S.b = 1e6;
   S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
   ordersTurn(.85);
-  assert.equal(orderFor('aerobee').n, 1);
-  assert.equal(orderFor('viking').n, 0);
+  assert.equal(standingOrder().n, 1);
+  assert.equal(S.air.find(airframe => airframe.prog == 'viking').st, 'r', 'the Viking stays in the hangar');
+});
+test('with no cheap airframe ready, Ellis orders one rather than fly a dearer rocket', async () => {
+  const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.air.push(readyProgramme('viking'));
+  S.staff.director = 1;
+  assert.equal(startOrder('viking', 1e6), null);
+  S.b = 1e6;
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
+  ordersTurn(.85);
+  assert.equal(standingOrder().n, 0, 'the Viking does not fly');
+  assert.ok(S.aq.some(item => item.k == 'build' && PROGRAMMES[item.prog].unitCost < PROGRAMMES.viking.unitCost), 'a cheaper airframe is on order');
+  assert.match(S.orders.reqs[0].why, /waiting for/);
+});
+test('saves with one standing order per rocket load as one order', async () => {
+  const { load } = await import('../js/core/state.js');
+  const saved = { cv: 3, orders: { by: { aerobee: { cap: 25000, spent: 1000, n: 2, okn: 1, paid: 3000, hold: null, pk: [] }, viking: { cap: 50000, spent: 2000, n: 1, okn: 1, paid: 5000, hold: null, pk: [] } }, reqs: [], n: 4, due: 10 } };
+  globalThis.localStorage = { getItem: () => JSON.stringify(saved), setItem() {} };
+  load();
+  assert.equal(S.orders.by, undefined);
+  assert.equal(S.orders.o.cap, 75000);
+  assert.equal(S.orders.o.n, 3);
+  assert.equal(S.orders.o.prog, 'aerobee');
+  delete globalThis.localStorage;
 });
 
 test('flights you fly yourself count towards the campaign; the director learns only from its own', () => {
@@ -1464,11 +1487,11 @@ test('a lane proposes the milestones that open in its system and waits; approved
 });
 
 // THE PROGRAMME BRIEF (rules/brief.js): one approval starts every free lead's line on the rocket in focus.
-test('one brief starts flights, production and research together, and Reed keeps one more airframe for the order', async () => {
+test('one brief starts flights, production and research together', async () => {
   const { approveBrief, briefLines, briefTotal, BRIEF_SIZES } = await import('../js/rules/brief.js');
   const { chenJoinTick } = await import('../js/rules/lanes.js');
   const { reedJoinTick, worksTick, airframesOnHand, airframesWanted, AIRFRAMES_ON_HAND } = await import('../js/rules/factory-lead.js');
-  const { orderFor } = await import('../js/rules/orders.js');
+  const { standingOrder } = await import('../js/rules/orders.js');
   S.air.push(readyProgramme('aerobee'));
   S.cur = 'aerobee';
   S.b = 300000;
@@ -1479,13 +1502,14 @@ test('one brief starts flights, production and research together, and Reed keeps
   reedJoinTick();
   assert.equal(briefTotal('aerobee', 1), BRIEF_SIZES[1].flights + BRIEF_SIZES[1].production + BRIEF_SIZES[1].research);
   assert.equal(approveBrief(1), null);
-  assert.ok(orderFor('aerobee') && S.works.prog == 'aerobee' && S.lanes.prog == 'aerobee', 'all three lines run');
+  assert.ok(standingOrder() && S.works.prog == 'aerobee' && S.lanes.prog == 'aerobee', 'all three lines run');
   assert.ok(approveBrief(1), 'nothing left to approve');
-  assert.equal(airframesWanted('aerobee'), AIRFRAMES_ON_HAND + 1, 'one more while the order flies');
+  assert.equal(airframesWanted(), AIRFRAMES_ON_HAND);
   for (let second = 0; second < 4; second++) worksTick();
-  assert.equal(airframesOnHand('aerobee'), AIRFRAMES_ON_HAND + 1);
+  assert.ok(airframesOnHand('aerobee') >= AIRFRAMES_ON_HAND);
   readyProgramme('viking');
   assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee', 'a busy lead is left out and says why');
+  assert.match(briefLines('viking')[0].state, /covers every rocket/, 'the one order already covers the Viking');
 });
 
 // SHARED RESEARCH (rules/leads.js, rules/shared-research.js): hired leads run the shared areas' lanes and propose milestones.
@@ -1612,7 +1636,7 @@ test('Reed upgrades a ready airframe that is behind the published blueprint', as
 test('acceptance: the delegated team takes a fresh save from the Aerobee to the Viking', async () => {
   const { save, load } = await import('../js/core/state.js');
   const { approveBrief, briefLines } = await import('../js/rules/brief.js');
-  const { orderFor } = await import('../js/rules/orders.js');
+  const { standingOrder } = await import('../js/rules/orders.js');
   const { laneIdleReason, endLanes } = await import('../js/rules/lanes.js');
   const { endWorks } = await import('../js/rules/factory-lead.js');
   const { hireLead } = await import('../js/rules/leads.js');
@@ -1650,13 +1674,13 @@ test('acceptance: the delegated team takes a fresh save from the Aerobee to the 
     assert.equal(startCampaign({ prog: 'aerobee', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal: 50, months: 2, budget: 1e6 }), null);
     let flownAtExpiry = null, linesSpent = new Set();
     play(4000, () => {
-      if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
-      if (orderFor('aerobee').hold && /cap/.test(orderFor('aerobee').hold)) linesSpent.add('flights');
+      if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = standingOrder().n;
+      if (standingOrder().hold && /cap/.test(standingOrder().hold)) linesSpent.add('flights');
       if (S.lanes && S.lanes.dry) linesSpent.add('research');
       if (S.works && S.works.dry) linesSpent.add('production');
     });
     assert.equal(S.auto.last.outcome, 'deadline', 'the campaign expired');
-    assert.ok(orderFor('aerobee').n > flownAtExpiry, 'routine flights carry on after it');
+    assert.ok(standingOrder().n > flownAtExpiry, 'routine flights carry on after it');
     assert.ok(linesSpent.size, 'a lean brief runs out somewhere and says so');
     assert.ok(S.shared.jobs > 0, 'the shared lane did research');
     // Save and reload: the same game comes back and carries on.
@@ -1666,21 +1690,22 @@ test('acceptance: the delegated team takes a fresh save from the Aerobee to the 
     load();
     assert.equal(JSON.stringify(S), saved);
     play(200);
-    // The Viking is ready: production and research move to it, and both rockets fly routine flights.
+    // The Viking is ready: production and research move to it, and the order flies on.
     readyProgramme('viking');
     assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee');
     endLanes();
     endWorks();
     S.cur = 'viking';
     assert.equal(approveBrief(0), null);
-    assert.ok(orderFor('viking') && orderFor('aerobee') && S.works.prog == 'viking' && S.lanes.prog == 'viking');
-    const vikingFlown = orderFor('viking').n;
+    assert.ok(standingOrder() && S.works.prog == 'viking' && S.lanes.prog == 'viking');
+    const flown = standingOrder().n;
     play(3000, () => {
-      for (const prog of ['aerobee', 'viking']) if (orderFor(prog).hold) orderFor(prog).hold.startsWith('The cap') ? (orderFor(prog).cap += 25000, orderFor(prog).hold = null) : (orderFor(prog).hold = null);
+      const order = standingOrder();
+      if (order.hold) order.hold.startsWith('The cap') ? (order.cap += 25000, order.hold = null) : (order.hold = null);
       if (S.works.dry) { S.works.cap += 20000; S.works.dry = null; }
     });
     assert.ok(S.works.built > 0, 'Reed builds Vikings');
-    assert.ok(orderFor('viking').n + orderFor('aerobee').n > vikingFlown, 'the orders keep flying');
+    assert.ok(standingOrder().n > flown, 'the order keeps flying');
   } finally {
     delete globalThis.localStorage;
   }

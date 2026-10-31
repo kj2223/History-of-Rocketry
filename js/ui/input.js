@@ -232,9 +232,9 @@ const GAME_ACTIONS = {
     const error = approveBrief(+size);
     if (error) log('[PROGRAMME] ' + error, 'bad');
   },
-  oraise: (prog, button) => raiseOrder(prog, button.dataset.n == '2'),
-  oend: prog => endOrder(prog),
-  ores: prog => resumeOrder(prog),
+  oraise: (_, button) => raiseOrder(button.dataset.n == '2'),
+  oend: () => endOrder(),
+  ores: () => resumeOrder(),
   fac: id => buildFacility(id),
   mothball: id => mothball(id),
   reopen: id => reopen(id),

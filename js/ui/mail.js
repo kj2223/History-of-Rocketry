@@ -16,7 +16,7 @@ import { AREAS } from '../data/research.js';
 import { LANES, LANE_RAISE, laneLead, laneJob, laneIdleReason, laneProposals } from '../rules/lanes.js';
 import { AIRFRAMES_ON_HAND, WORKS_RAISE, airframesOnHand, airframesWanted, worksIdleReason } from '../rules/factory-lead.js';
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
-import { ORDER_RAISE, standingOrders, orderFor, orderWaiting, ordersTotals, requestText } from '../rules/orders.js';
+import { ORDER_RAISE, standingOrder, orderWaiting, requestText } from '../rules/orders.js';
 import { DIRECTOR_CADENCE } from '../rules/auto.js';
 import { LEAD_POSTS } from '../data/leads.js';
 import { openPosts, hiredLead, postCandidates } from '../rules/leads.js';
@@ -53,23 +53,23 @@ function laneProposalHTML(area) {
     + `${busy ? '<div class="m">The lane is finishing a package: approve once it is done, or queue the milestone for your own teams.</div>' : ''}<div class="acts"><button data-a="lnot" data-id="${area}">NOT NOW</button></div></div>`;
 }
 const LINE_OFFERS = {
-  flights: () => 'Ellis flies routine customer flights on it under a cap, on the cheapest rocket under order that reaches each request.',
-  production: () => `Reed keeps ${AIRFRAMES_ON_HAND} airframes ready or on the floor (one more while it flies routine flights), upgrades them and publishes the blueprint, holding any change that makes it heavier for its thrust.`,
+  flights: () => 'Ellis flies routine customer flights under a cap, each on the cheapest rocket you own that reaches it, ordering airframes of that rocket when none is ready.',
+  production: () => `Reed keeps ${AIRFRAMES_ON_HAND} airframes ready or on the floor, upgrades them and publishes the blueprint, holding any change that makes it heavier for its thrust.`,
   research: () => 'Chen runs the routine research in each of its systems, one lane each, led by its development lead or, until you hire one, its station engineer. Your teams stay yours for milestones.',
 };
 const LINE_NAMES = { flights: 'FLIGHTS', production: 'PRODUCTION', research: 'RESEARCH' };
 // A running line: its account, its question for you if any, why it is quiet, and its buttons. { html, ask }
 function runningLine(line, prog) {
   if (line == 'flights') {
-    const order = orderFor(prog), waiting = !order.hold && orderWaiting(prog);
+    const order = standingOrder(), waiting = !order.hold && orderWaiting();
     return { ask: !!order.hold, html: `<div class="r"><span>${order.n} flight${order.n == 1 ? '' : 's'}, ${order.okn} good, ${formatMoney(order.paid)} paid</span><b>${formatMoney(order.spent)} of ${formatMoney(order.cap)}</b></div>`
       + (order.hold ? `<p class="wn">${escapeHtml(order.hold)}</p>` : `<div class="m">${waiting ? `Waiting: ${waiting}.` : 'Flying as requests come in.'}</div>`)
-      + `<div class="acts">${order.hold ? `<button data-a="ores" data-id="${prog}">GO AHEAD</button>` : ''}<button data-a="oraise" data-id="${prog}">RAISE BY ${formatMoney(ORDER_RAISE)}</button><button data-a="oraise" data-id="${prog}" data-n="2">DOUBLE TO ${formatMoney(2 * order.cap)}</button><button data-a="oend" data-id="${prog}">CLOSE THE ORDER</button></div>` };
+      + `<div class="acts">${order.hold ? '<button data-a="ores">GO AHEAD</button>' : ''}<button data-a="oraise">RAISE BY ${formatMoney(ORDER_RAISE)}</button><button data-a="oraise" data-n="2">DOUBLE TO ${formatMoney(2 * order.cap)}</button><button data-a="oend">CLOSE THE ORDER</button></div>` };
   }
   if (line == 'production') {
     const works = S.works, idle = worksIdleReason();
     const ask = works.hold ? `<p class="wn">Holding the draft blueprint: it would cut liftoff thrust-to-weight by ${Math.round(-works.hold * 100)}%. Reed publishes once the engine work catches up; publish now if you would rather fly the extra propellant.</p>` : works.dry ? `<p class="wn">The budget cannot cover ${escapeHtml(works.dry)}.</p>` : '';
-    return { ask: !!ask, html: `<div class="r"><span>${works.built} ordered, ${works.retro} upgraded, ${airframesOnHand(prog)} of ${airframesWanted(prog)} on hand</span><b>${formatMoney(works.spent)} of ${formatMoney(works.cap)}</b></div>`
+    return { ask: !!ask, html: `<div class="r"><span>${works.built} ordered, ${works.retro} upgraded, ${airframesOnHand(prog)} of ${airframesWanted()} on hand</span><b>${formatMoney(works.spent)} of ${formatMoney(works.cap)}</b></div>`
       + (ask || (idle ? `<div class="m">Idle: ${escapeHtml(idle)}.</div>` : '<div class="m">Work on the factory floor.</div>'))
       + `<div class="acts">${works.hold ? '<button data-a="wpub">PUBLISH NOW</button>' : ''}<button data-a="wraise">RAISE BY ${formatMoney(WORKS_RAISE)}</button><button data-a="wraise" data-n="2">DOUBLE TO ${formatMoney(2 * works.cap)}</button><button data-a="wend">HAND PRODUCTION BACK</button></div>` };
   }
@@ -91,7 +91,7 @@ function briefMessage(prog) {
     return `<div class="c">${head}<div class="m">${line.state == 'free' ? LINE_OFFERS[line.line]() : `Not in this brief: ${escapeHtml(line.state)}.`}</div></div>`;
   }).join('');
   const asks = running.filter(line => line.ask).length;
-  const requests = orderFor(prog) ? `<div class="lbl">OPEN REQUESTS</div>${S.orders.reqs.length ? S.orders.reqs.map(request => `<div class="m">${escapeHtml(requestText(request))}${request.why ? ` <span class="d">(${escapeHtml(request.why)})</span>` : ''}</div>`).join('') : '<div class="m">No requests open. The next is expected soon.</div>'}` : '';
+  const requests = standingOrder() && standingOrder().prog == prog ? `<div class="lbl">OPEN REQUESTS</div>${S.orders.reqs.length ? S.orders.reqs.map(request => `<div class="m">${escapeHtml(requestText(request))}${request.why ? ` <span class="d">(${escapeHtml(request.why)})</span>` : ''}</div>`).join('') : '<div class="m">No requests open. The next is expected soon.</div>'}` : '';
   return {
     id: 'brief-' + prog, kind: asks ? 'decision' : 'report', from: 'Programme office', role: 'Ellis, Reed and Chen', pane: 'note',
     subject: !running.length ? `A brief for the ${PROGRAMMES[prog].name}` : asks ? `The ${PROGRAMMES[prog].name} brief needs you` : `The ${PROGRAMMES[prog].name} brief`,
@@ -100,7 +100,7 @@ function briefMessage(prog) {
   };
 }
 // The rockets with a brief letter: any a lead runs, and the one in focus.
-const briefProgrammes = () => [...new Set([S.cur, ...standingOrders(), S.works?.prog, S.lanes?.prog].filter(prog => prog && PROGRAMMES[prog]))];
+const briefProgrammes = () => [...new Set([S.cur, S.orders.o?.prog, S.works?.prog, S.lanes?.prog].filter(prog => prog && PROGRAMMES[prog]))];
 
 // CHEN'S RESEARCH STAFF (rules/leads.js, rules/shared-research.js): the posts open to fill, each with its two candidates; the
 // shared research line and its lanes; and the leads' milestone proposals, which ask for a decision.
@@ -255,14 +255,12 @@ function sideHTML() {
       + (job ? `<div class="m">${escapeHtml(itemAsSeen(job.id).name)}</div><div class="bar"><i data-jb="${job.k + job.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '');
   }).join('') + `<div class="r"><span>Spent</span><b>${formatMoney(S.lanes.spent)} of ${formatMoney(S.lanes.cap)}</b></div>`);
   const works = S.works;
-  if (works) html += card(`PRODUCTION · ${memberName('reed')}`, `<div class="r"><span>${escapeHtml(PROGRAMMES[works.prog].name)}</span><b>${airframesOnHand(works.prog)} of ${airframesWanted(works.prog)} on hand</b></div>${worksIdleReason() ? `<div class="m">Idle: ${escapeHtml(worksIdleReason())}.</div>` : ''}<div class="r"><span>Spent</span><b>${formatMoney(works.spent)} of ${formatMoney(works.cap)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(works.spent / works.cap * 100))}%"></i></div>`);
+  if (works) html += card(`PRODUCTION · ${memberName('reed')}`, `<div class="r"><span>${escapeHtml(PROGRAMMES[works.prog].name)}</span><b>${airframesOnHand(works.prog)} of ${airframesWanted()} on hand</b></div>${worksIdleReason() ? `<div class="m">Idle: ${escapeHtml(worksIdleReason())}.</div>` : ''}<div class="r"><span>Spent</span><b>${formatMoney(works.spent)} of ${formatMoney(works.cap)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(works.spent / works.cap * 100))}%"></i></div>`);
   html += card(`FACTORY · ${S.aq.length} in the queue`, S.aq.length ? `<div class="m">Next out: ${S.aq[0].k == 'build' ? 'airframe' : S.aq[0].k == 'retro' ? 'retrofit' : 'spacecraft'} <span data-q="0"></span></div><div class="bar"><i data-qb="0"></i></div>` : '<div class="m">The factory floor is empty.</div>');
   const camp = S.auto.camp;
   if (camp) html += card(`CAMPAIGN · ${memberName('ellis')}`, `<div class="r"><span>Flights flown</span><b>${camp.n}</b></div><div class="r"><span>Spent</span><b>${formatMoney(camp.spent)} of ${formatMoney(camp.budget)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(camp.spent / camp.budget * 100))}%"></i></div>`);
-  if (standingOrders().length) {
-    const totals = ordersTotals();
-    html += card(`STANDING ORDERS · ${memberName('ellis')}`, standingOrders().map(prog => `<div class="r"><span>${escapeHtml(PROGRAMMES[prog].name)}</span><b class="${orderFor(prog).hold ? 'wn' : ''}">${orderFor(prog).hold ? 'waiting for you' : orderWaiting(prog) || `${orderFor(prog).n} flown`}</b></div>`).join('') + `<div class="r"><span>Paid by customers</span><b>${formatMoney(totals.paid)}</b></div><div class="r"><span>Requests open</span><b>${S.orders.reqs.length}</b></div>`);
-  }
+  const order = standingOrder();
+  if (order) html += card(`STANDING ORDER · ${memberName('ellis')}`, `<div class="r"><span>Flights flown</span><b class="${order.hold ? 'wn' : ''}">${order.hold ? 'waiting for you' : orderWaiting() || `${order.n}, ${order.okn} good`}</b></div><div class="r"><span>Paid by customers</span><b>${formatMoney(order.paid)}</b></div><div class="r"><span>Requests open</span><b>${S.orders.reqs.length}</b></div>`);
   const remit = S.remit;
   if (remit) html += card(`REMIT · ${memberName('ellis')}`, `<div class="r"><span>${escapeHtml(PROGRAMMES[remit.prog].name)}</span><b>${remit.jobs} job${remit.jobs == 1 ? '' : 's'}</b></div><div class="r"><span>Spent</span><b>${formatMoney(remit.spent)} of ${formatMoney(remit.cap)}</b></div><div class="bar"><i style="width:${Math.min(100, Math.round(remit.spent / remit.cap * 100))}%"></i></div>`);
   html += '<div class="lbl sub">CORE TEAM</div>' + joinedMembers().map(id => `<div class="who"><i>${CORE_TEAM[id].name.split(' ').map(word => word[0]).join('')}</i><span><b>${memberName(id)}</b><span class="m">${memberRole(id)}</span></span></div>`).join('');

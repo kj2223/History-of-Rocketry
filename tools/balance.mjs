@@ -26,7 +26,7 @@ import { directorUnlocked } from '../js/rules/campaign.js';
 import { openPosts, hireLead, leadsPayroll, postCandidates } from '../js/rules/leads.js';
 import { SHARED_AREAS, SHARED_CAPS, startShared, raiseShared, proposals, approveProposal } from '../js/rules/shared-research.js';
 import { briefFree, approveBrief } from '../js/rules/brief.js';
-import { orderFor, standingOrders, raiseOrder, resumeOrder, ordersTotals } from '../js/rules/orders.js';
+import { standingOrder, raiseOrder, resumeOrder } from '../js/rules/orders.js';
 import { LANES, endLanes, raiseLanes, laneProposals, approveLaneMilestone, laneNotNow } from '../js/rules/lanes.js';
 import { endWorks, raiseWorks, reedPublishes } from '../js/rules/factory-lead.js';
 import { remitUnlocked, startRemit, raiseRemit, REMIT_CAPS } from '../js/rules/remit.js';
@@ -141,11 +141,9 @@ function run(seed) {
       else if (offered.length && !pick) laneNotNow(area);
     }
     if (S.works && S.works.dry && flush) raiseWorks();
-    for (const prog of standingOrders()) {
-      const order = orderFor(prog);
-      if (order.hold && !order.hold.startsWith('The cap')) resumeOrder(prog);
-      else if (order.hold && flush) raiseOrder(prog);
-    }
+    const order = standingOrder();
+    if (order && order.hold && !order.hold.startsWith('The cap')) resumeOrder();
+    else if (order && order.hold && flush) raiseOrder();
   };
   while (t < MAX_MINUTES * 60 && S.dir < GOAL) {
     const reserve = unitCost() + 6000;
@@ -199,7 +197,7 @@ function run(seed) {
     crew: Object.keys(S.crew).filter(id => S.crew[id]).length, facilities: Object.keys(S.fac).length, directiveTimes, budget: S.b, packages: Object.keys(S.pk).length,
     orbit: S.dir >= GOAL, date: formatDate(S.day), sputnik: formatDate(S.rv.r_sat), race: S.fs.f_orbit || '-', sovietFirsts: Object.values(S.fs).filter(value => value == 'them' || value == 'second').length,
     lostFirstIds: Object.keys(S.fs).filter(id => S.fs[id] == 'them' || S.fs[id] == 'second'),
-    delegation: DELEGATE && { at: delegated.at, orders: ordersTotals(), lanes: S.lanes && S.lanes.jobs, works: S.works && S.works.built, shared: S.shared.jobs, remit: S.remit && S.remit.jobs, leads: Object.keys(S.leads).length, payroll: leadsPayroll() },
+    delegation: DELEGATE && { at: delegated.at, orders: standingOrder() || { n: 0, okn: 0, paid: 0 }, lanes: S.lanes && S.lanes.jobs, works: S.works && S.works.built, shared: S.shared.jobs, remit: S.remit && S.remit.jobs, leads: Object.keys(S.leads).length, payroll: leadsPayroll() },
   };
   if (!phaseOne.orbit || process.env.PHASE_ONE_ONLY) return phaseOne;
   // Phase Two picks up where Phase One stopped, with the same clock and the same flying.
