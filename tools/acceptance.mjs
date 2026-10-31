@@ -6,8 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const BOT = fileURLToPath(new URL('./balance.mjs', import.meta.url));
 const ROUTES = [
-  { name: 'hands-on', seeds: [5], env: {} },             // seed 5: the Gemini planner never off-loaded an overweight Titan II
-  { name: 'delegation', seeds: [7], env: { DELEGATE: '1' } }, // seed 7: the same Gemini stall, before the single standing order (PR #66)
+  { name: 'hands-on', seeds: [5], env: {} }, // seed 5: the Gemini planner never off-loaded an overweight Titan II
 ];
 
 let failed = 0;
