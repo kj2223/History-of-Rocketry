@@ -1980,6 +1980,16 @@ test('the S-I burns kerosene under a hydrogen upper stage, and the Saturn I can 
   assert.equal(previewFlight(titan, 'Aerozine & N2O4', 'Apollo Boilerplate', 1, 1).orbit, false);
 });
 
+// Aaron's report: an upgraded Vanguard with a light payload left Earth (11 km/s, still climbing at 24,000 km when the flight timed out).
+test('without a satellite aboard, the guidance cuts the engine at orbital speed and the flight comes back down', () => {
+  const saturn = readyProgramme('saturn1');
+  const light = previewFlight(saturn, 'Hydrogen & LOX', 'Inert Ballast', 1, 1);
+  assert.ok(light.peakSpeed < 7200, `cut off near 7,000 m/s, not ${Math.round(light.peakSpeed)}`);
+  assert.ok(light.peakAltitude < 2e6, 'nowhere near leaving Earth');
+  assert.ok(light.path.altitude.length < 5000, 'it lands before the flight times out');
+  assert.equal(previewFlight(saturn, 'Hydrogen & LOX', 'Explorer Satellite', 1, 1).orbit, true, 'a satellite still goes to orbit');
+});
+
 // THE SAFETY BAR (Apollo step 4): estimates for each crew rocket's components, and ground tests that firm them up.
 test('the safety bar opens with the architecture, and the staff ground-test each new revision at a price', async () => {
   const { safetyTick, safetyBar, crewRockets, testCost } = await import('../js/rules/safety.js');
