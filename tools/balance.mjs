@@ -4,7 +4,7 @@
 // DELEGATE=1 plays the delegation route: at the Aerobee it appoints the launch director, hires the cheaper candidate for every
 // lead post, gives Ellis a remit and authorises a lean programme brief for the newest rocket (moving production and research to
 // each new rocket as it is ready), opens the shared research line and approves each lead's first proposal.
-import { S, resetState, formatDate, freeTeams, withProgramme } from '../js/core/state.js';
+import { S, resetState, formatDate, freeTeams, withProgramme, save, load } from '../js/core/state.js';
 import { PACKAGES, BY_ID } from '../js/data/research.js';
 import { DIRECTIVES } from '../js/data/history.js';
 import { MERCURY_DIRECTIVES, sectionDirectives } from '../js/data/mercury.js';
@@ -32,6 +32,10 @@ import { endWorks, raiseWorks, reedPublishes } from '../js/rules/factory-lead.js
 import { remitUnlocked, startRemit, raiseRemit, REMIT_CAPS } from '../js/rules/remit.js';
 import { curesReady, startCure } from '../js/rules/cures.js';
 
+// ROUNDTRIP=1 saves and reloads the game (through the real save code, into a stand-in for the browser's storage) the moment
+// Gemini opens. A save that loses nothing plays on exactly as before, so the report must not change (tools/acceptance.mjs).
+const ROUNDTRIP = !!process.env.ROUNDTRIP;
+if (!globalThis.localStorage) globalThis.localStorage = { store: {}, getItem(key) { return key in this.store ? this.store[key] : null; }, setItem(key, value) { this.store[key] = String(value); }, removeItem(key) { delete this.store[key]; } };
 const BUY = [['crew', 'prop'], ['crew', 'rso'], ['fac', 'wx'], ['fac', 'tty'], ['crew', 'tlm'], ['fac', 'radar'], ['fac', 'plot'], ['crew', 'bstr'], ['fac', 'comp'], ['crew', 'fido']];
 const RUNS = +process.argv[2] || 6, MAX_MINUTES = +process.argv[3] || 240, GOAL = 5, DELEGATE = !!process.env.DELEGATE;
 // After Gemini the bot gets this long to put a boilerplate in orbit on a Saturn I.
@@ -51,11 +55,20 @@ function run(seed) {
   resetState();
   ensureStarter();
   const army = seed % 2 == 0, programmeStarted = {}, programmeMatured = {};
-  let t = 0, flights = 0, fails = 0, scrubs = 0, lastSignature = '', lastFlown = -999;
+  let t = 0, flights = 0, fails = 0, scrubs = 0, lastSignature = '', lastFlown = -999, roundTripped = false;
   const directiveTimes = [];
   const advance = seconds => {
     for (let i = 0; i < seconds; i++) {
       tickSecond();
+      if (ROUNDTRIP && !roundTripped && S.p2 && S.p2.fl.gem) {
+        roundTripped = true;
+        // Starting a fresh state inside load() rolls dice of its own (the Soviet dates it then overwrites): keep them off the game's.
+        const dice = Math.random;
+        Math.random = () => .5;
+        save();
+        load();
+        Math.random = dice;
+      }
       autoLaunch();
       acceptAllFindings();
       t++;
