@@ -375,6 +375,26 @@ test('saves with one standing order per rocket load as one order', async () => {
   delete globalThis.localStorage;
 });
 
+test('older saves get fields added since inside nested records', async () => {
+  const { load } = await import('../js/core/state.js');
+  const saved = { cv: 3, team: { n: 2, ok: 1, rev: 0, fix: 0, dir: 0, rec: 0, top: 0 }, shared: { cap: 0, spent: 0, jobs: 0, dry: null } };
+  globalThis.localStorage = { getItem: () => JSON.stringify(saved), setItem() {} };
+  load();
+  assert.equal(S.team.n, 2, 'saved values stay');
+  assert.deepEqual(S.team.watch, [], 'a missing field gets its starting value');
+  assert.deepEqual(S.shared.skip, []);
+  delete globalThis.localStorage;
+});
+test('an unreadable save is copied aside before anything can overwrite it', async () => {
+  const { load } = await import('../js/core/state.js');
+  const written = {};
+  globalThis.localStorage = { getItem: () => '{"cv":3, broken', setItem: (key, value) => { written[key] = value; } };
+  load();
+  assert.equal(written['vg3-unreadable'], '{"cv":3, broken');
+  assert.equal(written.vg3, undefined, 'the save itself is left alone');
+  delete globalThis.localStorage;
+});
+
 test('flights you fly yourself count towards the campaign; the director learns only from its own', () => {
   readyProgramme('aerobee');
   S.staff.director = 1;

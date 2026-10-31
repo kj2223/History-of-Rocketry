@@ -141,8 +141,10 @@ export const resetState = () => {
 // Saves from before version 3 are ignored (a fresh game starts). Older version-3 saves get any fields added since.
 export const load = () => {
   replaceState(newGameState());
+  let raw = null;
   try {
-    const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    raw = localStorage.getItem(SAVE_KEY);
+    const saved = JSON.parse(raw || 'null');
     if (saved && saved.cv >= 3) {
       Object.assign(S, saved);
       if (!saved.dev) S.dev = { v: 1, ps: 0, fl: 0, ev: [], snap: [] };
@@ -157,11 +159,29 @@ export const load = () => {
       }
       // Saves from before launch pads that already have an Atlas get its pad, so their next launch is not held up.
       if (!saved.pt && saved.progs && saved.progs.atlas) S.fac.lc14 = 1;
+      // Fields added since inside the nested records (S.team, S.orders, S.shared and so on) get their starting values.
+      const fresh = newGameState();
+      for (const key in fresh) if (isRecord(fresh[key]) && isRecord(S[key])) {
+        for (const field in fresh[key]) if (!(field in S[key])) S[key][field] = fresh[key][field];
+      }
     }
-  } catch (e) {}
+  } catch (e) {
+    // A save that cannot be read is copied aside before the autosave can write over it.
+    try { if (raw) localStorage.setItem(SAVE_KEY + '-unreadable', raw); } catch (copyFailed) {}
+    log('[SAVE] Your saved game could not be read. A copy is kept under ' + SAVE_KEY + '-unreadable.', 'bad');
+  }
 };
+const isRecord = value => !!value && typeof value == 'object' && !Array.isArray(value);
+// A save that fails (storage full, say) is reported once, so play does not go on unsaved without a word.
+let saveFailed = false;
 export const save = () => {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(S));
+    saveFailed = false;
+  } catch (e) {
+    if (!saveFailed) log('[SAVE] The game could not be saved. Progress since the last save will be lost if you close it.', 'bad');
+    saveFailed = true;
+  }
 };
 
 // THE LOG. Every line goes to the page (through logSink) and, unless it is routine, to the run log.
