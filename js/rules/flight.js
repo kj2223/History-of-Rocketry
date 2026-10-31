@@ -33,6 +33,7 @@ import { usePad, damagePad } from './site.js';
 import { programmeOf, traitWeight, revealTraits, maturity, successfulFlights, fixKeyFor } from './programs.js';
 import { learn, learnFromFlight, knowledgeFraction, systemOf, teachingValue } from './knowledge.js';
 import { recordCampaignFlight } from './campaign.js';
+import { recordConfidence } from './culture.js';
 import { recordFirsts } from './invitations.js';
 import { recordTeamFlight, recordFixTrials } from './team.js';
 import { lowerStage } from './stages.js';
@@ -643,6 +644,7 @@ function endFlightForProgramme(flight, ok, why) {
   learnFromFlight(flight, ok);
   stagesLearn(flight);
   recordCampaignFlight(flight, ok && why != 'abort', peak, !!flight.byDirector);
+  recordConfidence(ok, why, !!flight.byDirector);
   recordFirsts(flight);
   recordTeamFlight(ok && why != 'abort', ok ? peak : 0, [S.hd, S.hs, S.hi].filter((record, index) => record != recordsBefore[index]).length, !!flight.byDirector);
   recordFixTrials(flight.programme, ok && why != 'abort', flight.airframe);

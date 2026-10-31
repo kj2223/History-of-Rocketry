@@ -16,6 +16,7 @@ import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel, availableChannels, canRetune, offLinkWarning } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
 import { chiefOnFailure } from '../rules/team.js';
+import { noteLaunch } from '../rules/culture.js';
 import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock, missionStepSeconds, currentOrbit, inQuietOrbit } from '../rules/mission.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
@@ -325,6 +326,7 @@ function launchFlight(override) {
   const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
   if (!flight) return;
+  if (!count.byDirector) noteLaunch(airframe, !!override);
   flight.byDirector = !!count.byDirector;
   launchView.planned = flight.prediction = planned;
   flight.watch = watchedChannels(airframe, form.ch);

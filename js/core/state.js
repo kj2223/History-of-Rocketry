@@ -43,6 +43,7 @@
 //   orders  Ellis's standing order and the customers' requests (see rules/orders.js)
 //   leads   the research leads you have hired (see rules/leads.js)
 //   shared  the shared research line (see rules/shared-research.js)
+//   cult    the programme's culture and the team's confidence (see rules/culture.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -81,6 +82,7 @@ export const newGameState = () => ({
   orders: { o: null, reqs: [], n: 1, due: 0 },
   leads: {},
   shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
+  cult: { lean: 0, conf: 0, n: 0, tests: 0, ev: [] },
 });
 
 export const S = newGameState();
