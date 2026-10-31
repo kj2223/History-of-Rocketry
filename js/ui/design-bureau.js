@@ -19,6 +19,7 @@ import { queueLock, queuePosition, queueWait, queueEntries, analysisPosition, qu
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
 import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor, stagesOf, isInProgramme, researchTarget, STAGE_AREAS } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
+import { cureFor, cureCost, cureLock, isCured } from '../rules/cures.js';
 import { INVESTIGATION_COST, investigationTime, recordsQuality } from '../rules/jobs.js';
 import { chiefOnFindings, rangeOnRecords } from '../rules/team.js';
 import { $, setHTML } from './dom.js';
@@ -226,12 +227,20 @@ function programmeCard() {
     const range = believedWindow(kind, key), narrow = (range.hi - range.lo) / Math.max(1e-9, Math.abs(range.mid)) < .06 || key == 'r' && range.hi - range.lo < .012;
     return `<div class="r"><span class="d">${label}</span><b>${narrow ? formatStat(key, range.mid) : `${formatStat(key, range.lo)} – ${formatStat(key, range.hi)}`}</b></div>`;
   }).join('');
-  const found = bundle.traits.filter(trait => trait.found);
-  html += `<div class="t" style="margin-top:8px">KNOWN FLAWS</div>` + (found.length ? found.map(trait => {
-    const flaw = traitByKey(trait.k), cured = flaw.mode && S.fix[flaw.mode];
-    return `<div class="m ${cured ? 'ok' : 'wn'}">${cured ? '✓ ' : ''}${flaw.name}: ${flaw.why}${flaw.mode ? (cured ? ' Cured by the fix in the design.' : ' A fix for ' + FAILURE_MODES[flaw.mode].name.toLowerCase() + ' will cure it.') : ''}</div>`;
+  // The rocket's flaws and its lower stages' (named), each with its cure: a fix in the design, or one to order once its cause is found.
+  const flaws = [kind, ...stagesOf(kind)].flatMap(each => (S.progs[each].traits || []).map(trait => ({ each, trait })));
+  const found = flaws.filter(({ trait }) => trait.found);
+  html += `<div class="t" style="margin-top:8px">KNOWN FLAWS</div>` + (found.length ? found.map(({ each, trait }) => {
+    const flaw = traitByKey(trait.k), cured = isCured(each, trait.k), owner = each == kind ? '' : `${PROGRAMMES[each].name}: `;
+    let cure = '';
+    if (cured) cure = ' Cured in the design.';
+    else if (flaw.statPenalty) {
+      const lock = withProgramme(each, () => cureLock(each, trait.k));
+      cure = lock ? ` ${lock}` : ` The cause is known. <button data-a="cure" data-id="${each}:${trait.k}">${cureFor(trait.k).name.toUpperCase()} (${formatMoney(cureCost(each, trait.k))})</button>`;
+    } else if (flaw.mode) cure = ' A fix for ' + FAILURE_MODES[flaw.mode].name.toLowerCase() + ' will cure it.';
+    return `<div class="m ${cured ? 'ok' : 'wn'}">${cured ? '✓ ' : ''}${owner}${flaw.name}: ${flaw.why}${cure}</div>`;
   }).join('') : '<div class="m">None found yet.</div>')
-    + (found.length < bundle.traits.length ? '<div class="m">New rockets always hide flaws. Failures, investigations and design reviews bring them out.</div>' : '<div class="m ok">The engineers believe every flaw in the design is now known.</div>');
+    + (found.length < flaws.length ? '<div class="m">New rockets always hide flaws. Failures, investigations and design reviews bring them out.</div>' : '<div class="m ok">The engineers believe every flaw in the design is now known.</div>');
   const next = candidates();
   if (next.length) html += `<div class="t" style="margin-top:8px">NEXT PROGRAMMES</div>` + next.map(candidate => {
     const proposed = PROGRAMMES[candidate], lock = startLock(candidate), skipped = isShortcut(candidate) && PROGRAMMES[proposed.skip.past].name;

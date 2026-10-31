@@ -8,26 +8,27 @@ import { S, isResearched, withProgramme } from '../core/state.js';
 import { programmeOf, believedWindow } from './programs.js';
 import { padLock } from './site.js';
 import { lowerStage } from './stages.js';
+import { withoutCuredFlaws } from './cures.js';
 
 // The bare rocket of the programme in focus. With `estimated`, the figures the team believes (the middle of each window) instead of the truth.
-// Before any programme exists, a small default rocket.
-export function baseDesign(estimated) {
+// Before any programme exists, a small default rocket. With `fixes` (an airframe's), the flaws they cure cost no performance (rules/cures.js).
+export function baseDesign(estimated, fixes) {
   const bundle = S.progs[S.cur];
   if (!bundle || !bundle.T) return { f: 12, g: 6, r: 0, i: 0, c: 1, h: .5, q: 1, dry: 40, thr: 2500 };
-  if (!estimated) return bundle.T;
+  if (!estimated) return withoutCuredFlaws(bundle.T, S.cur, fixes);
   const believed = { ...bundle.T };
   for (const stat of ['thr', 'dry', 'f', 'g', 'h', 'q', 'r']) {
     const window = believedWindow(S.cur, stat);
     if (window) believed[stat] = window.mid;
   }
-  return believed;
+  return withoutCuredFlaws(believed, S.cur, fixes);
 }
 // THE SPEC: the bare rocket plus every package in `ids`. Keys are the effect keys of data/research.js (EFFECTS):
 //   f propellant (kg), t thrust multiplier, g g-limit, d added dry mass (kg), r reliability, i instrumentation, c drag,
 //   h heat tolerance, q aero load limit, dry and thr the bare rocket's dry mass and thrust, rc/rv/sv recovery and science,
 //   and the Mercury capsule systems. tier: the instrument tier, 0 to 3.
-export function designSpec(ids, estimated) {
-  const base = baseDesign(estimated);
+export function designSpec(ids, estimated, fixes) {
+  const base = baseDesign(estimated, fixes);
   const spec = {
     f: base.f, t: 1, g: base.g, d: 0, r: base.r, i: base.i, c: base.c, h: base.h, q: base.q, dry: base.dry, thr: base.thr,
     rc: 0, rv: 700, sv: 1, hs: 0, ec: 0, ac: 0, rr: 0, pc: 0, lb: 0, man: 0, et: 0, as: 0, tj: 0, mr: 0, rq: 0, eg: 0, hb: 0, orb: 0, um: 0, mab: 0, cmd: 0,
@@ -95,7 +96,7 @@ function quoteForProgramme(airframe, propellantName, payloadName, stage, load) {
   if (!programme.propellants.includes(propellantName)) return { error: `${programme.name} does not burn ${propellantName}.` };
   const propellant = PROPELLANTS[propellantName], payload = PAYLOADS[payloadName];
   if (payload.needs && !isResearched(payload.needs)) return { error: `The ${payloadName} needs ${BY_ID[payload.needs].name}.` };
-  const spec = designSpec(airframe.pk), modifiers = fixModifiers(airframe.fix), staged = stage && hasBoosterStage(airframe);
+  const spec = designSpec(airframe.pk, false, airframe.fix), modifiers = fixModifiers(airframe.fix), staged = stage && hasBoosterStage(airframe);
   const cost = propellantCost(airframe, propellantName, load) + payload.cost + (staged ? STAGING_COST : 0) + rangeFee();
   const pad = padLock(airframe);
   if (pad) return { cost, error: pad };

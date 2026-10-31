@@ -30,6 +30,7 @@ import { standingOrder, raiseOrder, resumeOrder } from '../js/rules/orders.js';
 import { LANES, endLanes, raiseLanes, laneProposals, approveLaneMilestone, laneNotNow } from '../js/rules/lanes.js';
 import { endWorks, raiseWorks, reedPublishes } from '../js/rules/factory-lead.js';
 import { remitUnlocked, startRemit, raiseRemit, REMIT_CAPS } from '../js/rules/remit.js';
+import { curesReady, startCure } from '../js/rules/cures.js';
 
 const BUY = [['crew', 'prop'], ['crew', 'rso'], ['fac', 'wx'], ['fac', 'tty'], ['crew', 'tlm'], ['fac', 'radar'], ['fac', 'plot'], ['crew', 'bstr'], ['fac', 'comp'], ['crew', 'fido']];
 const RUNS = +process.argv[2] || 6, MAX_MINUTES = +process.argv[3] || 240, GOAL = 5, DELEGATE = !!process.env.DELEGATE;
@@ -169,6 +170,7 @@ function run(seed) {
           break;
         }
       }
+      for (const cure of curesReady(kind)) if (freeTeams() && S.b - cure.cost >= reserve) startCure(kind, cure.traitKey);
     });
     // Programmes: start the next rung once the current rocket is mature.
     for (const candidate of candidates()) {
