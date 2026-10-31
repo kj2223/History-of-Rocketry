@@ -1,6 +1,8 @@
 // ACCEPTANCE: the balance bot replays games that once hit a dead end (a stage reached but never finished), and fails if any
 // still does. Slower than npm test (about 10 s a game, a minute in all), so it runs on its own. Run: npm run acceptance
 // Add a seed here whenever the balance bot finds a new dead end, once it is fixed.
+// It also saves and reloads one game the moment Gemini opens (ROUNDTRIP in tools/balance.mjs): the report must come out the same,
+// or the save is losing something.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -18,5 +20,14 @@ for (const route of ROUTES) {
   const result = spawnSync(process.execPath, [BOT], { stdio: 'inherit', env: { ...process.env, ...route.env, SEED: route.seeds.join(',') } });
   if (result.status !== 0) failed++;
 }
-console.log(failed ? `ACCEPTANCE FAILED: ${failed} route(s) stalled.` : 'ACCEPTANCE PASSED.');
+
+const SAVE_SEED = '5';
+console.log(`== save and reload mid-Gemini: seed ${SAVE_SEED}`);
+const report = env => spawnSync(process.execPath, [BOT], { encoding: 'utf8', env: { ...process.env, ...env, SEED: SAVE_SEED } }).stdout;
+const straight = report({}), reloaded = report({ ROUNDTRIP: '1' });
+if (straight != reloaded) {
+  failed++;
+  console.log('The game played differently after a save and reload. Without the reload:\n' + straight + '\nWith it:\n' + reloaded);
+} else console.log('Same report with and without the reload.');
+console.log(failed ? `ACCEPTANCE FAILED: ${failed} check(s).` : 'ACCEPTANCE PASSED.');
 process.exitCode = failed ? 1 : 0;
