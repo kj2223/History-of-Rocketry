@@ -21,6 +21,7 @@ import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { approveBrief } from '../rules/brief.js';
 import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
 import { bookRide, answerBumper } from '../rules/neighbours.js';
+import { answerCorporal } from '../rules/corporal.js';
 import { hireLead } from '../rules/leads.js';
 import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
 import { moveTarget, moveLimit, moveTests, retest } from '../rules/safety.js';
@@ -260,6 +261,8 @@ const GAME_ACTIONS = {
     const error = bookRide(name);
     if (error) log('[V-2 PANEL] ' + error, 'bad');
   },
+  corpyes: () => answerCorporal(true),
+  corpno: () => answerCorporal(false),
   bumpyes: () => answerBumper(true),
   bumpno: () => answerBumper(false),
   sfretest: kind => retest(kind),

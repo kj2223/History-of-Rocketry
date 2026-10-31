@@ -88,6 +88,21 @@ export const BUMPER_PEAK = [250, 400];
 export const BUMPER_DOWNRANGE = [300, 400];
 export const BUMPER_FLORIDA = 2;
 
+// THE CORPORAL CONTRACT (rules/corporal.js): the Army's guided missile, which the same people who built the WAC Corporal developed
+// at the same time. Offered once you could hand routine flying to a launch director (three good Aerobee flights). It takes one
+// engineering team for each milestone in turn and pays when each is done; a milestone finished after its due date pays LATE_SHARE.
+// Each milestone teaches your own rockets a little (learn: { area: points }, for the rocket in focus).
+//   seconds: team time it takes; due: game days after you accept by which it should be done; pay ($)
+export const CORPORAL_MILESTONES = [
+  { name: 'Static firings of the Corporal engine', seconds: 40, due: 200, pay: 15000, learn: { p: 3 } },
+  { name: 'Radio-command guidance trials', seconds: 50, due: 400, pay: 20000, learn: { i: 3 } },
+  { name: 'First guided Corporal flight', seconds: 60, due: 620, pay: 25000, learn: { s: 1.5, a: 1.5 } },
+  { name: 'Accuracy trials for the Army', seconds: 60, due: 840, pay: 30000, learn: { i: 3 } },
+];
+export const CORPORAL_LATE_SHARE = .5;
+// When the Army's next missile comes to you (the Redstone programme), a finished Corporal brings an Army development payment.
+export const CORPORAL_REDSTONE_PAYMENT = 20000;
+
 // THE SOVIET PROGRAMME. Each event lands on its historical day, jittered by about 5% each game (core/state.js).
 // wire: the news report. short: how intelligence estimates describe it.
 export const RIVAL = [
