@@ -44,13 +44,13 @@ const boosterResearch = () => ['p', 's', 'i', 'a'].flatMap(itemsInArea).sort((fi
 const readyProgrammes = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready);
 
 // game: { advance(seconds), now() in seconds, flyLaunch(airframe, ballastOnly, payload) returning the flight's result, maxSeconds, saturnSeconds, sectionOneOnly }
-// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone, mercuryAt, geminiDone, geminiAt, saturnAt, saturnLaunches, barOverrides }.
+// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone, mercuryAt, geminiDone, geminiAt, saturnAt, saturnLaunches, barOverrides, requests, briefings, peakPressure }.
 // sectionTwoDone: Mercury is complete, at mercuryAt (seconds), with the counts and budget then in atMercury;
 // geminiDone: every Gemini directive built so far is met, at geminiAt; saturnAt: a Saturn I first put a boilerplate in orbit, after saturnLaunches;
-// barOverrides: crewed launches flown past the safety bar.
+// barOverrides: crewed launches flown past the safety bar; requests: lead requests answered; briefings: press briefings held; peakPressure: the highest any pressure on Apollo reached.
 // sectionOne: { at (seconds), budget, date day, missions, missionFails, astronautsLost, launches, human } when Section 1 completed.
 export function playMercury(game) {
-  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false, geminiAt: null, saturnAt: null, saturnLaunches: 0, barOverrides: 0 };
+  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false, geminiAt: null, saturnAt: null, saturnLaunches: 0, barOverrides: 0, requests: 0, briefings: 0, peakPressure: 0 };
   // Programmes known not to deliver a mission type: "mr:wac" and so on, so the bot does not keep building them.
   // For the orbital flight the blueprint revision is part of the key: research can make a rocket fast enough later.
   const tooSmall = {};
@@ -65,8 +65,13 @@ export function playMercury(game) {
   // and refuse if the test still gives no reason; brief the press when they are hounding NASA.
   const answerPressure = () => {
     const request = openRequest();
-    if (request && !request.prove) answerRequest(reasonOnFile(request) ? 'reasoned' : request.pv ? 'refuse' : 'prove');
-    if (pressure() && pressure().press >= 75 && shieldReady('briefing')) shield('briefing');
+    if (request && !request.prove) {
+      const answer = reasonOnFile(request) ? 'reasoned' : request.pv ? 'refuse' : 'prove';
+      answerRequest(answer);
+      if (answer != 'prove') report.requests++;
+    }
+    if (pressure()) report.peakPressure = Math.max(report.peakPressure, pressure().press, pressure().pub, pressure().cong);
+    if (pressure() && pressure().press >= 75 && shieldReady('briefing') && !shield('briefing')) report.briefings++;
   };
   const advance = seconds => {
     game.advance(seconds);
