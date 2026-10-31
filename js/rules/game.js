@@ -10,6 +10,7 @@ import { budgetTick, payAppropriation } from './budget.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
 import { neighboursTick } from './neighbours.js';
 import { moonRaceTick } from './moon-race.js';
+import { rivalAdaptTick } from './rival-adapt.js';
 import { corporalTick } from './corporal.js';
 import { roomLevel } from './launch-site.js';
 import { constructionTick, upkeep } from './site.js';
@@ -66,6 +67,7 @@ export function tickSecond() {
   if (constructionTick()) changed = true;
   if (sovietEventsTick()) changed = true;
   if (S.nasa && moonRaceTick()) changed = true;
+  if (S.nasa && rivalAdaptTick(days)) changed = true;
   if (neighboursTick()) changed = true;
   if (corporalTick()) changed = true;
   // A funding cycle is 30 seconds at the normal calendar; catching up with history brings paydays sooner, so a year pays the same.

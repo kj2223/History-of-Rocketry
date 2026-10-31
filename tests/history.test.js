@@ -234,3 +234,27 @@ test('with the historical odds, a Soviet crew rarely reaches the Moon', () => {
   }
   assert.ok(landed >= 4 && landed <= 40, `Soviet landings: ${landed} of 200`);
 });
+
+// THE SOVIET PROGRAMME ADAPTS (Apollo step 5).
+import { sovietStanding, sovietPosture, rivalAdaptTick } from '../js/rules/rival-adapt.js';
+
+test('Moscow reads the race from the crewed-era firsts: behind, it pushes with riskier, sooner attempts; far ahead, it coasts', () => {
+  startMoonRace();
+  const attempt = RIVAL_MOON[0];
+  assert.equal(sovietPosture(), 'steady');
+  assert.equal(sovietAdapt.chance(attempt, .5), .5);
+  Object.assign(S.fs, { f_crew2: 'us', f_eva: 'us', f_dock: 'us' });
+  assert.ok(sovietStanding() < 0);
+  assert.equal(sovietPosture(), 'push');
+  assert.ok(sovietAdapt.chance(attempt, .5) < .5, 'hurried attempts fail more');
+  assert.ok(sovietAdapt.delay(attempt, 120) < 120, 'retries come sooner');
+  const before = S.rm.m_l3.day;
+  assert.ok(rivalAdaptTick(30), 'intelligence reports the change');
+  assert.ok(S.rm.m_l3.day < before, 'untried attempts are pulled forward');
+  for (let month = 0; month < 100; month++) rivalAdaptTick(30);
+  assert.ok(before - S.rm.m_l3.day <= 360, 'but only so far');
+  Object.assign(S.fs, { f_crew2: 'them', f_eva: 'them', f_dock: 'them', f_rdv: 'them' });
+  assert.equal(sovietPosture(), 'coast');
+  assert.ok(sovietAdapt.delay(attempt, 120) > 120);
+  assert.equal(sovietAdapt.chance(attempt, .5), .5);
+});
