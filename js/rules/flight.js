@@ -424,6 +424,9 @@ export function step(flight) {
     flight.peakAltitude = Math.max(flight.peakAltitude, flight.altitude);
     flight.peakSpeed = Math.max(flight.peakSpeed, Math.hypot(flight.verticalSpeed, flight.horizontalSpeed));
     flight.peakHorizontalSpeed = Math.max(flight.peakHorizontalSpeed, flight.horizontalSpeed);
+    // A flight without a satellite is not going to orbit: the guidance cuts the engine at orbital speed, so a well-upgraded rocket
+    // with a light payload falls back instead of climbing out of Earth's reach.
+    if (share > 0 && !flight.satellite && Math.hypot(flight.verticalSpeed, flight.horizontalSpeed) >= ORBIT_SPEED) engineOut(flight, stage);
     if (mach >= 1 && flight.verticalSpeed > 0) markEvent(flight, 'mach1');
     if (flight.altitude <= 0) {
       landed = true;
