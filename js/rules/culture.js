@@ -127,8 +127,8 @@ export const TEAM_LINES = {
   reed: () => [S.works],
   chen: () => [S.lanes],
 };
-// Spending past this share of a cap starts the pressure; a team with nothing left leans this far further towards chaos.
-export const PRESSURE_FROM = .7;
+// Spending past this share of a cap (nearly all of it) starts the pressure; a team with nothing left leans this far further towards chaos.
+export const PRESSURE_FROM = .9;
 export const UNDERFUNDED_LEAN = .4;
 const moneyHeld = line => !!line.dry || typeof line.hold == 'string' && /cap|cannot cover/i.test(line.hold);
 export function budgetPressure(lead) {
