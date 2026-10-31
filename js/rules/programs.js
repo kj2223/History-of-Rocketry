@@ -4,7 +4,7 @@
 // The programme table itself is in data/programmes.js.
 import { formatMoney, gaussian } from '../core/util.js';
 import { PACKAGES, BY_ID, isMilestone } from '../data/research.js';
-import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, STAGE_TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
+import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, STAGE_TRAITS, traitByKey, DESIGN_STATS, FLIGHTS_TO_FIND_CURE } from '../data/programmes.js';
 import { S, log, addHistory, newBundle, recordRunEvent, earn } from '../core/state.js';
 
 // The four research areas that belong to a rocket (the others are global: see core/state.js).
@@ -181,7 +181,9 @@ export function finishDesign(kind) {
   if (previous && previous != kind) log(`[PROGRAMME] The Design Bureau and Hangar now show the ${PROGRAMMES[kind].name}: new research goes to it. Switch back to the ${PROGRAMMES[previous].name} with the rocket bar at the top of either tab.`, 'wn');
 }
 
-// TRAITS. A trait is found when its failure mode is diagnosed or a review flags it; a stat trait surfaces once the team knows that system well (40).
+// TRAITS. A trait is found when its failure mode is diagnosed or a review flags it; one that costs performance also surfaces once
+// the team knows that system well (40). A found trait remembers how many flights the programme had flown (at): the cure for a
+// performance flaw needs more flights after that (rules/cures.js).
 export const traitsOf = kind => (S.progs[kind] || {}).traits || [];
 export function revealTraits(kind) {
   const bundle = S.progs[kind];
@@ -191,13 +193,14 @@ export function revealTraits(kind) {
     const details = traitByKey(trait.k);
     let found = false;
     if (details.mode && bundle.known[details.mode]) found = true;
-    if (!details.mode) {
+    if (details.statPenalty) {
       const stat = Object.keys(details.statPenalty)[0], area = DESIGN_STATS.find(entry => entry.key == stat).area;
       if ((bundle.kn[area] || 0) >= 40) found = true;
     }
     if (found) {
       trait.found = 1;
-      log(`[ENGINEERING] ${PROGRAMMES[kind].name}: ${details.name.toLowerCase()}. ${details.why}${details.mode ? ' A fix for it cures the flaw.' : ''}`, 'wn');
+      trait.at = bundle.nf || 0;
+      log(`[ENGINEERING] ${PROGRAMMES[kind].name}: ${details.name.toLowerCase()}. ${details.why}${details.mode ? ' A fix for it cures the flaw.' : ''}${details.statPenalty ? ` Fly it ${FLIGHTS_TO_FIND_CURE} more times and the team will find the cause.` : ''}`, 'wn');
     }
   }
 }

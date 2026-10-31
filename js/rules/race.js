@@ -2,6 +2,7 @@
 import { formatMoney } from '../core/util.js';
 import { FIRSTS, RIVAL, RIVAL_SECTION_TWO, NASA_DAY } from '../data/history.js';
 import { S, log, formatDate, addHistory, earn } from '../core/state.js';
+import { notePressure, publicScale } from './pressure.js';
 
 // SOVIET EVENTS land on their (jittered) dates. A first they reach before you is lost: matching it later pays 40% and less reputation.
 // Section 2 events count only once their dates are set (openSovietSectionTwo). Returns true if anything happened.
@@ -17,6 +18,7 @@ export function sovietEventsTick() {
       continue;
     }
     if (first) S.fs[first.id] = 'them';
+    if (first) notePressure('sovietFirst', event.wire);
     addHistory(`Soviet: ${event.wire.split('.')[0]}`);
     log(`[WIRE] ${event.wire}`, 'bad');
     if (event.id == 'r_sat') {
@@ -54,7 +56,9 @@ export function checkFirsts(outcome) {
     const shortName = first.name.replace(/^First /, '');
     addHistory(lost ? `Matched the Soviets: ${shortName}` : `First: ${shortName}`);
     if (first.cash) earn(Math.round(first.cash * share));
-    S.rep = Math.min(100, S.rep + (lost ? Math.ceil(first.reputation / 3) : first.reputation));
+    // The public's interest (rules/pressure.js) makes a first count for more or less.
+    S.rep = Math.min(100, S.rep + Math.round((lost ? Math.ceil(first.reputation / 3) : first.reputation) * publicScale()));
+    notePressure('ourFirst', lost ? `America answers the Soviets: ${shortName.toLowerCase()}.` : `${first.name}!`);
     log(lost
       ? `[PRESS] America answers the Soviets: ${shortName.toLowerCase()}.${first.cash ? ` Bonus +${formatMoney(first.cash * share)}.` : ''}`
       : `[HISTORIC FIRST] ${first.name}!${first.cash ? ` Bonus +${formatMoney(first.cash)}, reputation +${first.reputation}.` : ''}`, 'hd');

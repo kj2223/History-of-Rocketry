@@ -25,9 +25,11 @@ import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
 import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
 import { TARGET_RANGE, LIMIT_RANGE, TESTS_RANGE } from '../data/safety.js';
+import { PRESSURES } from '../data/pressure.js';
+import { pressure, pressureLevel, pressureWords } from '../rules/pressure.js';
 import { safetyBar, crewRockets, estimates, estimatedSafety, limitFor, componentName, designKey, testCost } from '../rules/safety.js';
 import { capabilityShown } from '../rules/mercury.js';
-import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure } from '../rules/culture.js';
+import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure, acceptedRisks } from '../rules/culture.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -180,6 +182,17 @@ function apolloMessage() {
 // THE SAFETY BAR (rules/safety.js): the engineers' estimates for each crew rocket against the bar you set.
 const percent = chance => chance < .005 ? 'under 0.5%' : `${(chance * 100).toFixed(1)}%`;
 const stepper = (action, value, low, high, id = '') => `<button class="step" data-a="${action}" data-n="-1"${id ? ` data-id="${id}"` : ''}${value <= low ? ' disabled' : ''}>−</button><button class="step" data-a="${action}" data-n="1"${id ? ` data-id="${id}"` : ''}${value >= high ? ' disabled' : ''}>+</button>`;
+// PRESSURE ON APOLLO (rules/pressure.js): the press, the public and Congress, in words and headlines.
+function pressureMessage() {
+  const state = pressure();
+  if (!state) return null;
+  const rows = Object.entries(PRESSURES).map(([key, each]) => `<div class="r"><span>${each.name}</span><b class="${pressureLevel(key) >= 2 ? 'wn' : ''}">${pressureWords(key)}</b></div><div class="m">${each.effect}</div>`).join('');
+  const headlines = state.hl.slice().reverse().map(line => `<div class="m"><span class="d">${formatDate(line.d)}</span> ${escapeHtml(line.t)}</div>`).join('');
+  return {
+    id: 'pressure', kind: 'report', from: 'Public Affairs Office', role: 'Press, public and Congress', pane: 'note', subject: 'How Washington sees Apollo',
+    body: rows + (headlines ? `<div class="lbl">HEADLINES</div>${headlines}` : ''),
+  };
+}
 function safetyMessage() {
   const bar = safetyBar();
   if (!bar) return null;
@@ -228,12 +241,13 @@ function cultureMessage() {
   // A team short of money leans its own way: say so for each lead whose budget is nearly spent.
   const pressed = Object.keys(TEAM_LINES).filter(lead => memberJoined(lead) && budgetPressure(lead) >= .3)
     .map(lead => `<p class="wn">${escapeHtml(memberName(lead))}'s team is running short of money. Teams in that position take more chances and play faults down.</p>`).join('');
+  const risks = acceptedRisks().slice(0, 4).map(risk => `<div class="r"><span>${escapeHtml(risk.t)}</span><b class="d">${formatDate(risk.d)}</b></div>`).join('');
   const recent = recentHabits().slice(0, 5).map(habit => `<div class="r"><span>${escapeHtml(habit.t || HABITS[habit.k].name)}</span><b class="d">${formatDate(habit.d)}</b></div>`).join('');
   return {
     id: 'culture', kind: 'report', from: memberName('ellis'), role: memberRole('ellis'), pane: 'note',
     subject: `How we do things here: ${words.name}`,
-    body: `<p>${escapeHtml(words.line)}</p>${S.staff.director ? `<p>${escapeHtml(confidenceWords())}</p>` : ''}${pressed}<p class="m">What the team has seen lately:</p>${recent}`
-      + '<p class="m">The team works the way you do. When they run things themselves, they will run them in this style.</p>',
+    body: `<p>${escapeHtml(words.line)}</p>${S.staff.director ? `<p>${escapeHtml(confidenceWords())}</p>` : ''}${pressed}${risks ? `<p class="m">Risks the teams have accepted lately:</p>${risks}` : ''}<p class="m">What the team has seen lately:</p>${recent}`
+      + '<p class="m">The team works the way you do: when they run things themselves, they run them in this style. Crewed flights always come to you.</p>',
   };
 }
 
@@ -261,6 +275,8 @@ function messages() {
   if (apolloNote) list.push(apolloNote);
   const safety = safetyMessage();
   if (safety) list.push(safety);
+  const press = pressureMessage();
+  if (press) list.push(press);
   const remit = remitMessage();
   if (remit) list.push(remit);
   const culture = cultureMessage();

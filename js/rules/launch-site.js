@@ -10,6 +10,7 @@ import { knowledgeFraction, systemOf } from './knowledge.js';
 import { programmeOf, traitsOf } from './programs.js';
 import { traitByKey } from '../data/programmes.js';
 import { siteStatus, directiveLock, orderConstruction } from './site.js';
+import { notePressure } from './pressure.js';
 
 // The control-room level, 0 to 5: how many of the control-room upgrades are built.
 export const roomLevel = () => CONTROL_ROOM_FACILITIES.filter(id => S.fac[id]).length;
@@ -152,6 +153,7 @@ export function scrub(poll) {
   S.day += 2;
   const firstNoGo = poll.lines.find(line => !line.go);
   log(`[SCRUB] Launch scrubbed${firstNoGo ? ` (${STATIONS[firstNoGo.id].callSign}: ${firstNoGo.msg})` : ''} Turnaround ${formatMoney(cost)}.`, 'wn');
+  notePressure('scrub');
 }
 
 // TROUBLESHOOTING ON THE PAD: a team tries to fix the reported problem (it may not work), or the range holds for better weather.

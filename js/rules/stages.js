@@ -31,7 +31,7 @@ const stageModifiers = fixes => {
 // Returns the stage for rules/flight.js: { isBooster, stage, dry, fuel, thrust, isp, vacuumIsp, r, modeMultipliers }.
 export function lowerStage(kind, airframe, propellant, load = 1, estimated = false) {
   const stage = PROGRAMMES[kind].stages[0], fixes = stageFixes(airframe, stage), modifiers = stageModifiers(fixes);
-  const spec = withProgramme(stage, () => designSpec(stagePackages(airframe, stage), estimated));
+  const spec = withProgramme(stage, () => designSpec(stagePackages(airframe, stage), estimated, fixes));
   // A stage burns its own propellant (the Saturn I's S-I burns kerosene under a hydrogen upper stage): its thin-air gain and its
   // reliability are that propellant's.
   const own = PROPELLANTS[PROGRAMMES[stage].propellants[0]] || propellant, isp = PROGRAMMES[stage].design.isp * (1 + .25 * (spec.t - 1));

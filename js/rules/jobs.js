@@ -10,6 +10,7 @@ import { finishResearch, confirmPackage, checkBreakthroughs } from './research.j
 import { learn, knowledgeFraction, systemOf, SYSTEMS, REVIEW_COST, reviewTime, finishReview } from './knowledge.js';
 import { finishDesign, revealTraits, stagesOf } from './programs.js';
 import { recordReview, recordFix, fixFailedTrial } from './team.js';
+import { finishCure } from './cures.js';
 
 export const INVESTIGATION_COST = 1500;
 // Investigations go faster when the team knows the system involved: 25 seconds, up to 40% less.
@@ -98,6 +99,7 @@ function finishJobForProgramme(job) {
     confirmPackage(job.id, 'Test-stand');
     checkBreakthroughs();
   } else if (job.k == 'retro') finishRetrofit(job.id);
+  else if (job.k == 'cure') finishCure(job);
 }
 
 // How much of a failure the records capture, 0 to 0.7: the tracking, the telemetry, and a Telemetry Engineer to read them.
