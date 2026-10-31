@@ -9,13 +9,17 @@
 // a core-team member covering the console (rules/launch-site.js) at COVER_SKILL, and a lane with none of them waits.
 // So the systems advance at different speeds: tanks can land before the engines, and the rocket gets heavier before it gets
 // stronger. On a rocket with stage designs the lead puts each propulsion and structures package on the stage furthest behind
-// (rules/programs.js researchTarget). Finished work goes into the blueprint as any other research does. No DOM.
+// (rules/programs.js researchTarget). Finished work goes into the blueprint as any other research does.
+// Milestones are not routine: when one opens in a system, its lead proposes it in Mail and the lane waits for your answer, as the
+// shared lanes do (rules/shared-research.js). Approved, it starts on the lane, paid from the treasury and counted against the
+// budget; queued, your own teams take it; not now, and the lane carries on with routine work. No DOM.
 //
-// S.lanes: { prog: the rocket, cap ($), spent ($), jobs: packages started, dry: the package the cap could not cover, or null }
+// S.lanes: { prog: the rocket, cap ($), spent ($), jobs: packages started, dry: the package the cap could not cover, or null,
+//            skip: milestone ids you said not now to (missing on older saves) }
 // A lane's job is an ordinary research job (k 'pk') with free: 1 (it takes no shared team) and ln: its area.
 import { formatMoney } from '../core/util.js';
 import { STATIONS } from '../data/launch-site.js';
-import { AREAS, isMilestone } from '../data/research.js';
+import { AREAS, MILESTONES, BY_ID, isMilestone } from '../data/research.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { CORE_TEAM } from '../data/team.js';
 import { S, log, withProgramme } from '../core/state.js';
@@ -56,7 +60,7 @@ export function startLanes(cap) {
   if (!memberJoined('chen')) return 'Alice Chen has not joined yet.';
   if (S.lanes) return 'Chen already has a research budget.';
   if (!S.progs[S.cur] || !(cap > 0)) return 'Choose a rocket and a budget.';
-  S.lanes = { prog: S.cur, cap, spent: 0, jobs: 0, dry: null };
+  S.lanes = { prog: S.cur, cap, spent: 0, jobs: 0, dry: null, skip: [] };
   log(`[R&D] Chen opens research lanes on the ${PROGRAMMES[S.cur].name}, up to ${formatMoney(cap)}.`, 'cyan');
   return null;
 }
@@ -81,10 +85,28 @@ export function nextPackage(area) {
     .filter(item => !isMilestone(item.id) && !availabilityLock(item.id) && queuePosition(item.id) < 0)
     .sort((first, second) => !!first.dud - !!second.dud || first.cost - second.cost)[0] || null;
 }
-// Why a lane has no package under way, for the Mail card: 'no engineer', the budget or treasury, or nothing proposed yet.
+// The milestones a lane's lead proposes in its system (as the rocket sees them): open to start, not queued, and not put off.
+export const laneProposals = area => S.lanes && laneLead(area) ? withProgramme(S.lanes.prog, () => MILESTONES
+  .filter(milestone => milestone.area == area && !availabilityLock(milestone.id) && queuePosition(milestone.id) < 0 && !(S.lanes.skip || []).includes(milestone.id))
+  .map(milestone => itemAsSeen(milestone.id))) : [];
+// You approve a proposal: it starts on the lane. Returns an error text, or null.
+export function approveLaneMilestone(id) {
+  const area = BY_ID[id] && BY_ID[id].area, lead = area && laneLead(area), milestone = lead && laneProposals(area).find(item => item.id == id);
+  if (!milestone) return 'Nothing to approve.';
+  if (laneJob(area)) return `${lead.name} is finishing a package. Approve it once that is done.`;
+  if (S.b < milestone.cost) return `Need ${formatMoney(milestone.cost - S.b)} more.`;
+  withProgramme(S.lanes.prog, () => startOnLane(area, lead, milestone));
+  return null;
+}
+export function laneNotNow(area) {
+  S.lanes.skip = [...(S.lanes.skip || []), ...laneProposals(area).map(milestone => milestone.id)];
+}
+
+// Why a lane has no package under way, for the Mail card: 'no engineer', a proposal, the budget or treasury, or nothing proposed yet.
 export function laneIdleReason(area) {
   if (!S.lanes || laneJob(area)) return null;
   if (!laneLead(area)) return `no ${STATIONS[LANES[area]].callSign} or lead yet`;
+  if (laneProposals(area).length) return 'a milestone proposal is waiting for you';
   const item = withProgramme(S.lanes.prog, () => nextPackage(area));
   if (!item) return 'nothing proposed yet';
   if (S.lanes.spent + item.cost > S.lanes.cap) return 'budget spent';
@@ -102,7 +124,7 @@ export function lanesTick() {
   return withProgramme(lanes.prog, () => {
     let changed = false;
     for (const area in LANES) {
-      const lead = laneLead(area), item = !laneJob(area) && lead && nextPackage(area);
+      const lead = laneLead(area), item = !laneJob(area) && lead && !laneProposals(area).length && nextPackage(area);
       if (!item) continue;
       if (lanes.spent + item.cost > lanes.cap) {
         if (lanes.dry != item.name) {
@@ -113,15 +135,19 @@ export function lanesTick() {
         continue;
       }
       if (S.b < item.cost) continue;
-      const time = Math.round(item.time / lead.pace);
-      S.b -= item.cost;
-      lanes.spent += item.cost;
-      lanes.jobs++;
-      const prog = researchTarget(item.id);
-      S.jobs.push({ k: 'pk', id: item.id, prog, t: time, tot: time, free: 1, ln: area });
-      log(`[R&D] ${lead.name} starts ${item.name} in the ${AREAS[area].toLowerCase()} lane${prog != S.cur ? `, on the ${PROGRAMMES[prog].name}` : ''} (${formatMoney(item.cost)}).`, 'wn');
+      startOnLane(area, lead, item);
       changed = true;
     }
     return changed;
   });
+}
+// Starts a package or milestone on a lane, for the rocket in focus (or the stage of it furthest behind).
+function startOnLane(area, lead, item) {
+  const time = Math.round(item.time / lead.pace);
+  S.b -= item.cost;
+  S.lanes.spent += item.cost;
+  S.lanes.jobs++;
+  const prog = researchTarget(item.id);
+  S.jobs.push({ k: 'pk', id: item.id, prog, t: time, tot: time, free: 1, ln: area });
+  log(`[R&D] ${lead.name} starts ${item.name} in the ${AREAS[area].toLowerCase()} lane${prog != S.cur ? `, on the ${PROGRAMMES[prog].name}` : ''} (${formatMoney(item.cost)}).`, 'wn');
 }

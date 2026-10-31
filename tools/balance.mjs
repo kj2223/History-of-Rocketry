@@ -27,15 +27,16 @@ import { openPosts, hireLead, leadsPayroll, postCandidates } from '../js/rules/l
 import { SHARED_AREAS, SHARED_CAPS, startShared, raiseShared, proposals, approveProposal } from '../js/rules/shared-research.js';
 import { briefFree, approveBrief } from '../js/rules/brief.js';
 import { orderFor, standingOrders, raiseOrder, resumeOrder, ordersTotals } from '../js/rules/orders.js';
-import { endLanes, raiseLanes } from '../js/rules/lanes.js';
+import { LANES, endLanes, raiseLanes, laneProposals, approveLaneMilestone, laneNotNow } from '../js/rules/lanes.js';
 import { endWorks, raiseWorks, reedPublishes } from '../js/rules/factory-lead.js';
 import { remitUnlocked, startRemit, raiseRemit, REMIT_CAPS } from '../js/rules/remit.js';
 
 const BUY = [['crew', 'prop'], ['crew', 'rso'], ['fac', 'wx'], ['fac', 'tty'], ['crew', 'tlm'], ['fac', 'radar'], ['fac', 'plot'], ['crew', 'bstr'], ['fac', 'comp'], ['crew', 'fido']];
 const RUNS = +process.argv[2] || 6, MAX_MINUTES = +process.argv[3] || 240, GOAL = 5, DELEGATE = !!process.env.DELEGATE;
 const rng = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const BOT_MILESTONES = ['ms_rel', 'ms_eng', 'ms_in', 'ms_rg', 'ms_aero', 'ms_blunt'];
 // Research everything the programme offers, cheapest first, plus the first approach of each milestone choice and four recovery packages.
-const researchList = () => [...['p', 's', 'i', 'a'].flatMap(itemsInArea), ...['ms_rel', 'ms_eng', 'ms_in', 'ms_rg', 'ms_aero', 'ms_blunt'].map(id => BY_ID[id]), ...PACKAGES.filter(item => item.area == 'r' && !item.dud).slice(0, 4)]
+const researchList = () => [...['p', 's', 'i', 'a'].flatMap(itemsInArea), ...BOT_MILESTONES.map(id => BY_ID[id]), ...PACKAGES.filter(item => item.area == 'r' && !item.dud).slice(0, 4)]
   .sort((first, second) => first.cost - second.cost).map(item => item.id);
 // The newest ready rocket.
 const latestProgramme = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready).sort((first, second) => PROGRAMMES[second].generation - PROGRAMMES[first].generation)[0];
@@ -130,6 +131,12 @@ function run(seed) {
     S.cur = latest;
     if (briefFree(latest).length && S.b > reserve + 20000) approveBrief(0);
     if (S.lanes && S.lanes.dry && flush) raiseLanes();
+    // A lane's milestone proposal: approve the cheapest of the ones the bot commissions itself, and not now to any others.
+    if (S.lanes) for (const area in LANES) {
+      const offered = laneProposals(area), pick = offered.filter(item => BOT_MILESTONES.includes(item.id)).sort((first, second) => first.cost - second.cost)[0];
+      if (pick && S.b - pick.cost >= reserve) approveLaneMilestone(pick.id);
+      else if (offered.length && !pick) laneNotNow(area);
+    }
     if (S.works && S.works.dry && flush) raiseWorks();
     for (const prog of standingOrders()) {
       const order = orderFor(prog);

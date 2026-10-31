@@ -13,7 +13,7 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { stagesOf } from '../rules/programs.js';
 import { STATIONS } from '../data/launch-site.js';
 import { AREAS } from '../data/research.js';
-import { LANES, LANE_RAISE, laneLead, laneJob, laneIdleReason } from '../rules/lanes.js';
+import { LANES, LANE_RAISE, laneLead, laneJob, laneIdleReason, laneProposals } from '../rules/lanes.js';
 import { AIRFRAMES_ON_HAND, WORKS_RAISE, airframesOnHand, airframesWanted, worksIdleReason } from '../rules/factory-lead.js';
 import { remitUnlocked, referredFindings, incidentsWithEllis, authorityText, REMIT_CAPS, REMIT_RAISE } from '../rules/remit.js';
 import { ORDER_RAISE, standingOrders, orderFor, orderWaiting, ordersTotals, requestText } from '../rules/orders.js';
@@ -45,6 +45,13 @@ const laneRows = () => Object.keys(LANES).map(area => {
   const lead = laneLead(area), idle = S.lanes && laneIdleReason(area);
   return `<div class="r"><span>${AREAS[area]}</span><b class="${lead && !idle ? '' : 'd'}">${lead ? escapeHtml(lead.name) + (lead.cover ? ' (covering, slower)' : '') + (idle ? `: ${idle}` : '') : `no ${STATIONS[LANES[area]].callSign} or lead yet`}</b></div>`;
 }).join('');
+// A lane lead's milestone proposal, drawn for the lanes' rocket: approve it onto the lane, queue it for your teams, or not now.
+function laneProposalHTML(area) {
+  const lead = laneLead(area), busy = !!laneJob(area), milestones = laneProposals(area);
+  return `<div class="c"><div class="lbl">PROPOSAL · ${escapeHtml(lead.name)} · ${AREAS[area]}</div>${milestones.filter(milestone => milestone.tier == 1).length > 1 ? '<p class="wn">A choice: starting one approach closes the others.</p>' : ''}`
+    + milestones.map(milestone => `<div class="r"><span><b>${escapeHtml(milestone.name)}</b> · <span class="m">${escapeHtml(milestone.why || '')}</span></span>${proposalButton(milestone, busy, 'l')}</div>`).join('')
+    + `${busy ? '<div class="m">The lane is finishing a package: approve once it is done, or queue the milestone for your own teams.</div>' : ''}<div class="acts"><button data-a="lnot" data-id="${area}">NOT NOW</button></div></div>`;
+}
 const LINE_OFFERS = {
   flights: () => 'Ellis flies routine customer flights on it under a cap, on the cheapest rocket under order that reaches each request.',
   production: () => `Reed keeps ${AIRFRAMES_ON_HAND} airframes ready or on the floor (one more while it flies routine flights), upgrades them and publishes the blueprint, holding any change that makes it heavier for its thrust.`,
@@ -66,9 +73,9 @@ function runningLine(line, prog) {
       + (ask || (idle ? `<div class="m">Idle: ${escapeHtml(idle)}.</div>` : '<div class="m">Work on the factory floor.</div>'))
       + `<div class="acts">${works.hold ? '<button data-a="wpub">PUBLISH NOW</button>' : ''}<button data-a="wraise">RAISE BY ${formatMoney(WORKS_RAISE)}</button><button data-a="wraise" data-n="2">DOUBLE TO ${formatMoney(2 * works.cap)}</button><button data-a="wend">HAND PRODUCTION BACK</button></div>` };
   }
-  const lanes = S.lanes;
-  return { ask: !!lanes.dry, html: `<div class="r"><span>${lanes.jobs} package${lanes.jobs == 1 ? '' : 's'} started</span><b>${formatMoney(lanes.spent)} of ${formatMoney(lanes.cap)}</b></div>`
-    + (lanes.dry ? `<p class="wn">The budget cannot cover ${escapeHtml(lanes.dry)}.</p>` : '') + laneRows()
+  const lanes = S.lanes, asks = Object.keys(LANES).filter(area => laneProposals(area).length);
+  return { ask: !!lanes.dry || !!asks.length, html: `<div class="r"><span>${lanes.jobs} package${lanes.jobs == 1 ? '' : 's'} started</span><b>${formatMoney(lanes.spent)} of ${formatMoney(lanes.cap)}</b></div>`
+    + (lanes.dry ? `<p class="wn">The budget cannot cover ${escapeHtml(lanes.dry)}.</p>` : '') + withProgramme(lanes.prog, () => asks.map(laneProposalHTML).join('')) + laneRows()
     + `<div class="acts"><button data-a="lraise">RAISE BY ${formatMoney(LANE_RAISE)}</button><button data-a="lraise" data-n="2">DOUBLE TO ${formatMoney(2 * S.lanes.cap)}</button><button data-a="lend">CLOSE THE LANES</button></div>` };
 }
 function briefMessage(prog) {
@@ -99,12 +106,13 @@ const briefProgrammes = () => [...new Set([S.cur, ...standingOrders(), S.works?.
 // shared research line and its lanes; and the leads' milestone proposals, which ask for a decision.
 // A milestone proposal: approve it onto the lead's lane, or, while the lane is busy or the money is short, queue it for your own
 // teams as the research desk would (rules/queue.js).
-function proposalButton(milestone, busy) {
+// prefix: 's' for the shared line, 'l' for a rocket's lanes (whose queue entries belong to the lanes' rocket).
+function proposalButton(milestone, busy, prefix = 's') {
   const position = queuePosition(milestone.id);
   if (position >= 0) return `<b class="wn">Queued #${position + 1} for your teams</b>`;
-  if (!busy && S.b >= milestone.cost) return `<button data-a="sapprove" data-id="${milestone.id}">APPROVE · ${formatMoney(milestone.cost)}</button>`;
+  if (!busy && S.b >= milestone.cost) return `<button data-a="${prefix}approve" data-id="${milestone.id}">APPROVE · ${formatMoney(milestone.cost)}</button>`;
   const lock = queueLock(milestone.id);
-  return `<button data-a="rq" data-id="${milestone.id}"${lock ? ` disabled title="${escapeHtml(lock)}"` : ''}>QUEUE FOR YOUR TEAMS · ${formatMoney(milestone.cost)}</button>`;
+  return `<button data-a="${prefix == 'l' ? 'lqueue' : 'rq'}" data-id="${milestone.id}"${lock ? ` disabled title="${escapeHtml(lock)}"` : ''}>QUEUE FOR YOUR TEAMS · ${formatMoney(milestone.cost)}</button>`;
 }
 function researchStaffMessage() {
   if (!memberJoined('chen')) return null;

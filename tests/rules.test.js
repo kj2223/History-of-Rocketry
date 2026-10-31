@@ -319,6 +319,7 @@ test('a standing order flies customer requests by itself and keeps flying after 
   assert.equal(S.auto.last.outcome, 'deadline');
   assert.ok(orderFor('aerobee').n > flownAtExpiry, 'the order keeps flying once the campaign is over');
   assert.ok(orderFor('aerobee').paid > 0, 'customers pay for good flights');
+  assert.ok(orderFor('aerobee').paid >= orderFor('aerobee').spent, 'customers reimburse every flight, so routine flying breaks even');
   assert.ok(orderFor('aerobee').spent <= orderFor('aerobee').cap);
 });
 
@@ -1426,6 +1427,40 @@ test('a lane takes its experiments once the routine work is done, and says why w
   lanesTick();
   assert.equal(laneJob('p').id, next.id);
   assert.equal(laneIdleReason('s'), 'no BSTR or lead yet');
+});
+
+// Aaron's report: milestones in a rocket's systems never started, because the lanes skip them and nothing told him. Now the lane
+// lead proposes each one in Mail and the lane waits for an answer.
+test('a lane proposes the milestones that open in its system and waits; approved, one starts on the lane; not now, routine resumes', async () => {
+  const { chenJoinTick, startLanes, lanesTick, laneJob, laneIdleReason, laneProposals, approveLaneMilestone, laneNotNow } = await import('../js/rules/lanes.js');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  readyProgramme('viking');
+  S.cur = 'viking';
+  S.b = 500000;
+  S.crew.prop = 1;
+  startLanes(100000);
+  assert.deepEqual(laneProposals('p'), [], 'nothing to propose before a breakthrough');
+  S.bt.p = 1;
+  assert.deepEqual(laneProposals('p').map(item => item.id).sort(), ['ms_eng', 'ms_rel'], 'the first propulsion milestones, a choice');
+  lanesTick();
+  assert.equal(laneJob('p'), undefined, 'the lane waits for your answer');
+  assert.equal(laneIdleReason('p'), 'a milestone proposal is waiting for you');
+  laneNotNow('p');
+  assert.deepEqual(laneProposals('p'), []);
+  lanesTick();
+  assert.ok(laneJob('p') && !isMilestone(laneJob('p').id), 'not now: routine work resumes');
+  S.jobs = S.jobs.filter(job => !job.ln);
+  S.lanes.skip = [];
+  const spent = S.lanes.spent, cost = itemAsSeen('ms_eng').cost;
+  S.cur = 'aerobee'; // the lanes keep their own rocket while you look at another
+  assert.equal(approveLaneMilestone('ms_eng'), null);
+  S.cur = 'viking';
+  assert.equal(laneJob('p').id, 'ms_eng');
+  assert.equal(laneJob('p').prog, 'viking');
+  assert.equal(S.lanes.spent, spent + cost, 'counted against the lanes budget');
+  assert.deepEqual(laneProposals('p'), [], 'the other approach closes');
 });
 
 // THE PROGRAMME BRIEF (rules/brief.js): one approval starts every free lead's line on the rocket in focus.

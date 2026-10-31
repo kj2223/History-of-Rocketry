@@ -1,7 +1,8 @@
 // STANDING FLIGHT ORDERS: once Ellis is launch director, a rocket can be given a standing order. It keeps flying routine flights
 // for outside customers under a spending cap, with no launch scheduling from you (GDD v7.2 §4, §6). The flights follow demand:
 // the services and the research panels ask for flights to a profile (an altitude), and Ellis flies each one on the cheapest
-// rocket under order that reaches it, which need not be the newest. A good flight pays the customer's contract. Every flight
+// rocket under order that reaches it, which need not be the newest. The customer reimburses each flight's launch and airframe,
+// and a good flight also pays the contract fee. Every flight
 // teaches the team: the rocket's own systems as any flight does, and the newest rocket a little as well (flight time on an older
 // rocket still counts, at a reduced rate). Good flights go into one rolling Mail report. An order stops and asks you when its
 // cap is spent or when Ellis cannot plan a safe load (a new configuration needs no approval: it was cleared with its blueprint); it waits by
@@ -43,8 +44,11 @@ const PROFILES = [20, 40, 80, 120, 160, 250, 400];
 const CUSTOMERS = ['Army Ordnance', 'Naval Research Laboratory', 'Air Force Cambridge Research Center', 'Upper Atmosphere Rocket Research Panel'];
 // Every customer wants data back, so routine flights carry the instrument package (its weight also keeps the burnout load down).
 export const ROUTINE_PAYLOAD = 'Sensor Suite';
-// A good flight pays $2,000 plus $50 per km asked for.
+// A good flight pays $2,000 plus $50 per km asked for: the margin.
 export const contractPay = km => 2000 + 50 * km;
+// The customers pay cost-plus: every flight flown for them is reimbursed, the launch and the airframe it used, whether or not it
+// delivers, so routine flying breaks even and a good flight's fee is the margin on top.
+export const flightReimbursement = (launchCost, airframe) => launchCost + (airframe.cost || 0);
 // Flight time on a rocket older than the newest teaches the newest at this share of a flight of its own.
 export const OLDER_ROCKET_SHARE = .3;
 
@@ -235,6 +239,9 @@ function flyRequest(request, { airframe, plan, fuel, pay, prog }) {
     const ok = result != 'fail';
     endFlight(flight, ok, result);
     order.n++;
+    const costs = flightReimbursement(quote.cost, airframe);
+    order.paid += costs;
+    earn(costs);
     const reached = ok && flight.peakAltitude >= request.km * 1000 * .95;
     if (reached) {
       order.okn++;

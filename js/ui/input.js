@@ -14,7 +14,7 @@ import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFindin
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { startRemit, raiseRemit, endRemit } from '../rules/remit.js';
-import { raiseLanes, endLanes } from '../rules/lanes.js';
+import { raiseLanes, endLanes, approveLaneMilestone, laneNotNow } from '../rules/lanes.js';
 import { raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
 import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { approveBrief } from '../rules/brief.js';
@@ -193,6 +193,12 @@ const GAME_ACTIONS = {
   rend: () => endRemit(),
   lraise: (id, button) => raiseLanes(button.dataset.n == '2'),
   lend: () => endLanes(),
+  lapprove: id => {
+    const error = approveLaneMilestone(id);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  lqueue: id => S.lanes && withProgramme(S.lanes.prog, () => queueResearch(id)),
+  lnot: area => laneNotNow(area),
   wraise: (id, button) => raiseWorks(button.dataset.n == '2'),
   wend: () => endWorks(),
   wpub: () => publishHeld(),
