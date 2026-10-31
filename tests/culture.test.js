@@ -85,3 +85,24 @@ test('the team says nothing about the culture until it has seen enough habits', 
   noteHabit('test');
   assert.ok(cultureWords().name);
 });
+
+test('a careful launch team puts new engine work on the test stand before it flies; others fly it untested', async () => {
+  const { testFirst } = await import('../js/rules/auto.js');
+  const airframe = S.air[0], id = itemsInArea('p')[0].id;
+  S.pk[id] = { a: {}, c: 0, m: {} };
+  airframe.pk = [id];
+  S.fac.stand = 1;
+  S.b = 100000;
+  assert.equal(testFirst(airframe, 50000), null, 'no settled culture: she flies it');
+  S.cult.lean = -.6;
+  const booked = testFirst(airframe, 50000);
+  assert.ok(booked.cost > 0 && S.jobs.some(job => job.k == 'gt' && job.id == id), 'she books the test');
+  assert.equal(testFirst(airframe, 50000).cost, 0, 'and waits for it');
+});
+
+test('a risk a lead accepts is logged and kept for the letter', async () => {
+  const { acceptRisk, acceptedRisks } = await import('../js/rules/culture.js');
+  acceptRisk('reed', 'FACTORY', 'first');
+  acceptRisk('ellis', 'LAUNCH DIRECTOR', 'second');
+  assert.deepEqual(acceptedRisks().map(risk => risk.t), ['second', 'first']);
+});

@@ -24,7 +24,7 @@ import { selectCrew, makePool } from '../js/rules/astronauts.js';
 import { autoLaunch } from '../js/rules/auto.js';
 import { filedModes, systemOf } from '../js/rules/knowledge.js';
 import { startInvestigation, acceptFinding, nameCause, extendInvestigation, finishJob } from '../js/rules/jobs.js';
-import { startCampaign, goAhead, directorMargin, recordCampaignFlight, provenProgramme, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL, FLIGHTS_TO_PROVE } from '../js/rules/campaign.js';
+import { startCampaign, goAhead, directorMargin, recordCampaignFlight, provenProgramme, AEROBEE_FLIGHTS_TO_UNLOCK, FLIGHTS_TO_PROVE } from '../js/rules/campaign.js';
 import { runPoll } from '../js/rules/launch-site.js';
 
 // The same small generator the balance bot uses.
@@ -429,10 +429,13 @@ test('unconfirmed Phase Two (capsule) packages do not make the booster less reli
   assert.deepEqual(fly(phaseTwo), fly([]));
 });
 
-test('an experienced director flies closer to the limits', () => {
+test('a confident launch team flies closer to the limits, and a chaotic culture closer still', () => {
   const rookie = directorMargin();
-  S.auto.xp = DIRECTOR_FULL_SKILL;
-  assert.ok(directorMargin() > rookie);
+  S.cult.conf = 1;
+  const confident = directorMargin();
+  assert.ok(confident > rookie);
+  S.cult.lean = 1;
+  assert.ok(directorMargin() > confident);
 });
 
 test('no two airframes are built alike, but the pre-flight estimate uses the drawings', () => {

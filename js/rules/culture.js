@@ -12,14 +12,17 @@
 // RISK APPETITE combines the two: the culture sets where the team starts and how far confidence can take it. A safety culture
 // at full confidence is about as bold as a new chaotic team; a confident chaotic team pushes rockets to the limit.
 //
-// Only what you do yourself shapes the culture (the UI calls noteHabit and noteLaunch). Nothing here changes how the game plays
-// yet: the leads start reading it in a later stage. No randomness, no DOM.
+// Only what you do yourself shapes the culture (the UI calls noteHabit and noteLaunch). The leads read it: Ellis flies to a margin
+// set by her team's risk appetite and, by her team's lean, tests upgrades first or flies past open incidents; Reed holds or
+// publishes unbalanced drafts (rules/auto.js, rules/orders.js, rules/factory-lead.js). A risk a lead takes that the culture
+// allows but you would want to know about is logged as ACCEPTED (acceptRisk). Crewed flights never are. No randomness, no DOM.
 //
 // S.cult: { lean: -1 (safety) to +1 (chaotic), conf: 0 to 1, n: habits noted, tests: tests since your last launch,
-//           ev: the latest habits [{ d: game day, k: kind, t: what happened }] }
+//           ev: the latest habits [{ d: game day, k: kind, t: what happened }],
+//           risk: the latest risks a lead accepted [{ d: game day, w: lead, t: what }] }
 import { PROGRAMMES } from '../data/programmes.js';
 import { BY_ID } from '../data/research.js';
-import { S, isConfirmed, withProgramme } from '../core/state.js';
+import { S, log, isConfirmed, withProgramme } from '../core/state.js';
 
 // THE HABITS and which way each pulls: negative towards safety, positive towards chaos.
 export const HABITS = {
@@ -49,8 +52,9 @@ const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 export const cultureLean = () => culture().lean;
 export const teamConfidence = () => culture().conf;
 // From 0 (as careful as a team gets) to 1 (pushing every rocket to the limit).
-export function riskAppetite() {
-  const lean = cultureLean(), start = .3 + .2 * lean, ceiling = .75 + .25 * lean;
+// lead: read that team's own lean (teamLean below) instead of the organisation's.
+export function riskAppetite(lead = null) {
+  const lean = lead ? teamLean(lead) : cultureLean(), start = .3 + .2 * lean, ceiling = .75 + .25 * lean;
   return start + (ceiling - start) * teamConfidence();
 }
 
@@ -132,3 +136,22 @@ export function budgetPressure(lead) {
   return lines.reduce((most, line) => Math.max(most, moneyHeld(line) ? 1 : clamp((line.spent / line.cap - PRESSURE_FROM) / (1 - PRESSURE_FROM), 0, 1)), 0);
 }
 export const teamLean = lead => clamp(cultureLean() + UNDERFUNDED_LEAN * budgetPressure(lead), -1, 1);
+
+// HOW A TEAM'S LEAN SHOWS: a team leaning past this either way acts on it.
+export const LEAN_TO_ACT = .15;
+export const leansSafe = lead => teamLean(lead) <= -LEAN_TO_ACT;
+export const leansChaotic = lead => teamLean(lead) >= LEAN_TO_ACT;
+// ELLIS'S MARGIN: how close to the rocket's limits (aero load, skin heating) her team will plan a flight. A careful new team keeps
+// near 60%; a confident chaotic one flies to 95%, past the launch form's red line.
+export const ellisMargin = () => .55 + .4 * riskAppetite('ellis');
+
+// A risk a lead accepted under the culture: logged, and kept for Ellis's letter.
+const RECENT_RISKS = 8;
+export function acceptRisk(lead, tag, what) {
+  const record = culture();
+  record.risk = record.risk || [];
+  record.risk.push({ d: Math.round(S.day), w: lead, t: what });
+  if (record.risk.length > RECENT_RISKS) record.risk.shift();
+  log(`[${tag}] Risk accepted: ${what}`, 'wn');
+}
+export const acceptedRisks = () => (culture().risk || []).slice().reverse();

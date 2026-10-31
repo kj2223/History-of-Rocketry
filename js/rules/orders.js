@@ -29,7 +29,8 @@ import { orderAirframes, heldForLaunch } from './factory.js';
 import { beginFlight, previewFlight } from './flight.js';
 import { learn, teachingValue } from './knowledge.js';
 import { directorMargin } from './campaign.js';
-import { planLoad, directorPoll, flyToEnd } from './auto.js';
+import { planLoad, directorPoll, flyToEnd, testFirst } from './auto.js';
+import { leansChaotic, acceptRisk } from './culture.js';
 import { stagesOf } from './programs.js';
 
 // The caps you can set, and how much a raise adds.
@@ -97,7 +98,7 @@ const paperAirframe = prog => withProgramme(prog, () => ({ prog, ...blueprintCon
 // Every rocket in production, cheapest airframe first (lower stages fly as part of their rocket).
 const rocketsByCost = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready && PROGRAMMES[kind] && !PROGRAMMES[kind].stageOf).sort((first, second) => PROGRAMMES[first].unitCost - PROGRAMMES[second].unitCost);
 // An open incident on the rocket or on one of its lower stages (rules/stages.js).
-const openIncident = prog => [prog, ...stagesOf(prog)].some(kind => withProgramme(kind, () => S.inc.some(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag')));
+export const openIncident = prog => [prog, ...stagesOf(prog)].some(kind => withProgramme(kind, () => S.inc.some(incident => incident.st == 'open' || incident.st == 'found' || incident.st == 'diag')));
 
 // DEMAND. Returns true if a request arrived or lapsed.
 export function demandTick() {
@@ -147,7 +148,8 @@ function chooseRocket(request, margin) {
   const order = standingOrder(), reasons = [];
   for (const prog of rocketsByCost()) {
     const name = PROGRAMMES[prog].name;
-    if (openIncident(prog)) {
+    // THE CULTURE (rules/culture.js): only a team leaning chaotic flies a rocket with an incident open, and logs the risk it accepts.
+    if (openIncident(prog) && !leansChaotic('ellis')) {
       reasons.push(`${name}: an incident is still open`);
       continue;
     }
@@ -216,6 +218,12 @@ function flyRequest(request, { airframe, plan, fuel, pay, prog }) {
       return true;
     }
     if (S.b - quote.cost < TREASURY_RESERVE) return false;
+    // A careful team proves new engine work on the test stand first (rules/auto.js testFirst).
+    const test = testFirst(airframe, order.cap - order.spent);
+    if (test) {
+      order.spent += test.cost;
+      return !!test.cost;
+    }
     const { poll, cost } = directorPoll(airframe, fuel, plan.stage);
     order.spent += cost;
     if (poll.nogo) return true;
@@ -223,6 +231,7 @@ function flyRequest(request, { airframe, plan, fuel, pay, prog }) {
     if (!flight) return false;
     flight.byDirector = true;
     order.spent += quote.cost;
+    if (openIncident(prog)) acceptRisk('ellis', 'LAUNCH DIRECTOR', `${airframe.label} flies ${request.who}'s request with an incident still open.`);
     const ok = flyToEnd(flight) != 'fail';
     order.n++;
     const costs = flightReimbursement(quote.cost, airframe);

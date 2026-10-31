@@ -25,7 +25,7 @@ import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
 import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
 import { capabilityShown } from '../rules/mercury.js';
-import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure } from '../rules/culture.js';
+import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure, acceptedRisks } from '../rules/culture.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -205,12 +205,13 @@ function cultureMessage() {
   // A team short of money leans its own way: say so for each lead whose budget is nearly spent.
   const pressed = Object.keys(TEAM_LINES).filter(lead => memberJoined(lead) && budgetPressure(lead) >= .3)
     .map(lead => `<p class="wn">${escapeHtml(memberName(lead))}'s team is running short of money. Teams in that position take more chances and play faults down.</p>`).join('');
+  const risks = acceptedRisks().slice(0, 4).map(risk => `<div class="r"><span>${escapeHtml(risk.t)}</span><b class="d">${formatDate(risk.d)}</b></div>`).join('');
   const recent = recentHabits().slice(0, 5).map(habit => `<div class="r"><span>${escapeHtml(habit.t || HABITS[habit.k].name)}</span><b class="d">${formatDate(habit.d)}</b></div>`).join('');
   return {
     id: 'culture', kind: 'report', from: memberName('ellis'), role: memberRole('ellis'), pane: 'note',
     subject: `How we do things here: ${words.name}`,
-    body: `<p>${escapeHtml(words.line)}</p>${S.staff.director ? `<p>${escapeHtml(confidenceWords())}</p>` : ''}${pressed}<p class="m">What the team has seen lately:</p>${recent}`
-      + '<p class="m">The team works the way you do. When they run things themselves, they will run them in this style.</p>',
+    body: `<p>${escapeHtml(words.line)}</p>${S.staff.director ? `<p>${escapeHtml(confidenceWords())}</p>` : ''}${pressed}${risks ? `<p class="m">Risks the teams have accepted lately:</p>${risks}` : ''}<p class="m">What the team has seen lately:</p>${recent}`
+      + '<p class="m">The team works the way you do: when they run things themselves, they run them in this style. Crewed flights always come to you.</p>',
   };
 }
 
