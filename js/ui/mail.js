@@ -4,7 +4,7 @@
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES } from '../data/history.js';
 import { CORE_TEAM } from '../data/team.js';
-import { S, withProgramme } from '../core/state.js';
+import { S, withProgramme, formatDate } from '../core/state.js';
 import { nasaReady } from '../rules/race.js';
 import { itemAsSeen } from '../rules/research.js';
 import { queueLock, queuePosition } from '../rules/queue.js';
@@ -25,6 +25,7 @@ import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
 import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
 import { capabilityShown } from '../rules/mercury.js';
+import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure } from '../rules/culture.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -196,6 +197,23 @@ function remitMessage() {
   };
 }
 
+// THE CULTURE (rules/culture.js): Ellis's note on how the programme works, in words, once the team has seen enough of your habits.
+// With a launch director, a line on how sure of themselves the crews are.
+function cultureMessage() {
+  const words = cultureWords();
+  if (!words) return null;
+  // A team short of money leans its own way: say so for each lead whose budget is nearly spent.
+  const pressed = Object.keys(TEAM_LINES).filter(lead => memberJoined(lead) && budgetPressure(lead) >= .3)
+    .map(lead => `<p class="wn">${escapeHtml(memberName(lead))}'s team is running short of money. Teams in that position take more chances and play faults down.</p>`).join('');
+  const recent = recentHabits().slice(0, 5).map(habit => `<div class="r"><span>${escapeHtml(habit.t || HABITS[habit.k].name)}</span><b class="d">${formatDate(habit.d)}</b></div>`).join('');
+  return {
+    id: 'culture', kind: 'report', from: memberName('ellis'), role: memberRole('ellis'), pane: 'note',
+    subject: `How we do things here: ${words.name}`,
+    body: `<p>${escapeHtml(words.line)}</p>${S.staff.director ? `<p>${escapeHtml(confidenceWords())}</p>` : ''}${pressed}<p class="m">What the team has seen lately:</p>${recent}`
+      + '<p class="m">The team works the way you do. When they run things themselves, they will run them in this style.</p>',
+  };
+}
+
 function messages() {
   const list = [], camp = S.auto.camp, invitation = S.auto.inv;
   // ELLIS'S INVITATION to a first (rules/invitations.js): a decision until you answer it, then a note while you are to fly it.
@@ -220,6 +238,8 @@ function messages() {
   if (apolloNote) list.push(apolloNote);
   const remit = remitMessage();
   if (remit) list.push(remit);
+  const culture = cultureMessage();
+  if (culture) list.push(culture);
   const incidents = waitingIncidents();
   if (incidents.length) list.push({
     id: 'inc', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: `${incidents.length} incident${incidents.length == 1 ? '' : 's'} waiting for you`, pane: 'note',
