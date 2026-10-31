@@ -28,6 +28,8 @@ import { sharedTick } from './shared-research.js';
 import { apolloTick } from './apollo.js';
 import { safetyTick } from './safety.js';
 import { pressureTick } from './pressure.js';
+import { requestsTick } from './requests.js';
+import { hearingTick, leadAway } from './hearing.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -77,6 +79,8 @@ export function tickSecond() {
     if (apolloTick(days)) changed = true;
     if (safetyTick(days)) changed = true;
     if (pressureTick(days)) changed = true;
+    if (requestsTick(days)) changed = true;
+    if (hearingTick()) changed = true;
   }
   if (factoryTick()) changed = true;
   for (const job of S.jobs.slice()) if (--job.t <= 0) {
@@ -86,13 +90,14 @@ export function tickSecond() {
   }
   if (startQueuedWork()) changed = true;
   if (remitEarnedTick()) changed = true;
-  if (remitTick()) changed = true;
+  // A lead preparing for a hearing (rules/hearing.js) leaves their own work until it sits.
+  if (!leadAway('ellis') && remitTick()) changed = true;
   if (chenJoinTick()) changed = true;
-  if (lanesTick()) changed = true;
+  if (!leadAway('chen') && lanesTick()) changed = true;
   if (sharedTick()) changed = true;
   if (reedJoinTick()) changed = true;
-  if (worksTick()) changed = true;
-  if (demandTick()) changed = true;
+  if (!leadAway('reed') && worksTick()) changed = true;
+  if (!leadAway('ellis') && demandTick()) changed = true;
   if (!reedPublishes() && autoPublishDue()) {
     publishBlueprint(true);
     changed = true;

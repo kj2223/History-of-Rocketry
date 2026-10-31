@@ -8,11 +8,12 @@
 //
 // S.p2.sb: { tgt: the target chance of reaching orbit, lim: { [component key]: the failure chance allowed }, n: tests per revision,
 //            t: { [design key]: tests run }, z: { [design key]: { [component key]: how far off its estimate is, in spreads } },
-//            j: the test running, { k: design key, d: days left } or null }
+//            j: the test running, { k: design key, d: days left } or null, w: { [design key]: 1 } tests waived (rules/requests.js),
+//            pri: a rocket whose next test goes to the head of the queue, f: { [design key]: tests the team skipped but signed off } }
 // A component key is stage:part (part a COMPONENTS key), as 'sat1_si:eng'; a design key is the rocket and its revisions, as 'saturn1@3.2'.
 import { formatMoney } from '../core/util.js';
 import { PROGRAMMES } from '../data/programmes.js';
-import { COMPONENTS, TARGET_SAFETY, TARGET_RANGE, TARGET_STEP, LIMIT_STEP, LIMIT_RANGE, RISK_SAMPLES, ESTIMATE_SPREAD, OPTIMISM, TESTS_PER_REVISION, TESTS_RANGE, TEST_DAYS, TEST_COST_SHARE } from '../data/safety.js';
+import { COMPONENTS, TARGET_SAFETY, TARGET_RANGE, TARGET_STEP, LIMIT_STEP, LIMIT_RANGE, RISK_SAMPLES, ESTIMATE_SPREAD, OPTIMISM, TESTS_PER_REVISION, TESTS_RANGE, TEST_DAYS, TEST_COST_SHARE, CUT_FROM, CUT_CHANCE, LETTER_CHANCE } from '../data/safety.js';
 import { S, log, withProgramme } from '../core/state.js';
 import { blueprintConfig } from './production.js';
 import { boosterRun } from './flight.js';
@@ -20,7 +21,8 @@ import { hasBoosterStage } from './design.js';
 import { stagesOf } from './programs.js';
 import { apollo } from './apollo.js';
 import { riskAppetite, noteHabit } from './culture.js';
-import { pressLeak } from './pressure.js';
+import { pressLeak, pressure } from './pressure.js';
+import { testFinished } from './requests.js';
 
 // The figures are read by the Chief Engineer's team (Ellis): its own culture, guided by the organisation's (rules/culture.js).
 const READER = 'ellis';
@@ -73,11 +75,12 @@ export function trueRisks(kind) {
 const gaussian = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
 // THE ESTIMATES for the current design, kept apart as the GDD keeps evidence and interpretation apart (v7.2 §3):
 // evidence: { [component key]: chance } as the tests and simulations support it; figures: the same as the lead reads them, low
-// by the risk appetite of the team that reads them. tests: ground tests run on this revision.
+// by the risk appetite of the team that reads them. tests: ground tests signed off on this revision. Only the tests really run
+// (dataSheets) narrow the estimates.
 export function estimates(kind) {
   const bar = safetyBar(), key = designKey(kind), truth = trueRisks(kind);
   const offsets = bar.z[key] = bar.z[key] || Object.fromEntries(components(kind).map(component => [component, gaussian()]));
-  const tests = bar.t[key] || 0, spread = ESTIMATE_SPREAD / Math.sqrt(1 + tests), reading = 1 - OPTIMISM * riskAppetite(READER);
+  const tests = bar.t[key] || 0, spread = ESTIMATE_SPREAD / Math.sqrt(1 + dataSheets(kind)), reading = 1 - OPTIMISM * riskAppetite(READER);
   const evidence = Object.fromEntries(components(kind).map(component => [component, Math.min(1, truth[component] * Math.exp(offsets[component] * spread))]));
   return { tests, evidence, figures: Object.fromEntries(Object.entries(evidence).map(([component, risk]) => [component, risk * reading])) };
 }
@@ -110,10 +113,34 @@ export function barVerdict(kind) {
   return safety < bar.tgt ? `it reads ${percentText(safety)} to orbit against a target of ${percentText(bar.tgt)}` : null;
 }
 const percentText = chance => `${(chance * 100).toFixed(1)}%`;
-// Ground tests still to run on the rocket's current revision.
-export const testsPending = kind => !!safetyBar() && (safetyBar().t[designKey(kind)] || 0) < safetyBar().n;
+// Ground tests still to run on the rocket's current revision (none once you waive them).
+const owed = (bar, key) => !(bar.w || {})[key] && (bar.t[key] || 0) < bar.n;
+export const testsPending = kind => !!safetyBar() && owed(safetyBar(), designKey(kind));
+export const testsWaived = kind => !!safetyBar() && !!(safetyBar().w || {})[designKey(kind)];
+// The data sheets on file for the revision: one for every test really run. A test the team signed off without running leaves
+// none, and that gap is the trace a careful reader can find (GDD review fix 4).
+export const dataSheets = kind => {
+  const bar = safetyBar(), key = designKey(kind);
+  return (bar.t[key] || 0) - ((bar.f || {})[key] || 0);
+};
+// Your order: run this rocket's next ground test before any other, even past the number the bar asks for.
+export function queueTest(kind) {
+  const bar = safetyBar();
+  if (bar) bar.pri = kind;
+}
+// Your order: throw out every test signed off on the revision and run them again.
+export function retest(kind) {
+  const bar = safetyBar(), key = designKey(kind);
+  if (!bar || !bar.t[key]) return;
+  bar.t[key] = 0;
+  if (bar.f) delete bar.f[key];
+  if (bar.j && bar.j.k == key) bar.j = null;
+  S.p2.lt = (S.p2.lt || []).filter(letter => letter.k != kind);
+  log(`[NASA] Every ground test on the ${PROGRAMMES[kind].name}'s revision is thrown out and will be run again.`, 'cyan');
+}
 // A crewed launch ordered over the bar: logged, and remembered by the culture.
 export function launchOverBar(kind, verdict) {
+  S.p2.acc = [...(S.p2.acc || []), { d: Math.round(S.day), t: `a crewed ${PROGRAMMES[kind].name} launched although ${verdict}` }];
   log(`[NASA] Crewed launch ordered past the safety bar: the ${PROGRAMMES[kind].name} flies although ${verdict}.`, 'bad');
   noteHabit('override', 1, `a crewed ${PROGRAMMES[kind].name} launched past the safety bar`);
   pressLeak(`NASA flew a crew on the ${PROGRAMMES[kind].name} past its own safety bar`);
@@ -140,13 +167,39 @@ export function safetyTick(days) {
     log(`[NASA] Ground test ${bar.t[bar.j.k]} of the ${name} complete: its estimates firm up.`, 'cyan');
     // The number of tests is yours to set, so each one run is a habit of yours.
     noteHabit('test', 1, `a ground test of the ${name}`);
+    const key = bar.j.k;
     bar.j = null;
+    testFinished(key);
     return true;
   }
-  const kind = crewRockets().find(each => (bar.t[designKey(each)] || 0) < bar.n);
+  const asked = bar.pri && crewRockets().includes(bar.pri) ? bar.pri : null;
+  const kind = asked || crewRockets().find(each => owed(bar, designKey(each)));
   if (!kind || S.b < testCost(kind)) return false;
+  bar.pri = null;
+  if (Math.random() < cutChance()) return cutCorner(kind);
   S.b -= testCost(kind);
   bar.j = { k: designKey(kind), d: TEST_DAYS };
   log(`[NASA] Ground test of the ${PROGRAMMES[kind].name} begins (${formatMoney(testCost(kind))}, about a month).`, 'cyan');
+  return true;
+}
+
+// CUTTING A CORNER (GDD review fix 4): a bold team under pressure may sign a test off without running it. It comes from risk
+// appetite and the pressure on Apollo, never from grievance. The log reads like any other test, but the revision is one data
+// sheet short, and sometimes an engineer writes to you about it.
+export const cutChance = () => {
+  const appetite = riskAppetite(READER), state = pressure();
+  if (appetite <= CUT_FROM || !state) return 0;
+  return CUT_CHANCE * (appetite - CUT_FROM) / (1 - CUT_FROM) * Math.max(state.press, state.pub, state.cong) / 100;
+};
+function cutCorner(kind) {
+  const bar = safetyBar(), key = designKey(kind), name = PROGRAMMES[kind].name;
+  bar.t[key] = (bar.t[key] || 0) + 1;
+  bar.f = { ...bar.f, [key]: ((bar.f || {})[key] || 0) + 1 };
+  log(`[NASA] Ground test ${bar.t[key]} of the ${name} complete: its estimates firm up.`, 'cyan');
+  if (Math.random() < LETTER_CHANCE) {
+    S.p2.lt = [...(S.p2.lt || []), { d: Math.round(S.day), k: kind }].slice(-4);
+    log(`[NASA] A letter from an engineer on the ${name}: "Test ${bar.t[key]} was signed off, but I never saw it run." (Mail)`, 'wn');
+  }
+  testFinished(key);
   return true;
 }

@@ -23,7 +23,8 @@ import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
 import { bookRide, answerBumper } from '../rules/neighbours.js';
 import { hireLead } from '../rules/leads.js';
 import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
-import { moveTarget, moveLimit, moveTests } from '../rules/safety.js';
+import { moveTarget, moveLimit, moveTests, retest } from '../rules/safety.js';
+import { answerRequest, shield } from '../rules/requests.js';
 import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
@@ -42,6 +43,7 @@ import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from
 import { openMail } from './mail.js';
 import { $ } from './dom.js';
 import { noteHabit, noteFix } from '../rules/culture.js';
+import { startOps, raiseOps, endOps, greenlight, notYet, startSeries, endSeries } from '../rules/flight-ops.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { BY_ID, AREAS } from '../data/research.js';
 
@@ -260,6 +262,15 @@ const GAME_ACTIONS = {
   },
   bumpyes: () => answerBumper(true),
   bumpno: () => answerBumper(false),
+  sfretest: kind => retest(kind),
+  rqans: answer => {
+    const error = answerRequest(answer);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
+  shield: key => {
+    const error = shield(key);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
   iattend: () => attendFirst(),
   iproceed: () => proceedWithFirst(),
   bstart: size => {
@@ -267,6 +278,23 @@ const GAME_ACTIONS = {
     if (error) log('[PROGRAMME] ' + error, 'bad');
   },
   oraise: (_, button) => raiseOrder(button.dataset.n == '2'),
+  fstart: cap => {
+    const error = startOps(+cap);
+    if (error) log('[FLIGHT OPS] ' + error, 'bad');
+  },
+  fraise: (id, button) => raiseOps(button.dataset.n == '2'),
+  fend: () => endOps(),
+  fgo: (id, button) => greenlight(false, false, +(button.dataset.n || 1)),
+  fattend: () => {
+    greenlight(true);
+    openDesk('watch');
+  },
+  fnot: () => notYet(),
+  fseries: (id, button) => {
+    const error = startSeries(id, +button.dataset.n);
+    if (error) log('[FLIGHT OPS] ' + error, 'bad');
+  },
+  fsend: () => endSeries(),
   oend: () => endOrder(),
   ores: () => resumeOrder(),
   fac: id => buildFacility(id),

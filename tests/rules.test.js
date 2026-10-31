@@ -2085,6 +2085,95 @@ test('each pressure has its own effect: Congress trims the budget, the press lea
   assert.ok(S.rep < 50);
 });
 
+// LEAD REQUESTS, SHIELDING, HEARINGS AND CORNER-CUTTING (Apollo step 5).
+const withDice = (value, run) => {
+  const dice = Math.random;
+  Math.random = () => value;
+  try { return run(); } finally { Math.random = dice; }
+};
+const apolloUnderPressure = async () => {
+  const { safetyTick } = await import('../js/rules/safety.js');
+  const { pressureTick, pressure } = await import('../js/rules/pressure.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  pressureTick(1);
+  Object.assign(pressure(), { press: 100, pub: 100, cong: 100 });
+  S.b = 1e9;
+};
+test('a lead asks under pressure; prove it first runs a test and brings the request back; granting it goes on the record', async () => {
+  const { safetyBar, safetyTick, components, limitFor } = await import('../js/rules/safety.js');
+  const { requestsTick, openRequest, answerRequest } = await import('../js/rules/requests.js');
+  await apolloUnderPressure();
+  for (const key of components('titan')) safetyBar().lim[key] = .005;
+  safetyBar().n = 0;
+  assert.ok(withDice(0, () => requestsTick(30)), 'the team asks');
+  const request = openRequest();
+  assert.equal(request.k, 'limit');
+  assert.equal(answerRequest('prove'), null);
+  assert.equal(answerRequest('accept'), 'The test is still running.');
+  withDice(.99, () => { for (let day = 0; day < 40; day++) safetyTick(1); });
+  assert.ok(!openRequest().prove && openRequest().pv, 'the request is back after the test');
+  assert.equal(answerRequest('accept'), null);
+  assert.equal(limitFor(request.comp), request.to);
+  assert.equal(S.p2.acc.length, 1);
+  assert.equal(S.cult.ev.at(-1).k, 'override');
+  assert.equal(openRequest(), null);
+});
+test('a bold team under pressure may sign a test off unrun: it leaves a missing data sheet, and re-running the tests clears it', async () => {
+  const { safetyBar, safetyTick, designKey, dataSheets, estimates, retest, cutChance } = await import('../js/rules/safety.js');
+  await apolloUnderPressure();
+  S.cult = { lean: 0, conf: 0, n: 0, tests: 0, ev: [] };
+  assert.equal(cutChance(), 0, 'a cautious team never cuts corners');
+  S.cult.lean = 1;
+  S.cult.conf = 1;
+  withDice(0, () => safetyTick(1));
+  assert.equal(estimates('titan').tests, 1, 'the test is signed off');
+  assert.equal(dataSheets('titan'), 0, 'but no data sheet is on file');
+  assert.equal(S.p2.lt.length, 1, 'and an engineer writes');
+  retest('titan');
+  assert.equal(safetyBar().t[designKey('titan')], 0);
+  assert.equal(S.p2.lt.length, 0);
+});
+test('a hearing takes its lead off work, then reads the record into plain effects', async () => {
+  const { safetyBar, designKey } = await import('../js/rules/safety.js');
+  const { openHearing, hearingOpen, leadAway, hearingTick, hearingRecord } = await import('../js/rules/hearing.js');
+  const { pressure } = await import('../js/rules/pressure.js');
+  await apolloUnderPressure();
+  safetyBar().t[designKey('titan')] = 3;
+  assert.equal(openHearing('apollo'), null);
+  assert.ok(leadAway('ellis') && !leadAway('reed'));
+  assert.match(openHearing('apollo'), /already/);
+  assert.equal(hearingTick(), false, 'not before its day');
+  S.day = hearingOpen().d;
+  assert.deepEqual(hearingRecord(), { accepted: 0, tests: 3, skipped: 0 });
+  assert.ok(hearingTick());
+  assert.ok(pressure().cong < 100, 'a careful record eases Congress');
+  assert.equal(hearingOpen(), null);
+  safetyBar().f = { [designKey('titan')]: 1 };
+  openHearing('apollo', 0);
+  const rep = S.rep = 50;
+  hearingTick();
+  assert.ok(S.rep < rep, 'a skipped test comes out at the hearing');
+});
+test('shielding: a briefing calms the press but a failure soon after costs more; a stand-down holds crews', async () => {
+  const { shield, standDownLock, vouchedFailure } = await import('../js/rules/requests.js');
+  const { pressure } = await import('../js/rules/pressure.js');
+  await apolloUnderPressure();
+  assert.equal(shield('briefing'), null);
+  assert.ok(pressure().press < 100);
+  assert.match(shield('briefing'), /Not again/);
+  S.rep = 50;
+  vouchedFailure();
+  assert.ok(S.rep < 50);
+  assert.equal(standDownLock(), null);
+  shield('standDown');
+  assert.match(standDownLock(), /stood down/);
+  assert.equal(shield('testify'), null);
+  assert.ok(S.p2.hg);
+});
+
 // FLAW CURES (rules/cures.js): every flaw that costs performance can be cured, after flying the flawed design to find the cause.
 test('an overweight structure is cured only after the flawed rocket has flown enough to find the cause', () => {
   const airframe = readyProgramme('viking');

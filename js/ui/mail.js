@@ -26,10 +26,15 @@ import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
 import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
 import { TARGET_RANGE, LIMIT_RANGE, TESTS_RANGE } from '../data/safety.js';
-import { PRESSURES } from '../data/pressure.js';
+import { PRESSURES, SHIELDS } from '../data/pressure.js';
+import { HEARINGS } from '../data/hearing.js';
+import { hearingOpen } from '../rules/hearing.js';
+import { openRequest, requestText as leadRequestText, reasonOnFile, shieldReady } from '../rules/requests.js';
 import { pressure, pressureLevel, pressureWords } from '../rules/pressure.js';
-import { safetyBar, crewRockets, estimates, estimatedSafety, limitFor, componentName, designKey, testCost } from '../rules/safety.js';
+import { safetyBar, crewRockets, estimates, estimatedSafety, limitFor, componentName, designKey, testCost, testsWaived, dataSheets } from '../rules/safety.js';
 import { capabilityShown } from '../rules/mercury.js';
+import { OPS_CAPS, OPS_RAISE, SERIES_ORBITS, opsUnlocked, opsDirectiveName, seriesLock } from '../rules/flight-ops.js';
+import { MISSION_TYPES } from '../data/mercury.js';
 import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure, acceptedRisks } from '../rules/culture.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -189,9 +194,19 @@ function pressureMessage() {
   if (!state) return null;
   const rows = Object.entries(PRESSURES).map(([key, each]) => `<div class="r"><span>${each.name}</span><b class="${pressureLevel(key) >= 2 ? 'wn' : ''}">${pressureWords(key)}</b></div><div class="m">${each.effect}</div>`).join('');
   const headlines = state.hl.slice().reverse().map(line => `<div class="m"><span class="d">${formatDate(line.d)}</span> ${escapeHtml(line.t)}</div>`).join('');
+  // SHIELDING THE CREW (rules/requests.js): what you can do yourself, and when each is ready again.
+  const hearing = hearingOpen();
+  const shields = Object.entries(SHIELDS).map(([key, each]) => shieldReady(key) && !(key == 'testify' && hearing)
+    ? `<button data-a="shield" data-id="${key}">${each.name.toUpperCase()}</button>`
+    : `<button disabled>${each.name.toUpperCase()}${state.sh && state.sh[key] > S.day ? ` (FROM ${formatDate(state.sh[key]).toUpperCase()})` : ''}</button>`).join('');
+  const notes = [
+    hearing && `${HEARINGS[hearing.k].name} sits on ${formatDate(hearing.d)}. ${memberName(hearing.lead)} is preparing and is off other work until then. The committee will read the record: risks accepted under pressure, and ground tests run.`,
+    state.vouch > S.day && `You vouched for Apollo at a briefing: a crewed flight that fails before ${formatDate(state.vouch)} costs more.`,
+    state.sd > S.day && `The crews are stood down until ${formatDate(state.sd)}.`,
+  ].filter(Boolean).map(line => `<p class="m">${escapeHtml(line)}</p>`).join('');
   return {
     id: 'pressure', kind: 'report', from: 'Public Affairs Office', role: 'Press, public and Congress', pane: 'note', subject: 'How Washington sees Apollo',
-    body: rows + (headlines ? `<div class="lbl">HEADLINES</div>${headlines}` : ''),
+    body: rows + notes + `<div class="acts">${shields}</div>` + (headlines ? `<div class="lbl">HEADLINES</div>${headlines}` : ''),
   };
 }
 function safetyMessage() {
@@ -199,9 +214,14 @@ function safetyMessage() {
   if (!bar) return null;
   const rockets = crewRockets().map(kind => {
     const { tests, evidence, figures } = estimates(kind), safety = estimatedSafety(figures), testing = bar.j && bar.j.k == designKey(kind);
+    // The record behind the figures: tests signed off against data sheets on file (a skipped test leaves a gap), any letters.
+    const sheets = dataSheets(kind), letters = (S.p2.lt || []).filter(letter => letter.k == kind)
+      .map(letter => `<div class="m wn"><span class="d">${formatDate(letter.d)}</span> An engineer writes: a test on this rocket was signed off, but nobody saw it run.</div>`).join('');
+    const record = `<div class="m">${tests ? `${sheets} data sheet${sheets == 1 ? '' : 's'} on file. ` : ''}${testsWaived(kind) ? 'The tests still owed on this revision were waived. ' : ''}</div>`
+      + letters + (tests ? `<div class="acts"><button data-a="sfretest" data-id="${kind}">RE-RUN ITS TESTS</button></div>` : '');
     const rows = Object.entries(figures).map(([key, risk]) => `<div class="r"><span>${escapeHtml(componentName(key))}</span><span class="nw"><span class="d">tests ${percent(evidence[key])} · lead</span> <b class="${risk > limitFor(key) ? 'wn' : ''}">${percent(risk)}</b> <span class="d">limit ${percent(limitFor(key))}</span> ${stepper('sflim', limitFor(key), LIMIT_RANGE[0], LIMIT_RANGE[1], key)}</span></div>`).join('');
     return `<div class="c"><div class="r"><b>${escapeHtml(PROGRAMMES[kind].name)}</b><span><span class="d">tests ${percent(estimatedSafety(evidence))} · lead</span> <b class="${safety < bar.tgt ? 'wn' : ''}">${percent(safety)} to orbit</b></span></div>`
-      + `<div class="m">${tests} ground test${tests == 1 ? '' : 's'} on this revision${testing ? `, one under way (${Math.max(1, Math.round(bar.j.d))} days)` : tests < bar.n ? `, ${formatMoney(testCost(kind))} each` : ''}.</div>${rows}</div>`;
+      + `<div class="m">${tests} ground test${tests == 1 ? '' : 's'} signed off on this revision${testing ? `, one under way (${Math.max(1, Math.round(bar.j.d))} days)` : tests < bar.n ? `, ${formatMoney(testCost(kind))} each` : ''}.</div>${record}${rows}</div>`;
   }).join('');
   return {
     id: 'safety', kind: 'report', from: 'Office of Manned Space Flight', role: 'Safety and reliability', pane: 'note', subject: 'The safety bar for crewed launches',
@@ -209,6 +229,22 @@ function safetyMessage() {
       + `<div class="r"><span>Target: chance of reaching orbit</span><span><b>${percent(bar.tgt)}</b> ${stepper('sftgt', bar.tgt, TARGET_RANGE[0], TARGET_RANGE[1])}</span></div>`
       + `<div class="r"><span>Ground tests per new revision</span><span><b>${bar.n}</b> ${stepper('sftests', bar.n, TESTS_RANGE[0], TESTS_RANGE[1])}</span></div>`
       + (rockets || '<div class="m">No crew rocket is in production yet.</div>'),
+  };
+}
+
+// A LEAD REQUEST (rules/requests.js): Ellis's team asks for a limit raised or tests waived, under pressure.
+function requestMessage() {
+  const request = openRequest();
+  if (!request) return null;
+  const reason = reasonOnFile(request);
+  return {
+    id: 'request', kind: request.prove ? 'report' : 'decision', from: memberName('ellis'), role: memberRole('ellis'), pane: 'note',
+    subject: request.prove ? 'Waiting on the test you asked for' : 'My team is asking for something',
+    body: `<p>${escapeHtml(leadRequestText(request))}</p>`
+      + (request.prove
+        ? '<p class="m">A ground test is running first, as you asked. The request comes back with its result.</p>'
+        : '<p class="m">Granting it eases the pressure and puts the risk on the record. A refusal with the test results behind it costs little; one with no reason costs more.</p>'
+          + `<div class="acts"><button data-a="rqans" data-id="accept">GRANT IT</button>${reason ? '<button data-a="rqans" data-id="reasoned">REFUSE: THE TESTS SAY NO</button>' : ''}<button data-a="rqans" data-id="refuse">REFUSE</button><button class="pri" data-a="rqans" data-id="prove">PROVE IT WITH A TEST FIRST</button></div>`),
   };
 }
 
@@ -232,6 +268,27 @@ function remitMessage() {
     body: asks.join('') + `<p>${remit.jobs} job${remit.jobs == 1 ? '' : 's'} started on the ${name}, ${formatMoney(remit.spent)} of ${formatMoney(remit.cap)} spent.</p><p class="m">${authorityText()}</p>`
       + `<div class="acts">${referred.length ? '<button data-a="mailremit">OPEN THE INCIDENTS</button>' : ''}<button data-a="rraise">RAISE BY ${formatMoney(REMIT_RAISE)}</button><button data-a="rraise" data-n="2">DOUBLE TO ${formatMoney(2 * S.remit.cap)}</button><button data-a="rend">CLOSE THE REMIT</button></div>`,
   };
+}
+
+// THE MERCURY TESTS (rules/flight-ops.js): Ellis's offer once NASA is formed, then the running tests. A launch she has ready is a
+// decision: greenlight it (or the next three of its kind), attend it in Watch, or not yet. A crewed series you can authorise here.
+function opsMessage() {
+  const record = S.ops, from = memberName('ellis'), role = memberRole('ellis');
+  if (!record) {
+    if (!opsUnlocked()) return null;
+    return { id: 'ops', kind: 'report', from, role, pane: 'note', subject: 'I can run the Mercury tests',
+      body: `<p>Give me a spending cap and I will plan each Mercury test: order the capsules and boosters, fly the man-rating flights and bring each launch to the pad. Every launch waits for your greenlight; once you have greenlit three of a kind of uncrewed flight, its repeats fly on that approval. Crewed flights always need your go-ahead.</p><div class="acts">${OPS_CAPS.map(cap => `<button data-a="fstart" data-id="${cap}">${formatMoney(cap)} CAP</button>`).join('')}</div>` };
+  }
+  const ready = record.ready, account = `<div class="r"><span>${record.n} launch${record.n == 1 ? '' : 'es'}, ${record.okn} good</span><b>${formatMoney(record.spent)} of ${formatMoney(record.cap)}</b></div>`;
+  const series = record.series ? `<div class="r"><span>Crewed series: ${record.series.n} ${escapeHtml(MISSION_TYPES[record.series.mt].fullName)} flight${record.series.n == 1 ? '' : 's'} left</span><b><button data-a="fsend">END</button></b></div>`
+    : `<div class="m">Authorise a crewed series to give the astronauts flight time; she flies it while the directive waits on something.</div><div class="acts">${['mr', 'mo'].filter(type => !seriesLock(type)).map(type => `<button data-a="fseries" data-id="${type}" data-n="3">3 CREWED ${type == 'mo' ? `ORBITAL (${SERIES_ORBITS} ORBITS)` : 'SUBORBITAL'}</button>`).join('') || '<span class="d">No crewed series can fly yet.</span>'}</div>`;
+  const tail = `${account}${series}<div class="acts"><button data-a="fraise">RAISE BY ${formatMoney(OPS_RAISE)}</button><button data-a="fraise" data-n="2">DOUBLE TO ${formatMoney(2 * record.cap)}</button><button data-a="fend">TAKE THE TESTS BACK</button></div>`;
+  if (ready) return { id: 'ops', kind: 'decision', from, role, pane: 'note', subject: `Ready to fly: ${ready.what}`,
+    body: `<p>${escapeHtml(ready.what[0].toUpperCase() + ready.what.slice(1))} is ready.${ready.crewed ? ' A crew flies: it needs your go-ahead.' : ''}</p><div class="acts"><button class="pri" data-a="fgo">GREENLIGHT</button><button data-a="fgo" data-n="3">GREENLIGHT THE NEXT 3</button>${ready.rating ? '' : '<button data-a="fattend">ATTEND IN WATCH</button>'}<button data-a="fnot">NOT YET</button></div>${tail}` };
+  if (record.hold) return { id: 'ops', kind: 'decision', from, role, pane: 'note', subject: 'The Mercury tests need you', body: `<p class="wn">${escapeHtml(record.hold)}</p>${tail}` };
+  const directive = opsDirectiveName();
+  return { id: 'ops', kind: 'report', from, role, pane: 'note', subject: directive ? `Working on: ${directive}` : 'The Mercury tests',
+    body: `${record.wait ? `<div class="m">Waiting: ${escapeHtml(record.wait)}.</div>` : '<div class="m">Planning the next launch.</div>'}${tail}` };
 }
 
 // THE CULTURE (rules/culture.js): Ellis's note on how the programme works, in words, once the team has seen enough of your habits.
@@ -292,12 +349,16 @@ function messages() {
   if (staff) list.push(staff);
   const apolloNote = apolloMessage();
   if (apolloNote) list.push(apolloNote);
+  const request = requestMessage();
+  if (request) list.push(request);
   const safety = safetyMessage();
   if (safety) list.push(safety);
   const press = pressureMessage();
   if (press) list.push(press);
   const remit = remitMessage();
   if (remit) list.push(remit);
+  const operations = opsMessage();
+  if (operations) list.push(operations);
   const culture = cultureMessage();
   if (culture) list.push(culture);
   const bumper = bumperMessage();
