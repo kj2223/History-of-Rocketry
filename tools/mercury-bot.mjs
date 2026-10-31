@@ -26,6 +26,7 @@ import { setRequest, REQUEST_RANGE } from '../js/rules/budget.js';
 import { STUDY_SIZES, ARCHITECTURE_ORDER } from '../js/data/apollo.js';
 import { decideRollover, startStudy, estimate, chooseArchitecture } from '../js/rules/apollo.js';
 import { capabilityShown } from '../js/rules/mercury.js';
+import { barVerdict, testsPending } from '../js/rules/safety.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
 // The Gemini buildings open once Mercury is complete.
@@ -40,12 +41,13 @@ const boosterResearch = () => ['p', 's', 'i', 'a'].flatMap(itemsInArea).sort((fi
 const readyProgrammes = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready);
 
 // game: { advance(seconds), now() in seconds, flyLaunch(airframe, ballastOnly, payload) returning the flight's result, maxSeconds, saturnSeconds, sectionOneOnly }
-// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone, mercuryAt, geminiDone, geminiAt, saturnAt, saturnLaunches }.
+// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone, mercuryAt, geminiDone, geminiAt, saturnAt, saturnLaunches, barOverrides }.
 // sectionTwoDone: Mercury is complete, at mercuryAt (seconds), with the counts and budget then in atMercury;
-// geminiDone: every Gemini directive built so far is met, at geminiAt; saturnAt: a Saturn I first put a boilerplate in orbit, after saturnLaunches.
+// geminiDone: every Gemini directive built so far is met, at geminiAt; saturnAt: a Saturn I first put a boilerplate in orbit, after saturnLaunches;
+// barOverrides: crewed launches flown past the safety bar.
 // sectionOne: { at (seconds), budget, date day, missions, missionFails, astronautsLost, launches, human } when Section 1 completed.
 export function playMercury(game) {
-  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false, geminiAt: null, saturnAt: null, saturnLaunches: 0 };
+  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false, geminiAt: null, saturnAt: null, saturnLaunches: 0, barOverrides: 0 };
   // Programmes known not to deliver a mission type: "mr:wac" and so on, so the bot does not keep building them.
   // For the orbital flight the blueprint revision is part of the key: research can make a rocket fast enough later.
   const tooSmall = {};
@@ -109,7 +111,12 @@ export function playMercury(game) {
     chooseOption(mission, best.index);
   };
   // Fly one Mercury mission. Real time on screen: a 30 s count, a quarter-second per step, and five seconds for each decision.
+  // The safety bar: a crew waits for the ground tests on its rocket's revision, then flies, past the bar if it must (a player
+  // with a schedule to keep would).
   const flyMission = (capsule, booster, crew, orbits, target = null) => {
+    const barred = !['none', 'chimp', 'monkey'].includes(crew) && barVerdict(booster.airframe.prog);
+    if (barred && testsPending(booster.airframe.prog)) return advance(5);
+    if (barred) report.barOverrides++;
     const poll = runPoll(booster.airframe, booster.propellant, booster.plan.staged);
     if (poll.nogo && S.b > PAD_FIX_COST) troubleshoot(poll);
     if (poll.nogo) {
@@ -117,7 +124,7 @@ export function playMercury(game) {
       return advance(3);
     }
     const eva = !!(directive => directive && directive.eva)(MERCURY_DIRECTIVES[S.p2.dir]);
-    const mission = beginMission(capsule.id, crew, { af: booster.airframe.id, fuel: booster.propellant, latent: poll.fault, wind: poll.wind, orbits, eva, target });
+    const mission = beginMission(capsule.id, crew, { af: booster.airframe.id, fuel: booster.propellant, latent: poll.fault, wind: poll.wind, orbits, eva, target, overBar: !!barred });
     if (!mission) return advance(1);
     let steps = 0, decisions = 0, result;
     do {

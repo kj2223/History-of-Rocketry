@@ -274,7 +274,7 @@ const GAME_ACTIONS = {
   afhold: id => holdForLaunch(+id, !(S.air.find(airframe => airframe.id == +id) || {}).hold),
   cancelq: id => cancelQueueItem(+id),
   aptog: () => S.ap.on = S.ap.on ? 0 : 1,
-  mcount: () => startMissionCount(),
+  mcount: id => startMissionCount(id == 'over'),
   mord: id => orderCapsule(id),
   prog: id => {
     if (S.progs[id]) S.cur = id;

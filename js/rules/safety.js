@@ -1,8 +1,10 @@
-// THE SAFETY BAR, PART ONE: once Apollo has chosen its architecture, the engineers estimate the failure chance of each part of every
+// THE SAFETY BAR: once Apollo has chosen its architecture, the engineers estimate the failure chance of each part of every
 // crew rocket (the Titan II that flies Gemini, the Saturn I), and you set the bar a crewed launch must clear: a target chance of
 // reaching orbit, a limit for each component, and how many ground tests each new revision gets. Design and testing are the staff's:
 // they run the tests by themselves, one at a time. Each figure is off from the truth, by less with every test, and a confident,
-// careless team reads its figures low: each component shows both, what the tests support and the lead's reading. No DOM.
+// careless team reads its figures low: each component shows both, what the tests support and the lead's reading. The launch
+// director will not fly a crew on a rocket whose reading breaks the bar; you can order the launch anyway, and that is a habit the
+// culture remembers (rules/culture.js). The bar never waives man-rating (rules/mercury.js crewLock). No DOM.
 //
 // S.p2.sb: { tgt: the target chance of reaching orbit, lim: { [component key]: the failure chance allowed }, n: tests per revision,
 //            t: { [design key]: tests run }, z: { [design key]: { [component key]: how far off its estimate is, in spreads } },
@@ -94,6 +96,25 @@ export function moveLimit(key, direction) {
 export function moveTests(direction) {
   const bar = safetyBar();
   if (bar) bar.n = clamp(bar.n + direction, TESTS_RANGE);
+}
+
+// THE GATE: why the launch director will not fly a crew on this rocket, or null.
+export function barVerdict(kind) {
+  const bar = safetyBar();
+  if (!bar || !crewRockets().includes(kind)) return null;
+  const { figures } = estimates(kind);
+  const over = Object.entries(figures).find(([key, risk]) => risk > limitFor(key));
+  if (over) return `its ${componentName(over[0]).toLowerCase()} read ${percentText(over[1])} against a limit of ${percentText(limitFor(over[0]))}`;
+  const safety = estimatedSafety(figures);
+  return safety < bar.tgt ? `it reads ${percentText(safety)} to orbit against a target of ${percentText(bar.tgt)}` : null;
+}
+const percentText = chance => `${(chance * 100).toFixed(1)}%`;
+// Ground tests still to run on the rocket's current revision.
+export const testsPending = kind => !!safetyBar() && (safetyBar().t[designKey(kind)] || 0) < safetyBar().n;
+// A crewed launch ordered over the bar: logged, and remembered by the culture.
+export function launchOverBar(kind, verdict) {
+  log(`[NASA] Crewed launch ordered past the safety bar: the ${PROGRAMMES[kind].name} flies although ${verdict}.`, 'bad');
+  noteHabit('override', 1, `a crewed ${PROGRAMMES[kind].name} launched past the safety bar`);
 }
 
 export const testCost = kind => Math.round(PROGRAMMES[kind].unitCost * TEST_COST_SHARE);

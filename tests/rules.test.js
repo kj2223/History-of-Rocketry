@@ -2025,3 +2025,18 @@ test('the bar moves in steps and stays in its range', async () => {
   for (let press = 0; press < 20; press++) moveTests(-1);
   assert.equal(safetyBar().n, 0);
 });
+test('the launch director will not fly a crew past the bar, and a launch you order past it is a habit the culture keeps', async () => {
+  const { safetyTick, safetyBar, barVerdict, launchOverBar, components } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  for (const key of components('titan')) safetyBar().lim[key] = .005;
+  assert.match(barVerdict('titan'), /limit/);
+  for (const key of components('titan')) safetyBar().lim[key] = 1;
+  safetyBar().tgt = 0;
+  assert.equal(barVerdict('titan'), null);
+  assert.equal(barVerdict('atlas'), null, 'only crew rockets are judged');
+  launchOverBar('titan', 'a test');
+  assert.equal(S.cult.ev.at(-1).k, 'override');
+});
