@@ -35,6 +35,7 @@ export const HABITS = {
   openfly: { pull: 1, name: 'a launch with an incident still open' },
   notest: { pull: 1, name: 'a launch with no test since the last one' },
   quickfix: { pull: 1, name: 'the cheapest fix' },
+  overrule: { pull: 1, name: 'the engineers\' figures overruled' },  // an architecture chosen against the study's own figures
 };
 // How far each habit moves the culture: the lean follows a rolling average of about the last 1 / CULTURE_RATE habits.
 export const CULTURE_RATE = .06;

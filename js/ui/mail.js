@@ -24,8 +24,8 @@ import { LEAD_POSTS } from '../data/leads.js';
 import { openPosts, hiredLead, postCandidates } from '../rules/leads.js';
 import { SHARED_AREAS, SHARED_CAPS, SHARED_RAISE, proposals, isChoice, sharedIdleReason } from '../rules/shared-research.js';
 import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
-import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
-import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
+import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER, CENTRES } from '../data/apollo.js';
+import { apollo, apolloLead, studyDays, estimate, centres, centreClaim, centreRecord } from '../rules/apollo.js';
 import { TARGET_RANGE, LIMIT_RANGE, TESTS_RANGE } from '../data/safety.js';
 import { PRESSURES, SHIELDS } from '../data/pressure.js';
 import { HEARINGS } from '../data/hearing.js';
@@ -160,6 +160,21 @@ const ESTIMATE_TEXT = {
   risk: range => `${(range.low * 100).toFixed(1)}% to ${(range.high * 100).toFixed(1)}%`,
 };
 const ESTIMATE_LABELS = { cost: 'Development cost', years: 'To the first landing attempt', risk: 'Crew lost on a landing' };
+const ONE_FIGURE = { cost: value => millions(value), years: value => `${value.toFixed(1)} years`, risk: value => `${(value * 100).toFixed(1)}%` };
+// THE CENTRES' PITCHES beside the study (rules/apollo.js), and afterwards how each took the decision.
+const MOOD_WORDS = { keen: 'keen: it won', accepted: 'accepts the decision', resentful: 'resents the decision' };
+function centresHTML(state) {
+  const cen = centres();
+  return Object.entries(CENTRES).map(([key, centre]) => {
+    const bidder = cen[key], favourite = ARCHITECTURES[centre.favours];
+    if (!state.arch) return `<div class="c"><div class="r"><b>${escapeHtml(centre.head)}, ${escapeHtml(centre.place)}</b><span class="d">backs ${escapeHtml(favourite.name.toLowerCase())}</span></div><div class="m">"${escapeHtml(centre.pitch)}"</div>`
+      + ['cost', 'years', 'risk'].map(stat => `<div class="r"><span>Their figure: ${ESTIMATE_LABELS[stat].toLowerCase()}</span><b>${ONE_FIGURE[stat](centreClaim(key, stat))}</b></div>`).join('')
+      + `<div class="m">Track record: ${escapeHtml(centre.name)}'s past estimates came in about ${Math.round(centreRecord(key) * 100)}% under the final figures.</div></div>`;
+    const pace = Math.round(bidder.coop * 100);
+    return `<div class="c"><div class="r"><b>${escapeHtml(centre.head)}, ${escapeHtml(centre.place)}</b><span class="${bidder.mood == 'resentful' ? 'wn' : 'd'}">${MOOD_WORDS[bidder.mood]}</span></div><div class="r"><span>Its work runs at</span><b class="${pace < 95 ? 'wn' : ''}">${pace}% of its usual pace</b></div>`
+      + (bidder.mood != 'keen' && !bidder.cons ? `<div class="m">You could give ${escapeHtml(centre.place)} ${escapeHtml(centre.share.what)} to bring it round.</div><div class="acts"><button data-a="apshare" data-id="${key}"${S.b < centre.share.cost ? ' disabled' : ''}>GIVE ${escapeHtml(centre.place.toUpperCase())} THE WORK · ${formatMoney(centre.share.cost)}</button></div>` : '') + '</div>';
+  }).join('');
+}
 function apolloMessage() {
   const state = apollo();
   if (!state) return null;
@@ -181,9 +196,9 @@ function apolloMessage() {
       + ['cost', 'years', 'risk'].map(stat => `<div class="r"><span>${ESTIMATE_LABELS[stat]}</span><b>${ESTIMATE_TEXT[stat](estimate(key, stat))}</b></div>`).join('')
       + (state.arch ? (chosen ? '<div class="m"><b>Chosen.</b></div>' : '') : `<div class="acts"><button data-a="aparch" data-id="${key}">GO WITH ${architecture.name.toUpperCase()}</button></div>`) + '</div>';
   }).join('');
-  if (state.arch) return { ...base, kind: 'report', subject: `Apollo goes by ${ARCHITECTURES[state.arch].name.toLowerCase()}`, body: table };
+  if (state.arch) return { ...base, kind: 'report', subject: `Apollo goes by ${ARCHITECTURES[state.arch].name.toLowerCase()}`, body: table + '<p class="m">The centres:</p>' + centresHTML(state) };
   return { ...base, kind: 'decision', subject: 'The Apollo study has reported: choose the way to the Moon',
-    body: `<p>Here are the three approaches, costed. The ranges are how sure the study is.</p><p class="m">${evidence < 3 ? 'Gemini has not yet flown everything a rendezvous needs. Each rendezvous, docking or spacewalk it flies firms up the risk figures of the two rendezvous approaches, so waiting buys certainty at the cost of schedule.' : 'Gemini has flown rendezvous, docking and spacewalks: the rendezvous risk figures are as firm as this study can make them.'}</p>${table}` };
+    body: `<p>Here are the three approaches, costed. The ranges are how sure the study is.</p><p class="m">${evidence < 3 ? 'Gemini has not yet flown everything a rendezvous needs. Each rendezvous, docking or spacewalk it flies firms up the risk figures of the two rendezvous approaches, so waiting buys certainty at the cost of schedule.' : 'Gemini has flown rendezvous, docking and spacewalks: the rendezvous risk figures are as firm as this study can make them.'}</p>${table}<p class="m">The two big centres have each sent their own figures for the approach they want. Theirs are single numbers, not ranges, and each centre gains if its approach wins. A centre you overrule will work slower for a while, more so if the study's figures do not back you.</p>${centresHTML(state)}` };
 }
 
 // THE SAFETY BAR (rules/safety.js): the engineers' estimates for each crew rocket against the bar you set.

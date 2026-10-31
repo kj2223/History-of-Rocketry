@@ -2252,3 +2252,54 @@ test('a first is ours if we get there before the Soviets, and only matched (seco
   assert.equal(S.fs.f_space, 'second');
   assert.equal(S.b - before, Math.round(reward * .4), 'a matched first pays 40% of the reward');
 });
+
+// THE CENTRES LOBBY (rules/apollo.js, rules/bids.js).
+const studyReported = async () => {
+  const { decideRollover, startStudy } = await import('../js/rules/apollo.js');
+  await mercuryComplete();
+  decideRollover(true);
+  S.b = 1e7;
+  startStudy('full');
+  let seconds = 0;
+  while (!S.p2.ap.done && seconds++ < 2000) tickSecond();
+};
+test('each centre pitches its own architecture with figures that flatter it, and a track record that says by how much', async () => {
+  const { centreClaim, centreRecord, centres } = await import('../js/rules/apollo.js');
+  const { CENTRES, OPTIMISM_RANGE } = await import('../js/data/apollo.js');
+  await studyReported();
+  for (const [key, centre] of Object.entries(CENTRES)) {
+    for (const stat of ['cost', 'years', 'risk']) assert.ok(centreClaim(key, stat) < S.p2.ap.tr[centre.favours][stat], `${key} shades its ${stat}`);
+    const shading = centres()[key].opt * centre.stake;
+    assert.ok(Math.abs(centreRecord(key) - shading) <= .05 + 1e-9, 'the record is honest to within its noise');
+    assert.ok(centres()[key].opt >= OPTIMISM_RANGE[0] && centres()[key].opt <= OPTIMISM_RANGE[1]);
+  }
+});
+test('the overruled centre works slower, much slower against the study, and time or a share of the work brings it round', async () => {
+  const { chooseArchitecture, centres, centrePace, studyBacks, giveWorkShare } = await import('../js/rules/apollo.js');
+  const { AWARD } = await import('../js/rules/bids.js');
+  await studyReported();
+  // Pick direct ascent, which neither centre backs: each loser's hit depends on whether the study backs direct over its favourite.
+  assert.equal(chooseArchitecture('direct'), null);
+  for (const [key, favourite] of [['rocket', 'eor'], ['craft', 'lor']]) {
+    const expected = 1 - (studyBacks('direct', favourite) ? AWARD.LOSE_SUPPORTED : AWARD.LOSE_UNSUPPORTED);
+    assert.ok(Math.abs(centres()[key].coop - expected) < 1e-9, `${key} cooperation`);
+  }
+  assert.equal(centrePace('saturn'), centres().rocket.coop);
+  assert.equal(centrePace('anything else'), 1);
+  const before = centres().rocket.coop, cash = S.b;
+  assert.equal(giveWorkShare('rocket'), null);
+  assert.ok(centres().rocket.coop > before);
+  assert.ok(S.b < cash);
+  assert.ok(giveWorkShare('rocket'), 'only once');
+  const craft = centres().craft.coop;
+  for (let month = 0; month < 12; month++) tickSecond();
+  assert.ok(centres().craft.coop >= craft, 'cooperation drifts back');
+});
+test('the centre whose architecture wins is keen', async () => {
+  const { chooseArchitecture, centres } = await import('../js/rules/apollo.js');
+  await studyReported();
+  chooseArchitecture('lor');
+  assert.equal(centres().craft.mood, 'keen');
+  assert.ok(centres().craft.coop > 1);
+  assert.notEqual(centres().rocket.mood, 'keen');
+});
