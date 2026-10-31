@@ -59,6 +59,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/trajectory.js` | The trajectory team: hiring analysts, goals, and the search for the best flight plan |
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
 | `rules/auto.js` | The launch director flying the running campaign |
+| `rules/culture.js` | The programme's culture (safety to chaotic, learned from your own habits), the team's confidence from its own flights, and each team's lean when short of money |
 | `rules/team.js` | The core team's record (Ellis, Vega, Morgan) and what they say after failures and in records analyses |
 | `rules/race.js` | American firsts, Soviet events, intelligence, forming NASA |
 | `rules/manrate.js` | Man-rating boosters for crews (Titan II also needs its pogo cured) |

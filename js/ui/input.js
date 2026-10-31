@@ -21,6 +21,7 @@ import { approveBrief } from '../rules/brief.js';
 import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
 import { hireLead } from '../rules/leads.js';
 import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
+import { moveTarget, moveLimit, moveTests } from '../rules/safety.js';
 import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
@@ -38,6 +39,9 @@ import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
 import { openMail } from './mail.js';
 import { $ } from './dom.js';
+import { noteHabit, noteFix } from '../rules/culture.js';
+import { FAILURE_MODES } from '../data/failures.js';
+import { BY_ID, AREAS } from '../data/research.js';
 
 let resetArmed = 0;
 
@@ -116,6 +120,21 @@ document.addEventListener('change', event => {
   render();
 });
 
+// THE CULTURE (rules/culture.js): your own tests and fixes are habits the team learns from. Each counts only if the work started
+// or was queued.
+const workCount = () => S.jobs.length + S.rq.length;
+function noteIfStarted(kind, what, start) {
+  const before = workCount();
+  start();
+  if (workCount() > before) noteHabit(kind, 1, what);
+}
+function noteFixChoice(incidentId, fixId, start) {
+  const incident = S.inc.find(candidate => candidate.id == incidentId), fixes = incident && FAILURE_MODES[incident.dx] && FAILURE_MODES[incident.dx].fixes;
+  const before = workCount();
+  start();
+  if (fixes && workCount() > before) noteFix(fixes, fixes.find(fix => fix.id == fixId));
+}
+
 // BUTTONS. Pad actions only apply while a countdown is open.
 const PAD_ACTIONS = {
   count: () => startCount(),
@@ -146,12 +165,16 @@ const PAD_ACTIONS = {
     }
   },
   scrub: count => {
-    if (count) scrub(count.poll);
+    if (count) {
+      scrub(count.poll);
+      noteHabit('scrub', 1, `${count.label} scrubbed`);
+    }
     closePad();
   },
   // Standing down after fuelling costs a scrub.
   stand: count => {
     if (count && count.fuel > .01) scrub(count.poll);
+    if (count && count.poll.nogo) noteHabit('scrub', 1, `${count.label} stood down`);
     closePad();
   },
   closepad: () => closePad(),
@@ -174,8 +197,8 @@ const GAME_ACTIONS = {
   unq: index => unqueue(+index),
   qup: index => moveUpQueue(+index),
   qinv: id => queueAnalysis(+id),
-  qfix: (id, button) => queueFix(+id, button.dataset.f),
-  qrev: id => queueReview(id),
+  qfix: (id, button) => noteFixChoice(+id, button.dataset.f, () => queueFix(+id, button.dataset.f)),
+  qrev: id => noteIfStarted('test', `a design review of ${AREAS[id] || id}`, () => queueReview(id)),
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),
@@ -226,6 +249,9 @@ const GAME_ACTIONS = {
     const error = chooseArchitecture(key);
     if (error) log('[NASA] ' + error, 'bad');
   },
+  sftgt: (_, button) => moveTarget(+button.dataset.n),
+  sflim: (key, button) => moveLimit(key, +button.dataset.n),
+  sftests: (_, button) => moveTests(+button.dataset.n),
   iattend: () => attendFirst(),
   iproceed: () => proceedWithFirst(),
   bstart: size => {
@@ -239,7 +265,7 @@ const GAME_ACTIONS = {
   mothball: id => mothball(id),
   reopen: id => reopen(id),
   inv: id => startInvestigation(+id),
-  fix: (id, button) => chooseFix(+id, button.dataset.f),
+  fix: (id, button) => noteFixChoice(+id, button.dataset.f, () => chooseFix(+id, button.dataset.f)),
   accept: id => acceptFinding(+id),
   extend: id => extendInvestigation(+id),
   name: (id, button) => nameCause(+id, button.dataset.f),
@@ -254,7 +280,7 @@ const GAME_ACTIONS = {
     if (S.progs[id]) S.cur = id;
   },
   pstart: id => startProgramme(id),
-  rev: id => startReview(id),
+  rev: id => noteIfStarted('test', `a design review of ${AREAS[id] || id}`, () => startReview(id)),
   reg: id => chooseTestingRegime(id),
   offy: () => answerOfficeDecision(true),
   offn: () => answerOfficeDecision(false),
@@ -277,7 +303,7 @@ const GAME_ACTIONS = {
   dismiss: id => dismissStation(id),
   analyst: () => hireAnalyst(),
   unanalyst: () => releaseAnalyst(),
-  gt: id => groundTest(id),
+  gt: id => noteIfStarted('test', `a ground test of ${BY_ID[id] ? BY_ID[id].name : id}`, () => groundTest(id)),
 };
 // Actions that only change what is shown: they return without saving or redrawing.
 const VIEW_ACTIONS = {

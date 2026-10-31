@@ -4,7 +4,7 @@
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES } from '../data/history.js';
 import { CORE_TEAM } from '../data/team.js';
-import { S, withProgramme } from '../core/state.js';
+import { S, withProgramme, formatDate } from '../core/state.js';
 import { nasaReady } from '../rules/race.js';
 import { itemAsSeen } from '../rules/research.js';
 import { queueLock, queuePosition } from '../rules/queue.js';
@@ -24,7 +24,10 @@ import { SHARED_AREAS, SHARED_CAPS, SHARED_RAISE, proposals, isChoice, sharedIdl
 import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
 import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
+import { TARGET_RANGE, LIMIT_RANGE, TESTS_RANGE } from '../data/safety.js';
+import { safetyBar, crewRockets, estimates, estimatedSafety, limitFor, componentName, designKey, testCost } from '../rules/safety.js';
 import { capabilityShown } from '../rules/mercury.js';
+import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure } from '../rules/culture.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
 
@@ -174,6 +177,27 @@ function apolloMessage() {
     body: `<p>Here are the three approaches, costed. The ranges are how sure the study is.</p><p class="m">${evidence < 3 ? 'Gemini has not yet flown everything a rendezvous needs. Each rendezvous, docking or spacewalk it flies firms up the risk figures of the two rendezvous approaches, so waiting buys certainty at the cost of schedule.' : 'Gemini has flown rendezvous, docking and spacewalks: the rendezvous risk figures are as firm as this study can make them.'}</p>${table}` };
 }
 
+// THE SAFETY BAR (rules/safety.js): the engineers' estimates for each crew rocket against the bar you set.
+const percent = chance => chance < .005 ? 'under 0.5%' : `${(chance * 100).toFixed(1)}%`;
+const stepper = (action, value, low, high, id = '') => `<button class="step" data-a="${action}" data-n="-1"${id ? ` data-id="${id}"` : ''}${value <= low ? ' disabled' : ''}>−</button><button class="step" data-a="${action}" data-n="1"${id ? ` data-id="${id}"` : ''}${value >= high ? ' disabled' : ''}>+</button>`;
+function safetyMessage() {
+  const bar = safetyBar();
+  if (!bar) return null;
+  const rockets = crewRockets().map(kind => {
+    const { tests, evidence, figures } = estimates(kind), safety = estimatedSafety(figures), testing = bar.j && bar.j.k == designKey(kind);
+    const rows = Object.entries(figures).map(([key, risk]) => `<div class="r"><span>${escapeHtml(componentName(key))}</span><span class="nw"><span class="d">tests ${percent(evidence[key])} · lead</span> <b class="${risk > limitFor(key) ? 'wn' : ''}">${percent(risk)}</b> <span class="d">limit ${percent(limitFor(key))}</span> ${stepper('sflim', limitFor(key), LIMIT_RANGE[0], LIMIT_RANGE[1], key)}</span></div>`).join('');
+    return `<div class="c"><div class="r"><b>${escapeHtml(PROGRAMMES[kind].name)}</b><span><span class="d">tests ${percent(estimatedSafety(evidence))} · lead</span> <b class="${safety < bar.tgt ? 'wn' : ''}">${percent(safety)} to orbit</b></span></div>`
+      + `<div class="m">${tests} ground test${tests == 1 ? '' : 's'} on this revision${testing ? `, one under way (${Math.max(1, Math.round(bar.j.d))} days)` : tests < bar.n ? `, ${formatMoney(testCost(kind))} each` : ''}.</div>${rows}</div>`;
+  }).join('');
+  return {
+    id: 'safety', kind: 'report', from: 'Office of Manned Space Flight', role: 'Safety and reliability', pane: 'note', subject: 'The safety bar for crewed launches',
+    body: '<p>Every crewed launch must clear this bar. For each part of a rocket\'s current revision you see two figures: the failure chance the tests support, and the lead\'s reading of it, which is what the launch is judged on. Each ground test firms the evidence up; none is ever exact.</p>'
+      + `<div class="r"><span>Target: chance of reaching orbit</span><span><b>${percent(bar.tgt)}</b> ${stepper('sftgt', bar.tgt, TARGET_RANGE[0], TARGET_RANGE[1])}</span></div>`
+      + `<div class="r"><span>Ground tests per new revision</span><span><b>${bar.n}</b> ${stepper('sftests', bar.n, TESTS_RANGE[0], TESTS_RANGE[1])}</span></div>`
+      + (rockets || '<div class="m">No crew rocket is in production yet.</div>'),
+  };
+}
+
 function remitMessage() {
   const remit = S.remit, from = memberName('ellis'), role = memberRole('ellis');
   if (!remit) {
@@ -193,6 +217,23 @@ function remitMessage() {
     subject: asks.length ? `The ${PROGRAMMES[remit.prog].name} remit needs you` : `Running the ${PROGRAMMES[remit.prog].name} engineering`,
     body: asks.join('') + `<p>${remit.jobs} job${remit.jobs == 1 ? '' : 's'} started on the ${name}, ${formatMoney(remit.spent)} of ${formatMoney(remit.cap)} spent.</p><p class="m">${authorityText()}</p>`
       + `<div class="acts">${referred.length ? '<button data-a="mailremit">OPEN THE INCIDENTS</button>' : ''}<button data-a="rraise">RAISE BY ${formatMoney(REMIT_RAISE)}</button><button data-a="rraise" data-n="2">DOUBLE TO ${formatMoney(2 * S.remit.cap)}</button><button data-a="rend">CLOSE THE REMIT</button></div>`,
+  };
+}
+
+// THE CULTURE (rules/culture.js): Ellis's note on how the programme works, in words, once the team has seen enough of your habits.
+// With a launch director, a line on how sure of themselves the crews are.
+function cultureMessage() {
+  const words = cultureWords();
+  if (!words) return null;
+  // A team short of money leans its own way: say so for each lead whose budget is nearly spent.
+  const pressed = Object.keys(TEAM_LINES).filter(lead => memberJoined(lead) && budgetPressure(lead) >= .3)
+    .map(lead => `<p class="wn">${escapeHtml(memberName(lead))}'s team is running short of money. Teams in that position take more chances and play faults down.</p>`).join('');
+  const recent = recentHabits().slice(0, 5).map(habit => `<div class="r"><span>${escapeHtml(habit.t || HABITS[habit.k].name)}</span><b class="d">${formatDate(habit.d)}</b></div>`).join('');
+  return {
+    id: 'culture', kind: 'report', from: memberName('ellis'), role: memberRole('ellis'), pane: 'note',
+    subject: `How we do things here: ${words.name}`,
+    body: `<p>${escapeHtml(words.line)}</p>${S.staff.director ? `<p>${escapeHtml(confidenceWords())}</p>` : ''}${pressed}<p class="m">What the team has seen lately:</p>${recent}`
+      + '<p class="m">The team works the way you do. When they run things themselves, they will run them in this style.</p>',
   };
 }
 
@@ -218,8 +259,12 @@ function messages() {
   if (staff) list.push(staff);
   const apolloNote = apolloMessage();
   if (apolloNote) list.push(apolloNote);
+  const safety = safetyMessage();
+  if (safety) list.push(safety);
   const remit = remitMessage();
   if (remit) list.push(remit);
+  const culture = cultureMessage();
+  if (culture) list.push(culture);
   const incidents = waitingIncidents();
   if (incidents.length) list.push({
     id: 'inc', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: `${incidents.length} incident${incidents.length == 1 ? '' : 's'} waiting for you`, pane: 'note',
