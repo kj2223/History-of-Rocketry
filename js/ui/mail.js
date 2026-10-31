@@ -25,6 +25,8 @@ import { BRIEF_SIZES, briefLines, briefTotal } from '../rules/brief.js';
 import { STUDY_SIZES, ARCHITECTURES, ARCHITECTURE_ORDER } from '../data/apollo.js';
 import { apollo, apolloLead, studyDays, estimate } from '../rules/apollo.js';
 import { TARGET_RANGE, LIMIT_RANGE, TESTS_RANGE } from '../data/safety.js';
+import { PRESSURES } from '../data/pressure.js';
+import { pressure, pressureLevel, pressureWords } from '../rules/pressure.js';
 import { safetyBar, crewRockets, estimates, estimatedSafety, limitFor, componentName, designKey, testCost } from '../rules/safety.js';
 import { capabilityShown } from '../rules/mercury.js';
 import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure } from '../rules/culture.js';
@@ -180,6 +182,17 @@ function apolloMessage() {
 // THE SAFETY BAR (rules/safety.js): the engineers' estimates for each crew rocket against the bar you set.
 const percent = chance => chance < .005 ? 'under 0.5%' : `${(chance * 100).toFixed(1)}%`;
 const stepper = (action, value, low, high, id = '') => `<button class="step" data-a="${action}" data-n="-1"${id ? ` data-id="${id}"` : ''}${value <= low ? ' disabled' : ''}>−</button><button class="step" data-a="${action}" data-n="1"${id ? ` data-id="${id}"` : ''}${value >= high ? ' disabled' : ''}>+</button>`;
+// PRESSURE ON APOLLO (rules/pressure.js): the press, the public and Congress, in words and headlines.
+function pressureMessage() {
+  const state = pressure();
+  if (!state) return null;
+  const rows = Object.entries(PRESSURES).map(([key, each]) => `<div class="r"><span>${each.name}</span><b class="${pressureLevel(key) >= 2 ? 'wn' : ''}">${pressureWords(key)}</b></div><div class="m">${each.effect}</div>`).join('');
+  const headlines = state.hl.slice().reverse().map(line => `<div class="m"><span class="d">${formatDate(line.d)}</span> ${escapeHtml(line.t)}</div>`).join('');
+  return {
+    id: 'pressure', kind: 'report', from: 'Public Affairs Office', role: 'Press, public and Congress', pane: 'note', subject: 'How Washington sees Apollo',
+    body: rows + (headlines ? `<div class="lbl">HEADLINES</div>${headlines}` : ''),
+  };
+}
 function safetyMessage() {
   const bar = safetyBar();
   if (!bar) return null;
@@ -261,6 +274,8 @@ function messages() {
   if (apolloNote) list.push(apolloNote);
   const safety = safetyMessage();
   if (safety) list.push(safety);
+  const press = pressureMessage();
+  if (press) list.push(press);
   const remit = remitMessage();
   if (remit) list.push(remit);
   const culture = cultureMessage();

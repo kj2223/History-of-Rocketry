@@ -2040,3 +2040,41 @@ test('the launch director will not fly a crew past the bar, and a launch you ord
   launchOverBar('titan', 'a test');
   assert.equal(S.cult.ev.at(-1).k, 'override');
 });
+
+// PRESSURE ON APOLLO (Apollo step 5): the press, the public and Congress.
+test('pressure opens with Apollo, rises with a Soviet first, eases with an American one and settles by itself', async () => {
+  const { pressureTick, pressure, notePressure } = await import('../js/rules/pressure.js');
+  notePressure('sovietFirst');
+  assert.equal(pressure(), null, 'nothing before Apollo');
+  await mercuryComplete();
+  pressureTick(1);
+  const start = { ...pressure() };
+  notePressure('sovietFirst', 'Test wire.');
+  assert.ok(pressure().press > start.press && pressure().cong > start.cong);
+  assert.equal(pressure().hl.at(-1).t, 'Test wire.');
+  const raised = pressure().cong;
+  notePressure('ourFirst');
+  assert.ok(pressure().cong < raised);
+  notePressure('crewLost');
+  const high = pressure().press;
+  for (let month = 0; month < 24; month++) pressureTick(30);
+  assert.ok(pressure().press < high, 'pressure settles with time');
+});
+test('each pressure has its own effect: Congress trims the budget, the press leaks, the public scales a first', async () => {
+  const { pressureTick, pressure, congressTrim, publicScale, pressLeak } = await import('../js/rules/pressure.js');
+  await mercuryComplete();
+  pressureTick(1);
+  assert.equal(congressTrim(), 0, 'no trim while Congress is calm');
+  pressure().cong = 100;
+  assert.ok(congressTrim() > 0);
+  pressure().pub = 0;
+  const calm = publicScale();
+  pressure().pub = 100;
+  assert.ok(publicScale() > calm);
+  S.rep = 50;
+  pressure().press = 20;
+  assert.equal(pressLeak('a test'), 0, 'a quiet press prints nothing');
+  pressure().press = 100;
+  assert.ok(pressLeak('a test') > 0);
+  assert.ok(S.rep < 50);
+});
