@@ -394,19 +394,20 @@ function flightTick() {
 }
 
 // A MERCURY FLIGHT: the same count and poll, then the mission timeline with decisions and the air-to-ground loop.
-export function startMissionCount() {
+// overBar: you ordered a crew past the safety bar (rules/safety.js).
+export function startMissionCount(overBar = false) {
   const state = S.p2, capsule = state && state.veh.find(candidate => candidate.id == state.lv), booster = state && S.air.find(airframe => airframe.id == state.lb && airframe.st == 'r');
   if (!capsule || !booster) return;
   const crew = state.lc || 'none', propellant = state.lf || 'Alcohol & LOX', plan = boosterPlan(booster, propellant, capsule.mt);
   if (!plan.ok || crewLock(crew, booster, capsule.mt)) return;
   holdForLaunch(booster.id);
-  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo, eva: state.le, target: state.lr });
+  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo, eva: state.le, target: state.lr, overBar });
   openPad();
   runCount();
 }
 function launchMission(override) {
   const count = launchView.count, poll = count.poll;
-  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind, orbits: count.mission.orbits, eva: count.mission.eva, target: count.mission.target });
+  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind, orbits: count.mission.orbits, eva: count.mission.eva, target: count.mission.target, overBar: count.mission.overBar });
   if (!mission) return;
   airborne.mission = mission;
   mission.shownTranscript = 0;
