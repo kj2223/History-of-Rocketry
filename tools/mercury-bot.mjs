@@ -11,7 +11,7 @@ import { FAILURE_MODES } from '../js/data/failures.js';
 import { PROGRAMMES } from '../js/data/programmes.js';
 import { researchLock, commission, itemsInArea } from '../js/rules/research.js';
 import { unitCost, draftChanges, draftSize } from '../js/rules/production.js';
-import { candidates, startLock, startProgramme, stagesOf } from '../js/rules/programs.js';
+import { candidates, startLock, startProgramme, stagesOf, maturity } from '../js/rules/programs.js';
 import { hire, engineeringTeamCost } from '../js/rules/game.js';
 import { orderAirframes, publishBlueprint, buildTeams, buildTeamCost } from '../js/rules/factory.js';
 import { startInvestigation, chooseFix, INVESTIGATION_COST } from '../js/rules/jobs.js';
@@ -39,13 +39,13 @@ const spacecraftResearch = () => [...PACKAGES.filter(item => (item.area == 'c' |
 const boosterResearch = () => ['p', 's', 'i', 'a'].flatMap(itemsInArea).sort((first, second) => first.cost - second.cost).map(item => item.id);
 const readyProgrammes = () => Object.keys(S.progs).filter(kind => S.progs[kind].ready);
 
-// game: { advance(seconds), now() in seconds, flyLaunch(airframe, ballastOnly), maxSeconds, sectionOneOnly }
-// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone, mercuryAt, geminiDone }.
+// game: { advance(seconds), now() in seconds, flyLaunch(airframe, ballastOnly, payload) returning the flight's result, maxSeconds, saturnSeconds, sectionOneOnly }
+// Returns { nasaAt, directiveTimes, missions, missionFails, astronautsLost, launches, done, sectionOne, sectionTwoDone, mercuryAt, geminiDone, geminiAt, saturnAt, saturnLaunches }.
 // sectionTwoDone: Mercury is complete, at mercuryAt (seconds), with the counts and budget then in atMercury;
-// geminiDone: every Gemini directive built so far is met.
+// geminiDone: every Gemini directive built so far is met, at geminiAt; saturnAt: a Saturn I first put a boilerplate in orbit, after saturnLaunches.
 // sectionOne: { at (seconds), budget, date day, missions, missionFails, astronautsLost, launches, human } when Section 1 completed.
 export function playMercury(game) {
-  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false };
+  const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false, geminiAt: null, saturnAt: null, saturnLaunches: 0 };
   // Programmes known not to deliver a mission type: "mr:wac" and so on, so the bot does not keep building them.
   // For the orbital flight the blueprint revision is part of the key: research can make a rocket fast enough later.
   const tooSmall = {};
@@ -136,6 +136,76 @@ export function playMercury(game) {
     advance(30 + Math.ceil(steps / 4) + 5 * decisions);
   };
 
+  // Each rocket's incidents, then those of its lower stages (rules/stages.js).
+  const workIncidents = reserve => {
+    for (const kind of readyProgrammes().flatMap(kind => [kind, ...stagesOf(kind)])) withProgramme(kind, () => {
+      for (const incident of S.inc) {
+        if (!freeTeams()) break;
+        if (incident.st == 'open' && S.b - INVESTIGATION_COST >= reserve) startInvestigation(incident.id);
+        else if (incident.st == 'diag') for (const fix of FAILURE_MODES[incident.dx].fixes.slice().sort((first, second) => first.riskMultiplier - second.riskMultiplier)) if (S.b - fix.cost >= reserve && freeTeams()) {
+          chooseFix(incident.id, fix.id);
+          break;
+        }
+      }
+    });
+  };
+  // Apollo: the Mercury lead goes with the team, the full study once affordable, and the lowest-risk estimate once Gemini has
+  // docked (or when Gemini is complete, whatever it has flown).
+  const planApollo = () => {
+    const project = S.p2.ap;
+    if (!project) return;
+    if (project.lead === undefined) decideRollover(true);
+    if (!project.sz) startStudy(S.b > STUDY_SIZES.full.cost + 100000 ? 'full' : 'quick');
+    if (project.done && !project.arch && (capabilityShown('dock') || S.p2.gemDone))
+      chooseArchitecture(ARCHITECTURE_ORDER.slice().sort((first, second) => estimate(first, 'risk').mid - estimate(second, 'risk').mid)[0]);
+  };
+  // Research a rocket and fly one of its airframes (ordering one when the hangar has none): cargo as for game.flyLaunch.
+  const workRocket = (kind, reserve, cargo) => {
+    withProgramme(kind, () => {
+      if (draftSize(draftChanges())) publishBlueprint();
+    });
+    if (S.teams < 6 && S.b > engineeringTeamCost() + reserve + 30000) hire('team');
+    workIncidents(reserve);
+    withProgramme(kind, () => {
+      for (const id of boosterResearch()) if (freeTeams() && !researchLock(id) && S.b - BY_ID[id].cost * PROGRAMMES[S.cur].costScale >= reserve) commission(id);
+    });
+    const airframe = S.air.find(each => each.st == 'r' && each.prog == kind);
+    if (!airframe) {
+      if (!S.aq.some(item => item.k == 'build')) withProgramme(kind, () => {
+        if (S.b >= unitCost() + reserve) orderAirframes(1);
+      });
+      advance(5);
+      return null;
+    }
+    return game.flyLaunch(airframe, false, cargo);
+  };
+  // SATURN I, once Gemini is complete: start it when the architecture is chosen (maturing the Titan II or Atlas first if neither
+  // has), build LC-34, and research and fly it with Apollo boilerplates until one reaches orbit, for up to game.saturnSeconds.
+  // Commission sends each propulsion and structures package to the S-I or S-IV, whichever is behind.
+  const flySaturn = () => {
+    const reserve = 15000, until = game.now() + (game.saturnSeconds || 0);
+    while (game.now() < until && report.saturnAt === null) {
+      planApollo();
+      if (S.fy && S.b < 150000) setRequest(REQUEST_RANGE[1]);
+      if (!S.progs.saturn1) {
+        const lock = startLock('saturn1');
+        if (!lock && S.b - PROGRAMMES.saturn1.cost > reserve) startProgramme('saturn1');
+        const unripe = lock && lock.startsWith('Needs') && PROGRAMMES.saturn1.requires.filter(kind => S.progs[kind] && S.progs[kind].ready).sort((first, second) => maturity(second) - maturity(first))[0];
+        if (unripe) workRocket(unripe, reserve);
+        else advance(5);
+        continue;
+      }
+      if (!facilityLock('lc34') && S.b - FACILITIES.lc34.cost > reserve) buildFacility('lc34');
+      if (!S.progs.saturn1.ready) {
+        advance(5);
+        continue;
+      }
+      const result = workRocket('saturn1', reserve, 'Apollo Boilerplate');
+      if (result) report.saturnLaunches++;
+      if (result == 'orbit') report.saturnAt = game.now();
+    }
+  };
+
   while (game.now() < game.maxSeconds) {
     if (!S.nasa) {
       if (nasaReady()) formNasa();
@@ -159,15 +229,7 @@ export function playMercury(game) {
       report.mercuryAt = game.now();
       report.atMercury = { missions: report.missions, missionFails: report.missionFails, astronautsLost: report.astronautsLost, launches: report.launches, budget: S.b };
     }
-    // Apollo: the Mercury lead goes with the team, the full study once affordable, and the lowest-risk estimate once Gemini has
-    // docked (or when Gemini is complete, whatever it has flown).
-    const project = state.ap;
-    if (project) {
-      if (project.lead === undefined) decideRollover(true);
-      if (!project.sz) startStudy(S.b > STUDY_SIZES.full.cost + 100000 ? 'full' : 'quick');
-      if (project.done && !project.arch && (capabilityShown('dock') || state.gemDone))
-        chooseArchitecture(ARCHITECTURE_ORDER.slice().sort((first, second) => estimate(first, 'risk').mid - estimate(second, 'risk').mid)[0]);
-    }
+    planApollo();
     if (state.gemDone) {
       report.geminiDone = true;
       break;
@@ -226,17 +288,7 @@ export function playMercury(game) {
     for (const id of spacecraftResearch()) if (freeTeams() && !researchLock(id) && S.b - BY_ID[id].cost >= reserve) commission(id);
     for (const id of Object.keys(S.g.pk)) if (freeTeams() && !groundTestLock(id) && S.b > reserve) groundTest(id);
     for (const candidate of candidates()) if (!startLock(candidate) && S.b - PROGRAMMES[candidate].cost > reserve + 40000) startProgramme(candidate);
-    // Each rocket's incidents, then those of its lower stages (rules/stages.js).
-    for (const kind of readyProgrammes().flatMap(kind => [kind, ...stagesOf(kind)])) withProgramme(kind, () => {
-      for (const incident of S.inc) {
-        if (!freeTeams()) break;
-        if (incident.st == 'open' && S.b - INVESTIGATION_COST >= reserve) startInvestigation(incident.id);
-        else if (incident.st == 'diag') for (const fix of FAILURE_MODES[incident.dx].fixes.slice().sort((first, second) => first.riskMultiplier - second.riskMultiplier)) if (S.b - fix.cost >= reserve && freeTeams()) {
-          chooseFix(incident.id, fix.id);
-          break;
-        }
-      }
-    });
+    workIncidents(reserve);
     for (const kind in overLimit) withProgramme(kind, () => {
       for (const id of itemsInArea('a').map(item => item.id)) if (freeTeams() && !researchLock(id) && S.b - BY_ID[id].cost * PROGRAMMES[S.cur].costScale >= reserve) commission(id);
     });
@@ -327,5 +379,10 @@ export function playMercury(game) {
     flyMission(capsule, booster, crew, orbits, target);
   }
   markDirectives();
+  if (report.geminiDone) {
+    report.geminiAt = game.now();
+    report.geminiBudget = S.b;
+    flySaturn();
+  }
   return report;
 }
