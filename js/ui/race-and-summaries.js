@@ -16,7 +16,9 @@ export function renderRace() {
     const status = FIRST_STATUS[S.fs[first.id]];
     return `<div class="first"><span>${first.name}${first.rivalEvent ? ' <span class="d">(contested)</span>' : ''}</span><b class="${status ? status[0] : 'd'}">${status ? status[1] : 'open'}</b></div>`;
   }).join('');
-  setHTML($('#race'), bars + firsts + `<div class="m" style="margin-top:8px">${[...RIVAL, ...RIVAL_SECTION_TWO].filter(event => S.rvd[event.id]).map(event => `<div class="bad">Soviet: ${event.short} (achieved)</div>`).join('')}${estimate ? `Intelligence expects ${estimate.what} between ${estimate.lo} and ${estimate.hi}.` : 'The Soviet programme has achieved everything we were tracking.'}</div>`);
+  // Before NASA, the Army's captured V-2s fly beside you; their record shows under the firsts (they never claim one).
+  const v2 = !S.nasa && S.v2 && S.v2.n ? `<div class="m">Army V-2s at White Sands: ${S.v2.n} flown, ${S.v2.ok} good, best ${S.v2.hi} km. <span class="d">Captured German rockets, so the firsts above stay open for American-built ones.</span></div>` : '';
+  setHTML($('#race'), bars + firsts + v2 + `<div class="m" style="margin-top:8px">${[...RIVAL, ...RIVAL_SECTION_TWO].filter(event => S.rvd[event.id]).map(event => `<div class="bad">Soviet: ${event.short} (achieved)</div>`).join('')}${estimate ? `Intelligence expects ${estimate.what} between ${estimate.lo} and ${estimate.hi}.` : 'The Soviet programme has achieved everything we were tracking.'}</div>`);
 }
 
 // END-OF-PHASE SUMMARY: your timeline, and your firsts against the Soviets and the real US programme.
@@ -28,7 +30,7 @@ export function showPhaseOneSummary() {
   $('#sum').innerHTML = `<div class="sumbox"><h1>PHASE ONE COMPLETE</h1><div class="d">From sounding rockets to ${S.fs.f_orbit ? 'orbit' : 'the edge of space'} • ${today()}</div>
 <div class="sumg"><div><h2>YOUR PROGRAMME</h2>${S.hist.map(entry => `<div class="first"><span>${entry.t}</span><b class="d">${formatDate(entry.d)}</b></div>`).join('') || '<div class="m">No milestones recorded.</div>'}</div>
 <div><h2>FIRSTS: YOU, THE SOVIETS, HISTORY</h2><div class="tw"><table><tr><th>First</th><th>You</th><th>Soviets</th><th>Real US</th></tr>${FIRSTS.filter(first => !SECTION_TWO_FIRSTS.includes(first.id)).map(first => `<tr><td>${first.name.replace(/^First /, '')}</td><td class="${S.fs[first.id] == 'us' ? 'ok' : S.fs[first.id] == 'second' ? 'wn' : 'd'}">${S.fsd[first.id] != null ? formatDate(S.fsd[first.id]) : '—'}</td><td>${sovietDate(first.id)}</td><td class="d">${HISTORICAL_US_FIRSTS[first.id] || ''}</td></tr>`).join('')}</table></div>
-<div class="m">Records: ${Math.round(S.hi).toLocaleString()} m altitude, ${Math.round(S.hs).toLocaleString()} m/s, ${Math.round((S.hd || 0) / 1000)} km downrange. ${S.ok} successful flights.</div></div></div>
+${S.v2 && S.v2.n ? `<div class="m">Beside you on the range: ${S.v2.n} Army V-2 launches, ${S.v2.ok} good, the best to ${S.v2.hi} km.</div>` : ''}<div class="m">Records: ${Math.round(S.hi).toLocaleString()} m altitude, ${Math.round(S.hs).toLocaleString()} m/s, ${Math.round((S.hd || 0) / 1000)} km downrange. ${S.ok} successful flights.</div></div></div>
 <button data-a="closesum">CONTINUE PLAYING</button></div>`;
   $('#sum').hidden = false;
 }

@@ -8,6 +8,7 @@ import { S, log, earn } from '../core/state.js';
 import { grant, defenseSupplement, payroll, programmeProgress } from './economy.js';
 import { budgetTick, payAppropriation } from './budget.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
+import { neighboursTick } from './neighbours.js';
 import { roomLevel } from './launch-site.js';
 import { constructionTick, upkeep } from './site.js';
 import { createProgramme, isMature, ensureStages } from './programs.js';
@@ -45,7 +46,7 @@ export const catchUp = () => {
 };
 export const daysPerSecond = () => (S.nasa ? DAYS_PER_SECOND_PHASE_TWO : DAYS_PER_SECOND) * catchUp();
 
-// ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the appropriation and payroll every funding cycle,
+// ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the V-2s on the range, the appropriation and payroll every funding cycle,
 // the Astronaut Office, the Apollo study and safety bar, the factory, engineering jobs, Ellis's remit, Chen's research lanes and the shared lanes, Reed's factory, customer demand for
 // standing orders, auto-publishing and programme maturity. Returns true if the page needs redrawing.
 export function tickSecond() {
@@ -59,6 +60,7 @@ export function tickSecond() {
   S.day += days;
   if (constructionTick()) changed = true;
   if (sovietEventsTick()) changed = true;
+  if (neighboursTick()) changed = true;
   // A funding cycle is 30 seconds at the normal calendar; catching up with history brings paydays sooner, so a year pays the same.
   S.gt -= catchUp();
   if (S.gt <= 0) {
