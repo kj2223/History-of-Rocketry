@@ -33,6 +33,8 @@ import { remitUnlocked, startRemit, raiseRemit, REMIT_CAPS } from '../js/rules/r
 
 const BUY = [['crew', 'prop'], ['crew', 'rso'], ['fac', 'wx'], ['fac', 'tty'], ['crew', 'tlm'], ['fac', 'radar'], ['fac', 'plot'], ['crew', 'bstr'], ['fac', 'comp'], ['crew', 'fido']];
 const RUNS = +process.argv[2] || 6, MAX_MINUTES = +process.argv[3] || 240, GOAL = 5, DELEGATE = !!process.env.DELEGATE;
+// After Gemini the bot gets this long to put a boilerplate in orbit on a Saturn I.
+const SATURN_MINUTES = 120;
 const rng = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const BOT_MILESTONES = ['ms_rel', 'ms_eng', 'ms_in', 'ms_rg', 'ms_aero', 'ms_blunt'];
 // Research everything the programme offers, cheapest first, plus the first approach of each milestone choice and four recovery packages.
@@ -61,11 +63,12 @@ function run(seed) {
       if (!(S.p2 && S.p2.secDone)) for (const kind in S.progs) if (S.progs[kind].matured && !(kind in programmeMatured)) programmeMatured[kind] = t;
     }
   };
-  // ONE ORDINARY LAUNCH of an airframe from the hangar, flown the way a sensible player would. ballastOnly: no satellite attempt.
-  const flyLaunch = (ready, ballastOnly = false) => {
+  // ONE ORDINARY LAUNCH of an airframe from the hangar, flown the way a sensible player would. ballastOnly: no satellite attempt;
+  // cargo: the satellite to fly instead of the Explorer. Returns the flight's result ('orbit', 'fail', 'land'), if it flew.
+  const flyLaunch = (ready, ballastOnly = false, cargo = null) => {
     const stage = hasBoosterStage(ready) ? 1 : 0, propellants = PROGRAMMES[ready.prog].propellants;
-    const satellite = PROGRAMMES[ready.prog].canOrbit && S.dir >= 4 && !ballastOnly;
-    const payload = satellite ? 'Explorer Satellite' : 'Inert Ballast';
+    const satellite = !!cargo || PROGRAMMES[ready.prog].canOrbit && S.dir >= 4 && !ballastOnly;
+    const payload = cargo || (satellite ? 'Explorer Satellite' : 'Inert Ballast');
     // A sensible player picks the propellant and load whose estimate is highest while staying inside the airframe's aero and heating limits.
     let best = null;
     for (const propellant of propellants)
@@ -105,7 +108,7 @@ function run(seed) {
     flights++;
     if (result == 'fail') fails++;
     // Real time on screen: a 30 s count, powered flight at 8 steps a second, coasting at 100, and a few seconds to read the result.
-    { const powered = Math.min(flight.time, flight.burnTime * (flight.stages.length > 1 ? 3 : 1)); advance(30 + 8 + Math.ceil(powered / 8 + (flight.time - powered) / 100)); }
+    { const powered = Math.min(flight.time, flight.burnTime * (flight.stages.length > 1 ? 3 : 1)); advance(30 + 8 + Math.ceil(powered / 8 + (flight.time - powered) / 100)); }    return result;
   };
   // THE DELEGATION ROUTE (DELEGATE=1), once a turn before the bot's own work.
   const delegated = { at: null };
@@ -201,13 +204,14 @@ function run(seed) {
   if (!phaseOne.orbit || process.env.PHASE_ONE_ONLY) return phaseOne;
   // Phase Two picks up where Phase One stopped, with the same clock and the same flying.
   // Section 1's figures are the ones taken when it completed (or the end of play, if it never did).
-  const mercury = playMercury({ advance, now: () => t, flyLaunch, maxSeconds: t + MAX_MINUTES * 60, sectionOneOnly: !!process.env.SECTION_ONE_ONLY });
+  const mercury = playMercury({ advance, now: () => t, flyLaunch, maxSeconds: t + MAX_MINUTES * 60, saturnSeconds: SATURN_MINUTES * 60, sectionOneOnly: !!process.env.SECTION_ONE_ONLY });
   const one = mercury.sectionOne || { at: t, budget: S.b, date: S.p2 && S.p2.secDone, missions: mercury.missions, missionFails: mercury.missionFails, astronautsLost: mercury.astronautsLost, launches: mercury.launches, human: S.fs.f_human };
   return {
     ...phaseOne, mercury, one, endMercury: one.at, budgetMercury: one.budget, sectionDate: one.date ? formatDate(one.date) : '-', gagarin: formatDate(S.rv.r_gagarin), human: one.human || '-',
-    end: t, budgetEnd: S.b, mercuryDate: S.p2 && S.p2.mercDone ? formatDate(S.p2.mercDone) : '-', titov: S.rv.r_titov ? formatDate(S.rv.r_titov) : '-', dayInOrbit: S.fs.f_day || '-',
+    end: mercury.geminiAt === null ? t : mercury.geminiAt, budgetEnd: mercury.geminiBudget === undefined ? S.b : mercury.geminiBudget, saturnEnd: t, mercuryDate: S.p2 && S.p2.mercDone ? formatDate(S.p2.mercDone) : '-', titov: S.rv.r_titov ? formatDate(S.rv.r_titov) : '-', dayInOrbit: S.fs.f_day || '-',
     geminiDate: S.p2 && S.p2.gemDone ? formatDate(S.p2.gemDone) : '-', apollo: S.p2 && S.p2.ap && S.p2.ap.arch ? `${S.p2.ap.arch} ${formatDate(S.p2.ap.ad)}` : S.p2 && S.p2.ap && S.p2.ap.done ? 'study done, no choice' : '-', crew2: S.fs.f_crew2 || '-', eva: S.fs.f_eva || '-',
     voskhod: S.rv.r_voskhod ? formatDate(S.rv.r_voskhod) : '-', leonov: S.rv.r_leonov ? formatDate(S.rv.r_leonov) : '-',
+    saturnDate: mercury.saturnAt === null ? '-' : formatDate(S.day), saturnRevs: S.progs.saturn1 ? ['saturn1', ...stagesOf('saturn1')].map(kind => S.progs[kind].bp.rev).join('/') : '-',
     dock: S.fs.f_dock || '-', kosmos: S.rv.r_kosmos ? formatDate(S.rv.r_kosmos) : '-',
   };
 }
@@ -229,5 +233,6 @@ for (let i = 0; i < RUNS; i++) {
     const mercuryEnd = mercury.mercuryAt === null ? r.end : mercury.mercuryAt, atEnd = mercury.atMercury || { ...mercury, budget: r.budgetEnd };
     console.log(`        section 2: ${mercury.sectionTwoDone ? 'done' : 'NOT DONE'} in ${minutes(mercuryEnd - r.endMercury)}m after Section 1 (play total ${minutes(mercuryEnd)}m) ${r.mercuryDate} (day in orbit: ${r.dayInOrbit}, Titov ${r.titov}) missions ${atEnd.missions - r.one.missions} failed ${atEnd.missionFails - r.one.missionFails} astronautsLost ${atEnd.astronautsLost - r.one.astronautsLost} rating launches ${atEnd.launches - r.one.launches} budget ${Math.round(atEnd.budget)} | directives(min after Section 1) ${MERCURY_DIRECTIVES.slice(first, end).map((_, k) => minutes(since(first + k))).join(' ')}`);
     if (mercury.sectionTwoDone) console.log(`        gemini: ${mercury.geminiDone ? 'done' : 'NOT DONE'} in ${minutes(r.end - mercuryEnd)}m after Mercury (play total ${minutes(r.end)}m) ${r.geminiDate} (two-man crew: ${r.crew2}, Voskhod ${r.voskhod}; spacewalk: ${r.eva}, Leonov ${r.leonov}; docking: ${r.dock}, Kosmos ${r.kosmos}) missions ${mercury.missions - atEnd.missions} failed ${mercury.missionFails - atEnd.missionFails} astronautsLost ${mercury.astronautsLost - atEnd.astronautsLost} rating launches ${mercury.launches - atEnd.launches} budget ${Math.round(r.budgetEnd)} apollo ${r.apollo}`);
+    if (mercury.geminiDone) console.log(`        saturn: ${mercury.saturnAt !== null ? 'orbit' : 'NOT DONE'} in ${minutes((mercury.saturnAt === null ? r.saturnEnd : mercury.saturnAt) - r.end)}m after Gemini (play total ${minutes(mercury.saturnAt === null ? r.saturnEnd : mercury.saturnAt)}m) ${r.saturnDate} launches ${mercury.saturnLaunches} stage revisions ${r.saturnRevs}`);
   }
 }
