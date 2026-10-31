@@ -7,7 +7,7 @@ import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { MISSION_TYPES } from '../data/mercury.js';
 import { PAYLOADS } from '../data/launch.js';
 import { FAILURE_MODES, SYMPTOMS } from '../data/failures.js';
-import { S, log, logSink } from '../core/state.js';
+import { S, log, logSink, launchInProgress } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { holdForLaunch } from '../rules/factory.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
@@ -35,6 +35,8 @@ export const launchView = { count: null, countTimer: null, flightTimer: null, la
 // Busy: a count or a flight holds the game to 1x, except a mission in its quiet stretch in orbit, which flies in the background.
 export const isBusy = () => !!launchView.count && !(airborne.mission && !airborne.mission.pending && inQuietOrbit(airborne.mission));
 export const isCounting = () => !!launchView.count && launchView.count.phase == 'count';
+// The launch crew and the consoles change only between launches (rules/launch-site.js arrivals, rules/site.js construction).
+launchInProgress.busy = () => !!launchView.count && launchView.count.phase != 'done';
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
 

@@ -36,6 +36,7 @@
 //   p2      Phase Two (Mercury) state (see rules/mercury.js)
 //   fy      NASA's yearly budget (see rules/budget.js)
 //   cq      construction orders waiting for a crew    mb   mothballed buildings    pt   pads being readied (see rules/site.js)
+//   hq      launch-crew hires and releases waiting for the launch under way to end (see rules/launch-site.js)
 //   team    the core team's record: Ellis, Vega and Morgan (see rules/team.js)
 //   remit   Ellis's engineering remit, or null (see rules/remit.js)
 //   lanes   Chen's research lanes, or null (see rules/lanes.js)
@@ -194,6 +195,9 @@ export const save = () => {
 // THE LOG. Every line goes to the page (through logSink) and, unless it is routine, to the run log.
 // The second argument is a style class: ok, wn (warning), bad, hd (headline), nar (narrative), cyan.
 export const logSink = { fn: null };
+// Whether a count or a flight is under way, as the launch screen knows it (ui/launch-view.js sets busy). The launch crew and the
+// consoles change only between launches.
+export const launchInProgress = { busy: () => false };
 const RUN_LOG_LIMIT = 5000;
 // Routine lines the run log skips: flight readouts, money, dispatches, analysis and banners.
 const ROUTINE_LINE = /^(T\+|\[FISCAL\]|\[PAYROLL\]|\[DISPATCH\]|\[ANALYSIS\]|=== |--- )/;

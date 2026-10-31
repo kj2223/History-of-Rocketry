@@ -10,7 +10,7 @@
 //   pt   pads being refurbished or repaired, { id: day free again }
 import { FACILITIES, SITE, CONTROL_ROOM_FACILITIES, STATIONS } from '../data/launch-site.js';
 import { MERCURY_DIRECTIVES } from '../data/mercury.js';
-import { S, log, formatDate, addHistory } from '../core/state.js';
+import { S, log, formatDate, addHistory, launchInProgress } from '../core/state.js';
 import { CYCLES_PER_YEAR } from './budget.js';
 import { programmeOf } from './programs.js';
 
@@ -51,8 +51,9 @@ function startWaitingOrders() {
   }
 }
 // Every second: buildings whose day has come go into service and free their crew. Returns true if any did.
+// Not while a count or a flight is under way: new consoles open, and the core team sits down at them, between launches.
 export function constructionTick() {
-  if (!S.fb) return false;
+  if (!S.fb || launchInProgress.busy()) return false;
   let changed = false;
   for (const id in S.fb) if (S.day >= S.fb[id]) {
     delete S.fb[id];

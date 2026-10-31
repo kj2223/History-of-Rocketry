@@ -1147,6 +1147,38 @@ test('without a Mercury flight reputation slips, and a flight ends the quiet spe
   assert.equal(S.fy.q, 0);
 });
 
+// Aaron's report: a station hired mid-flight started working on the rocket already in the air.
+test('during a launch, hires and releases wait for it to end, and so do new buildings', async () => {
+  const { hireStation, dismissStation, stationLock, arrivalsTick } = await import('../js/rules/launch-site.js');
+  const { constructionTick } = await import('../js/rules/site.js');
+  const { launchInProgress } = await import('../js/core/state.js');
+  S.b = 1e6;
+  S.crew.prop = 1;
+  S.fb = { wx: S.day };
+  let busy = true;
+  launchInProgress.busy = () => busy;
+  try {
+    hireStation('rso');
+    dismissStation('prop');
+    assert.ok(!S.crew.rso, 'the RSO waits for the flight to end');
+    assert.equal(S.crew.prop, 1, 'PROP stays on for this flight');
+    assert.match(stationLock('rso'), /after this launch/);
+    assert.equal(arrivalsTick(), false);
+    assert.equal(constructionTick(), false, 'a finished building opens after the launch');
+    busy = false;
+    assert.equal(arrivalsTick(), true);
+    assert.equal(S.crew.rso, 1);
+    assert.equal(S.crew.prop, 0);
+    assert.deepEqual(S.hq, []);
+    assert.equal(constructionTick(), true);
+    assert.equal(S.fac.wx, 1);
+    hireStation('prop');
+    assert.equal(S.crew.prop, 1, 'between launches a hire sits down at once');
+  } finally {
+    launchInProgress.busy = () => false;
+  }
+});
+
 // THE SITE (rules/site.js): construction crews, upkeep, mothballing and launch pads.
 // Aaron's report: Phase One buildings went up the moment they were paid for, which was abusable.
 test('a building waits for a contractor crew and its construction days: one crew in Phase One, more from NASA on', async () => {
