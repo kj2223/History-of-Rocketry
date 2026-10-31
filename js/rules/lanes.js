@@ -27,6 +27,7 @@ import { itemsInArea, itemAsSeen, availabilityLock } from './research.js';
 import { queuePosition } from './queue.js';
 import { coveringMember, COVER_SKILL } from './launch-site.js';
 import { directorUnlocked } from './campaign.js';
+import { centrePace } from './apollo.js';
 import { memberJoined } from './team.js';
 import { hiredLead } from './leads.js';
 import { researchTarget } from './programs.js';
@@ -143,11 +144,12 @@ export function lanesTick() {
 }
 // Starts a package or milestone on a lane, for the rocket in focus (or the stage of it furthest behind).
 function startOnLane(area, lead, item) {
-  const time = Math.round(item.time / lead.pace);
+  const prog = researchTarget(item.id), saturn = PROGRAMMES[prog] && (PROGRAMMES[prog].needsApollo || PROGRAMMES[PROGRAMMES[prog].stageOf]?.needsApollo);
+  // A Saturn's research runs at the rocket centre's pace (rules/apollo.js centrePace): slower while it resents a decision.
+  const time = Math.round(item.time / lead.pace / (saturn ? centrePace('saturn') : 1));
   S.b -= item.cost;
   S.lanes.spent += item.cost;
   S.lanes.jobs++;
-  const prog = researchTarget(item.id);
   S.jobs.push({ k: 'pk', id: item.id, prog, t: time, tot: time, free: 1, ln: area });
   log(`[R&D] ${lead.name} starts ${item.name} in the ${AREAS[area].toLowerCase()} lane${prog != S.cur ? `, on the ${PROGRAMMES[prog].name}` : ''} (${formatMoney(item.cost)}).`, 'wn');
 }

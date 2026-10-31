@@ -23,7 +23,7 @@ import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
 import { bookRide, answerBumper } from '../rules/neighbours.js';
 import { answerCorporal } from '../rules/corporal.js';
 import { hireLead } from '../rules/leads.js';
-import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
+import { decideRollover, startStudy, chooseArchitecture, giveWorkShare } from '../rules/apollo.js';
 import { moveTarget, moveLimit, moveTests, retest } from '../rules/safety.js';
 import { answerRequest, shield } from '../rules/requests.js';
 import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
@@ -248,6 +248,10 @@ const GAME_ACTIONS = {
   aproll: send => decideRollover(send == '1'),
   apstudy: size => {
     const error = startStudy(size);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
+  apshare: key => {
+    const error = giveWorkShare(key);
     if (error) log('[NASA] ' + error, 'bad');
   },
   aparch: key => {
