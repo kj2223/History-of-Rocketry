@@ -215,10 +215,27 @@ function run(seed) {
 }
 const minutes = seconds => seconds === undefined ? '  -- ' : (seconds / 60).toFixed(1).padStart(5);
 // "programmes" lists each rocket as kind@started>matured (minutes). SEED=n plays only run n (with TRACE=1, one line per launch and per mission).
-// SECTION_ONE_ONLY=1 stops Phase Two once Section 1 is complete.
-for (let i = 0; i < RUNS; i++) {
-  if (process.env.SEED && +process.env.SEED != i) continue;
+// SECTION_ONE_ONLY=1 stops Phase Two once Section 1 is complete. SEED takes a list too (SEED=5,7), and plays those runs whatever [runs] is.
+// The last line is a summary of medians (play minutes). A run that never finishes a stage it reached is a stall: the summary names
+// it and the bot exits with an error, which is how tools/acceptance.mjs checks for dead ends.
+// The stage a run reached but never finished, or null.
+const stallOf = r => {
+  const mercury = r.mercury;
+  if (!r.orbit) return 'Phase One';
+  if (!mercury) return null;
+  if (!mercury.done) return 'Mercury Section 1';
+  if (process.env.SECTION_ONE_ONLY) return null;
+  if (!mercury.sectionTwoDone) return 'Mercury Section 2';
+  if (!mercury.geminiDone) return 'Gemini';
+  return mercury.saturnAt === null ? 'Saturn I' : null;
+};
+const ONLY = process.env.SEED ? process.env.SEED.split(',').map(Number) : null, played = [], stalls = [];
+for (let i = 0; i < (ONLY ? Math.max(...ONLY) + 1 : RUNS); i++) {
+  if (ONLY && !ONLY.includes(i)) continue;
   const r = run(1000 + i * 7919);
+  played.push(r);
+  const stuck = stallOf(r);
+  if (stuck) stalls.push(`seed ${i} (${stuck})`);
   console.log(`programmes ${Object.entries(r.programmeStarted).map(([kind, time]) => kind + '@' + minutes(time).trim() + (kind in r.programmeMatured ? '>' + minutes(r.programmeMatured[kind]).trim() : '')).join(' ')} | maturity ${JSON.stringify(r.maturity)}`);
   console.log(`seed ${i}: flights ${r.flights} fails ${r.fails} scrubs ${r.scrubs} crew ${r.crew} base ${r.facilities} pkgs ${r.packages} end ${minutes(r.t)}m budget ${Math.round(r.budget)} orbit ${r.orbit} ${r.date} (${r.race}, Sputnik ${r.sputnik}) lostFirsts ${r.sovietFirsts} | directives(min) ${DIRECTIVES.map((_, k) => minutes(r.directiveTimes[k])).join(' ')}`);
   console.log(`        lost to the Soviets in Phase One: ${r.lostFirstIds.join(' ') || 'none'}`);
@@ -233,4 +250,10 @@ for (let i = 0; i < RUNS; i++) {
     if (mercury.sectionTwoDone) console.log(`        gemini: ${mercury.geminiDone ? 'done' : 'NOT DONE'} in ${minutes(r.end - mercuryEnd)}m after Mercury (play total ${minutes(r.end)}m) ${r.geminiDate} (two-man crew: ${r.crew2}, Voskhod ${r.voskhod}; spacewalk: ${r.eva}, Leonov ${r.leonov}; docking: ${r.dock}, Kosmos ${r.kosmos}) missions ${mercury.missions - atEnd.missions} failed ${mercury.missionFails - atEnd.missionFails} astronautsLost ${mercury.astronautsLost - atEnd.astronautsLost} rating launches ${mercury.launches - atEnd.launches} budget ${Math.round(r.budgetEnd)} apollo ${r.apollo}`);
     if (mercury.geminiDone) console.log(`        saturn: ${mercury.saturnAt !== null ? 'orbit' : 'NOT DONE'} in ${minutes((mercury.saturnAt === null ? r.saturnEnd : mercury.saturnAt) - r.end)}m after Gemini (play total ${minutes(mercury.saturnAt === null ? r.saturnEnd : mercury.saturnAt)}m) ${r.saturnDate} launches ${mercury.saturnLaunches} stage revisions ${r.saturnRevs}`);
   }
+}
+{
+  const median = values => { const sorted = values.filter(value => value !== undefined && value !== null).sort((first, second) => first - second); return sorted.length ? minutes(sorted[Math.floor((sorted.length - 1) / 2)]).trim() + 'm' : '-'; };
+  const mercury = played.filter(r => r.mercury);
+  console.log(`summary: ${played.length} runs | medians: orbit ${median(played.map(r => r.t))}, Mercury Section 1 ${median(mercury.filter(r => r.mercury.done).map(r => r.endMercury))}, Gemini ${median(mercury.filter(r => r.mercury.geminiDone).map(r => r.end))}, Saturn I orbit ${median(mercury.map(r => r.mercury.saturnAt))} | stalls ${stalls.length}${stalls.length ? ': ' + stalls.join(', ') : ''}`);
+  if (stalls.length) process.exitCode = 1;
 }

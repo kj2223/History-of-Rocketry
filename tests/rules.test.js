@@ -105,6 +105,16 @@ test('a Mercury booster plan never counts a booster that is over its heating or 
   }
 });
 
+test('a booster too heavy to lift off on full tanks is off-loaded until it flies its mission', () => {
+  const titan = readyProgramme('titan');
+  // More propellant in the first stage than its engines can lift when full (a Titan II grown heavy with research).
+  S.progs.titan1.T.f *= 1.2;
+  assert.ok(previewFlight(titan, 'Aerozine & N2O4', 'Gemini Spacecraft', 1, 1).thrustToWeight < 1.05, 'too heavy on full tanks');
+  const plan = boosterPlan(titan, 'Aerozine & N2O4', 'gt');
+  assert.ok(plan.ok, 'a part load flies the Gemini mission');
+  assert.ok(plan.load < 1 && plan.preview.thrustToWeight > 1.05);
+});
+
 test('capsules need their research before they can be ordered', () => {
   S.nasa = 1;
   S.p2 = newPhaseTwo();
