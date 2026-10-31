@@ -29,6 +29,8 @@ import { PRESSURES } from '../data/pressure.js';
 import { pressure, pressureLevel, pressureWords } from '../rules/pressure.js';
 import { safetyBar, crewRockets, estimates, estimatedSafety, limitFor, componentName, designKey, testCost } from '../rules/safety.js';
 import { capabilityShown } from '../rules/mercury.js';
+import { OPS_CAPS, OPS_RAISE, SERIES_ORBITS, opsUnlocked, opsDirectiveName, seriesLock } from '../rules/flight-ops.js';
+import { MISSION_TYPES } from '../data/mercury.js';
 import { HABITS, TEAM_LINES, cultureWords, confidenceWords, recentHabits, budgetPressure, acceptedRisks } from '../rules/culture.js';
 import { launchView } from './launch-view.js';
 import { $, setHTML, escapeHtml } from './dom.js';
@@ -233,6 +235,27 @@ function remitMessage() {
   };
 }
 
+// THE MERCURY TESTS (rules/flight-ops.js): Ellis's offer once NASA is formed, then the running tests. A launch she has ready is a
+// decision: greenlight it (or the next three of its kind), attend it in Watch, or not yet. A crewed series you can authorise here.
+function opsMessage() {
+  const record = S.ops, from = memberName('ellis'), role = memberRole('ellis');
+  if (!record) {
+    if (!opsUnlocked()) return null;
+    return { id: 'ops', kind: 'report', from, role, pane: 'note', subject: 'I can run the Mercury tests',
+      body: `<p>Give me a spending cap and I will plan each Mercury test: order the capsules and boosters, fly the man-rating flights and bring each launch to the pad. Every launch waits for your greenlight; once you have greenlit three of a kind of uncrewed flight, its repeats fly on that approval. Crewed flights always need your go-ahead.</p><div class="acts">${OPS_CAPS.map(cap => `<button data-a="fstart" data-id="${cap}">${formatMoney(cap)} CAP</button>`).join('')}</div>` };
+  }
+  const ready = record.ready, account = `<div class="r"><span>${record.n} launch${record.n == 1 ? '' : 'es'}, ${record.okn} good</span><b>${formatMoney(record.spent)} of ${formatMoney(record.cap)}</b></div>`;
+  const series = record.series ? `<div class="r"><span>Crewed series: ${record.series.n} ${escapeHtml(MISSION_TYPES[record.series.mt].fullName)} flight${record.series.n == 1 ? '' : 's'} left</span><b><button data-a="fsend">END</button></b></div>`
+    : `<div class="m">Authorise a crewed series to give the astronauts flight time; she flies it while the directive waits on something.</div><div class="acts">${['mr', 'mo'].filter(type => !seriesLock(type)).map(type => `<button data-a="fseries" data-id="${type}" data-n="3">3 CREWED ${type == 'mo' ? `ORBITAL (${SERIES_ORBITS} ORBITS)` : 'SUBORBITAL'}</button>`).join('') || '<span class="d">No crewed series can fly yet.</span>'}</div>`;
+  const tail = `${account}${series}<div class="acts"><button data-a="fraise">RAISE BY ${formatMoney(OPS_RAISE)}</button><button data-a="fraise" data-n="2">DOUBLE TO ${formatMoney(2 * record.cap)}</button><button data-a="fend">TAKE THE TESTS BACK</button></div>`;
+  if (ready) return { id: 'ops', kind: 'decision', from, role, pane: 'note', subject: `Ready to fly: ${ready.what}`,
+    body: `<p>${escapeHtml(ready.what[0].toUpperCase() + ready.what.slice(1))} is ready.${ready.crewed ? ' A crew flies: it needs your go-ahead.' : ''}</p><div class="acts"><button class="pri" data-a="fgo">GREENLIGHT</button><button data-a="fgo" data-n="3">GREENLIGHT THE NEXT 3</button>${ready.rating ? '' : '<button data-a="fattend">ATTEND IN WATCH</button>'}<button data-a="fnot">NOT YET</button></div>${tail}` };
+  if (record.hold) return { id: 'ops', kind: 'decision', from, role, pane: 'note', subject: 'The Mercury tests need you', body: `<p class="wn">${escapeHtml(record.hold)}</p>${tail}` };
+  const directive = opsDirectiveName();
+  return { id: 'ops', kind: 'report', from, role, pane: 'note', subject: directive ? `Working on: ${directive}` : 'The Mercury tests',
+    body: `${record.wait ? `<div class="m">Waiting: ${escapeHtml(record.wait)}.</div>` : '<div class="m">Planning the next launch.</div>'}${tail}` };
+}
+
 // THE CULTURE (rules/culture.js): Ellis's note on how the programme works, in words, once the team has seen enough of your habits.
 // With a launch director, a line on how sure of themselves the crews are.
 function cultureMessage() {
@@ -279,6 +302,8 @@ function messages() {
   if (press) list.push(press);
   const remit = remitMessage();
   if (remit) list.push(remit);
+  const operations = opsMessage();
+  if (operations) list.push(operations);
   const culture = cultureMessage();
   if (culture) list.push(culture);
   const incidents = waitingIncidents();

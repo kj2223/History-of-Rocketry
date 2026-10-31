@@ -44,6 +44,7 @@
 //   leads   the research leads you have hired (see rules/leads.js)
 //   shared  the shared research line (see rules/shared-research.js)
 //   cult    the programme's culture and the team's confidence (see rules/culture.js)
+//   ops     Ellis running the Mercury tests, or null (see rules/flight-ops.js)
 import { RIVAL } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
@@ -83,6 +84,7 @@ export const newGameState = () => ({
   leads: {},
   shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
   cult: { lean: 0, conf: 0, n: 0, tests: 0, ev: [] },
+  ops: null,
 });
 
 export const S = newGameState();

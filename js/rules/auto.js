@@ -15,6 +15,7 @@ import { campaignExpired, endCampaign, directorMargin, slipChance, VETERAN_MARGI
 import { standingOrder, ordersTurn, openIncident } from './orders.js';
 import { leansSafe, acceptRisk } from './culture.js';
 import { waitForInvitation } from './invitations.js';
+import { opsTurn } from './flight-ops.js';
 
 // The director tries every 15 seconds, and keeps $6,000 in the treasury for you.
 export const DIRECTOR_CADENCE = 15;
@@ -41,14 +42,17 @@ export function planLoad(airframe, camp, margin) {
   return { reason, stage };
 }
 
-// Every 15 seconds while a campaign or a standing order runs: the campaign's flight first, then the orders (rules/orders.js).
+// Every 15 seconds while a campaign, the Mercury tests or a standing order runs: the campaign's flight first, then the Mercury
+// tests (rules/flight-ops.js), then the orders (rules/orders.js).
 // Returns true if anything happened.
 export function autoLaunch() {
   const camp = S.auto.camp;
-  if (!S.staff.director || (!camp && !standingOrder()) || airborne.flight || --S.auto.cd > 0) return false;
+  if (!S.staff.director || (!camp && !standingOrder() && !S.ops) || airborne.flight || airborne.mission || --S.auto.cd > 0) return false;
   S.auto.cd = DIRECTOR_CADENCE;
   if (camp && campaignExpired()) return true;
   if (camp && !camp.hold && withProgramme(camp.prog, () => directorTurn(camp))) return true;
+  // The Mercury tests (rules/flight-ops.js) come before routine customer flights.
+  if (opsTurn()) return true;
   return ordersTurn();
 }
 

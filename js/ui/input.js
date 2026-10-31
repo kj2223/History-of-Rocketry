@@ -41,6 +41,7 @@ import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from
 import { openMail } from './mail.js';
 import { $ } from './dom.js';
 import { noteHabit, noteFix } from '../rules/culture.js';
+import { startOps, raiseOps, endOps, greenlight, notYet, startSeries, endSeries } from '../rules/flight-ops.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { BY_ID, AREAS } from '../data/research.js';
 
@@ -260,6 +261,23 @@ const GAME_ACTIONS = {
     if (error) log('[PROGRAMME] ' + error, 'bad');
   },
   oraise: (_, button) => raiseOrder(button.dataset.n == '2'),
+  fstart: cap => {
+    const error = startOps(+cap);
+    if (error) log('[FLIGHT OPS] ' + error, 'bad');
+  },
+  fraise: (id, button) => raiseOps(button.dataset.n == '2'),
+  fend: () => endOps(),
+  fgo: (id, button) => greenlight(false, false, +(button.dataset.n || 1)),
+  fattend: () => {
+    greenlight(true);
+    openDesk('watch');
+  },
+  fnot: () => notYet(),
+  fseries: (id, button) => {
+    const error = startSeries(id, +button.dataset.n);
+    if (error) log('[FLIGHT OPS] ' + error, 'bad');
+  },
+  fsend: () => endSeries(),
   oend: () => endOrder(),
   ores: () => resumeOrder(),
   fac: id => buildFacility(id),
