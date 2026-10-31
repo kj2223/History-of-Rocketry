@@ -50,6 +50,14 @@ import { BY_ID } from '../data/research.js';
 
 // Soviet dates vary run to run: about 5% early or late in the period, but no more than six weeks either way once the race is close (after day 4590).
 export const jitterSovietDate = day => Math.round(day + (Math.random() * 2 - 1) * Math.min(day * .05, day > 4590 ? 45 : 1e9));
+// The Soviet dates of a new game. An event that follows another (follows: its id) keeps its historical gap from it rather than
+// drawing its own jitter, so adding such events leaves every other roll of the game unchanged.
+const sovietDates = () => {
+  const dates = {};
+  for (const event of RIVAL) if (!event.follows) dates[event.id] = jitterSovietDate(event.day);
+  for (const event of RIVAL) if (event.follows) dates[event.id] = dates[event.follows] + event.day - RIVAL.find(other => other.id == event.follows).day;
+  return dates;
+};
 
 // ROCKET PROGRAMMES: each rocket keeps its own research, blueprint, fixes, incidents, knowledge, production line and man-rating.
 // Payload & recovery work and the Mercury spacecraft are not part of any rocket: they live in the global bundle S.g.
@@ -72,7 +80,7 @@ export const newBundle = () => ({ pk: {}, bt: {}, fix: {}, inc: [], known: {}, k
 export const newGameState = () => ({
   b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], rq: [], teams: 2, air: [], aq: [], fac: {},
   nid: 1, prod: 0, ok: 0, fr: {}, gt: 30, sg: 0, hs: 0, hd: 0, crew: {}, fs: {}, rvd: {},
-  rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
+  rv: sovietDates(),
   fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3, pt: {},
   staff: { pr: 0, director: 0, ta: 0 },
   auto: { xp: 0, camp: null, cd: 15, last: null, inv: null },
@@ -87,6 +95,8 @@ export const newGameState = () => ({
   ops: null,
   v2: { n: 0, ok: 0, hi: 0, next: V2_PROGRAMME.start, ride: null, bump: null },
   corp: null,
+  rm: null,
+  rmi: null,
 });
 
 export const S = newGameState();
@@ -158,7 +168,11 @@ export const load = () => {
       if (!saved.cult) S.cult.conf = Math.min(.6, (S.auto.xp || 0) * .06);
       // Saves from before launch campaigns hold the director's old standing orders: replace them with an empty campaign record.
       if ('on' in S.auto) S.auto = newGameState().auto;
-      for (const event of RIVAL) if (!(event.id in S.rv)) S.rv[event.id] = jitterSovietDate(event.day);
+      // Soviet events added since: their dates are set, and those already past by the save's date count as done without a word.
+      for (const event of RIVAL) if (!(event.id in S.rv)) {
+        S.rv[event.id] = event.follows && S.rv[event.follows] ? S.rv[event.follows] + event.day - RIVAL.find(other => other.id == event.follows).day : jitterSovietDate(event.day);
+        if (S.day > S.rv[event.id]) S.rvd[event.id] = 1;
+      }
       // Saves from when each rocket had its own standing order: one order now covers every rocket, under their caps combined.
       if (S.orders.by) {
         const old = Object.entries(S.orders.by);

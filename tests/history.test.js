@@ -154,3 +154,83 @@ test('a declined Corporal never takes a team', () => {
   corporalTick();
   assert.equal(S.jobs.filter(job => job.k == 'corp').length, 0);
 });
+
+// THE SOVIET MOON RACE.
+import { openMoonRace, moonRaceTick, moonIntel, sovietAdapt } from '../js/rules/moon-race.js';
+import { RIVAL_MOON, INTEL_LAG } from '../js/data/history.js';
+
+const startMoonRace = () => {
+  S.nasa = 1;
+  S.p2 = { secDone: 1 };
+  moonRaceTick();
+};
+const runMoonRace = until => {
+  for (; S.day <= until; S.day += 5) moonRaceTick();
+};
+
+test('the Moon race opens with Section 2, its attempts dated like the other Section 2 events', () => {
+  moonRaceTick();
+  assert.equal(S.rm, null);
+  startMoonRace();
+  const lateness = S.rv.r_gagarin - 5502;
+  assert.equal(S.rm.m_luna9.day, RIVAL_MOON[0].day + lateness);
+  assert.equal(Object.keys(S.rmi).length, 3);
+});
+
+test('attempts wait for what they need, retry after failing, and are abandoned after their last try', () => {
+  startMoonRace();
+  const always = sovietAdapt.chance;
+  sovietAdapt.chance = attempt => attempt.id == 'm_n1' ? 0 : 1;
+  try {
+    runMoonRace(12000);
+  } finally {
+    sovietAdapt.chance = always;
+  }
+  assert.equal(S.rm.m_zond.st, 'done');
+  assert.ok(S.rm.m_zond.at >= S.rm.m_soyuz.at + 300, 'Zond waits for Soyuz');
+  assert.equal(S.rm.m_n1.st, 'gone');
+  assert.equal(S.rm.m_n1.n, 4);
+  assert.equal(S.rm.m_l3.st, 'gone', 'no landing without the rocket');
+  assert.equal(S.fs.f_moon, undefined);
+  assert.equal(S.fs.f_circum, 'them');
+});
+
+test('a Soviet first already won by America only makes the news', () => {
+  startMoonRace();
+  S.fs.f_softland = 'us';
+  const always = sovietAdapt.chance;
+  sovietAdapt.chance = () => 1;
+  try {
+    runMoonRace(S.rm.m_luna9.day);
+  } finally {
+    sovietAdapt.chance = always;
+  }
+  assert.equal(S.fs.f_softland, 'us');
+});
+
+test('intelligence keeps believing in an abandoned rocket for a while', () => {
+  startMoonRace();
+  const always = sovietAdapt.chance;
+  sovietAdapt.chance = () => 0;
+  try {
+    runMoonRace(S.rm.m_n1.day + 4 * 160);
+  } finally {
+    sovietAdapt.chance = always;
+  }
+  assert.equal(S.rm.m_n1.st, 'gone');
+  assert.ok(moonIntel().some(estimate => estimate.goal == 'landing'), 'still reported just after it is abandoned');
+  S.day = S.rm.m_n1.at + INTEL_LAG + 1;
+  assert.ok(!moonIntel().some(estimate => estimate.goal == 'landing'));
+});
+
+test('with the historical odds, a Soviet crew rarely reaches the Moon', () => {
+  let landed = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    Math.random = seeded(seed);
+    resetState();
+    startMoonRace();
+    runMoonRace(10800);
+    if (S.rm.m_l3.st == 'done') landed++;
+  }
+  assert.ok(landed >= 4 && landed <= 40, `Soviet landings: ${landed} of 200`);
+});
