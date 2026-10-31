@@ -2,7 +2,8 @@
 // team's hands. The messages are built fresh on every redraw from the game state; nothing here is saved.
 //   kind: decision (asks you for something, counted on the Mail button), directive, report or log
 import { formatMoney } from '../core/util.js';
-import { DIRECTIVES } from '../data/history.js';
+import { DIRECTIVES, RIDE_FEE, BUMPER_FLIGHTS, BUMPER_COST } from '../data/history.js';
+import { v2Flying, ridePayloads, rideCost, separationChance } from '../rules/neighbours.js';
 import { CORE_TEAM } from '../data/team.js';
 import { S, withProgramme, formatDate } from '../core/state.js';
 import { nasaReady } from '../rules/race.js';
@@ -251,6 +252,24 @@ function cultureMessage() {
   };
 }
 
+// THE V-2 PANEL: nose space on the next Army V-2 (rules/neighbours.js), and the Army's Bumper offer.
+function v2PanelMessage() {
+  if (!v2Flying()) return null;
+  const ride = S.v2.ride, bumperOn = S.v2.bump && S.v2.bump.st == 'on', choices = ridePayloads();
+  const body = ride ? `<p>Your ${escapeHtml(ride)} is booked in the nose of the next Army V-2. If the V-2 flies well, you get half the data back; if it fails, the payload is lost with it.</p>`
+    : bumperOn ? '<p>The next V-2s carry Bumper, so there is no nose space to sell.</p>'
+    : `<p>The Army's V-2s fly about once a month, and we sell nose space to anyone with instruments ready: the payload, plus our fee of ${formatMoney(RIDE_FEE)}. You share the nose and the telemetry, so you get half the science a flight of your own would bring, and your instrument people learn from it. About a third of the V-2s fail, and the payload goes with them. Film has to survive the fall.</p><div class="acts">${choices.map(name => `<button data-a="v2ride" data-id="${escapeHtml(name)}"${S.b < rideCost(name) ? ' disabled' : ''}>BOOK THE ${escapeHtml(name.toUpperCase())} (${formatMoney(rideCost(name))})</button>`).join('')}</div>`;
+  return { id: 'v2', kind: 'report', from: 'V-2 Upper Atmosphere Panel', role: 'White Sands', pane: 'note', subject: ride ? `Your ${ride} rides the next V-2` : 'Nose space on the next V-2', body };
+}
+function bumperMessage() {
+  const bump = S.v2.bump;
+  if (!bump || bump.st != 'offer') return null;
+  return {
+    id: 'bump', kind: 'decision', from: 'Army Ordnance', role: 'with General Electric', pane: 'note', subject: 'Project Bumper: your WAC Corporal on a V-2',
+    body: `<p>Your WAC Corporal has proved itself. We propose putting it on top of a V-2: the V-2 lifts it out of the thick air, and it lights and climbs on its own. Nobody has staged a rocket like that yet.</p><p>The next ${BUMPER_FLIGHTS} V-2s would carry it, at ${formatMoney(BUMPER_COST)} a flight for the rocket and the integration work, paid as each one flies. The last two would fly long and low from the new range in Florida.</p><p class="m">Your staging engineers rate the chance of a clean separation and light at about ${Math.round(separationChance() * 100)}%. Every flight teaches them about staging, the failures most of all. Bumper counts for the multi-stage and downrange firsts, not for your altitude records.</p><div class="acts"><button class="pri" data-a="bumpyes">FLY BUMPER</button><button data-a="bumpno">NO, THANK YOU</button></div>`,
+  };
+}
+
 function messages() {
   const list = [], camp = S.auto.camp, invitation = S.auto.inv;
   // ELLIS'S INVITATION to a first (rules/invitations.js): a decision until you answer it, then a note while you are to fly it.
@@ -281,6 +300,10 @@ function messages() {
   if (remit) list.push(remit);
   const culture = cultureMessage();
   if (culture) list.push(culture);
+  const bumper = bumperMessage();
+  if (bumper) list.push(bumper);
+  const v2Panel = v2PanelMessage();
+  if (v2Panel) list.push(v2Panel);
   const incidents = waitingIncidents();
   if (incidents.length) list.push({
     id: 'inc', kind: 'decision', from: memberName('ellis'), role: memberRole('ellis'), subject: `${incidents.length} incident${incidents.length == 1 ? '' : 's'} waiting for you`, pane: 'note',

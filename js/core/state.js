@@ -83,7 +83,7 @@ export const newGameState = () => ({
   leads: {},
   shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
   cult: { lean: 0, conf: 0, n: 0, tests: 0, ev: [] },
-  v2: { n: 0, ok: 0, hi: 0, next: V2_PROGRAMME.start },
+  v2: { n: 0, ok: 0, hi: 0, next: V2_PROGRAMME.start, ride: null, bump: null },
 });
 
 export const S = newGameState();

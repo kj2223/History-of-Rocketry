@@ -51,3 +51,58 @@ test('a monkey recovered alive from 72 km is the first animal home, as Yorick wa
   assert.equal(S.fs.f_bio, 'us');
   assert.ok(FIRSTS.find(first => first.id == 'f_space').name.includes('American-built'));
 });
+
+// RIDE-ALONGS AND BUMPER.
+import { bookRide, rideCost, answerBumper, separationChance } from '../js/rules/neighbours.js';
+import { BUMPER_FLIGHTS, BUMPER_OFFER, BUMPER_COST, V2_PROGRAMME as V2 } from '../js/data/history.js';
+import { createProgramme } from '../js/rules/programs.js';
+
+// Fly V-2s until n more have flown.
+const flyNext = (n = 1) => {
+  const target = S.v2.n + n;
+  while (S.v2.n < target && S.day <= V2.end + 60) { S.day++; neighboursTick(); }
+};
+
+test('a payload booked on a V-2 costs its price and the fee, and comes back only if the V-2 does', () => {
+  S.b = 50000;
+  S.day = V2.start;
+  neighboursTick();
+  assert.equal(bookRide('Sensor Suite'), null);
+  assert.equal(S.b, 50000 - rideCost('Sensor Suite'));
+  assert.notEqual(bookRide('Sensor Suite'), null, 'only one booking at a time');
+  assert.notEqual(bookRide('Film Camera'), null, 'film needs its research first');
+  const before = S.b, good = S.v2.ok;
+  flyNext();
+  assert.equal(S.v2.ride, null);
+  assert.ok(S.v2.ok > good ? S.b > before : S.b == before);
+});
+
+test('Bumper is offered once the WAC Corporal is proven, flies on the next V-2s and can win the multi-stage first', () => {
+  S.b = 500000;
+  createProgramme('wac');
+  S.progs.wac.okf = BUMPER_OFFER.proven;
+  S.day = BUMPER_OFFER.day;
+  S.v2.n = 1;
+  S.v2.next = BUMPER_OFFER.day + 1;
+  neighboursTick();
+  assert.equal(S.v2.bump.st, 'offer');
+  answerBumper(true);
+  assert.notEqual(bookRide('Sensor Suite'), null, 'no nose space while Bumper flies');
+  const cash = S.b;
+  flyNext(BUMPER_FLIGHTS);
+  assert.equal(S.v2.bump.st, 'done');
+  assert.equal(S.v2.bump.n, BUMPER_FLIGHTS);
+  const firstsCash = ['f_stage', 'f_range'].filter(id => S.fs[id] == 'us').reduce((sum, id) => sum + FIRSTS.find(first => first.id == id).cash, 0);
+  assert.equal(S.b, cash - BUMPER_FLIGHTS * BUMPER_COST + firstsCash);
+  if (S.v2.bump.ok) assert.equal(S.fs.f_stage, 'us');
+  assert.equal(S.fs.f_space, undefined, 'Bumper never wins the altitude firsts');
+  assert.ok(separationChance() > .5 && separationChance() < .95);
+});
+
+test('Bumper is never offered before the WAC Corporal is proven', () => {
+  createProgramme('wac');
+  S.day = BUMPER_OFFER.day;
+  S.v2.n = 1;
+  neighboursTick();
+  assert.equal(S.v2.bump, null);
+});
