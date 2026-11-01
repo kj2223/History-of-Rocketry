@@ -1,5 +1,6 @@
 // THE SCREEN: the top bar, the era banners, the directive message, switching apps, and redrawing every panel.
 // The game clock marks the screen dirty when something changes; main.js redraws it then, and refreshes the timers otherwise.
+import { initPresentation } from './presentation.js';
 import { formatMoney } from '../core/util.js';
 import { DIRECTIVES, DIRECTIVE_NEWS, ERAS } from '../data/history.js';
 import { ROOMS, STATIONS } from '../data/launch-site.js';
@@ -266,6 +267,7 @@ function showOverlays() {
 }
 
 export function initUI() {
+  initPresentation();
   load();
   ensureStarter();
   $('#fl').hidden = true;

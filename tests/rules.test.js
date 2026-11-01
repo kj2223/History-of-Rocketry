@@ -2345,3 +2345,44 @@ test('the centre whose architecture wins is keen', async () => {
   assert.ok(centres().craft.coop > 1);
   assert.notEqual(centres().rocket.mood, 'keen');
 });
+
+
+test('lower-stage fix trials count only the matching carried stage fix', async () => {
+  const { recordFix, recordFixTrials, fixesHeld } = await import('../js/rules/team.js');
+  createProgramme('atlas'); S.cur = 'atlas';
+  withProgramme('atlas1', () => { S.fix.c = 'baffle'; recordFix('c'); });
+  for (let i = 0; i < 3; i++) recordFixTrials('atlas', true, { fix: { c: 'baffle' } });
+  assert.equal(fixesHeld(), 0, 'an upper-stage fix cannot qualify the lower stage');
+  for (let i = 0; i < 3; i++) recordFixTrials('atlas', true, { fix: { 'c@atlas1': 'other' } });
+  assert.equal(fixesHeld(), 0, 'a different fix cannot qualify the trial');
+  recordFixTrials('atlas', false, { fix: { 'c@atlas1': 'baffle' } });
+  for (let i = 0; i < 3; i++) recordFixTrials('atlas', true, { fix: { 'c@atlas1': 'baffle' } });
+  assert.equal(fixesHeld(), 1);
+  assert.equal(S.team.watch.length, 0);
+});
+
+test('an interrupted watched launch reloads its complete pre-launch checkpoint', async () => {
+  const { checkpointLaunch, releaseLaunchCheckpoint, save, load } = await import('../js/core/state.js');
+  const store = {};
+  globalThis.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }, removeItem: k => { delete store[k]; } };
+  try {
+    ensureStarter(); const airframes = JSON.stringify(S.air), money = S.b, day = S.day;
+    checkpointLaunch();
+    S.air.length = 0; S.b -= 123; S.day += 7; S.team.n++;
+    save(); load();
+    assert.equal(JSON.stringify(S.air), airframes);
+    assert.equal(S.b, money); assert.equal(S.day, day); assert.equal(S.team.n, 0);
+    assert.equal(S.speed, 0, 'recovery pauses for review');
+    assert.equal(S.launchInterrupted, undefined);
+    checkpointLaunch(); S.b -= 10; releaseLaunchCheckpoint(); save(); load();
+    assert.equal(S.b, money - 10, 'a completed or scrubbed launch saves its resulting state');
+  } finally { releaseLaunchCheckpoint(); delete globalThis.localStorage; }
+});
+
+test('a save with an invalid nested record falls back to a usable fresh state', async () => {
+  const { load } = await import('../js/core/state.js');
+  const raw = JSON.stringify({ cv: 3, auto: null }), store = { vg3: raw };
+  globalThis.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
+  try { load(); assert.ok(S.auto); assert.equal(store['vg3-unreadable'], raw); tickSecond(); }
+  finally { delete globalThis.localStorage; }
+});

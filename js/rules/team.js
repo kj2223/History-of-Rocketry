@@ -43,13 +43,16 @@ export function recordFix(mode) {
 }
 // After every flight of a programme: a good flight counts for the fixes its airframe carries (a trial from an older save,
 // with no fix id, counts any fix for that failure mode).
-const carriesFix = (airframe, trial) => !!airframe.fix[trial.m] && (!trial.f || airframe.fix[trial.m] == trial.f);
+const carriesFix = (airframe, trial) => {
+  const key = PROGRAMMES[trial.p]?.stageOf ? `${trial.m}@${trial.p}` : trial.m;
+  return !!airframe.fix[key] && (!trial.f || airframe.fix[key] == trial.f);
+};
 export function recordFixTrials(programme, ok, airframe) {
   if (!ok) return;
-  for (const trial of fixesOnTrial().filter(candidate => candidate.p == programme && carriesFix(airframe, candidate))) {
+  for (const trial of fixesOnTrial().filter(candidate => (candidate.p == programme || PROGRAMMES[candidate.p]?.stageOf == programme) && carriesFix(airframe, candidate))) {
     if (++trial.ok < FLIGHTS_FOR_A_FIX_TO_HOLD) continue;
     S.team.held = fixesHeld() + 1;
-    log(`[CHIEF] Ellis: the ${FAILURE_MODES[trial.m].name.toLowerCase()} fix on the ${PROGRAMMES[programme].name} has held for ${FLIGHTS_FOR_A_FIX_TO_HOLD} good flights.`, 'ok');
+    log(`[CHIEF] Ellis: the ${FAILURE_MODES[trial.m].name.toLowerCase()} fix on the ${PROGRAMMES[trial.p].name} has held for ${FLIGHTS_FOR_A_FIX_TO_HOLD} good flights.`, 'ok');
   }
   S.team.watch = fixesOnTrial().filter(trial => trial.ok < FLIGHTS_FOR_A_FIX_TO_HOLD);
 }

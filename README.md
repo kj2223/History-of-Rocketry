@@ -12,6 +12,8 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
 
+**Interface:** the opening uses Operations Dossier paperwork styling. The header view button switches to the modern development view; this local preference changes presentation only. If a watched countdown or flight is interrupted by closing/reloading, the game recovers its pre-launch checkpoint and pauses. Work and choices made after that checkpoint must be repeated. Completed flights save their results.
+
 **Development checks:** pushes and pull requests to `dev` run `npm test` and `npm run acceptance` on GitHub with Node 22 (`.github/workflows/dev-tests.yml`). These checks do not package or publish releases. Keep development on `dev`, then promote playtested changes to `main` for release.
 
 ## Where things are

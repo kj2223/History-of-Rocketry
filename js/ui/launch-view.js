@@ -7,7 +7,7 @@ import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { MISSION_TYPES } from '../data/mercury.js';
 import { PAYLOADS } from '../data/launch.js';
 import { FAILURE_MODES, SYMPTOMS } from '../data/failures.js';
-import { S, log, logSink, launchInProgress } from '../core/state.js';
+import { S, log, logSink, launchInProgress, checkpointLaunch, releaseLaunchCheckpoint, save } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { holdForLaunch } from '../rules/factory.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
@@ -48,6 +48,7 @@ function openPad() {
   $('#comms').hidden = true;
 }
 export function closePad() {
+  releaseLaunchCheckpoint();
   clearInterval(launchView.countTimer);
   launchView.countTimer = null;
   launchView.count = null;
@@ -157,8 +158,10 @@ function runCount() {
   renderPad();
 }
 export function startCount(byDirector = false) {
+  if (launchInProgress.busy()) return;
   const form = launchForm, airframe = S.air.find(candidate => candidate.id == form.af && candidate.st == 'r');
   if (!airframe || quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100).error) return;
+  checkpointLaunch();
   holdForLaunch(airframe.id);
   launchView.count = newCount(runPoll(airframe, form.fuel, form.st && hasBoosterStage(airframe) ? 1 : 0), form.load / 100, airframe.label);
   // The settings go to the pad with the rocket, so changing the launch form during the count does not change this launch.
@@ -179,7 +182,7 @@ export function startDirectorCount() {
 // One 100 ms tick of the count: loading, the clock, reading out the poll, and the holds.
 function countTick() {
   const count = launchView.count;
-  if (!count || count.phase != 'count') return;
+  if (!count || count.phase != 'count' || S.speed === 0) return;
   let redraw = false;
   const poll = count.poll;
   if (count.filling) {
@@ -362,7 +365,7 @@ export function finishFlight(ok, why) {
 // A quarter-second of the flight: two seconds of flight time under power, 25 while coasting above the atmosphere.
 function flightTick() {
   const flight = airborne.flight;
-  if (!flight) return;
+  if (!flight || S.speed === 0) return;
   const phase = $('#padph');
   if (flight.countdown > 0) {
     phase.textContent = `T-MINUS ${flight.countdown}`;
@@ -398,10 +401,12 @@ function flightTick() {
 // A MERCURY FLIGHT: the same count and poll, then the mission timeline with decisions and the air-to-ground loop.
 // overBar: you ordered a crew past the safety bar (rules/safety.js).
 export function startMissionCount(overBar = false) {
+  if (launchInProgress.busy()) return;
   const state = S.p2, capsule = state && state.veh.find(candidate => candidate.id == state.lv), booster = state && S.air.find(airframe => airframe.id == state.lb && airframe.st == 'r');
   if (!capsule || !booster) return;
   const crew = state.lc || 'none', propellant = state.lf || 'Alcohol & LOX', plan = boosterPlan(booster, propellant, capsule.mt);
   if (!plan.ok || crewLock(crew, booster, capsule.mt)) return;
+  checkpointLaunch();
   holdForLaunch(booster.id);
   launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo, eva: state.le, target: state.lr, overBar });
   openPad();
@@ -425,7 +430,7 @@ function launchMission(override) {
 // missionStepSeconds), and as many steps as the game speed in the quiet stretch in orbit. The clock stops for decisions.
 function missionTick() {
   const mission = airborne.mission;
-  if (!mission) return;
+  if (!mission || S.speed === 0) return;
   if (mission.pending) {
     $('#padph').textContent = 'DECISION';
     return;
@@ -494,6 +499,8 @@ function enterFlight(count) {
 }
 // Back from a flight or a mission: the flight instruments close and the screen redraws.
 function leaveFlight() {
+  releaseLaunchCheckpoint();
+  save();
   document.documentElement.classList.remove('flying');
   $('#fl').hidden = true;
   markDirty();

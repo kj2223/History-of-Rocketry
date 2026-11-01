@@ -23,11 +23,14 @@ for (const route of ROUTES) {
 
 const SAVE_SEED = '5';
 console.log(`== save and reload mid-Gemini: seed ${SAVE_SEED}`);
-const report = env => spawnSync(process.execPath, [BOT], { encoding: 'utf8', env: { ...process.env, ...env, SEED: SAVE_SEED } }).stdout;
+const report = env => spawnSync(process.execPath, [BOT], { encoding: 'utf8', env: { ...process.env, ...env, SEED: SAVE_SEED } });
 const straight = report({}), reloaded = report({ ROUNDTRIP: '1' });
-if (straight != reloaded) {
+if (straight.status !== 0 || reloaded.status !== 0) {
   failed++;
-  console.log('The game played differently after a save and reload. Without the reload:\n' + straight + '\nWith it:\n' + reloaded);
+  console.log('A save/reload comparison run failed.\n' + (straight.stderr || straight.stdout || straight.error || '') + '\n' + (reloaded.stderr || reloaded.stdout || reloaded.error || ''));
+} else if (straight.stdout != reloaded.stdout) {
+  failed++;
+  console.log('The game played differently after a save and reload. Without the reload:\n' + straight.stdout + '\nWith it:\n' + reloaded.stdout);
 } else console.log('Same report with and without the reload.');
 console.log(failed ? `ACCEPTANCE FAILED: ${failed} check(s).` : 'ACCEPTANCE PASSED.');
 process.exitCode = failed ? 1 : 0;

@@ -151,12 +151,18 @@ function replaceState(next) {
   Object.assign(S, next);
 }
 const SAVE_KEY = 'vg3';
+// Watched launches are recovered from a complete pre-launch state, not a half-written flight.
+let launchCheckpoint = null;
+export const checkpointLaunch = () => { launchCheckpoint = JSON.stringify(S); };
+export const releaseLaunchCheckpoint = () => { launchCheckpoint = null; };
 export const resetState = () => {
+  launchCheckpoint = null;
   replaceState(newGameState());
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
 };
 // Saves from before version 3 are ignored (a fresh game starts). Older version-3 saves get any fields added since.
 export const load = () => {
+  launchCheckpoint = null;
   replaceState(newGameState());
   let raw = null;
   try {
@@ -164,6 +170,11 @@ export const load = () => {
     const saved = JSON.parse(raw || 'null');
     if (saved && saved.cv >= 3) {
       Object.assign(S, saved);
+      if (S.launchInterrupted) {
+        delete S.launchInterrupted;
+        S.speed = 0;
+        log('[SAVE] An interrupted launch was restored to its pre-launch checkpoint. Vehicles and funds are intact. The game is paused.', 'wn');
+      }
       if (!saved.dev) S.dev = { v: 1, ps: 0, fl: 0, ev: [], snap: [] };
       // Saves from before the culture: the crews' confidence starts from the flights the launch director has already run.
       if (!saved.cult) S.cult.conf = Math.min(.6, (S.auto.xp || 0) * .06);
@@ -189,6 +200,7 @@ export const load = () => {
       }
     }
   } catch (e) {
+    replaceState(newGameState());
     // A save that cannot be read is copied aside before the autosave can write over it.
     try { if (raw) localStorage.setItem(SAVE_KEY + '-unreadable', raw); } catch (copyFailed) {}
     log('[SAVE] Your saved game could not be read. A copy is kept under ' + SAVE_KEY + '-unreadable.', 'bad');
@@ -199,7 +211,7 @@ const isRecord = value => !!value && typeof value == 'object' && !Array.isArray(
 let saveFailed = false;
 export const save = () => {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(S));
+    localStorage.setItem(SAVE_KEY, launchCheckpoint ? JSON.stringify({ ...JSON.parse(launchCheckpoint), launchInterrupted: true }) : JSON.stringify(S));
     saveFailed = false;
   } catch (e) {
     if (!saveFailed) log('[SAVE] The game could not be saved. Progress since the last save will be lost if you close it.', 'bad');

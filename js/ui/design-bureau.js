@@ -1,6 +1,6 @@
 // THE R&D DESK (a drawer over the control room). Four views:
 //   research          one column per area: breakthrough progress, the milestone, and a compact card per package. Picking a card
-//                     (or hovering it) shows it in the dossier along the bottom: what it is, the numbers, what the engineers
+//                     shows it in the dossier along the bottom: what it is, the numbers, what the engineers
 //                     expect, and its COMMISSION (or ground test) button. Work that cannot start yet can be QUEUED for the next
 //                     free team (so can the records analysis of an unexplained failure); the queue shows as a row above the
 //                     columns while it holds anything.
@@ -81,7 +81,7 @@ function groundTestHTML(area, item) {
 }
 // THE DOSSIER: the card being hovered (or else the one picked) in full, filling the space under the columns in four parts:
 // what it is, the numbers, what the engineers expect, and what can be done with it. With nothing picked, how research works.
-const shownInDossier = () => researchDesk.hover || researchDesk.pick;
+const shownInDossier = () => researchDesk.pick;
 function dossier() {
   const id = shownInDossier();
   if (!id || !BY_ID[id]) return `<div class="dossier"><div class="dossier-part wide"><div class="t">HOW RESEARCH WORKS</div>`
@@ -256,7 +256,7 @@ const INSTRUMENT_NAMES = ['Radio beacon only', 'FM telemetry (few channels)', 'I
 const TRACKING_NAMES = ['Optical & radar tracking', 'Tracking radar network', 'Radar network + downrange ship'];
 // What the desk shows: view (research | programme | file | incidents), pick: the research card kept in the dossier, hover: the one
 // under the mouse, shown instead while it is there; unfolded: the areas whose folded confirmed packages are opened out.
-export const researchDesk = { view: 'research', pick: null, hover: null, unfolded: {} };
+export const researchDesk = { view: 'research', pick: null, unfolded: {} };
 const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGINEERING FILE', incidents: 'UNEXPLAINED FAILURES' };
 // LOWER STAGES (rules/stages.js): their incidents and engineering files show under the rocket's, each in a block that carries the
 // stage (data-stage), so its buttons act with that stage in focus (ui/input.js).

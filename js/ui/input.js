@@ -446,17 +446,6 @@ const VIEW_ACTIONS = {
   },
 };
 
-// HOVERING a research card shows it in the R&D desk's dossier. Moving between cards keeps the last one; leaving the columns
-// goes back to the picked card.
-document.addEventListener('mouseover', event => {
-  const card = event.target.closest('#rdesk .rcard');
-  if (!card && event.target.closest('#rdesk .rcols')) return;
-  const id = card ? card.dataset.id : null;
-  if (researchDesk.hover == id) return;
-  researchDesk.hover = id;
-  renderResearchDesk();
-});
-
 document.addEventListener('click', event => {
   const deskButton = event.target.closest('[data-desk]');
   if (deskButton) return showDesk(deskButton.dataset.desk);
