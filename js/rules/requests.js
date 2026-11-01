@@ -18,7 +18,18 @@ import { safetyBar, crewRockets, estimates, limitFor, componentName, designKey, 
 import { noteHabit, teamLean } from './culture.js';
 import { openHearing, hearingOpen } from './hearing.js';
 
-export const openRequest = () => S.p2 && S.p2.rq || null;
+export function openRequest() {
+  const request = S.p2 && S.p2.rq;
+  const key = request && (request.cfg || request.prove);
+  if (key && key != designKey(request.prog)) {
+    S.p2.rq = null;
+    if (safetyBar()?.pri == request.prog) safetyBar().pri = null;
+    S.p2.rqd = S.day - REQUEST_GAP;
+    log(`[NASA] The request for ${key} is superseded by ${designKey(request.prog)}. The team will reassess the new revision; old test results remain with the design tested.`, 'cyan');
+    return null;
+  }
+  return request || null;
+}
 const strongest = () => Math.max(...Object.keys(PRESSURES).map(key => pressure()[key]));
 const shift = change => {
   for (const key of Object.keys(PRESSURES)) pressure()[key] = Math.max(0, Math.min(100, pressure()[key] + (change[key] || 0)));
@@ -58,7 +69,7 @@ export function requestsTick(days) {
   if (Math.random() >= chance) return false;
   const request = candidateRequest();
   if (!request) return false;
-  S.p2.rq = { ...request, d: Math.round(S.day) };
+  S.p2.rq = { ...request, cfg: designKey(request.prog), d: Math.round(S.day) };
   S.p2.rqd = Math.round(S.day);
   log(`[NASA] Ellis's team, feeling the pressure, asks: ${requestText(S.p2.rq)} (Mail)`, 'wn');
   return true;
@@ -68,10 +79,15 @@ export function requestsTick(days) {
 export function answerRequest(answer) {
   const request = openRequest(), bar = safetyBar();
   if (!request) return 'No request is open.';
+  if (answer == 'cancelproof' && request.prove) {
+    delete request.prove;
+    if (bar.pri == request.prog) bar.pri = null;
+    return answerRequest('refuse');
+  }
   if (request.prove) return 'The test is still running.';
   if (answer == 'prove') {
     queueTest(request.prog);
-    request.prove = designKey(request.prog);
+    request.prove = request.cfg = designKey(request.prog);
     log(`[NASA] Prove it first: a ground test of the ${PROGRAMMES[request.prog].name} goes to the head of the queue. The request waits for its result.`, 'cyan');
     return null;
   }

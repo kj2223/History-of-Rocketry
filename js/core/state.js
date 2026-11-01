@@ -146,7 +146,9 @@ for (const name of ['bp', 'fix', 'inc', 'known', 'line', 'mrate']) {
 }
 
 // SAVING. The save lives in the browser's localStorage under one key.
+export let stateGeneration = 0;
 function replaceState(next) {
+  stateGeneration++;
   for (const key of Object.keys(S)) delete S[key];
   Object.assign(S, next);
 }

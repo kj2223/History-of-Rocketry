@@ -236,7 +236,7 @@ function safetyMessage() {
     const record = `<div class="m">${tests ? `${sheets} data sheet${sheets == 1 ? '' : 's'} on file. ` : ''}${testsWaived(kind) ? 'The tests still owed on this revision were waived. ' : ''}</div>`
       + letters + (tests ? `<div class="acts"><button data-a="sfretest" data-id="${kind}">RE-RUN ITS TESTS</button></div>` : '');
     const rows = Object.entries(figures).map(([key, risk]) => `<div class="r"><span>${escapeHtml(componentName(key))}</span><span class="nw"><span class="d">tests ${percent(evidence[key])} · lead</span> <b class="${risk > limitFor(key) ? 'wn' : ''}">${percent(risk)}</b> <span class="d">limit ${percent(limitFor(key))}</span> ${stepper('sflim', limitFor(key), LIMIT_RANGE[0], LIMIT_RANGE[1], key)}</span></div>`).join('');
-    return `<div class="c"><div class="r"><b>${escapeHtml(PROGRAMMES[kind].name)}</b><span><span class="d">tests ${percent(estimatedSafety(evidence))} · lead</span> <b class="${safety < bar.tgt ? 'wn' : ''}">${percent(safety)} to orbit</b></span></div>`
+    return `<div class="c"><div class="r"><b>${escapeHtml(PROGRAMMES[kind].name)} (${designKey(kind)})</b><span><span class="d">tests ${percent(estimatedSafety(evidence))} · lead</span> <b class="${safety < bar.tgt ? 'wn' : ''}">${percent(safety)} to orbit</b></span></div>`
       + `<div class="m">${tests} ground test${tests == 1 ? '' : 's'} signed off on this revision${testing ? `, one under way (${Math.max(1, Math.round(bar.j.d))} days)` : tests < bar.n ? `, ${formatMoney(testCost(kind))} each` : ''}.</div>${record}${rows}</div>`;
   }).join('');
   return {
@@ -258,7 +258,7 @@ function requestMessage() {
     subject: request.prove ? 'Waiting on the test you asked for' : 'My team is asking for something',
     body: `<p>${escapeHtml(leadRequestText(request))}</p>`
       + (request.prove
-        ? '<p class="m">A ground test is running first, as you asked. The request comes back with its result.</p>'
+        ? '<p class="m">A ground test is queued or running first, as you asked. The request comes back with its result. Publishing a new revision supersedes this request.</p><div class="acts"><button data-a="rqans" data-id="cancelproof">WITHDRAW REQUEST AND REFUSE</button></div>'
         : '<p class="m">Granting it eases the pressure and puts the risk on the record. A refusal with the test results behind it costs little; one with no reason costs more.</p>'
           + `<div class="acts"><button data-a="rqans" data-id="accept">GRANT IT</button>${reason ? '<button data-a="rqans" data-id="reasoned">REFUSE: THE TESTS SAY NO</button>' : ''}<button data-a="rqans" data-id="refuse">REFUSE</button><button class="pri" data-a="rqans" data-id="prove">PROVE IT WITH A TEST FIRST</button></div>`),
   };

@@ -2386,3 +2386,111 @@ test('a save with an invalid nested record falls back to a usable fresh state', 
   try { load(); assert.ok(S.auto); assert.equal(store['vg3-unreadable'], raw); tickSecond(); }
   finally { delete globalThis.localStorage; }
 });
+
+
+// Priority backlog 1-3: campaign isolation, revision-bound proof and the selected flown configuration.
+test('safety risk cache is isolated across seeded campaigns, load and in-place design changes', async () => {
+  const safety = await import('../js/rules/safety.js');
+  const fresh = await import('../js/rules/safety.js?cache-isolation-regression');
+  const { save, load } = await import('../js/core/state.js');
+  const storage = {};
+  globalThis.localStorage = { getItem: k => storage[k] ?? null, setItem: (k,v) => { storage[k]=v; }, removeItem:k=>{delete storage[k];} };
+  try {
+    Math.random=seeded(1); resetState(); createProgramme('titan'); S.progs.titan.ready=1; save();
+    const savedCampaign=storage.vg3;
+    const one=safety.trueRisks('titan');
+    assert.equal(safety.trueRisks('titan'),one,'unchanged inputs reuse the cached calculation');
+    Math.random=seeded(2); resetState(); createProgramme('titan'); S.progs.titan.ready=1;
+    const two=safety.trueRisks('titan');
+    assert.notEqual(one,two,'a new campaign never inherits a cached object');
+    assert.deepEqual(two,fresh.trueRisks('titan'),'the second seeded game matches an independent cache');
+    S.progs.titan1.T.r -= .2;
+    assert.notEqual(safety.trueRisks('titan'),two,'design changes invalidate the calculation without a revision bump');
+    storage.vg3=savedCampaign;
+    load();
+    assert.deepEqual(safety.trueRisks('titan'),one,'loading the first campaign recovers its own risks');
+    assert.notEqual(safety.trueRisks('titan'),one,'load starts a new cache generation');
+  } finally { delete globalThis.localStorage; }
+});
+
+test('publishing during queued or running proof supersedes the request without crediting the new revision', async () => {
+  const { safetyBar, safetyTick, designKey, components } = await import('../js/rules/safety.js');
+  const { requestsTick, openRequest, answerRequest } = await import('../js/rules/requests.js');
+  const { save, load } = await import('../js/core/state.js');
+  await apolloUnderPressure();
+  for (const key of components('titan')) safetyBar().lim[key]=.005;
+  safetyBar().n=0;
+  assert.ok(withDice(0,()=>requestsTick(30)));
+  const old=designKey('titan'); answerRequest('prove');
+  // Publish before a queued proof gets a chance to start.
+  S.progs.titan.bp.rev++;
+  const store={};globalThis.localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>{store[k]=v;},removeItem:k=>{delete store[k];}};
+  try { save();load();assert.equal(openRequest(),null);assert.equal(safetyBar().pri,null); }
+  finally { delete globalThis.localStorage; }
+  assert.equal(safetyBar().t[old],undefined);
+  assert.ok(withDice(0,()=>requestsTick(30)),'the new revision can be reassessed immediately');
+  assert.equal(openRequest().cfg,designKey('titan'));
+  answerRequest('prove');
+  const tested=designKey('titan');
+  withDice(.99,()=>safetyTick(1));
+  assert.equal(safetyBar().j.k,tested);
+  S.progs.titan.bp.rev++;
+  assert.equal(openRequest(),null,'a running test also cannot pin an obsolete request');
+  withDice(.99,()=>{for(let day=0;day<40;day++)safetyTick(1);});
+  assert.equal(safetyBar().t[tested],1,'the finished test belongs to the old revision');
+  assert.equal(safetyBar().t[designKey('titan')],undefined);
+  assert.ok(withDice(0,()=>requestsTick(30)));
+  answerRequest('prove');
+  assert.equal(answerRequest('cancelproof'),null,'a waiting proof has an explicit withdrawal path');
+  assert.equal(openRequest(),null);
+});
+
+test('safety clearance and override records use the selected airframe and its stage revisions', async () => {
+  const { safetyBar,safetyTick,components,designKey,estimates,barVerdict,launchOverBar }=await import('../js/rules/safety.js');
+  await apolloUnderPressure();
+  const older=withProgramme('titan',()=>({prog:'titan',...blueprintConfig(),id:701,label:'Older Titan'}));
+  const oldKey=designKey('titan',older);
+  S.progs.titan.bp.rev++; S.progs.titan1.bp.rev++;
+  S.progs.titan.bp.fix={'c@titan1':'baffle'};
+  const newer=withProgramme('titan',()=>({prog:'titan',...blueprintConfig(),id:702,label:'Newer Titan'}));
+  const newKey=designKey('titan',newer);
+  assert.notEqual(oldKey,newKey);
+  safetyBar().z[oldKey]=Object.fromEntries(components('titan').map(k=>[k,0]));
+  safetyBar().z[newKey]=Object.fromEntries(components('titan').map(k=>[k,-1000]));
+  safetyBar().t[newKey]=8; safetyBar().tgt=.99;
+  for(const key of components('titan'))safetyBar().lim[key]=.005;
+  assert.ok(barVerdict('titan',older),'the unproven old vehicle is held');
+  assert.equal(barVerdict('titan',newer),null,'the new configuration uses its own evidence');
+  assert.equal(estimates('titan',older).tests,0,'new-revision evidence is not credited to an old airframe');
+  assert.equal(estimates('titan',newer).tests,8);
+  assert.equal(designKey('titan',older),oldKey,'publishing does not change the old airframe key');
+  launchOverBar('titan',barVerdict('titan',older),older);
+  assert.equal(S.p2.acc.at(-1).cfg,oldKey);assert.equal(S.p2.acc.at(-1).af,701);
+});
+
+
+test('beginMission holds the selected old booster and records an explicit override against that vehicle', async () => {
+  const { safetyBar, components, designKey }=await import('../js/rules/safety.js');
+  const { beginMission }=await import('../js/rules/mission.js');
+  await apolloUnderPressure();
+  S.fac.lc19=1;
+  for(const kind of ['titan','titan1']) {
+    S.progs[kind].T.h=100;S.progs[kind].T.q=100;
+    for(const key of ['p','s','i','a'])S.progs[kind].kn[key]=100;
+  }
+  const older=withProgramme('titan',()=>makeAirframe(blueprintConfig(),0,'titan'));
+  const key=designKey('titan',older);S.air.push(older);
+  S.progs.titan.bp.rev++;
+  const current=designKey('titan');
+  safetyBar().z[key]=Object.fromEntries(components('titan').map(k=>[k,0]));
+  safetyBar().z[current]=Object.fromEntries(components('titan').map(k=>[k,-1000]));
+  safetyBar().tgt=.99;for(const k of components('titan'))safetyBar().lim[k]=.005;
+  const capsule={id:901,mt:'mr',cfg:{pk:[],rev:1}};S.p2.veh.push(capsule);
+  const fuel=PROGRAMMES.titan.propellants[0],pilot=S.p2.astros[0].id;
+  assert.ok(boosterPlan(older,fuel,'mr').ok,'the mission is otherwise physically feasible');
+  const before={b:S.b,day:S.day,air:S.air.length,capsules:S.p2.veh.length};
+  assert.equal(beginMission(901,pilot,{af:older.id,fuel}),null);
+  assert.deepEqual({b:S.b,day:S.day,air:S.air.length,capsules:S.p2.veh.length},before,'a held launch consumes nothing');
+  assert.ok(beginMission(901,pilot,{af:older.id,fuel,overBar:true}));
+  assert.equal(S.p2.acc.at(-1).cfg,key);assert.equal(S.p2.acc.at(-1).af,older.id);
+});

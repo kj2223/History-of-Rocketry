@@ -14,7 +14,7 @@
 import { formatMoney } from '../core/util.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { COMPONENTS, TARGET_SAFETY, TARGET_RANGE, TARGET_STEP, LIMIT_STEP, LIMIT_RANGE, RISK_SAMPLES, ESTIMATE_SPREAD, OPTIMISM, TESTS_PER_REVISION, TESTS_RANGE, TEST_DAYS, TEST_COST_SHARE, CUT_FROM, CUT_CHANCE, LETTER_CHANCE } from '../data/safety.js';
-import { S, log, withProgramme } from '../core/state.js';
+import { S, log, withProgramme, stateGeneration } from '../core/state.js';
 import { blueprintConfig } from './production.js';
 import { boosterRun } from './flight.js';
 import { hasBoosterStage } from './design.js';
@@ -36,7 +36,9 @@ export const crewRockets = () => Object.keys(S.progs).filter(kind => S.progs[kin
 const crewPayload = kind => PROGRAMMES[kind].needsApollo ? 'Apollo Boilerplate' : 'Gemini Spacecraft';
 // The rocket's current design, as its published blueprints would build it.
 const design = kind => withProgramme(kind, () => ({ prog: kind, ...blueprintConfig(), label: PROGRAMMES[kind].name }));
-export const designKey = kind => `${kind}@${[kind, ...stagesOf(kind)].map(each => S.progs[each].bp.rev).join('.')}`;
+export const designKey = (kind, airframe) => `${kind}@${airframe
+  ? [airframe.rev || 1, ...stagesOf(kind).map(stage => airframe.stg?.[stage]?.rev || 0)].join('.')
+  : [kind, ...stagesOf(kind)].map(each => S.progs[each].bp.rev).join('.')}`;
 // Its components, bottom stage first: engines and structure for every stage, and staging for each stage above the first.
 export const components = kind => [...stagesOf(kind), kind].flatMap((stage, index) => Object.keys(COMPONENTS).filter(part => part != 'sep' || index > 0).map(part => `${stage}:${part}`));
 export const componentName = key => {
@@ -47,10 +49,25 @@ const partOf = mode => Object.keys(COMPONENTS).find(part => COMPONENTS[part].mod
 
 // THE TRUE FIGURES: the design flown RISK_SAMPLES times with its real failure model, on dice of its own. { [component key]: chance }
 const truthCache = new Map();
+let cacheGeneration = -1;
+const CACHE_LIMIT = 32;
+// Include the flight model inputs that can change without a new blueprint.
+const riskInputs = (kind, airframe) => JSON.stringify({
+  kind, pk: airframe.pk, fix: airframe.fix, rev: airframe.rev, stg: airframe.stg, vr: airframe.vr, fr: S.fr,
+  bundles: [kind, ...stagesOf(kind)].map(stage => withProgramme(stage, () => ({
+    T: S.progs[stage].T, traits: (S.progs[stage].traits || []).map(trait => trait.k),
+    kn: S.progs[stage].kn, okf: S.progs[stage].okf,
+    pk: (stage == kind ? airframe.pk : airframe.stg?.[stage]?.pk || []).map(id => [id, S.pk[id]?.a, S.pk[id]?.c]),
+  }))),
+});
 const seeded = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const hash = text => [...text].reduce((sum, character) => Math.imul(sum ^ character.charCodeAt(0), 16777619), 2166136261);
-export function trueRisks(kind) {
-  const airframe = design(kind), key = kind + JSON.stringify(airframe);
+export function trueRisks(kind, airframe = design(kind)) {
+  if (cacheGeneration != stateGeneration) {
+    truthCache.clear();
+    cacheGeneration = stateGeneration;
+  }
+  const key = riskInputs(kind, airframe);
   if (truthCache.has(key)) return truthCache.get(key);
   const counts = Object.fromEntries(components(kind).map(component => [component, 0]));
   const gameDice = Math.random;
@@ -67,6 +84,7 @@ export function trueRisks(kind) {
     Math.random = gameDice;
   }
   const risks = Object.fromEntries(Object.entries(counts).map(([component, count]) => [component, count / RISK_SAMPLES]));
+  if (truthCache.size >= CACHE_LIMIT) truthCache.delete(truthCache.keys().next().value);
   truthCache.set(key, risks);
   return risks;
 }
@@ -77,10 +95,10 @@ const gaussian = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 
 // evidence: { [component key]: chance } as the tests and simulations support it; figures: the same as the lead reads them, low
 // by the risk appetite of the team that reads them. tests: ground tests signed off on this revision. Only the tests really run
 // (dataSheets) narrow the estimates.
-export function estimates(kind) {
-  const bar = safetyBar(), key = designKey(kind), truth = trueRisks(kind);
+export function estimates(kind, airframe) {
+  const bar = safetyBar(), key = designKey(kind, airframe), truth = trueRisks(kind, airframe);
   const offsets = bar.z[key] = bar.z[key] || Object.fromEntries(components(kind).map(component => [component, gaussian()]));
-  const tests = bar.t[key] || 0, spread = ESTIMATE_SPREAD / Math.sqrt(1 + dataSheets(kind)), reading = 1 - OPTIMISM * riskAppetite(READER);
+  const tests = bar.t[key] || 0, spread = ESTIMATE_SPREAD / Math.sqrt(1 + dataSheets(kind, airframe)), reading = 1 - OPTIMISM * riskAppetite(READER);
   const evidence = Object.fromEntries(components(kind).map(component => [component, Math.min(1, truth[component] * Math.exp(offsets[component] * spread))]));
   return { tests, evidence, figures: Object.fromEntries(Object.entries(evidence).map(([component, risk]) => [component, risk * reading])) };
 }
@@ -103,10 +121,10 @@ export function moveTests(direction) {
 }
 
 // THE GATE: why the launch director will not fly a crew on this rocket, or null.
-export function barVerdict(kind) {
+export function barVerdict(kind, airframe) {
   const bar = safetyBar();
   if (!bar || !crewRockets().includes(kind)) return null;
-  const { figures } = estimates(kind);
+  const { figures } = estimates(kind, airframe);
   const over = Object.entries(figures).find(([key, risk]) => risk > limitFor(key));
   if (over) return `its ${componentName(over[0]).toLowerCase()} read ${percentText(over[1])} against a limit of ${percentText(limitFor(over[0]))}`;
   const safety = estimatedSafety(figures);
@@ -119,8 +137,8 @@ export const testsPending = kind => !!safetyBar() && owed(safetyBar(), designKey
 export const testsWaived = kind => !!safetyBar() && !!(safetyBar().w || {})[designKey(kind)];
 // The data sheets on file for the revision: one for every test really run. A test the team signed off without running leaves
 // none, and that gap is the trace a careful reader can find (GDD review fix 4).
-export const dataSheets = kind => {
-  const bar = safetyBar(), key = designKey(kind);
+export const dataSheets = (kind, airframe) => {
+  const bar = safetyBar(), key = designKey(kind, airframe);
   return (bar.t[key] || 0) - ((bar.f || {})[key] || 0);
 };
 // Your order: run this rocket's next ground test before any other, even past the number the bar asks for.
@@ -139,9 +157,10 @@ export function retest(kind) {
   log(`[NASA] Every ground test on the ${PROGRAMMES[kind].name}'s revision is thrown out and will be run again.`, 'cyan');
 }
 // A crewed launch ordered over the bar: logged, and remembered by the culture.
-export function launchOverBar(kind, verdict) {
-  S.p2.acc = [...(S.p2.acc || []), { d: Math.round(S.day), t: `a crewed ${PROGRAMMES[kind].name} launched although ${verdict}` }];
-  log(`[NASA] Crewed launch ordered past the safety bar: the ${PROGRAMMES[kind].name} flies although ${verdict}.`, 'bad');
+export function launchOverBar(kind, verdict, airframe) {
+  const cfg = designKey(kind, airframe);
+  S.p2.acc = [...(S.p2.acc || []), { d: Math.round(S.day), cfg, ...(airframe ? { af: airframe.id } : {}), t: `a crewed ${PROGRAMMES[kind].name} (${cfg}) launched although ${verdict}` }];
+  log(`[NASA] Crewed launch ordered past the safety bar: the ${PROGRAMMES[kind].name} (${cfg}) flies although ${verdict}.`, 'bad');
   noteHabit('override', 1, `a crewed ${PROGRAMMES[kind].name} launched past the safety bar`);
   pressLeak(`NASA flew a crew on the ${PROGRAMMES[kind].name} past its own safety bar`);
 }

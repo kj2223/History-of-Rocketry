@@ -130,7 +130,7 @@ export function playMercury(game) {
   // The safety bar: a crew waits for the ground tests on its rocket's revision, then flies, past the bar if it must (a player
   // with a schedule to keep would).
   const flyMission = (capsule, booster, crew, orbits, target = null) => {
-    const barred = !['none', 'chimp', 'monkey'].includes(crew) && barVerdict(booster.airframe.prog);
+    const barred = !['none', 'chimp', 'monkey'].includes(crew) && barVerdict(booster.airframe.prog, booster.airframe);
     if (barred && testsPending(booster.airframe.prog)) return advance(5);
     if (barred) report.barOverrides++;
     const poll = runPoll(booster.airframe, booster.propellant, booster.plan.staged);

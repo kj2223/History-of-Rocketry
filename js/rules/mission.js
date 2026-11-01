@@ -186,7 +186,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   const plan = boosterPlan(booster, propellant, capsule.mt), payload = type.payload || 'Mercury Capsule';
   if (!plan.ok) return null;
   // The safety bar (rules/safety.js): a crew flies past it only on your order (options.overBar).
-  const barred = crewChoice && !['none', 'chimp', 'monkey'].includes(crewChoice) && barVerdict(booster.prog);
+  const barred = crewChoice && !['none', 'chimp', 'monkey'].includes(crewChoice) && barVerdict(booster.prog, booster);
   if (barred && !options.overBar) return null;
   const quote = quoteLaunch(booster, propellant, payload, plan.staged, plan.load);
   if (quote.error) return null;
@@ -212,7 +212,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
     crew.cap = crew.cap || `${CAPSULE_NAMES[(crew.id * 7) % CAPSULE_NAMES.length]} ${state.astros.length}`;
     mission.callSign = crew.cap;
   }
-  if (barred) launchOverBar(booster.prog, barred);
+  if (barred) launchOverBar(booster.prog, barred, booster);
   const schedule = (time, kind) => mission.events.push({ time, kind });
   const orbitText = type.orbital ? `, ${type.orbits} orbit${type.orbits > 1 ? 's' : ''} planned` : '';
   const crewText = crew ? ` with ${isAnimal(crew) ? animalName(crew) : crew.name}${second ? ` and ${second.name}` : ''}` : '';
