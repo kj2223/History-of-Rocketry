@@ -4,13 +4,15 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Run it:** `npm install` once, then `npm start` opens the game in its own desktop window (Electron, set up in `desktop/main.js`). It still runs in a browser too: serve the folder (for example `python3 -m http.server`) and open `index.html`. The game saves to localStorage every ten seconds; the desktop window and the browser keep separate saves.
 
-**Build for testers:** `npm run dist` builds a Windows installer and a portable .exe into `dist/` (run it on Windows). Every push to `dev` also builds them on GitHub (`.github/workflows/windows-build.yml`) and publishes a numbered release (v0.1.1, v0.1.2, …); change `version` in `package.json` to 0.2.0 to start the v0.2 series. The newest build is always at `releases/latest/download/ProjectVanguard-Setup.exe` (or `-Portable.exe`), and the game's title bar shows its version. The builds are unsigned: on first run Windows SmartScreen says it protected your PC; click **More info**, then **Run anyway**.
+**Build for testers:** `npm run dist` builds a Windows installer and a portable .exe into `dist/` (run it on Windows). Every push to `main` also builds them on GitHub (`.github/workflows/windows-build.yml`) and publishes a numbered release (v0.3.0, v0.3.1, …); change `version` in `package.json` to start a new release series. The newest build is always at `releases/latest/download/ProjectVanguard-Setup.exe` (or `-Portable.exe`), and the game's title bar shows its version. The builds are unsigned: on first run Windows SmartScreen says it protected your PC; click **More info**, then **Run anyway**.
 
 **Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two: Section 1 to the first American in space, Section 2 through orbital Mercury and Gemini (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n (`SEED=5,7` plays several); `PHASE_ONE_ONLY=1` stops at orbit. The last line sums up the medians and names any stall (a stage reached but never finished); a stall makes the bot exit with an error.
 
 **Check for dead ends:** `npm run acceptance` replays the bot games that once stalled (`tools/acceptance.mjs`) and fails if any still does. It also saves and reloads one game when Gemini opens (`ROUNDTRIP=1`) and fails if that changes how the game plays out. It takes about a minute.
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
+
+**Development checks:** pushes and pull requests to `dev` run `npm test` and `npm run acceptance` on GitHub with Node 22 (`.github/workflows/dev-tests.yml`). These checks do not package or publish releases. Keep development on `dev`, then promote playtested changes to `main` for release.
 
 ## Where things are
 
