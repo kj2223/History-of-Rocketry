@@ -87,6 +87,7 @@ export const nasaReady = () => !S.nasa && (((S.fs.f_orbit == 'us' || S.fs.f_orbi
 export function formNasa() {
   if (!nasaReady()) return;
   S.nasa = S.day;
+  S.nasaReview = { reviewed: 1, restricted: 1, assurance: null, d: Math.round(S.day) };
   addHistory('NASA established');
-  log('[WASHINGTON] The National Aeronautics and Space Act is signed. Your programme becomes the core of NASA.', 'hd');
+  log('[WASHINGTON] The National Aeronautics and Space Act is signed. Your programme becomes the core of NASA. Crewed flight is restricted pending an independent assurance lead.', 'hd');
 }

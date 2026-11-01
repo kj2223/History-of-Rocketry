@@ -2,6 +2,7 @@
 // Each test starts from a fresh game (resetState) and a seeded random generator, so results do not depend on test order.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID, isMilestone } from '../js/data/research.js';
 import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea, fullyResearched } from '../js/rules/research.js';
@@ -29,6 +30,8 @@ import { runPoll } from '../js/rules/launch-site.js';
 import { cureLock, startCure, countFlight, curesReady } from '../js/rules/cures.js';
 import { FLIGHTS_TO_FIND_CURE } from '../js/data/programmes.js';
 import { revealTraits } from '../js/rules/programs.js';
+import { formNasa } from '../js/rules/race.js';
+import { hireLead } from '../js/rules/leads.js';
 
 // The same small generator the balance bot uses.
 const seeded = seed => () => {
@@ -41,6 +44,17 @@ const seeded = seed => () => {
 // Mark research done (and confirmed) without running the jobs.
 const giveResearch = ids => ids.forEach(id => {
   S.pk[id] = { a: { ...BY_ID[id].effects }, c: 1, m: { ...BY_ID[id].effects }, dud: false };
+});
+
+test('NASA formation records a transfer restriction until an independent assurance lead is assigned', () => {
+  S.day = 5000;
+  formNasa();
+  assert.deepEqual(S.nasaReview, { reviewed: 1, restricted: 1, assurance: null, d: 5000 });
+  S.p2 = newPhaseTwo();
+  S.p2.dir = 4;
+  assert.match(crewLock('crew', null), /independent assurance lead/);
+  assert.equal(hireLead('e', 'ortiz'), null);
+  assert.equal(S.nasaReview.assurance, 'ortiz');
 });
 // A ready programme with one airframe built to its blueprint.
 const readyProgramme = kind => {
@@ -351,6 +365,33 @@ test('a standing order stops and asks you when its cap is spent', async () => {
   assert.match(standingOrder().hold, /cap/);
   assert.ok(standingOrder().spent <= 10000);
 });
+test('a standing order waits without spending when the treasury is short, then resumes after funding', async () => {
+  const { startOrder, standingOrder, orderWaiting, ordersTurn } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.staff.director = 1;
+  assert.equal(startOrder('aerobee', 1e6), null);
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 20, fee: 3000, by: S.day + 100, why: '' });
+  S.b = 10000;
+  const before = { b: S.b, spent: standingOrder().spent, n: standingOrder().n };
+  assert.equal(orderWaiting(), 'the treasury is short');
+  assert.equal(ordersTurn(.85), false);
+  assert.deepEqual({ b: S.b, spent: standingOrder().spent, n: standingOrder().n }, before);
+  S.b = 200000;
+  assert.equal(orderWaiting(), null);
+  assert.equal(ordersTurn(.85), true);
+  assert.ok(standingOrder().n > before.n || standingOrder().spent > before.spent, 'the order resumes when cash is available');
+});
+test('a standing order exposes a depleted cap before it can launch another flight', async () => {
+  const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.staff.director = 1;
+  assert.equal(startOrder('aerobee', 1), null);
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 20, fee: 3000, by: S.day + 100, why: '' });
+  S.b = 1e6;
+  assert.equal(ordersTurn(.85), true);
+  assert.match(standingOrder().hold, /cap/);
+  assert.ok(standingOrder().spent <= standingOrder().cap);
+});
 
 test('Ellis flies a request on the cheapest rocket that reaches it, whichever brief started the order', async () => {
   const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
@@ -424,6 +465,37 @@ test('an unreadable save is copied aside before anything can overwrite it', asyn
   load();
   assert.equal(written['vg3-unreadable'], '{"cv":3, broken');
   assert.equal(written.vg3, undefined, 'the save itself is left alone');
+  delete globalThis.localStorage;
+});
+test('exports and imports a validated save without losing game state', async () => {
+  const { exportSave, importSave } = await import('../js/core/state.js');
+  const storage = {};
+  globalThis.localStorage = { getItem: key => storage[key] || null, setItem: (key, value) => { storage[key] = value; } };
+  S.b = 123456;
+  S.day = 789;
+  const transferred = exportSave();
+  S.b = 1;
+  S.day = 2;
+  assert.equal(importSave(transferred), true);
+  assert.equal(S.b, 123456);
+  assert.equal(S.day, 789);
+  assert.equal(importSave('{"cv":2}'), false);
+  assert.equal(S.b, 123456, 'invalid transfer does not replace the current state');
+  delete globalThis.localStorage;
+});
+test('loading a corrupt primary save restores the last known-good save', async () => {
+  const { save, load } = await import('../js/core/state.js');
+  const storage = { vg3: '{broken', 'vg3-last-good': JSON.stringify({ ...S, b: 987654, day: 321 }) };
+  const written = {};
+  globalThis.localStorage = { getItem: key => storage[key] || null, setItem: (key, value) => { written[key] = value; storage[key] = value; } };
+  load();
+  assert.equal(S.b, 987654);
+  assert.equal(S.day, 321);
+  assert.equal(written['vg3-unreadable'], '{broken');
+  assert.match(S.dev.ev.at(-1).m, /last known-good/);
+  S.b = 2468;
+  save();
+  assert.equal(JSON.parse(storage['vg3-last-good']).b, 2468);
   delete globalThis.localStorage;
 });
 
@@ -1131,6 +1203,30 @@ test('a year that spends more than its budget earns a bigger one', async () => {
   assert.ok(S.fy.bud <= 1.35 * budget);
 });
 
+test('a budget recovery cannot fall below the current payroll and upkeep', async () => {
+  const { nextBudget, operationsPerYear } = await import('../js/rules/budget.js');
+  await openNasaBudget();
+  S.teams = 6;
+  S.staff.director = 1;
+  S.crew = { prop: 1, rso: 1, tlm: 1, bstr: 1, fido: 1 };
+  assert.ok(nextBudget() >= operationsPerYear());
+});
+
+test('one bounded emergency appropriation protects essential operations until the next funding cycle', async () => {
+  const { budgetTick } = await import('../js/rules/budget.js');
+  await openNasaBudget();
+  S.teams = 6;
+  S.staff.director = 1;
+  S.crew = { prop: 1, rso: 1, tlm: 1, bstr: 1, fido: 1 };
+  S.b = 0;
+  budgetTick(0);
+  const funded = S.b;
+  assert.ok(funded > 0);
+  assert.equal(S.fy.em, 1);
+  budgetTick(0);
+  assert.equal(S.b, funded, 'the emergency appropriation is not repeatedly paid');
+});
+
 test('without a Mercury flight reputation slips, and a flight ends the quiet spell', async () => {
   const budgetTick = await openNasaBudget();
   const { recordMercuryFlight, QUIET_DAYS } = await import('../js/rules/budget.js');
@@ -1299,6 +1395,23 @@ test('the last Gemini goals open together and can be met in any order', async ()
   fulfilDirective(goal('g8'));
   assert.equal(S.p2.dir, MERCURY_DIRECTIVES.length);
   assert.ok(S.p2.gemDone);
+});
+test('Gemini delegation is opt-in and keeps Gemini launches behind a player greenlight', async () => {
+  const { startOps, delegateGemini, opsTurn } = await import('../js/rules/flight-ops.js');
+  S.nasa = 1;
+  S.p2 = newPhaseTwo();
+  S.staff.director = 1;
+  assert.match(delegateGemini(), /Mercury tests first/);
+  assert.equal(startOps(500000), null);
+  assert.match(delegateGemini(), /Gemini is not open/);
+  S.p2.fl.gem = 1;
+  assert.equal(delegateGemini(), null);
+  assert.equal(S.ops.gemini, 1);
+  S.p2.dir = 10;
+  S.ops.gl.g1 = 3;
+  S.ops.ready = { kind: 'g1', gemini: 1, what: 'an uncrewed Gemini', af: -1 };
+  assert.equal(opsTurn(), false, 'a delegated Gemini launch remains waiting');
+  assert.deepEqual(S.ops.ready, { kind: 'g1', gemini: 1, what: 'an uncrewed Gemini', af: -1 });
 });
 
 test('a Gemini spacecraft lasts four days on batteries, eight with fuel cells and fourteen with the long-duration stores', async () => {
@@ -1648,6 +1761,23 @@ test('a hired lead runs the shared lane on the shared line, and proposes a miles
   S.jobs = [];
   notNow('r');
   assert.deepEqual(proposals('r'), []);
+});
+test('shared work has one programme owner and refuses a second programme until the line is released', async () => {
+  const { startShared, sharedOwner, sharedConflict, endShared } = await import('../js/rules/shared-research.js');
+  const { chenJoinTick } = await import('../js/rules/lanes.js');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  S.cur = 'aerobee';
+  assert.equal(startShared(40000), null);
+  assert.equal(sharedOwner(), 'aerobee');
+  readyProgramme('viking');
+  S.cur = 'viking';
+  assert.equal(sharedConflict(), 'the shared line is assigned to aerobee');
+  assert.match((await import('../js/rules/shared-research.js')).approveProposal('missing'), /Nothing/);
+  endShared();
+  assert.equal(sharedOwner(), null);
+  assert.equal(sharedConflict(), null);
 });
 
 test('a development lead takes over a rocket lane from the console engineer, at their own pace', async () => {
@@ -2209,6 +2339,25 @@ test('a hearing takes its lead off work, then reads the record into plain effect
   hearingTick();
   assert.ok(S.rep < rep, 'a skipped test comes out at the hearing');
 });
+test('hearing availability rejects unknown kinds and preserves the pending hearing across a fresh process load', async () => {
+  const { openHearing, hearingOpen } = await import('../js/rules/hearing.js');
+  await apolloUnderPressure();
+  assert.equal(openHearing('not-a-hearing'), 'No such hearing.');
+  assert.equal(openHearing('apollo', 12, null), null);
+  const saved = JSON.stringify({ cv: 3, day: S.day, p2: S.p2, rep: S.rep, speed: S.speed });
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    globalThis.localStorage = { getItem: () => process.env.VG_SAVE, setItem() {} };
+    const { S, load } = await import('./js/core/state.js');
+    load();
+    console.log(JSON.stringify({ hearing: S.p2.hg, day: S.day }));
+  `], { encoding: 'utf8', env: { ...process.env, VG_SAVE: saved } });
+  assert.equal(child.status, 0, child.stderr);
+  const restored = JSON.parse(child.stdout.trim());
+  assert.equal(restored.hearing.k, 'apollo');
+  assert.equal(restored.hearing.d, S.day + 12);
+  assert.equal(restored.day, S.day);
+  assert.deepEqual(hearingOpen(), S.p2.hg);
+});
 test('shielding: a briefing calms the press but a failure soon after costs more; a stand-down holds crews', async () => {
   const { shield, standDownLock, vouchedFailure } = await import('../js/rules/requests.js');
   const { pressure } = await import('../js/rules/pressure.js');
@@ -2488,9 +2637,11 @@ test('beginMission holds the selected old booster and records an explicit overri
   const capsule={id:901,mt:'mr',cfg:{pk:[],rev:1}};S.p2.veh.push(capsule);
   const fuel=PROGRAMMES.titan.propellants[0],pilot=S.p2.astros[0].id;
   assert.ok(boosterPlan(older,fuel,'mr').ok,'the mission is otherwise physically feasible');
+  S.b=0;
   const before={b:S.b,day:S.day,air:S.air.length,capsules:S.p2.veh.length};
   assert.equal(beginMission(901,pilot,{af:older.id,fuel}),null);
-  assert.deepEqual({b:S.b,day:S.day,air:S.air.length,capsules:S.p2.veh.length},before,'a held launch consumes nothing');
+  assert.deepEqual({b:S.b,day:S.day,air:S.air.length,capsules:S.p2.veh.length},before,'an unaffordable launch consumes nothing');
+  S.b=1e6;
   assert.ok(beginMission(901,pilot,{af:older.id,fuel,overBar:true}));
   assert.equal(S.p2.acc.at(-1).cfg,key);assert.equal(S.p2.acc.at(-1).af,older.id);
 });

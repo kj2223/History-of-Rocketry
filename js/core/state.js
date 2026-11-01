@@ -82,7 +82,7 @@ export const newGameState = () => ({
   b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], rq: [], teams: 2, air: [], aq: [], fac: {},
   nid: 1, prod: 0, ok: 0, fr: {}, gt: 30, sg: 0, hs: 0, hd: 0, crew: {}, fs: {}, rvd: {},
   rv: sovietDates(),
-  fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3, pt: {},
+  fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, nasaReview: null, cv: 3, pt: {},
   staff: { pr: 0, director: 0, ta: 0 },
   auto: { xp: 0, camp: null, cd: 15, last: null, inv: null },
   team: { n: 0, ok: 0, rev: 0, fix: 0, dir: 0, rec: 0, top: 0, held: 0, watch: [] },
@@ -91,7 +91,7 @@ export const newGameState = () => ({
   works: null,
   orders: { o: null, reqs: [], n: 1, due: 0 },
   leads: {},
-  shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
+  shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [], owner: null },
   cult: { lean: 0, conf: 0, n: 0, tests: 0, ev: [] },
   ops: null,
   v2: { n: 0, ok: 0, hi: 0, next: V2_PROGRAMME.start, ride: null, bump: null },
@@ -153,6 +153,21 @@ function replaceState(next) {
   Object.assign(S, next);
 }
 const SAVE_KEY = 'vg3';
+const LAST_GOOD_SAVE_KEY = SAVE_KEY + '-last-good';
+const isValidSave = saved => !!saved && typeof saved == 'object' && !Array.isArray(saved) && saved.cv >= 3;
+const parseSave = raw => {
+  const saved = JSON.parse(raw || 'null');
+  if (!isValidSave(saved)) throw new Error('Not a version-3 save.');
+  return saved;
+};
+export const exportSave = () => JSON.stringify(S);
+export const importSave = raw => {
+  let saved;
+  try { saved = parseSave(raw); } catch (e) { return false; }
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(saved)); } catch (e) { return false; }
+  load();
+  return true;
+};
 // Watched launches are recovered from a complete pre-launch state, not a half-written flight.
 let launchCheckpoint = null;
 export const checkpointLaunch = () => { launchCheckpoint = JSON.stringify(S); };
@@ -167,43 +182,48 @@ export const load = () => {
   launchCheckpoint = null;
   replaceState(newGameState());
   let raw = null;
+  let saved = null;
+  let usedFallback = false;
   try {
     raw = localStorage.getItem(SAVE_KEY);
-    const saved = JSON.parse(raw || 'null');
-    if (saved && saved.cv >= 3) {
-      Object.assign(S, saved);
-      if (S.launchInterrupted) {
-        delete S.launchInterrupted;
-        S.speed = 0;
-        log('[SAVE] An interrupted launch was restored to its pre-launch checkpoint. Vehicles and funds are intact. The game is paused.', 'wn');
-      }
-      if (!saved.dev) S.dev = { v: 1, ps: 0, fl: 0, ev: [], snap: [] };
-      // Saves from before the culture: the crews' confidence starts from the flights the launch director has already run.
-      if (!saved.cult) S.cult.conf = Math.min(.6, (S.auto.xp || 0) * .06);
-      // Saves from before launch campaigns hold the director's old standing orders: replace them with an empty campaign record.
-      if ('on' in S.auto) S.auto = newGameState().auto;
-      // Soviet events added since: their dates are set, and those already past by the save's date count as done without a word.
-      for (const event of RIVAL) if (!(event.id in S.rv)) {
-        S.rv[event.id] = event.follows && S.rv[event.follows] ? S.rv[event.follows] + event.day - RIVAL.find(other => other.id == event.follows).day : jitterSovietDate(event.day);
-        if (S.day > S.rv[event.id]) S.rvd[event.id] = 1;
-      }
-      // Saves from when each rocket had its own standing order: one order now covers every rocket, under their caps combined.
-      if (S.orders.by) {
-        const old = Object.entries(S.orders.by);
-        S.orders.o = old.length ? old.reduce((order, [prog, each]) => ({ ...order, prog: order.prog || prog, cap: order.cap + each.cap, spent: order.spent + each.spent, n: order.n + each.n, okn: order.okn + each.okn, paid: order.paid + each.paid, hold: order.hold || each.hold }), { prog: null, cap: 0, spent: 0, n: 0, okn: 0, paid: 0, hold: null, pk: {}, aside: 0 }) : null;
-        delete S.orders.by;
-      }
-      // Saves from before launch pads that already have an Atlas get its pad, so their next launch is not held up.
-      if (!saved.pt && saved.progs && saved.progs.atlas) S.fac.lc14 = 1;
-      // Fields added since inside the nested records (S.team, S.orders, S.shared and so on) get their starting values.
-      const fresh = newGameState();
-      for (const key in fresh) if (isRecord(fresh[key]) && isRecord(S[key])) {
-        for (const field in fresh[key]) if (!(field in S[key])) S[key][field] = fresh[key][field];
-      }
+    saved = parseSave(raw);
+  } catch (e) {
+    try { if (raw) localStorage.setItem(SAVE_KEY + '-unreadable', raw); } catch (copyFailed) {}
+    try {
+      saved = parseSave(localStorage.getItem(LAST_GOOD_SAVE_KEY));
+      usedFallback = true;
+    } catch (fallbackFailed) {
+      log('[SAVE] Your saved game could not be read. A copy is kept under ' + SAVE_KEY + '-unreadable.', 'bad');
     }
+  }
+  if (!saved) return;
+  try {
+    Object.assign(S, saved);
+    if (S.launchInterrupted) {
+      delete S.launchInterrupted;
+      S.speed = 0;
+      log('[SAVE] An interrupted launch was restored to its pre-launch checkpoint. Vehicles and funds are intact. The game is paused.', 'wn');
+    }
+    if (!saved.dev) S.dev = { v: 1, ps: 0, fl: 0, ev: [], snap: [] };
+    if (!saved.cult) S.cult.conf = Math.min(.6, (S.auto.xp || 0) * .06);
+    if ('on' in S.auto) S.auto = newGameState().auto;
+    for (const event of RIVAL) if (!(event.id in S.rv)) {
+      S.rv[event.id] = event.follows && S.rv[event.follows] ? S.rv[event.follows] + event.day - RIVAL.find(other => other.id == event.follows).day : jitterSovietDate(event.day);
+      if (S.day > S.rv[event.id]) S.rvd[event.id] = 1;
+    }
+    if (S.orders.by) {
+      const old = Object.entries(S.orders.by);
+      S.orders.o = old.length ? old.reduce((order, [prog, each]) => ({ ...order, prog: order.prog || prog, cap: order.cap + each.cap, spent: order.spent + each.spent, n: order.n + each.n, okn: order.okn + each.okn, paid: order.paid + each.paid, hold: order.hold || each.hold }), { prog: null, cap: 0, spent: 0, n: 0, okn: 0, paid: 0, hold: null, pk: {}, aside: 0 }) : null;
+      delete S.orders.by;
+    }
+    if (!saved.pt && saved.progs && saved.progs.atlas) S.fac.lc14 = 1;
+    const fresh = newGameState();
+    for (const key in fresh) if (isRecord(fresh[key]) && isRecord(S[key])) {
+      for (const field in fresh[key]) if (!(field in S[key])) S[key][field] = fresh[key][field];
+    }
+    if (usedFallback) log('[SAVE] The current saved game could not be read. The last known-good save was restored.', 'wn');
   } catch (e) {
     replaceState(newGameState());
-    // A save that cannot be read is copied aside before the autosave can write over it.
     try { if (raw) localStorage.setItem(SAVE_KEY + '-unreadable', raw); } catch (copyFailed) {}
     log('[SAVE] Your saved game could not be read. A copy is kept under ' + SAVE_KEY + '-unreadable.', 'bad');
   }
@@ -213,7 +233,10 @@ const isRecord = value => !!value && typeof value == 'object' && !Array.isArray(
 let saveFailed = false;
 export const save = () => {
   try {
-    localStorage.setItem(SAVE_KEY, launchCheckpoint ? JSON.stringify({ ...JSON.parse(launchCheckpoint), launchInterrupted: true }) : JSON.stringify(S));
+    const serialized = launchCheckpoint ? JSON.stringify({ ...JSON.parse(launchCheckpoint), launchInterrupted: true }) : exportSave();
+    parseSave(serialized);
+    localStorage.setItem(LAST_GOOD_SAVE_KEY, serialized);
+    localStorage.setItem(SAVE_KEY, serialized);
     saveFailed = false;
   } catch (e) {
     if (!saveFailed) log('[SAVE] The game could not be saved. Progress since the last save will be lost if you close it.', 'bad');

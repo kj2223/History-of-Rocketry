@@ -48,8 +48,17 @@ const ops = () => S.ops;
 export function startOps(cap) {
   if (!opsUnlocked()) return 'Ellis takes the Mercury tests once NASA is formed and she is launch director.';
   if (ops()) return 'Ellis already runs the Mercury tests.';
-  S.ops = { cap, spent: 0, n: 0, okn: 0, gl: {}, ready: null, hold: null, wait: null, short: {}, snooze: 0 };
+  S.ops = { cap, spent: 0, n: 0, okn: 0, gl: {}, ready: null, hold: null, wait: null, short: {}, snooze: 0, gemini: 0 };
   log(`[FLIGHT OPS] Ellis takes the Mercury tests, up to ${formatMoney(cap)}. Each launch comes to you for a greenlight.`, 'cyan');
+  return null;
+}
+export function delegateGemini() {
+  if (!opsUnlocked()) return 'Ellis takes Gemini only after NASA is formed and she is launch director.';
+  if (!S.ops) return 'Give Ellis the Mercury tests first.';
+  if (!S.p2 || !S.p2.fl || !S.p2.fl.gem) return 'Gemini is not open yet.';
+  S.ops.gemini = 1;
+  S.ops.wait = null;
+  log('[FLIGHT OPS] Ellis takes the Gemini preparation work. Every Gemini launch still waits for your greenlight.', 'cyan');
   return null;
 }
 export function raiseOps(double = false) {
@@ -65,7 +74,7 @@ export function endOps() {
 }
 
 // THE DIRECTIVE IN HAND: the first open Mercury directive (Gemini's come back to you).
-const directiveInHand = () => openDirectives().find(directive => directive.project != 'gemini') || null;
+const directiveInHand = () => openDirectives().find(directive => directive.project != 'gemini' || ops()?.gemini) || null;
 const isCrewedKey = directive => ['crew', 'ocrew', 'oday'].includes(directive.key) || !!directive.crew;
 const ratedTypeFor = directive => directive.section == 2 || MISSION_TYPES[directive.missionType || 'mr'].orbital ? 'mo' : 'mr';
 
@@ -111,7 +120,7 @@ function spend(cost) {
 export function opsTurn() {
   const record = ops();
   if (!record || record.hold || !S.p2) return false;
-  if (record.ready) return record.ready.standing ? greenlight(false, true) : false;
+  if (record.ready) return record.ready.standing && !record.ready.gemini ? greenlight(false, true) : false;
   if (record.snooze > S.day) return idle('you said not yet');
   const acted = directiveTurn();
   if (record.ready || record.hold || !record.series || !record.wait) return acted;
@@ -158,7 +167,7 @@ function directiveTurn() {
   const lock = crewLock(crew, booster.airframe, missionType);
   if (lock) return idle(lock.replace(/\.$/, ''));
   const who = crew == 'none' ? 'no one aboard' : crew == 'monkey' ? 'a rhesus monkey aboard' : crew == 'chimp' ? 'a chimpanzee aboard' : `${S.p2.astros.find(each => each.id == crew).name} aboard`;
-  return offer({ kind: directive.key, what: `${MISSION_TYPES[missionType].fullName}, ${who}, on ${booster.airframe.label}`, crewed: crewed ? 1 : 0, af: booster.airframe.id, fuel: booster.fuel, vid: capsule.id, crew, orbits, mt: missionType });
+  return offer({ kind: directive.key, what: `${MISSION_TYPES[missionType].fullName}, ${who}, on ${booster.airframe.label}`, crewed: crewed ? 1 : 0, gemini: directive.project == 'gemini' ? 1 : 0, af: booster.airframe.id, fuel: booster.fuel, vid: capsule.id, crew, orbits, mt: missionType });
 }
 // The assigned pilot for the mission type, or the best qualified astronaut she assigns. null if no one can.
 function pilotFor(missionType) {
@@ -180,7 +189,9 @@ function idle(why) {
 function offer(launch) {
   const record = ops(), pre = record.pre || (record.pre = {});
   record.wait = null;
-  if (!launch.series && pre[launch.kind] > 0) {
+  if (launch.gemini) {
+    launch.standing = 0;
+  } else if (!launch.series && pre[launch.kind] > 0) {
     pre[launch.kind]--;
     launch.standing = 1;
   } else launch.standing = launch.series || (!launch.crewed && (record.gl[launch.kind] || 0) >= STANDING_AFTER) ? 1 : 0;

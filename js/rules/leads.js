@@ -23,6 +23,7 @@ export function hireLead(area, id) {
   if (!postOpen(area)) return 'That post is not open yet.';
   if (S.leads[area]) return 'That post is filled.';
   S.leads[area] = id;
+  if (area == 'e' && S.nasaReview) S.nasaReview.assurance = id;
   log(`[R&D] ${candidate.name} joins as ${post.title}, ${formatMoney(candidate.salary)} per cycle.`, 'hd');
   return null;
 }

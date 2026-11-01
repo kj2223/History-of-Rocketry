@@ -162,6 +162,7 @@ export function crewLock(crew, airframe, missionType = 'mr') {
   }
   if (state.stand > S.day) return `Crewed flights are stood down after the loss of a crew until ${formatDate(state.stand)}.`;
   if (standDownLock()) return standDownLock();
+  if (crew != 'monkey' && crew != 'chimp' && S.nasaReview && S.nasaReview.restricted && !S.nasaReview.assurance) return 'NASA transfer review requires an independent assurance lead before a crew can fly.';
   if (state.dir < 4) return 'NASA will not fly a crew until an animal has flown and been recovered alive.';
   if (missionType == 'mo' && !directiveDone('oanimal')) return 'NASA will not fly a crew into orbit until a chimpanzee has orbited and been recovered alive.';
   if (missionType == 'gt' && !directiveDone('g1')) return 'NASA will not fly a crew on Gemini until an uncrewed Gemini has flown and been recovered.';

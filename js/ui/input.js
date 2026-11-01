@@ -44,7 +44,7 @@ import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from
 import { openMail } from './mail.js';
 import { $ } from './dom.js';
 import { noteHabit, noteFix } from '../rules/culture.js';
-import { startOps, raiseOps, endOps, greenlight, notYet, startSeries, endSeries } from '../rules/flight-ops.js';
+import { startOps, raiseOps, endOps, delegateGemini, greenlight, notYet, startSeries, endSeries } from '../rules/flight-ops.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { BY_ID, AREAS } from '../data/research.js';
 
@@ -149,6 +149,10 @@ const PAD_ACTIONS = {
       count.fuel = count.target;
       log('[PAD] LOX topped off.', 'ok');
     }
+  },
+  fgemini: () => {
+    const error = delegateGemini();
+    if (error) log('[FLIGHT OPS] ' + error, 'bad');
   },
   hold: count => {
     if (count) {

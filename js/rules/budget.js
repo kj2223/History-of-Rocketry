@@ -34,11 +34,12 @@ const fiscalYearOf = day => 1946 + Math.floor(day / 360) + (day % 360 >= 180 ? 1
 const fiscalYearEnd = year => (year - 1946) * 360 + 180;
 // 30-second funding cycles in a game year at the Phase Two calendar.
 export const CYCLES_PER_YEAR = 360 / (30 * DAYS_PER_SECOND_PHASE_TWO);
+const EMERGENCY_MONTHS = 2, EMERGENCY_CAP = .1;
 
 // NASA's first budget carries on the Phase One grant rate for the rest of the fiscal year. Also starts the budget on older saves.
 export function openBudget() {
   const budget = thousands(phaseOneGrant() * CYCLES_PER_YEAR);
-  S.fy = { yr: fiscalYearOf(S.day), bud: budget, st: S.day, b0: S.b, paid: 0, inc: 0, pd: S.day, rq: 1, lm: S.day, q: 0, last: null };
+  S.fy = { yr: fiscalYearOf(S.day), bud: budget, st: S.day, b0: S.b, paid: 0, inc: 0, pd: S.day, rq: 1, lm: S.day, q: 0, em: 0, last: null };
   log(`[CONGRESS] NASA's first appropriation: ${formatMoney(budget)} a year, paid as the year goes. FY${S.fy.yr} ends ${formatDate(fiscalYearEnd(S.fy.yr))}.`, 'hd');
 }
 
@@ -77,7 +78,18 @@ export const congressShare = () => Math.max(SHARE_RANGE[0], Math.min(SHARE_RANGE
   BASE_SHARE + REPUTATION_SHARE * S.rep / 100 + racePressure() + (budgetUsed() > 1 ? OVERSPENT_SHARE : 0) + ((S.p2 && S.p2.gmul) || 1) - 1 - congressTrim())) / Math.sqrt(S.fy.rq);
 // Next year's budget if the year ended today.
 const thousands = (dollars, round = Math.round) => round(dollars / 1000) * 1000;
-export const nextBudget = () => Math.max(thousands(BUDGET_STEP[0] * S.fy.bud, Math.ceil), Math.min(thousands(BUDGET_STEP[1] * S.fy.bud, Math.floor), thousands(request() * congressShare())));
+export const nextBudget = () => Math.max(thousands(BUDGET_STEP[0] * S.fy.bud, Math.ceil), thousands(operationsPerYear(), Math.ceil), Math.min(thousands(BUDGET_STEP[1] * S.fy.bud, Math.floor), thousands(request() * congressShare())));
+
+function emergencyAppropriation() {
+  if (S.fy.em || S.b >= operationsPerYear() / 12 * EMERGENCY_MONTHS) return false;
+  const amount = Math.min(Math.ceil(operationsPerYear() / 12), Math.ceil(S.fy.bud * EMERGENCY_CAP));
+  if (amount <= 0) return false;
+  S.b += amount;
+  S.fy.inc += amount;
+  S.fy.em = 1;
+  log(`[CONGRESS] Emergency operating appropriation: ${formatMoney(amount)} to keep essential work running until the next funding cycle.`, 'wn');
+  return true;
+}
 
 // Every second after NASA: open the budget, close the year when it ends, and let reputation slip in a quiet spell.
 // Returns true if the page needs redrawing.
@@ -91,6 +103,7 @@ export function budgetTick(days) {
     closeYear();
     changed = true;
   }
+  if (emergencyAppropriation()) changed = true;
   const quiet = S.day - S.fy.lm > QUIET_DAYS;
   if (quiet) S.rep = Math.max(0, S.rep - QUIET_LOSS_PER_MONTH * days / 30);
   if (quiet && !S.fy.q) log(`[CONGRESS] No Mercury flight since ${formatDate(S.fy.lm)}. Congress asks what NASA is doing with the money; reputation will slip until the next flight.`, 'wn');
@@ -112,5 +125,5 @@ function closeYear() {
     S.b = keep;
     log(`[TREASURY] ${formatMoney(lapsed)} unspent at the year's end goes back to the Treasury. ${formatMoney(keep)} carries over.`, 'wn');
   }
-  S.fy = { ...S.fy, yr: year + 1, bud: next, st: S.day, b0: S.b, paid: 0, inc: 0, pd: S.day, last: { yr: year, bud: budget, spent, share, lapsed } };
+  S.fy = { ...S.fy, yr: year + 1, bud: next, st: S.day, b0: S.b, paid: 0, inc: 0, pd: S.day, em: 0, last: { yr: year, bud: budget, spent, share, lapsed } };
 }

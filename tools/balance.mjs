@@ -24,7 +24,7 @@ import { playMercury } from './mercury-bot.mjs';
 import { autoLaunch } from '../js/rules/auto.js';
 import { directorUnlocked } from '../js/rules/campaign.js';
 import { openPosts, hireLead, leadsPayroll, postCandidates } from '../js/rules/leads.js';
-import { SHARED_AREAS, SHARED_CAPS, startShared, raiseShared, proposals, approveProposal } from '../js/rules/shared-research.js';
+import { SHARED_AREAS, SHARED_CAPS, startShared, raiseShared, endShared, proposals, approveProposal } from '../js/rules/shared-research.js';
 import { briefFree, approveBrief } from '../js/rules/brief.js';
 import { standingOrder, raiseOrder, resumeOrder } from '../js/rules/orders.js';
 import { LANES, endLanes, raiseLanes, laneProposals, approveLaneMilestone, laneNotNow } from '../js/rules/lanes.js';
@@ -134,18 +134,23 @@ function run(seed) {
       delegated.at = t;
     }
     for (const area of openPosts()) hireLead(area, postCandidates(area).slice().sort((first, second) => first.salary - second.salary)[0].id);
+    if (S.nasa && S.nasaReview?.restricted && !S.nasaReview.assurance && !S.leads.e) hireLead('e', 'ortiz');
+    const latest = latestProgramme();
+    S.cur = latest;
     if (!S.remit && remitUnlocked() && S.b > reserve + REMIT_CAPS[0]) startRemit(REMIT_CAPS[0]);
     // Caps are raised only while the treasury can carry them; otherwise the line waits.
     const flush = S.b > reserve + 60000;
     if (S.remit && S.remit.dry && flush) raiseRemit();
-    if (!S.shared.cap && S.b > reserve + SHARED_CAPS[0]) startShared(SHARED_CAPS[0]);
+    if (!S.shared.cap && S.b > reserve + SHARED_CAPS[0]) {
+      S.cur = null;
+      startShared(SHARED_CAPS[0]);
+      S.cur = latest;
+    }
     if (S.shared.dry && flush) raiseShared();
     for (const area of SHARED_AREAS) if (proposals(area).length) approveProposal(proposals(area)[0].id);
     // Production and research follow the newest rocket; the older ones keep their standing orders.
-    const latest = latestProgramme();
     if (S.lanes && S.lanes.prog != latest) endLanes();
     if (S.works && S.works.prog != latest) endWorks();
-    S.cur = latest;
     if (briefFree(latest).length && S.b > reserve + 20000) approveBrief(0);
     if (S.lanes && S.lanes.dry && flush) raiseLanes();
     // A lane's milestone proposal: approve the cheapest of the ones the bot commissions itself, and not now to any others.

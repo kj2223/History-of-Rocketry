@@ -27,7 +27,7 @@ export function startShared(cap) {
   if (!memberJoined('chen')) return 'Alice Chen has not joined yet.';
   if (S.shared.cap) return 'The shared line is already open.';
   if (!(cap > 0)) return 'Set a budget.';
-  Object.assign(S.shared, { cap, spent: 0, jobs: 0, dry: null });
+  Object.assign(S.shared, { cap, spent: 0, jobs: 0, dry: null, owner: S.cur || null });
   log(`[R&D] Chen opens the shared research line, up to ${formatMoney(cap)}.`, 'cyan');
   return null;
 }
@@ -42,7 +42,14 @@ export function endShared() {
   if (!S.shared.cap) return;
   log(`[R&D] Shared research line closed: ${S.shared.jobs} package${S.shared.jobs == 1 ? '' : 's'}, ${formatMoney(S.shared.spent)} of ${formatMoney(S.shared.cap)} spent.`, 'wn');
   S.shared.cap = 0;
+  S.shared.owner = null;
 }
+
+export const sharedOwner = () => S.shared.owner || null;
+export const sharedConflict = prog => {
+  const owner = sharedOwner();
+  return owner && owner != (prog || S.cur) ? `the shared line is assigned to ${owner}` : null;
+};
 
 // The milestones a lead proposes in their area: open to start, not queued, and not put off.
 export const proposals = area => hiredLead(area) ? MILESTONES.filter(milestone => milestone.area == area && !availabilityLock(milestone.id) && queuePosition(milestone.id) < 0 && !S.shared.skip.includes(milestone.id)) : [];
@@ -53,6 +60,8 @@ export const isChoice = area => proposals(area).filter(milestone => milestone.ti
 export function approveProposal(id) {
   const milestone = BY_ID[id], area = milestone && milestone.area, lead = area && hiredLead(area);
   if (!lead || !proposals(area).includes(milestone)) return 'Nothing to approve.';
+  const conflict = sharedConflict(S.cur);
+  if (conflict) return `Cannot approve shared work: ${conflict}.`;
   if (laneJob(area)) return `${lead.name} is finishing a package. Approve it once that is done.`;
   if (S.b < milestone.cost) return `Need ${formatMoney(milestone.cost - S.b)} more.`;
   startOnLane(area, lead, milestone);
@@ -68,7 +77,7 @@ function startOnLane(area, lead, item) {
   S.b -= item.cost;
   S.shared.spent += item.cost;
   S.shared.jobs++;
-  S.jobs.push({ k: 'pk', id: item.id, prog: null, t: time, tot: time, free: 1, ln: area });
+  S.jobs.push({ k: 'pk', id: item.id, prog: null, owner: S.shared.owner || null, t: time, tot: time, free: 1, ln: area });
   log(`[R&D] ${lead.name} starts ${item.name} (${formatMoney(item.cost)}).`, 'wn');
 }
 
@@ -87,6 +96,14 @@ export function sharedIdleReason(area) {
 // Each second. Returns true if anything happened.
 export function sharedTick() {
   if (!S.shared.cap) return false;
+  const conflict = sharedConflict(S.cur);
+  if (conflict) {
+    if (S.shared.dry != conflict) {
+      S.shared.dry = conflict;
+      log(`[R&D] The shared line cannot be used: ${conflict}.`, 'wn');
+    }
+    return false;
+  }
   let changed = false;
   for (const area of SHARED_AREAS) {
     const lead = hiredLead(area);

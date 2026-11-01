@@ -197,7 +197,7 @@ function directiveHTML() {
   const ourSatellite = S.fs.f_orbit == 'us' || S.fs.f_orbit == 'second'; // f_orbit is 'sov' when only the Soviets have one
   if (!S.nasa && ourSatellite && !nasaReady()) html += `<div class="c nasa"><div class="t">THE NATIONAL AERONAUTICS AND SPACE ACT</div><div class="m">Your satellite has Washington talking about a civilian space agency, but Congress moves at its own pace. The Act is expected around <b>${formatDate(SPACE_ACT_DAY)}</b>; the calendar runs fast until then. Keep flying: science payloads still pay.</div></div>`;
   if (nasaReady()) html += `<div class="c nasa"><div class="t">THE NATIONAL AERONAUTICS AND SPACE ACT</div><div class="m">${ourSatellite ? 'With a satellite in orbit,' : 'Whatever your progress,'} Washington wants a civilian space agency, with your programme at its core. Establishing it closes Phase One and sets up crewed flight.</div><button data-a="nasa">ESTABLISH NASA</button></div>`;
-  else if (S.nasa) html += `<div class="c nasa"><div class="ok">NASA established ${formatDate(S.nasa)}. Project Mercury (crewed flight) is the next chapter.</div><button data-a="summary">VIEW PHASE ONE SUMMARY</button></div>`;
+  else if (S.nasa) html += `<div class="c nasa"><div class="ok">NASA established ${formatDate(S.nasa)}. Project Mercury (crewed flight) is the next chapter.</div>${S.nasaReview?.restricted && !S.nasaReview.assurance ? '<div class="m wn">Crewed flight remains restricted until the independent assurance responsibility is assigned.</div>' : '<div class="m">Independent assurance: assigned.</div>'}<button data-a="summary">VIEW PHASE ONE SUMMARY</button></div>`;
   if (S.nasa && S.p2) html = mercuryDirectiveHTML() + `<button data-a="summary">VIEW PHASE ONE SUMMARY</button>`;
   return html;
 }

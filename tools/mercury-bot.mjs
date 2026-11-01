@@ -22,7 +22,7 @@ import { beginMission, stepMission, endMission, decisionOptions, decisionOdds, c
 import { chooseTestingRegime, startChimpTraining, answerOfficeDecision } from '../js/rules/astronaut-office.js';
 import { selectCrew, skillEstimate, isQualified, assignPilot, assignedPilot, assignBackup, backupPilot, assignThirdCrew, thirdCrew } from '../js/rules/astronauts.js';
 import { manRatingResearchDone, isManRated, isFamilyCertified } from '../js/rules/manrate.js';
-import { setRequest, REQUEST_RANGE } from '../js/rules/budget.js';
+import { setRequest, REQUEST_RANGE, operationsPerYear } from '../js/rules/budget.js';
 import { STUDY_SIZES, ARCHITECTURE_ORDER } from '../js/data/apollo.js';
 import { decideRollover, startStudy, estimate, chooseArchitecture } from '../js/rules/apollo.js';
 import { capabilityShown } from '../js/rules/mercury.js';
@@ -51,6 +51,7 @@ const readyProgrammes = () => Object.keys(S.progs).filter(kind => S.progs[kind].
 // sectionOne: { at (seconds), budget, date day, missions, missionFails, astronautsLost, launches, human } when Section 1 completed.
 export function playMercury(game) {
   const report = { nasaAt: null, directiveTimes: [], missions: 0, missionFails: 0, astronautsLost: 0, launches: 0, done: false, sectionOne: null, sectionTwoDone: false, mercuryAt: null, geminiDone: false, geminiAt: null, saturnAt: null, saturnLaunches: 0, barOverrides: 0, requests: 0, briefings: 0, peakPressure: 0 };
+  const financialReserve = () => Math.max(15000, Math.ceil(operationsPerYear() / 6));
   // Programmes known not to deliver a mission type: "mr:wac" and so on, so the bot does not keep building them.
   // For the orbital flight the blueprint revision is part of the key: research can make a rocket fast enough later.
   const tooSmall = {};
@@ -262,7 +263,7 @@ export function playMercury(game) {
     // The parallel Gemini goals: the rendezvous or docking once both seats have trained for it, the long flight meanwhile.
     const open = openDirectives(), trained = GEMINI_SEATS.every(seat => (assignedPilot(seat) || { reh: {} }).reh.rdv);
     const directive = (trained && open.find(each => each.rendezvous || each.dock)) || open.find(each => !each.rendezvous && !each.dock) || open[0];
-    const reserve = 15000, key = directive.key, orbital = state.secDone, gemini = state.fl.gem;
+    const reserve = financialReserve(), key = directive.key, orbital = state.secDone, gemini = state.fl.gem;
 
     // Blueprints, staff and facilities.
     // A booster milestone starts a new man-rating family, so a certified booster's blueprint only takes fixes and packages.

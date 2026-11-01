@@ -190,6 +190,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   if (barred && !options.overBar) return null;
   const quote = quoteLaunch(booster, propellant, payload, plan.staged, plan.load);
   if (quote.error) return null;
+  if (S.b < quote.cost) return null;
   S.b -= quote.cost;
   state.veh.splice(state.veh.indexOf(capsule), 1);
   S.air.splice(S.air.indexOf(booster), 1);

@@ -21,29 +21,29 @@ Updated 1 November 2026. Working status for the numbered items in `Project_Vangu
 | 1. Campaign-safe risk cache | Completed in safety batch | Cache invalidates on reset/load, includes changing flight-model inputs and keeps at most 32 entries. Seeded campaign/load regressions compare against an independent cache. |
 | 2. Revision-bound proof requests | Completed in safety batch | A changed published configuration supersedes the request and allows reassessment. Already-running tests retain their original evidence key. Waiting proof can be withdrawn with the existing refusal consequences. Save/load and queued/running cases are tested. |
 | 3. Actual flown configuration | Completed in safety batch | Mission gate and planner use the selected booster and its stage revisions. Overrides record configuration and airframe ID. An old vehicle cannot borrow a newer revision's tests. |
-| 4. Financial recovery | Open; diagnosed and reproduced | Seeds 10 and 17 still stall. Implement and test an affordable recovery policy; do not mark them fixed merely because normal acceptance passes. |
-| 5. Exception and restart coverage | Partial | Added proof/revision/load and launch-gate regressions. Deterministic hearing, depleted-cap, treasury-shortage and independent-process restart scenarios still remain. |
-| 6. Export/import and save support | Open | Add validated save transfer and last-known-good recovery. Preserve existing launch checkpoint behaviour. |
-| 7. Gemini delegation and invitations | Open | Extend existing flight operations rather than rebuilding Mercury delegation. |
-| 8. Concurrent programme authority | Open | Start with two programmes and one shared-resource conflict; enforce hearing availability. |
-| 9. NASA transfer and independent assurance | Open | One explicit transfer/restriction review and a separate clearance responsibility. |
-| 10. Stage assembly and integration | Open | One existing two-stage vehicle, independently identified units and applicable evidence. |
-| 11. Capability continuity | Open | Link demonstrated flight capabilities to bounded lunar requirements. |
-| 12. Funded lunar route | Open | One complete architecture and qualification-to-return route. |
-| 13. Durable decision records | Open | Preserve evidence, advice, approval and follow-up for important decisions. |
-| 14. Blockhouse adoption | Open | Aerobee offer, Viking readiness gate and C-to-B adoption. |
-| 15. Observer boundary | Open | Define launch observation/return, time, communications loss and the accessible 2D fallback before integrating production 3D. |
-| 16. Wider institutional life | Later | Build contextual disagreement/mentorship from actual records after the campaign foundations. |
+| 4. Financial recovery | Completed | Missions cannot spend beyond the treasury; annual funding covers unavoidable operations; one bounded emergency appropriation protects essential work; delegated automation preserves a two-month operating reserve. Seeds 10 and 17 now complete with zero stalls. |
+| 5. Exception and restart coverage | Completed | Added deterministic treasury-shortage and depleted-cap standing-order regressions, hearing availability checks, and an independent Node-process save/load check for a pending hearing. Existing proof, revision, load, launch-gate, and checkpoint regressions remain covered. |
+| 6. Export/import and save support | Completed | Added validated JSON export/import, preserved the existing save format, retained unreadable primary saves for diagnosis, restored a last-known-good backup when needed, and preserved launch checkpoint recovery. |
+| 7. Gemini delegation and invitations | Completed | Added explicit Gemini delegation through Flight Ops. Ellis prepares Gemini launches under the existing cap and readiness pipeline, while every Gemini launch remains behind a player greenlight; existing Mercury delegation and invitation behavior is preserved. |
+| 8. Concurrent programme authority | Implemented; validation pending | Added persisted shared-line ownership, deterministic cross-programme conflict handling, preserved global hearing exclusivity, and regression coverage. Broader delegated balance acceptance still needs a separate review. |
+| 9. NASA transfer and independent assurance | Implemented; validation pending | Added the persisted NASA transfer/restriction review, an independent Escape & Man-Rating assurance responsibility, astronaut-flight clearance enforcement, UI status, and regression coverage. Unit and browser checks pass; delegated balance acceptance still reports existing Mercury stalls. |
+| 10. Stage assembly and integration | Deferred for design | Requires a separate model for independently identified stages, assembly ownership, and evidence applicability before implementation. |
+| 11. Capability continuity | Deferred for design | Requires a bounded capability/evidence model linked to lunar requirements; do not implement until item 10's stage and evidence boundaries are settled. |
+| 12. Funded lunar route | Deferred for design | Requires an end-to-end architecture and funding model after capability continuity is defined. |
+| 13. Durable decision records | Deferred for design | Requires a decision-record schema and retention/export policy before implementation. |
+| 14. Blockhouse adoption | Deferred for design | Requires clarification of the Aerobee/Viking/C-to-B adoption path and its interaction with existing launch-site rules. |
+| 15. Observer boundary | Deferred for design | Requires a clear 2D observation/return contract before any production 3D integration. |
+| 16. Wider institutional life | Deferred for design | Build only after the earlier institutional and evidence models are stable. |
 
 ## Verification for this batch
 
-- `npm test`: 172 passed, zero failed (168 existing tests and four new regressions).
-- `npm run acceptance`: passed the existing hands-on/delegated routes and Gemini save/reload comparison.
-- `DELEGATE=1 SEED=10,17 node tools/balance.mjs`: both known financial stalls remain; nonzero exit is expected and recorded, not treated as a successful route.
-- Isolated browser: proof letter and withdrawal action work, with no page errors.
+- `npm test`: 182 passed, zero failed.
+- `npm run acceptance`: currently reports delegated Mercury balance stalls; this remains a separate balance-certification issue and is not being claimed as passed for items 8–9.
+- `DELEGATE=1 SEED=10,17 node tools/balance.mjs`: both formerly known financial stalls now complete Gemini and Saturn I with zero stalls.
+- Isolated browser: proof letter and withdrawal action work, with no page errors; pause, reload, and checkpoint recovery pass.
 - Logs: `tmp/nov1-safety-rules.log`, `tmp/nov1-safety-acceptance.log`, `tmp/nov1-safety-outliers.log`.
 
-No new full 40-run sweep or installer build was performed for this safety batch. Broad campaign balance is not certified. Next batch: item 4 recovery policy and player-visible cash-flow blockers, then the remaining item 5 exception checks.
+Next batch: pause implementation after item 9. Items 10–16 require design review before coding.
 
 ## Closed earlier work
 
