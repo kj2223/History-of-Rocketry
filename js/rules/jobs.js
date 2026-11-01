@@ -4,12 +4,14 @@
 import { formatMoney } from '../core/util.js';
 import { FAILURE_MODES, findFix } from '../data/failures.js';
 import { S, log, freeTeams, withProgramme } from '../core/state.js';
+import { finishCorporalMilestone } from './corporal.js';
 import { trackingTiers, airframeLabel } from './design.js';
-import { retrofitQuote } from './production.js';
+import { retrofitQuote, rocketFixes } from './production.js';
 import { finishResearch, confirmPackage, checkBreakthroughs } from './research.js';
 import { learn, knowledgeFraction, systemOf, SYSTEMS, REVIEW_COST, reviewTime, finishReview } from './knowledge.js';
-import { finishDesign, revealTraits } from './programs.js';
+import { finishDesign, revealTraits, stagesOf } from './programs.js';
 import { recordReview, recordFix, fixFailedTrial } from './team.js';
+import { finishCure } from './cures.js';
 
 export const INVESTIGATION_COST = 1500;
 // Investigations go faster when the team knows the system involved: 25 seconds, up to 40% less.
@@ -35,17 +37,7 @@ export function startReview(area) {
   log(`[DESIGN REVIEW] ${SYSTEMS[area].name}: a team begins a design review ($3,000).`, 'wn');
 }
 // RECORDS ANALYSIS of an open incident.
-export function startInvestigation(id) {
-  const incident = S.inc.find(candidate => candidate.id == id);
-  if (incident && incident.st == 'open' && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
-    S.b -= INVESTIGATION_COST;
-    incident.st = 'inv';
-    S.rq = S.rq.filter(entry => !(entry.k == 'inv' && entry.id == incident.id && entry.prog == S.cur));
-    const time = investigationTime(incident);
-    S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time });
-    log(`[INCIDENT #${incident.id}] Records analysis under way.`, 'wn');
-  }
-}
+export const startInvestigation = id => runAnalysis(id, 'open', false);
 // THE FINDINGS: records analysis ends with the team's lead suspect and how sure it is (st 'found'). The call is yours:
 // accept the lead, name another suspect yourself (your gamble), or extend the analysis to rule a suspect out.
 export function acceptFinding(id) {
@@ -69,15 +61,17 @@ export function acceptAllFindings() {
   for (const kind of Object.keys(S.progs)) withProgramme(kind, () => S.inc.filter(incident => incident.st == 'found').forEach(incident => acceptFinding(incident.id)));
 }
 // Extending costs another analysis and rules out one suspect that is not the true cause, then the team draws a new conclusion.
-export function extendInvestigation(id) {
+export const extendInvestigation = id => runAnalysis(id, 'found', true);
+// Starts (or extends) the analysis of an incident that is at the given stage, if the money and a free team allow.
+function runAnalysis(id, stage, extended) {
   const incident = S.inc.find(candidate => candidate.id == id);
-  if (incident && incident.st == 'found' && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
+  if (incident && incident.st == stage && S.b >= INVESTIGATION_COST && freeTeams() > 0) {
     S.b -= INVESTIGATION_COST;
     incident.st = 'inv';
     S.rq = S.rq.filter(entry => !(entry.k == 'inv' && entry.id == incident.id && entry.prog == S.cur));
     const time = investigationTime(incident);
-    S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time, x: 1 });
-    log(`[INCIDENT #${incident.id}] The analysis is extended.`, 'wn');
+    S.jobs.push({ k: 'inv', id: incident.id, prog: S.cur, t: time, tot: time, ...(extended ? { x: 1 } : {}) });
+    log(`[INCIDENT #${incident.id}] ${extended ? 'The analysis is extended.' : 'Records analysis under way.'}`, 'wn');
   }
 }
 // A CORRECTIVE FIX for a diagnosed incident.
@@ -95,6 +89,7 @@ export function chooseFix(id, fixId) {
 // A finished job takes effect inside the programme it was started for.
 export function finishJob(job) {
   if (job.k == 'dev') return finishDesign(job.prog);
+  if (job.k == 'corp') return finishCorporalMilestone(job);
   return withProgramme(job.prog, () => finishJobForProgramme(job));
 }
 function finishJobForProgramme(job) {
@@ -106,6 +101,7 @@ function finishJobForProgramme(job) {
     confirmPackage(job.id, 'Test-stand');
     checkBreakthroughs();
   } else if (job.k == 'retro') finishRetrofit(job.id);
+  else if (job.k == 'cure') finishCure(job);
 }
 
 // How much of a failure the records capture, 0 to 0.7: the tracking, the telemetry, and a Telemetry Engineer to read them.
@@ -152,7 +148,8 @@ function finishRetrofit(id) {
   const airframe = S.air.find(candidate => candidate.id == id);
   if (!airframe) return;
   airframe.pk = Object.keys(S.pk);
-  airframe.fix = { ...S.fix };
+  airframe.fix = rocketFixes();
+  airframe.stg = Object.fromEntries(stagesOf(S.cur).map(stage => [stage, { pk: Object.keys(S.progs[stage].pk), rev: S.progs[stage].bp.rev }]));
   airframe.st = 'r';
   airframe.label = airframeLabel(airframe.prog, airframe.pk, airframe.id);
   log(`[HANGAR] ${airframe.label} retrofit complete.`, 'ok');

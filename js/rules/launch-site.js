@@ -4,12 +4,13 @@ import { FACILITIES, STATIONS, CONTROL_ROOM_FACILITIES } from '../data/launch-si
 import { FAULT_REPORTS, WIND_NAMES } from '../data/failures.js';
 import { CORE_TEAM } from '../data/team.js';
 import { BY_ID } from '../data/research.js';
-import { S, log, isConfirmed, freeTeams, addHistory, formatDate, withProgramme } from '../core/state.js';
+import { S, log, isConfirmed, freeTeams, formatDate, withProgramme, launchInProgress } from '../core/state.js';
 import { rangeFee } from './design.js';
 import { knowledgeFraction, systemOf } from './knowledge.js';
 import { programmeOf, traitsOf } from './programs.js';
 import { traitByKey } from '../data/programmes.js';
 import { siteStatus, directiveLock, orderConstruction } from './site.js';
+import { notePressure } from './pressure.js';
 
 // The control-room level, 0 to 5: how many of the control-room upgrades are built.
 export const roomLevel = () => CONTROL_ROOM_FACILITIES.filter(id => S.fac[id]).length;
@@ -53,31 +54,34 @@ export function facilityLock(id) {
   if (siteStatus(id) == 'waiting') return 'Ordered: waiting for a free contractor crew.';
   if (siteStatus(id) == 'mothballed') return 'Mothballed.';
   if (facility.nasa && !S.nasa) return 'Opens when NASA is established.';
+  if (facility.apollo && !(S.p2 && S.p2.ap && S.p2.ap.arch)) return 'Opens once Project Apollo has chosen how to reach the Moon.';
   if (facility.requires && !S.fac[facility.requires]) return `Requires ${FACILITIES[facility.requires].name}.`;
   if (S.dir < facility.fromDirective) return `Available from directive ${facility.fromDirective + 1}.`;
   if (directiveLock(id)) return directiveLock(id);
   if (S.b < facility.cost) return `Need ${formatMoney(facility.cost - S.b)} more.`;
   return null;
 }
-// Pay for a facility. In Phase One it is in service at once; from NASA on it goes to the contractor crews (rules/site.js).
+// Pay for a facility: it goes to the contractor crews (rules/site.js).
 export function buildFacility(id) {
   if (facilityLock(id)) return;
-  const facility = FACILITIES[id];
-  S.b -= facility.cost;
-  if (S.nasa) return orderConstruction(id);
-  S.fac[id] = 1;
-  if (facility.controlRoom) addHistory(`Control room: ${facility.name}`);
-  log(`[BASE] ${facility.name} operational.`, 'ok');
+  S.b -= FACILITIES[id].cost;
+  orderConstruction(id);
 }
 
+// ARRIVALS: while a count or a flight is under way, a hire is paid at once but takes the console when the launch is over, and a
+// release takes effect then too. S.hq: [{ id, on: 1 hired, 0 released }], in order. No refunds while they wait.
+export const waitingChange = id => (S.hq || []).filter(change => change.id == id).pop() || null;
+// Whether a station is on console, or will be once the launch under way is over.
+const staffedAfterLaunch = id => waitingChange(id) ? !!waitingChange(id).on : !!S.crew[id];
 // Why a launch-crew station cannot be hired, or null.
 export function stationLock(id) {
   const station = STATIONS[id];
   if (!station || id == 'tc') return 'Always on console.';
-  if (S.crew[id]) return 'On console.';
+  if (S.crew[id] && !waitingChange(id)) return 'On console.';
+  if (staffedAfterLaunch(id)) return 'Hired: takes the console after this launch.';
   if (station.nasa && !S.nasa) return 'Opens when NASA is established.';
   if (station.requires && !S.fac[station.requires]) return `Needs ${FACILITIES[station.requires].name}.`;
-  if (crewOnConsole().length >= consoleCount()) return 'No free console. Expand the control room.';
+  if (Object.keys(STATIONS).filter(other => other == 'tc' || staffedAfterLaunch(other)).length >= consoleCount()) return 'No free console. Expand the control room.';
   if (S.b < station.cost) return `Need ${formatMoney(station.cost - S.b)} more.`;
   return null;
 }
@@ -85,14 +89,31 @@ export function hireStation(id) {
   if (stationLock(id)) return;
   const station = STATIONS[id];
   S.b -= station.cost;
+  if (launchInProgress.busy()) {
+    S.hq = [...(S.hq || []), { id, on: 1 }];
+    return log(`[LAUNCH CREW] ${station.name} hired: takes the ${station.callSign} console after this launch.`, 'wn');
+  }
   S.crew[id] = 1;
   log(`[LAUNCH CREW] ${station.name} takes the ${station.callSign} console.`, 'ok');
 }
 export function dismissStation(id) {
-  if (S.crew[id]) {
-    S.crew[id] = 0;
-    log(`[LAUNCH CREW] ${STATIONS[id].name} released from the ${STATIONS[id].callSign} console.`, 'wn');
+  if (!staffedAfterLaunch(id)) return;
+  if (launchInProgress.busy()) {
+    S.hq = [...(S.hq || []), { id, on: 0 }];
+    return log(`[LAUNCH CREW] ${STATIONS[id].name} leaves the ${STATIONS[id].callSign} console after this launch.`, 'wn');
   }
+  S.crew[id] = 0;
+  log(`[LAUNCH CREW] ${STATIONS[id].name} released from the ${STATIONS[id].callSign} console.`, 'wn');
+}
+// Each second: once the launch is over, the waiting hires sit down and the releases leave. Returns true if anything changed.
+export function arrivalsTick() {
+  if (!(S.hq && S.hq.length) || launchInProgress.busy()) return false;
+  for (const change of S.hq) {
+    S.crew[change.id] = change.on;
+    log(`[LAUNCH CREW] ${STATIONS[change.id].name} ${change.on ? 'takes' : 'leaves'} the ${STATIONS[change.id].callSign} console.`, change.on ? 'ok' : 'wn');
+  }
+  S.hq = [];
+  return true;
 }
 
 // THE GO/NO-GO POLL. Each countdown may hide one latent fault. Staffed stations whose domain covers it may catch it;
@@ -151,6 +172,7 @@ export function scrub(poll) {
   S.day += 2;
   const firstNoGo = poll.lines.find(line => !line.go);
   log(`[SCRUB] Launch scrubbed${firstNoGo ? ` (${STATIONS[firstNoGo.id].callSign}: ${firstNoGo.msg})` : ''} Turnaround ${formatMoney(cost)}.`, 'wn');
+  notePressure('scrub');
 }
 
 // TROUBLESHOOTING ON THE PAD: a team tries to fix the reported problem (it may not work), or the range holds for better weather.

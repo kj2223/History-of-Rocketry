@@ -1,5 +1,5 @@
 // START-UP: build the UI, then run the game clock once per second.
-// Time controls: pause, 1x, 2x, 4x. While the launch view is open the game runs at 1x at most. The game saves every ten seconds.
+// Time controls: pause, 1x, 2x, 4x. While the launch view is open the game runs at 1x at most. The game saves every ten seconds and on close.
 import { S, save } from './core/state.js';
 import { tickSecond, daysPerSecond } from './rules/game.js';
 import { autoLaunch } from './rules/auto.js';
@@ -21,3 +21,5 @@ setInterval(() => {
   else refreshTimers();
   if (++seconds % 10 == 0) save();
 }, 1000);
+// Closing the window saves too, so the last seconds of play are not lost.
+window.addEventListener('beforeunload', save);

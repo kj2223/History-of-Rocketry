@@ -72,7 +72,7 @@ header.top{grid-column:2;display:flex;align-items:center;gap:20px;padding:0 18px
 .lbl{font-size:.68rem;color:var(--dim);letter-spacing:.06em;font-weight:600}
 .spd{display:flex;flex-shrink:0}.spd button{padding:5px 9px;font-size:.72rem}
 /* Blocks for the open app slide in when you switch apps; the money and speed stay put. */
-.ctx{display:none!important}.ctx.in{display:flex!important;animation:ctxin .3s ease-out}@keyframes ctxin{from{opacity:0;transform:translateY(-10px)}}
+header.top .ctx{display:none!important}header.top .ctx.in{display:flex!important;animation:ctxin .3s ease-out}@keyframes ctxin{from{opacity:0;transform:translateY(-10px)}}
 .trk{flex-shrink:1!important;width:auto;margin:0;padding:0 6px;background:none;border-color:transparent;font-weight:400;text-align:left;min-width:150px;max-width:430px;overflow:hidden}.trk>b{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden}.trk .lbl{overflow:hidden;text-overflow:ellipsis}#ctxrace{flex-shrink:0!important;max-width:none}
 .trk .bar{display:inline-block;width:50px;flex-shrink:0;margin:0;position:relative}.trk .bar.su i{background:var(--bd)}.trk .lbl{text-transform:uppercase}.trk .s{font-family:var(--ft);font-weight:400;font-size:.75rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;min-width:0}
 .hres{width:220px}.hres b{display:flex;white-space:pre}.hres #hres{min-width:0;overflow:hidden;text-overflow:ellipsis}.hres #hrest{flex-shrink:0}.hres .bar{margin:3px 0 0}
@@ -154,6 +154,8 @@ header.top{grid-column:2;display:flex;align-items:center;gap:20px;padding:0 18px
 .dossier .quote{border-left:2px solid var(--ac);padding-left:8px;margin:6px 0 8px;font-style:italic;line-height:1.35}.dossier .act button{width:100%;margin:0 0 4px}.dossier .act .bar{margin:0 0 6px}
 .dossier .wide:only-child{grid-column:1/-1;max-width:900px}
 #rdesk .pbar button{flex:0 0 auto;padding:4px 14px}
+/* One compact row per lower stage (rules/stages.js) above the research columns. */
+#rdesk .r.stage{align-items:center;justify-content:flex-start;gap:14px;font-size:.85em;margin:0 0 8px}#rdesk .r.stage button{flex:0 0 auto;width:auto;margin:0;padding:3px 12px;font-size:.85em}
 /* The mission clock strip and the command loop, under the plotting board while a flight is up. */
 .clockstrip{display:flex;align-items:center;gap:20px;border:1px solid var(--ln);background:var(--pn);padding:10px 14px}.clockstrip .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .mclock{display:flex;flex-direction:column}.mclock .lbl{font-size:.62rem;color:var(--dim);letter-spacing:.1em}.mclock b{font:500 2.3rem var(--mono);color:var(--ac)}
@@ -181,3 +183,47 @@ header.top{grid-column:2;display:flex;align-items:center;gap:20px;padding:0 18px
 .site-key{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.7rem;color:var(--dim);margin-top:4px}.site-key i{display:inline-block;width:10px;height:8px;margin-right:4px;border:1px solid var(--ln)}
 .site-key .plot-built i{background:var(--ac);border-color:var(--ac)}.site-key .plot-building i{border:1px dashed var(--wn)}.site-key .plot-waiting i{border:1px dotted var(--wn)}
 .site-key .plot-mothballed i{background:var(--ln)}.site-key .plot-open i{border-color:var(--ac)}
+button.step{width:auto;margin:0 0 0 4px;padding:2px 9px;font-size:.85em}
+.nw{white-space:nowrap}
+
+/* First period presentation: Operations Dossier C. Display only; the same controls and data remain in use. */
+.presentation{width:auto;flex-shrink:0;margin:0;padding:6px 9px;font-size:.65rem;letter-spacing:.04em}
+:root[data-presentation="paper"]{--bg:#575c44;--pn:#f1e8ce;--pn2:#e5d6b4;--ln:#b6aa88;--ink:#302f26;--dim:#625c4b;--ac:#3f5540;--on-ac:#fff8e5;--wn:#795219;--bd:#963c32;--ft:Georgia,'Times New Roman',serif;--mono:'Courier New',monospace;--rad:1px;color-scheme:light}
+[data-presentation="paper"] .app{grid-template-columns:112px minmax(0,1fr);grid-template-rows:76px minmax(0,1fr)}
+[data-presentation="paper"] header.top{background:#ddd0ac;border-bottom:3px double #928469;gap:14px}
+[data-presentation="paper"] .brand::before{content:'OPERATIONS DOSSIER';display:block;font:700 .65rem var(--mono);letter-spacing:.15em;color:#635f46;margin-bottom:3px}
+[data-presentation="paper"] .brand h1{font-family:var(--mono);font-size:1rem}
+[data-presentation="paper"] .rail{background:#4b503b;border-color:#353c2b;padding-top:18px;gap:8px}
+[data-presentation="paper"] .rail .logo{stroke:#e6d8b3}
+[data-presentation="paper"] .rail button{width:98px;padding:11px 5px;color:#eee5cd;border:1px solid #74775d;border-radius:2px;font:700 .72rem var(--mono);letter-spacing:.02em}
+[data-presentation="paper"] .rail button.on{background:#dfcc9e;color:#302f26;border-right:4px solid #a34b3a}
+[data-presentation="paper"] .rail button:hover:not(:disabled){background:#687052;color:#fff5df}
+[data-presentation="paper"] .rail button.danger{color:#f2bead}
+[data-presentation="paper"] .apps{background:#e9dfc3}
+[data-presentation="paper"] .mail{grid-template-columns:290px minmax(0,1fr) 280px;padding:18px;gap:18px}
+[data-presentation="paper"] .inbox{background:#dfcfaa;border:1px solid var(--ln);padding-top:16px}
+[data-presentation="paper"] .inbox>.lbl{font:700 .7rem var(--mono);letter-spacing:.12em}
+[data-presentation="paper"] .inbox>.lbl::after{content:' / ROUTING FILE'}
+[data-presentation="paper"] .msg{padding:14px 16px;border-bottom:1px solid #baad8c}
+[data-presentation="paper"] .msg.on{background:#f1e8ce;box-shadow:inset 4px 0 #984739}
+[data-presentation="paper"] .msg .subj{font-family:var(--mono);font-size:.88rem}
+[data-presentation="paper"] .reader{background:#f7efd9;border:1px solid #b9ac8b;padding:26px 30px;box-shadow:2px 3px 0 #c4b897}
+[data-presentation="paper"] #mhd{border-bottom:3px double #b6aa88;padding-bottom:15px}
+[data-presentation="paper"] #mhd .subj{font:700 1.4rem var(--mono)}
+[data-presentation="paper"] .reader [data-mailpane]{font-family:var(--mono);font-size:.88rem;line-height:1.65}
+[data-presentation="paper"] .today{padding:0;border:0;gap:14px}
+[data-presentation="paper"] .today .card{border-radius:1px;border-top:4px solid #8a8361;background:#eee3c6;box-shadow:1px 2px 0 #c6bb9e}
+[data-presentation="paper"] .today .card:first-child{border-color:#8a8361}
+[data-presentation="paper"] .tag{background:#dbdfcf;color:#384a37;border:1px solid #a4ae97;border-radius:1px;font-family:var(--mono)}
+[data-presentation="paper"] .tag.decision{background:#eedbc2;color:#813e2c;border-color:#bd8c70}
+[data-presentation="paper"] button,[data-presentation="paper"] select{border-radius:1px;font-family:var(--mono)}
+[data-presentation="paper"] button.on{outline:1px solid var(--ac);outline-offset:-3px}
+[data-presentation="paper"] #lg{background:#f4ecd6}
+[data-presentation="paper"] .p,[data-presentation="paper"] .c{box-shadow:1px 2px 0 #c9bd9e}
+[data-presentation="paper"] .miniclock{background:#ddd8ba;border-color:#8c9674}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:3px}
+@media(max-width:1200px){[data-presentation="paper"] .mail{grid-template-columns:240px minmax(0,1fr);gap:12px;padding:12px}[data-presentation="paper"] .mail{grid-template-rows:minmax(0,1fr) 160px}[data-presentation="paper"] .today{grid-column:1/-1;flex-direction:row;overflow:auto}[data-presentation="paper"] .today>*{flex:0 0 220px}header.top{gap:8px;padding-inline:10px}.presentation{font-size:.6rem}}
+@media(max-width:760px){[data-presentation="paper"] .app{grid-template-columns:84px minmax(0,1fr)}[data-presentation="paper"] .rail button{width:72px}[data-presentation="paper"] .mail{grid-template-columns:180px minmax(0,1fr)}[data-presentation="paper"] .reader{padding:16px}.top .stats{display:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+[data-presentation="paper"] header.top .ctx.in{animation:none}

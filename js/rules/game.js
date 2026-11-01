@@ -8,9 +8,13 @@ import { S, log, earn } from '../core/state.js';
 import { grant, defenseSupplement, payroll, programmeProgress } from './economy.js';
 import { budgetTick, payAppropriation } from './budget.js';
 import { sovietEventsTick, SPACE_ACT_DAY } from './race.js';
-import { roomLevel } from './launch-site.js';
+import { neighboursTick } from './neighbours.js';
+import { moonRaceTick } from './moon-race.js';
+import { rivalAdaptTick } from './rival-adapt.js';
+import { corporalTick } from './corporal.js';
+import { roomLevel, arrivalsTick } from './launch-site.js';
 import { constructionTick, upkeep } from './site.js';
-import { createProgramme, isMature } from './programs.js';
+import { createProgramme, isMature, ensureStages } from './programs.js';
 import { hasFirstMilestone, giveEarmark } from './research.js';
 import { startQueuedWork } from './queue.js';
 import { makeAirframe } from './production.js';
@@ -25,6 +29,10 @@ import { reedJoinTick, worksTick, reedPublishes } from './factory-lead.js';
 import { demandTick } from './orders.js';
 import { sharedTick } from './shared-research.js';
 import { apolloTick } from './apollo.js';
+import { safetyTick } from './safety.js';
+import { pressureTick } from './pressure.js';
+import { requestsTick } from './requests.js';
+import { hearingTick, leadAway } from './hearing.js';
 
 // CALENDAR CATCH-UP: progress maps to the date history reached it (orbit by early 1958, the first American in space in May 1961).
 // When you are well ahead of that date the calendar runs faster, easing off as it catches up; behind it, nothing changes.
@@ -44,8 +52,8 @@ export const catchUp = () => {
 };
 export const daysPerSecond = () => (S.nasa ? DAYS_PER_SECOND_PHASE_TWO : DAYS_PER_SECOND) * catchUp();
 
-// ONE SECOND OF PLAY, in this order: the calendar, construction, Soviet events, the appropriation and payroll every funding cycle,
-// the Astronaut Office, the Apollo study, the factory, engineering jobs, Ellis's remit, Chen's research lanes and the shared lanes, Reed's factory, customer demand for
+// ONE SECOND OF PLAY, in this order: the calendar, construction, launch-crew arrivals, Soviet events (and the Soviet Moon race), the V-2s on the range, the Corporal contract, the appropriation and payroll every funding cycle,
+// the Astronaut Office, the Apollo study, safety bar and pressure, the factory, engineering jobs, Ellis's remit, Chen's research lanes and the shared lanes, Reed's factory, customer demand for
 // standing orders, auto-publishing and programme maturity. Returns true if the page needs redrawing.
 export function tickSecond() {
   let changed = false;
@@ -53,10 +61,16 @@ export function tickSecond() {
     S.dev.ps++;
     if (S.dev.ps % 30 == 0) snapshot();
   }
+  ensureStages();
   const days = daysPerSecond();
   S.day += days;
   if (constructionTick()) changed = true;
+  if (arrivalsTick()) changed = true;
   if (sovietEventsTick()) changed = true;
+  if (S.nasa && moonRaceTick()) changed = true;
+  if (S.nasa && rivalAdaptTick(days)) changed = true;
+  if (neighboursTick()) changed = true;
+  if (corporalTick()) changed = true;
   // A funding cycle is 30 seconds at the normal calendar; catching up with history brings paydays sooner, so a year pays the same.
   S.gt -= catchUp();
   if (S.gt <= 0) {
@@ -70,6 +84,10 @@ export function tickSecond() {
     trainingTick(days);
     if (officeTick(days)) changed = true;
     if (apolloTick(days)) changed = true;
+    if (safetyTick(days)) changed = true;
+    if (pressureTick(days)) changed = true;
+    if (requestsTick(days)) changed = true;
+    if (hearingTick()) changed = true;
   }
   if (factoryTick()) changed = true;
   for (const job of S.jobs.slice()) if (--job.t <= 0) {
@@ -79,13 +97,14 @@ export function tickSecond() {
   }
   if (startQueuedWork()) changed = true;
   if (remitEarnedTick()) changed = true;
-  if (remitTick()) changed = true;
+  // A lead preparing for a hearing (rules/hearing.js) leaves their own work until it sits.
+  if (!leadAway('ellis') && remitTick()) changed = true;
   if (chenJoinTick()) changed = true;
-  if (lanesTick()) changed = true;
+  if (!leadAway('chen') && lanesTick()) changed = true;
   if (sharedTick()) changed = true;
   if (reedJoinTick()) changed = true;
-  if (worksTick()) changed = true;
-  if (demandTick()) changed = true;
+  if (!leadAway('reed') && worksTick()) changed = true;
+  if (!leadAway('ellis') && demandTick()) changed = true;
   if (!reedPublishes() && autoPublishDue()) {
     publishBlueprint(true);
     changed = true;

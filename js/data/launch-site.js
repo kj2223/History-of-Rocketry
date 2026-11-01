@@ -7,6 +7,7 @@
 //   nasa: 1 if it opens only with NASA, buildDays: construction time in game days (ordered now, in service later),
 //   pad: the rocket programme a launch complex serves (its launches need a free pad of their own),
 //   afterDirective: the Mercury directive (key) that must be met before it can be ordered: upgrades are earned by success.
+//   apollo: 1 if it opens only once Project Apollo has chosen its architecture
 // From NASA's founding every building takes time to build and costs upkeep (see SITE below and rules/site.js).
 export const FACILITIES = {
   tty: { name: 'Teleprinter & Range Communications', cost: 12000, description: 'Teleprinters link the blockhouse to the range. Unlocks the Telemetry Engineer.', requires: null, fromDirective: 0, consoles: 1, controlRoom: 1 },
@@ -33,16 +34,17 @@ export const FACILITIES = {
   lc19: { name: 'Launch Complex 19', cost: 110000, description: 'The Titan II pad, with an erector that lowers away from the booster before launch and a white room where the crew boards. Every Titan II launches from it.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 90, pad: 'titan', afterDirective: 'oday' },
   altch: { name: 'Altitude Chamber', cost: 45000, description: 'A vacuum chamber that takes a spacecraft and its crew to orbital pressure on the ground. Cabin depressurisation tests here clear a spacecraft for a spacewalk.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, afterDirective: 'oday' },
   gsim: { name: 'Gemini Mission Simulator', cost: 70000, description: 'A two-seat simulator with the Gemini cockpit, driven by digital computers. Gemini crews train for their flight at full rate (half rate without it).', requires: 'msim', fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, afterDirective: 'oday' },
+  lc34: { name: 'Launch Complex 34', cost: 300000, description: 'The Saturn pad: a pedestal for a cluster of eight engines, a 300-foot service structure on rails and a blockhouse under ten feet of concrete. Every Saturn I launches from it.', requires: null, fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, apollo: 1, buildDays: 150, pad: 'saturn1' },
   lc12: { name: 'Launch Complex 12', cost: 80000, description: 'A second Atlas pad, so one Atlas can be readied while the other pad is refurbished after a launch.', requires: 'lc14', fromDirective: 0, consoles: 0, controlRoom: 0, nasa: 1, buildDays: 120, pad: 'atlas', afterDirective: 'mo' },
 };
 
-// THE SITE from NASA's founding (rules/site.js). Phase One buildings go up the moment they are paid for, as before.
-//   contractorCrews: buildings under construction at once (more orders wait their turn)
+// THE SITE (rules/site.js). Every building goes up through the contractor crews; upkeep and mothballing start with NASA.
+//   contractorCrews: buildings under construction at once from NASA on (more orders wait their turn); phaseOneCrews: before NASA
 //   daysPerThousand: construction days per $1,000 of cost, for buildings without their own buildDays, and at least minimumDays
 //   upkeepPerYear: running cost a year as a share of a building's price; reopenDays: to bring a mothballed building back
 //   padTurnaround: days to refurbish a pad after a launch; padRepair: days to rebuild one after a vehicle fails close to it,
 //   within padDamageSeconds of liftoff
-export const SITE = { contractorCrews: 2, daysPerThousand: 1, minimumDays: 20, upkeepPerYear: .08, reopenDays: 20, padTurnaround: 20, padRepair: 75, padDamageSeconds: 15 };
+export const SITE = { contractorCrews: 2, phaseOneCrews: 1, daysPerThousand: 1, minimumDays: 20, upkeepPerYear: .08, reopenDays: 20, padTurnaround: 20, padRepair: 75, padDamageSeconds: 15 };
 // The control-room upgrades in order; the number built is the room level (0 to 5), an index into ROOMS.
 export const CONTROL_ROOM_FACILITIES = ['tty', 'plot', 'comp', 'mcc', 'wall'];
 export const ROOMS = [

@@ -1,7 +1,7 @@
 // THE FACTORY LEAD: Margaret Reed joins once you appoint Ellis launch director, so the factory has its own lead once the launches
 // run themselves. Give her a factory budget (a spending cap, like Ellis's remit and Chen's lanes) for one rocket and she runs its
 // production:
-//   - keeps AIRFRAMES_ON_HAND airframes of it ready or in the queue, one more while a standing order flies it (rules/orders.js),
+//   - keeps AIRFRAMES_ON_HAND airframes of it ready or in the queue,
 //     ordering one at a time;
 //   - publishes the blueprint as finished research and fixes come in, unless the change is unbalanced (below);
 //   - upgrades ready airframes that are behind the published blueprint, one at a time.
@@ -18,15 +18,15 @@ import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, withProgramme } from '../core/state.js';
 import { baseDesign, fixModifiers } from './design.js';
 import { itemAsSeen } from './research.js';
-import { batchCost, draftChanges, retrofitQuote } from './production.js';
+import { batchCost, draftChanges, draftSize, retrofitQuote } from './production.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, heldForLaunch } from './factory.js';
 import { memberJoined } from './team.js';
-import { orderFor } from './orders.js';
+import { cultureLean, acceptRisk, LEAN_TO_ACT } from './culture.js';
 
 // How many airframes of her rocket Reed keeps ready or in the queue.
 export const AIRFRAMES_ON_HAND = 2;
-// How many she keeps of a rocket: one more while a standing order flies it, so routine flights do not wait on the factory.
-export const airframesWanted = prog => AIRFRAMES_ON_HAND + (orderFor(prog) && !orderFor(prog).hold ? 1 : 0);
+// How many she keeps of a rocket (Ellis orders her own for routine flights).
+export const airframesWanted = () => AIRFRAMES_ON_HAND;
 export const airframesOnHand = prog => S.air.filter(airframe => airframe.prog == prog && (airframe.st == 'r' || airframe.st == 'queued')).length
   + S.aq.filter(item => item.k == 'build' && item.prog == prog).length;
 // The budgets you can set, and how much a raise adds.
@@ -80,8 +80,8 @@ export function worksIdleReason() {
   if (!works || S.aq.some(item => item.prog == works.prog)) return null;
   if (works.hold) return 'holding an unbalanced blueprint for you';
   if (works.dry) return `budget cannot cover ${works.dry}`;
-  if (airframesOnHand(works.prog) < airframesWanted(works.prog)) return 'waiting for funds';
-  return `${airframesOnHand(works.prog)} of ${airframesWanted(works.prog)} on hand, nothing to upgrade`;
+  if (airframesOnHand(works.prog) < airframesWanted()) return 'waiting for funds';
+  return `${airframesOnHand(works.prog)} of ${airframesWanted()} on hand, nothing to upgrade`;
 }
 // Whether Reed does the publishing for the programme in focus (the Hangar's auto-publish then leaves it alone).
 export const reedPublishes = () => !!S.works && S.works.prog == S.cur;
@@ -91,7 +91,7 @@ export const reedPublishes = () => !!S.works && S.works.prog == S.cur;
 // never sees the true effects). Only used to compare two configurations of the same rocket.
 const believedEffects = id => S.pk[id].c && S.pk[id].m ? S.pk[id].m : itemAsSeen(id).effects;
 function liftoffThrustToWeight(packages, fixes) {
-  const base = baseDesign(true), modifiers = fixModifiers(fixes);
+  const base = baseDesign(true, fixes), modifiers = fixModifiers(fixes);
   let thrust = 1, dryMass = base.dry + modifiers.d, propellant = base.f;
   for (const id of packages) {
     const effects = believedEffects(id);
@@ -123,13 +123,18 @@ export function worksTick() {
 
 function publishTurn(works) {
   const draft = draftChanges();
-  if (!draft.packages.length && !draft.fixes.length) {
+  if (!draftSize(draft)) {
     works.hold = null;
     return false;
   }
   const change = draftThrustToWeightChange();
-  if (change >= -BALANCE_TOLERANCE || draft.fixes.length) {
-    if (change < -BALANCE_TOLERANCE) log(`[FACTORY] Reed publishes the ${PROGRAMMES[works.prog].name} blueprint although it cuts liftoff thrust-to-weight by ${Math.round(-change * 100)}%: it carries a fix, and a fix does not wait.`, 'wn');
+  // In a chaotic culture (rules/culture.js) Reed publishes an unbalanced draft rather than hold it: a risk accepted. Money pressure
+  // alone does not make her do it: a heavier blueprint is hard to undo, and with no money for the engine work that would cure it
+  // the rocket could be stuck short of performance for good (a dead end, not a risk).
+  const rushed = change < -BALANCE_TOLERANCE && !draft.fixes.length && cultureLean() >= LEAN_TO_ACT;
+  if (rushed) acceptRisk('reed', 'FACTORY', `Reed publishes the ${PROGRAMMES[works.prog].name} blueprint although it cuts liftoff thrust-to-weight by ${Math.round(-change * 100)}%.`);
+  if (change >= -BALANCE_TOLERANCE || draft.fixes.length || rushed) {
+    if (change < -BALANCE_TOLERANCE && !rushed) log(`[FACTORY] Reed publishes the ${PROGRAMMES[works.prog].name} blueprint although it cuts liftoff thrust-to-weight by ${Math.round(-change * 100)}%: it carries a fix, and a fix does not wait.`, 'wn');
     works.hold = null;
     publishBlueprint(true);
     return true;
@@ -152,7 +157,7 @@ function withinCap(works, what, cost) {
 
 function orderTurn(works) {
   // An airframe away for an upgrade still counts: it comes back.
-  if (airframesOnHand(works.prog) >= airframesWanted(works.prog)) return false;
+  if (airframesOnHand(works.prog) >= airframesWanted()) return false;
   const cost = batchCost(1);
   if (!withinCap(works, 'another airframe', cost) || S.b - cost < TREASURY_RESERVE) return false;
   orderAirframes(1);

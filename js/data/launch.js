@@ -12,6 +12,9 @@ export const PROPELLANTS = {
   'Kerosene & LOX': { handlingCost: 2000, pricePerKg: 50, isp: 290, vacuumIsp: 320, reliability: .85, density: 1.25 },
   // Titan II's storable propellants: they ignite on contact, so no igniters to fail, and the Air Force has flown them for years.
   'Aerozine & N2O4': { handlingCost: 2600, pricePerKg: 60, isp: 285, vacuumIsp: 316, reliability: .97, density: 1.2 },
+  // The Saturn's upper stages: liquid hydrogen gives half as much again per kilogram, but it is so light it needs huge tanks
+  // (density), it boils off, leaks through anything and freezes valves, and nobody has flown it yet.
+  'Hydrogen & LOX': { handlingCost: 6000, pricePerKg: 90, isp: 300, vacuumIsp: 425, reliability: .82, density: .35 },
 };
 
 // Payloads.
@@ -34,6 +37,8 @@ export const PAYLOADS = {
   'Mercury Capsule': { cost: 0, mass: 100, science: 0, mercury: 1 },
   'Gemini Spacecraft': { cost: 0, mass: 260, science: 0, mercury: 1 },
   'Agena Target': { cost: 0, mass: 110, science: 0, mercury: 1 },
+  // The shape and weight of an Apollo command and service module, with nothing inside: the Saturn I's test load.
+  'Apollo Boilerplate': { cost: 20000, mass: 700, science: 0, satellite: 1 },
 };
 
 // PITCH PROGRAMS: how a single-stage rocket (or a booster stage) turns over toward the horizon on the way up, set on the

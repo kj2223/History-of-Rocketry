@@ -13,8 +13,10 @@ import { AREAS, MILESTONES, BY_ID } from '../data/research.js';
 import { S, log } from '../core/state.js';
 import { availabilityLock } from './research.js';
 import { laneJob, nextPackage } from './lanes.js';
+import { queuePosition } from './queue.js';
 import { hiredLead } from './leads.js';
 import { memberJoined } from './team.js';
+import { centrePace } from './apollo.js';
 
 export const SHARED_AREAS = ['r', 'c', 'e'];
 // The caps you can set, and how much a raise adds.
@@ -42,8 +44,8 @@ export function endShared() {
   S.shared.cap = 0;
 }
 
-// The milestones a lead proposes in their area: open to start, and not put off.
-export const proposals = area => hiredLead(area) ? MILESTONES.filter(milestone => milestone.area == area && !availabilityLock(milestone.id) && !S.shared.skip.includes(milestone.id)) : [];
+// The milestones a lead proposes in their area: open to start, not queued, and not put off.
+export const proposals = area => hiredLead(area) ? MILESTONES.filter(milestone => milestone.area == area && !availabilityLock(milestone.id) && queuePosition(milestone.id) < 0 && !S.shared.skip.includes(milestone.id)) : [];
 // Whether a proposal is a choice: two or more first milestones, and starting one closes the others.
 export const isChoice = area => proposals(area).filter(milestone => milestone.tier == 1).length > 1;
 
@@ -61,7 +63,8 @@ export function notNow(area) {
 }
 
 function startOnLane(area, lead, item) {
-  const time = Math.round(item.time / lead.pace);
+  // Spacecraft and crew-safety work runs at the spacecraft centre's pace (rules/apollo.js centrePace).
+  const time = Math.round(item.time / lead.pace / (area == 'c' || area == 'e' ? centrePace('spacecraft') : 1));
   S.b -= item.cost;
   S.shared.spent += item.cost;
   S.shared.jobs++;

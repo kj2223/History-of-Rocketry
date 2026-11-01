@@ -4,11 +4,17 @@ A browser game about the American space programme, from sounding rockets in 1946
 
 **Run it:** `npm install` once, then `npm start` opens the game in its own desktop window (Electron, set up in `desktop/main.js`). It still runs in a browser too: serve the folder (for example `python3 -m http.server`) and open `index.html`. The game saves to localStorage every ten seconds; the desktop window and the browser keep separate saves.
 
-**Build for testers:** `npm run dist` builds a Windows installer and a portable .exe into `dist/` (run it on Windows). Every push to `dev` also builds them on GitHub (`.github/workflows/windows-build.yml`) and publishes a numbered release (v0.1.1, v0.1.2, …); change `version` in `package.json` to 0.2.0 to start the v0.2 series. The newest build is always at `releases/latest/download/ProjectVanguard-Setup.exe` (or `-Portable.exe`), and the game's title bar shows its version. The builds are unsigned: on first run Windows SmartScreen says it protected your PC; click **More info**, then **Run anyway**.
+**Build for testers:** `npm run dist` builds a Windows installer and a portable .exe into `dist/` (run it on Windows). Every push to `main` also builds them on GitHub (`.github/workflows/windows-build.yml`) and publishes a numbered release (v0.3.0, v0.3.1, …); change `version` in `package.json` to start a new release series. The newest build is always at `releases/latest/download/ProjectVanguard-Setup.exe` (or `-Portable.exe`), and the game's title bar shows its version. The builds are unsigned: on first run Windows SmartScreen says it protected your PC; click **More info**, then **Run anyway**.
 
-**Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two: Section 1 to the first American in space, Section 2 through orbital Mercury and Gemini (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n; `PHASE_ONE_ONLY=1` stops at orbit.
+**Check balance:** `node tools/balance.mjs [runs] [maxMinutes]` (or `npm run balance`) plays the game headlessly with a seeded bot: Phase One to orbit, then Phase Two: Section 1 to the first American in space, Section 2 through orbital Mercury and Gemini (`tools/mercury-bot.mjs`). It prints pacing per run: when each directive was met, how many flights and missions failed, and which firsts went to the Soviets. It is deterministic, so diff its output before and after a change. `SEED=n TRACE=1` prints one line per launch and mission for run n (`SEED=5,7` plays several); `PHASE_ONE_ONLY=1` stops at orbit. The last line sums up the medians and names any stall (a stage reached but never finished); a stall makes the bot exit with an error.
+
+**Check for dead ends:** `npm run acceptance` replays the bot games that once stalled (`tools/acceptance.mjs`) and fails if any still does. It also saves and reloads one game when Gemini opens (`ROUNDTRIP=1`) and fails if that changes how the game plays out. It takes about a minute.
 
 **Run the tests:** `npm test` runs the rule tests in `tests/` (Node 18 or newer).
+
+**Interface:** the opening uses Operations Dossier paperwork styling. The header view button switches to the modern development view; this local preference changes presentation only. If a watched countdown or flight is interrupted by closing/reloading, the game recovers its pre-launch checkpoint and pauses. Work and choices made after that checkpoint must be repeated. Completed flights save their results.
+
+**Development checks:** pushes and pull requests to `dev` run `npm test` and `npm run acceptance` on GitHub with Node 22 (`.github/workflows/dev-tests.yml`). These checks do not package or publish releases. Keep development on `dev`, then promote playtested changes to `main` for release.
 
 ## Where things are
 
@@ -29,7 +35,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 |---|---|
 | Research packages and milestones (cost, time, effects) | `data/research.js` |
 | What the R&D desk says about a package (explainers, the engineers' confidence lines) | `data/research-notes.js` |
-| Rockets: design figures, costs, propellants, flaws | `data/programmes.js` |
+| Rockets: design figures, costs, propellants, flaws and their cures (and how many flights it takes to find a cure) | `data/programmes.js` |
 | Propellants (sea-level and vacuum Isp), payloads and pitch programs | `data/launch.js` |
 | Engine start and tail-off, residual propellant, drag through the sound barrier, gravity-turn steering, staging delays | the constants above `step()` in `rules/flight.js` |
 | Failure modes, symptoms and fixes | `data/failures.js` |
@@ -47,6 +53,7 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/game.js` | The tick, the calendar catch-up, hiring staff, the starting position, run-log snapshots |
 | `rules/research.js` | What can be commissioned, breakthroughs, earmarks, crash programmes, finishing and confirming packages |
 | `rules/programs.js` | Starting a rocket programme, its hidden true design and flaws, maturity |
+| `rules/cures.js` | Curing a flaw that costs performance, once the flawed rocket has flown enough to find the cause |
 | `rules/design.js` | What an airframe can do, launch quotes, recovery odds |
 | `rules/production.js` | Blueprint drafts, line learning, airframe and retrofit costs |
 | `rules/factory.js` | Build teams, ordering, publishing blueprints, the factory queue |
@@ -59,6 +66,8 @@ The code is in four layers. Each file opens with a comment saying what it holds.
 | `rules/trajectory.js` | The trajectory team: hiring analysts, goals, and the search for the best flight plan |
 | `rules/campaign.js` | Launch campaigns: targets, deadlines, budgets and the launch director's experience |
 | `rules/auto.js` | The launch director flying the running campaign |
+| `rules/flight-ops.js` | Ellis running the Mercury tests: capsules, boosters, man-rating flights and launches you greenlight (one, the next three, or a crewed series) |
+| `rules/culture.js` | The programme's culture (safety to chaotic, learned from your own habits), the team's confidence from its own flights, and each team's lean when short of money |
 | `rules/team.js` | The core team's record (Ellis, Vega, Morgan) and what they say after failures and in records analyses |
 | `rules/race.js` | American firsts, Soviet events, intelligence, forming NASA |
 | `rules/manrate.js` | Man-rating boosters for crews (Titan II also needs its pogo cured) |

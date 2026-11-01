@@ -1,6 +1,6 @@
 // THE R&D DESK (a drawer over the control room). Four views:
 //   research          one column per area: breakthrough progress, the milestone, and a compact card per package. Picking a card
-//                     (or hovering it) shows it in the dossier along the bottom: what it is, the numbers, what the engineers
+//                     shows it in the dossier along the bottom: what it is, the numbers, what the engineers
 //                     expect, and its COMMISSION (or ground test) button. Work that cannot start yet can be QUEUED for the next
 //                     free team (so can the records analysis of an unexplained failure); the queue shows as a row above the
 //                     columns while it holds anything.
@@ -8,34 +8,39 @@
 //   engineering file  what the team knows about each system, its failure modes and design reviews.
 //   incidents         failures not yet explained.
 import { formatMoney } from '../core/util.js';
-import { MILESTONES, AREAS, BY_ID, EFFECTS, formatEffect } from '../data/research.js';
+import { MILESTONES, AREAS, BY_ID, EFFECTS, formatEffect, isMilestone } from '../data/research.js';
 import { EXPLAINERS, CONFIDENCE_LEVELS, EXPERIMENTAL_SAYS } from '../data/research-notes.js';
 import { FAILURE_MODES, SYMPTOMS, findFix } from '../data/failures.js';
 import { PROGRAMMES, MATURE, FLIGHTS_TO_MATURE, DESIGN_STATS, traitByKey } from '../data/programmes.js';
-import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob } from '../core/state.js';
+import { S, formatDate, isResearched, isConfirmed, freeTeams, findJob, withProgramme } from '../core/state.js';
 import { trackingTiers, designation, designSpec } from '../rules/design.js';
-import { isVehicleArea, itemsInArea, itemAsSeen, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
+import { isVehicleArea, itemsInArea, itemAsSeen, researchJob, fullyResearched, breakthroughNeedsHere, areaCounts, hasFirstMilestone, firstMilestoneOptions, milestoneLock, describeResearch, researchLock, isProposed, estimateSpread, costAfterEarmark, crashCost, crashLock } from '../rules/research.js';
 import { queueLock, queuePosition, queueWait, queueEntries, analysisPosition, queueAnalysisLock, fixPosition, queueFixLock, reviewPosition, queueReviewLock, RESEARCH_QUEUE_LENGTH } from '../rules/queue.js';
 import { knowledge, levelName, SYSTEMS, REVIEW_COST, reviewTime, reviewOdds, filedModes } from '../rules/knowledge.js';
-import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor } from '../rules/programs.js';
+import { maturity, candidates, startLock, believedWindow, successfulFlights, isShortcut, designTimeFor, stagesOf, isInProgramme, researchTarget, STAGE_AREAS } from '../rules/programs.js';
 import { groundTestLock } from '../rules/launch-site.js';
+import { cureFor, cureCost, cureLock, isCured } from '../rules/cures.js';
 import { INVESTIGATION_COST, investigationTime, recordsQuality } from '../rules/jobs.js';
 import { chiefOnFindings, rangeOnRecords } from '../rules/team.js';
 import { $, setHTML } from './dom.js';
 
-// The job researching an item, for the programme it belongs to (vehicle areas) or the global bundle.
-const researchJob = item => findJob(job => job.k == 'pk' && job.id == item.id && job.prog == (isVehicleArea(item.area) ? S.cur : null));
+// On a rocket with stage designs, how many of its stages have a package ("1/2"), while some still lack it; otherwise ''.
+const stageShare = id => {
+  const stages = stagesOf(S.cur), all = [...stages, S.cur].filter(kind => isInProgramme(kind, id));
+  const done = all.filter(kind => S.progs[kind].pk[id]).length;
+  return stages.length && !isMilestone(id) && all.length > 1 && done && done < all.length ? `${done}/${all.length} stages` : '';
+};
 
 const FOLD_CONFIRMED_OVER = 3; // more confirmed packages than this in a column fold into one row
 // ONE AREA'S COLUMN: breakthrough progress, the milestone slot, then a card per package (finished, in work, or on offer).
 function researchColumn(area) {
   const counts = areaCounts(area), vehicle = isVehicleArea(area), needs = breakthroughNeedsHere(area)[0];
   const hasMilestones = !vehicle || (PROGRAMMES[S.cur].hasMilestones && firstMilestoneOptions(area).length);
-  const open = itemsInArea(area).filter(item => !isResearched(item.id)), offered = open.filter(isProposed), later = open.length - offered.length;
+  const open = itemsInArea(area).filter(item => !fullyResearched(item.id)), offered = open.filter(isProposed), later = open.length - offered.length;
   let html = `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}${vehicle ? '' : ' <span class="d">all rockets</span>'}</div>`;
   if (hasMilestones) html += `<div class="r m"><span>Breakthrough</span><span>${Math.min(counts.confirmed, needs)} of ${needs} confirmed</span></div><div class="bar"><i style="width:${Math.min(100, counts.confirmed / needs * 100)}%"></i></div>` + milestoneSlot(area, needs, counts);
   else html += `<div class="m">${counts.done} of ${counts.total} done · ${counts.confirmed} confirmed</div>`;
-  const finished = itemsInArea(area).filter(item => isResearched(item.id)), confirmed = finished.filter(item => isConfirmed(item.id));
+  const finished = itemsInArea(area).filter(item => fullyResearched(item.id)), confirmed = finished.filter(item => isConfirmed(item.id));
   // A long run of confirmed work folds into one row (click to unfold) so the column still fits above the dossier.
   const folded = confirmed.length > FOLD_CONFIRMED_OVER && !researchDesk.unfolded[area];
   if (confirmed.length > FOLD_CONFIRMED_OVER) html += `<button data-a="rfold" data-id="${area}" class="rcard done chip"><span class="r"><b>${confirmed.length} confirmed</b><span>${folded ? '▸' : '▾'}</span></span></button>`;
@@ -55,12 +60,12 @@ function milestoneSlot(area, needs, counts) {
 // A compact card. Picking it shows it in the dossier. mark: shown before the name (milestones). Confirmed work shrinks to a
 // one-line chip so long columns still fit above the dossier; hovering it shows it in full there.
 function packageCard(entry, mark = '') {
-  const item = itemAsSeen(entry.id), job = researchJob(item), done = isResearched(item.id), confirmed = done && isConfirmed(item.id), queued = queuePosition(item.id);
+  const item = itemAsSeen(entry.id), job = researchJob(item), done = fullyResearched(item.id), confirmed = done && isConfirmed(item.id), queued = queuePosition(item.id), share = stageShare(item.id);
   const look = done ? (confirmed ? 'done' : 'flown') : job ? 'work' : queued >= 0 ? 'queued' : item.dud ? 'exp' : 'open';
   const tag = done ? (confirmed ? '■' : '□') : job ? '' : queued >= 0 ? `#${queued + 1}` : item.dud ? '◆' : '';
   const meta = done ? (confirmed ? 'confirmed' : 'finished, not yet confirmed') : job ? `in work: <span data-j="pk${item.id}">${job.t}s</span> left`
     : queued >= 0 ? `queued · ${formatMoney(costAfterEarmark(item))} · ${item.time}s`
-    : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}`;
+    : `${formatMoney(costAfterEarmark(item))} · ${item.time}s${item.dud ? ' · experimental' : ''}${share ? ` · done on ${share}` : ''}`;
   const progress = job ? `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div>` : '';
   if (confirmed) return `<button data-a="rpick" data-id="${item.id}" class="rcard done chip${researchDesk.pick == item.id ? ' on' : ''}" title="${item.name}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span></button>`;
   return `<button data-a="rpick" data-id="${item.id}" class="rcard ${look}${researchDesk.pick == item.id ? ' on' : ''}"><span class="r"><b>${mark ? mark + ' ' : ''}${item.name}</b><span>${tag}</span></span><span class="m">${meta}</span>${progress}</button>`;
@@ -76,7 +81,7 @@ function groundTestHTML(area, item) {
 }
 // THE DOSSIER: the card being hovered (or else the one picked) in full, filling the space under the columns in four parts:
 // what it is, the numbers, what the engineers expect, and what can be done with it. With nothing picked, how research works.
-const shownInDossier = () => researchDesk.hover || researchDesk.pick;
+const shownInDossier = () => researchDesk.pick;
 function dossier() {
   const id = shownInDossier();
   if (!id || !BY_ID[id]) return `<div class="dossier"><div class="dossier-part wide"><div class="t">HOW RESEARCH WORKS</div>`
@@ -143,11 +148,11 @@ function dossierExpectations(item) {
 // What can be done: commission it (or speed it up), or ground test finished work.
 function dossierActions(item) {
   const job = researchJob(item);
-  let html = '<div class="dossier-part act"><div class="t">' + (isConfirmed(item.id) ? 'CONFIRMED' : isResearched(item.id) ? 'GROUND TEST' : job ? 'IN WORK' : 'COMMISSION') + '</div>';
-  if (isResearched(item.id)) return html + (groundTestHTML(item.area, item) || `<p class="m">${isConfirmed(item.id) ? 'Nothing more to do: the work is confirmed.' : 'No ground test for this area. Fly it to confirm it.'}</p>`) + '</div>';
+  let html = '<div class="dossier-part act"><div class="t">' + (isConfirmed(item.id) ? 'CONFIRMED' : fullyResearched(item.id) ? 'GROUND TEST' : job ? 'IN WORK' : 'COMMISSION') + '</div>';
+  if (fullyResearched(item.id)) return html + (groundTestHTML(item.area, item) || `<p class="m">${isConfirmed(item.id) ? 'Nothing more to do: the work is confirmed.' : 'No ground test for this area. Fly it to confirm it.'}</p>`) + '</div>';
   if (job) html += `<div class="bar"><i data-jb="pk${item.id}" style="width:${Math.round((1 - job.t / Math.max(1, job.tot)) * 100)}%"></i></div><p class="wn">In progress: <span data-j="pk${item.id}">${job.t}s</span> left${job.cr ? ' (crash schedule)' : ''}</p>${crashHTML(item, job)}`;
   else html += commissionButton(item) + queueHTML(item);
-  if (isVehicleArea(item.area)) html += '<p class="m">Finished work goes into airframes when you publish the next blueprint revision (Hangar desk).</p>';
+  if (isVehicleArea(item.area)) html += `<p class="m">${stagesOf(S.cur).length && researchTarget(item.id) != S.cur && !job ? `The development lead would put this on the ${PROGRAMMES[researchTarget(item.id)].name}, the stage furthest behind. ` : ''}Finished work goes into airframes when you publish the next blueprint revision (Hangar desk).</p>`;
   return html + '</div>';
 }
 function milestoneRow(milestone) {
@@ -205,7 +210,7 @@ function jointProgrammesCard() {
 
 // ROCKET PROGRAMMES: a bar to switch the programme in focus (also on Hangar & Base), and the focused programme's card.
 export function programmeBar() {
-  return `<div class="pbar">${Object.keys(S.progs).map(kind => `<button data-a="prog" data-id="${kind}" class="${kind == S.cur ? 'on' : ''}">${PROGRAMMES[kind].name}<span class="d"> ${S.progs[kind].ready ? Math.round(maturity(kind)) : 'design'}</span></button>`).join('')}</div>`;
+  return `<div class="pbar">${Object.keys(S.progs).filter(kind => !PROGRAMMES[kind].stageOf).map(kind => `<button data-a="prog" data-id="${kind}" class="${kind == S.cur ? 'on' : ''}">${PROGRAMMES[kind].name}<span class="d"> ${S.progs[kind].ready ? Math.round(maturity(kind)) : 'design'}</span></button>`).join('')}</div>`;
 }
 const formatStat = (stat, value) => stat == 'thr' ? `${Math.round(value / 100) / 10} kN` : stat == 'dry' || stat == 'f' ? `${Math.round(value)} kg` : stat == 'g' ? `${value.toFixed(1)} g` : stat == 'r' ? `${value >= 0 ? '+' : ''}${Math.round(value * 100)} pts` : stat == 'rv' ? `${Math.round(value).toLocaleString('en-US')} m/s` : `${Math.round(value * 100)}%`;
 function programmeCard() {
@@ -222,12 +227,20 @@ function programmeCard() {
     const range = believedWindow(kind, key), narrow = (range.hi - range.lo) / Math.max(1e-9, Math.abs(range.mid)) < .06 || key == 'r' && range.hi - range.lo < .012;
     return `<div class="r"><span class="d">${label}</span><b>${narrow ? formatStat(key, range.mid) : `${formatStat(key, range.lo)} – ${formatStat(key, range.hi)}`}</b></div>`;
   }).join('');
-  const found = bundle.traits.filter(trait => trait.found);
-  html += `<div class="t" style="margin-top:8px">KNOWN FLAWS</div>` + (found.length ? found.map(trait => {
-    const flaw = traitByKey(trait.k), cured = flaw.mode && S.fix[flaw.mode];
-    return `<div class="m ${cured ? 'ok' : 'wn'}">${cured ? '✓ ' : ''}${flaw.name}: ${flaw.why}${flaw.mode ? (cured ? ' Cured by the fix in the design.' : ' A fix for ' + FAILURE_MODES[flaw.mode].name.toLowerCase() + ' will cure it.') : ''}</div>`;
+  // The rocket's flaws and its lower stages' (named), each with its cure: a fix in the design, or one to order once its cause is found.
+  const flaws = [kind, ...stagesOf(kind)].flatMap(each => (S.progs[each].traits || []).map(trait => ({ each, trait })));
+  const found = flaws.filter(({ trait }) => trait.found);
+  html += `<div class="t" style="margin-top:8px">KNOWN FLAWS</div>` + (found.length ? found.map(({ each, trait }) => {
+    const flaw = traitByKey(trait.k), cured = isCured(each, trait.k), owner = each == kind ? '' : `${PROGRAMMES[each].name}: `;
+    let cure = '';
+    if (cured) cure = ' Cured in the design.';
+    else if (flaw.statPenalty) {
+      const lock = withProgramme(each, () => cureLock(each, trait.k));
+      cure = lock ? ` ${lock}` : ` The cause is known. <button data-a="cure" data-id="${each}:${trait.k}">${cureFor(trait.k).name.toUpperCase()} (${formatMoney(cureCost(each, trait.k))})</button>`;
+    } else if (flaw.mode) cure = ' A fix for ' + FAILURE_MODES[flaw.mode].name.toLowerCase() + ' will cure it.';
+    return `<div class="m ${cured ? 'ok' : 'wn'}">${cured ? '✓ ' : ''}${owner}${flaw.name}: ${flaw.why}${cure}</div>`;
   }).join('') : '<div class="m">None found yet.</div>')
-    + (found.length < bundle.traits.length ? '<div class="m">New rockets always hide flaws. Failures, investigations and design reviews bring them out.</div>' : '<div class="m ok">The engineers believe every flaw in the design is now known.</div>');
+    + (found.length < flaws.length ? '<div class="m">New rockets always hide flaws. Failures, investigations and design reviews bring them out.</div>' : '<div class="m ok">The engineers believe every flaw in the design is now known.</div>');
   const next = candidates();
   if (next.length) html += `<div class="t" style="margin-top:8px">NEXT PROGRAMMES</div>` + next.map(candidate => {
     const proposed = PROGRAMMES[candidate], lock = startLock(candidate), skipped = isShortcut(candidate) && PROGRAMMES[proposed.skip.past].name;
@@ -243,19 +256,45 @@ const INSTRUMENT_NAMES = ['Radio beacon only', 'FM telemetry (few channels)', 'I
 const TRACKING_NAMES = ['Optical & radar tracking', 'Tracking radar network', 'Radar network + downrange ship'];
 // What the desk shows: view (research | programme | file | incidents), pick: the research card kept in the dossier, hover: the one
 // under the mouse, shown instead while it is there; unfolded: the areas whose folded confirmed packages are opened out.
-export const researchDesk = { view: 'research', pick: null, hover: null, unfolded: {} };
+export const researchDesk = { view: 'research', pick: null, unfolded: {} };
 const VIEWS = { research: 'RESEARCH', programme: 'ROCKET PROGRAMME', file: 'ENGINEERING FILE', incidents: 'UNEXPLAINED FAILURES' };
+// LOWER STAGES (rules/stages.js): their incidents and engineering files show under the rocket's, each in a block that carries the
+// stage (data-stage), so its buttons act with that stage in focus (ui/input.js).
+const isUnexplained = incident => incident.st == 'open' || incident.st == 'inv' || incident.st == 'found';
+const stageCount = test => stagesOf(S.cur).reduce((sum, stage) => sum + S.progs[stage].inc.filter(test).length, 0);
+const inStage = (stage, html) => `<div data-stage="${stage}"><div class="lbl sub">${PROGRAMMES[stage].name.toUpperCase()}</div>${html}</div>`;
+// One compact row per lower stage: its engine and revision, its research, the widest of the team's windows on it, the flaws found
+// and fixes fitted, and its open incidents.
+function stageRows() {
+  return stagesOf(S.cur).map(stage => withProgramme(stage, () => {
+    const bundle = S.progs[stage], open = S.inc.filter(isUnexplained).length;
+    const widest = DESIGN_STATS.filter(({ key }) => key != 'r' && key != 'h' && key != 'q').map(({ key, label }) => {
+      const range = believedWindow(stage, key);
+      return { label, share: (range.hi - range.lo) / 2 / Math.max(1e-9, Math.abs(range.mid)) };
+    }).sort((first, second) => second.share - first.share)[0];
+    const research = STAGE_AREAS.flatMap(area => itemsInArea(area)), done = research.filter(item => isResearched(item.id)).length;
+    return `<div class="r stage"><span><b>${PROGRAMMES[stage].name}</b> <span class="d">${PROGRAMMES[stage].engine} · Rev ${bundle.bp.rev}</span></span><span class="d">research ${done} of ${research.length} · ${widest.label} ±${Math.round(widest.share * 100)}% · flaws found ${bundle.traits.filter(trait => trait.found).length} of ${bundle.traits.length} · ${Object.keys(S.fix).length} fix${Object.keys(S.fix).length == 1 ? '' : 'es'} fitted</span><button data-a="rview" data-id="${open ? 'incidents' : 'file'}">${open ? `${open} INCIDENT${open > 1 ? 'S' : ''}` : 'FILE'}</button></div>`;
+  })).join('');
+}
 export function renderResearchDesk() {
-  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(incident => incident.st == 'open' || incident.st == 'inv' || incident.st == 'found'), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length;
+  const tiers = trackingTiers(), bundle = S.progs[S.cur], unexplained = S.inc.filter(isUnexplained), awaitingFix = S.inc.filter(incident => incident.st == 'diag').length + stageCount(incident => incident.st == 'diag');
+  const stageUnexplained = stageCount(isUnexplained);
   // Rocket areas once the programme is ready; recovery always; the spacecraft areas after NASA.
   const areas = (bundle && bundle.ready ? ['p', 's', 'i', 'a'] : []).concat(['r'], S.nasa ? ['c', 'e'] : []);
   const view = researchDesk.view;
-  let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length ? ` (${unexplained.length})` : ''}${key == 'file' && awaitingFix ? ` (${awaitingFix})` : ''}</button>`).join('')}`
+  let html = `<div class="rtabs">${Object.keys(VIEWS).map(key => `<button data-a="rview" data-id="${key}" class="${key == view ? 'on' : ''}">${VIEWS[key]}${key == 'incidents' && unexplained.length + stageUnexplained ? ` (${unexplained.length + stageUnexplained})` : ''}${key == 'file' && awaitingFix ? ` (${awaitingFix})` : ''}</button>`).join('')}`
     + `<span class="m">${PROGRAMMES[S.cur].name} ${designation(S.bp.pk)}, Rev ${S.bp.rev} · ${INSTRUMENT_NAMES[tiers.v]} · ${TRACKING_NAMES[tiers.g]} · <b>teams free ${freeTeams()} of ${S.teams}</b></span></div>`;
-  if (view == 'research') html += programmeBar() + queueRow() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + dossier();
+  if (view == 'research') html += programmeBar() + stageRows() + queueRow() + `<div class="rcols" style="--areas:${areas.length}">${areas.map(researchColumn).join('')}</div>` + dossier();
   else if (view == 'programme') html += programmeBar() + programmeCard() + `<div class="m">Packages improve the rocket in small, uncertain steps. Finished work goes into airframes when you publish a blueprint revision (Hangar desk), and its real effect is confirmed when one flies${S.fac.stand ? ' or a propulsion package is ground tested' : ''}.</div>`;
-  else if (view == 'file') html += `<div class="m">Each system's entry in the engineering file: what your team knows about it, the failure modes it has met and how they were cured. Knowledge carries from flight to flight.</div><div class="rcols" style="--areas:${areas.length}">${areas.map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`;
-  else html += unexplained.length ? `<div class="cards">${unexplained.slice().reverse().map(incidentHTML).join('')}</div>` : '<div class="m">No unexplained failures on file.</div>';
+  else if (view == 'file') html += `<div class="m">Each system's entry in the engineering file: what your team knows about it, the failure modes it has met and how they were cured. Knowledge carries from flight to flight.</div><div class="rcols" style="--areas:${areas.length}">${areas.map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`
+    + stagesOf(S.cur).map(stage => inStage(stage, withProgramme(stage, () => `<div class="rcols" style="--areas:2">${['p', 's'].map(area => `<div class="rcol"><div class="rcol-hd">${AREAS[area].toUpperCase()}</div>${engineeringFile(area)}</div>`).join('')}</div>`))).join('');
+  else {
+    const stageCards = stagesOf(S.cur).map(stage => withProgramme(stage, () => {
+      const open = S.inc.filter(isUnexplained);
+      return open.length ? inStage(stage, `<div class="cards">${open.slice().reverse().map(incidentHTML).join('')}</div>`) : '';
+    })).join('');
+    html += unexplained.length || stageCards ? (unexplained.length ? `<div class="cards">${unexplained.slice().reverse().map(incidentHTML).join('')}</div>` : '') + stageCards : '<div class="m">No unexplained failures on file.</div>';
+  }
   setHTML($('#rdesk'), html);
 }
 

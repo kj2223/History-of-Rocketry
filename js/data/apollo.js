@@ -41,3 +41,22 @@ export const ARCHITECTURES = {
   },
 };
 export const ARCHITECTURE_ORDER = ['direct', 'eor', 'lor'];
+
+// THE CENTRES (rules/bids.js, rules/apollo.js): when the study reports, the two big centres each pitch the architecture that keeps
+// their people busy, with figures shaded in its favour. The shading is hidden: each centre's optimism is rolled when Apollo opens,
+// within OPTIMISM_RANGE, and its claim is the true figure cut by optimism times its stake (cost and years come in lower, risk
+// lower). Its track record (how far its past estimates fell short) is shown, to within RECORD_NOISE, so you can judge the shading.
+//   name, place, head: who pitches; favours: the architecture; stake: how much the centre gains if it wins (0 to 1);
+//   work: where its cooperation shows: 'saturn' (research lanes on a Saturn and its stages) or 'spacecraft' (the shared spacecraft
+//   and crew-safety research); share: the consolation work share you can give it if you overrule it ($ and what it is).
+// Direct ascent has no centre behind it.
+export const CENTRES = {
+  rocket: { name: 'the rocket centre', place: 'Huntsville', head: 'Dr Otto Lehmann', role: 'Director, launch vehicle centre', favours: 'eor', stake: .8, work: 'saturn',
+    pitch: 'Two Saturn launches, every hard manoeuvre close to home, and the people who built every booster you have flown.',
+    share: { cost: 120000, what: 'the Saturn V upper-stage and Moon-rocket integration work' } },
+  craft: { name: 'the spacecraft centre', place: 'Houston', head: 'Robert Gale', role: 'Director, manned spacecraft centre', favours: 'lor', stake: .7, work: 'spacecraft',
+    pitch: 'One Saturn V and a light lander. Years sooner, and cheaper, if we trust ourselves to meet again in lunar orbit.',
+    share: { cost: 100000, what: 'the lunar lander test programme' } },
+};
+export const OPTIMISM_RANGE = [.1, .35];
+export const RECORD_NOISE = .05;

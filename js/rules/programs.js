@@ -3,9 +3,10 @@
 // when the programme starts: they raise one failure mode (or cost performance) until found and cured.
 // The programme table itself is in data/programmes.js.
 import { formatMoney, gaussian } from '../core/util.js';
-import { PACKAGES, BY_ID } from '../data/research.js';
-import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, traitByKey, DESIGN_STATS } from '../data/programmes.js';
+import { PACKAGES, BY_ID, isMilestone } from '../data/research.js';
+import { PROGRAMMES, PROGRAMME_ORDER, MATURE, FLIGHTS_TO_MATURE, HEAD_START, TRAITS, STAGE_TRAITS, traitByKey, DESIGN_STATS, FLIGHTS_TO_FIND_CURE } from '../data/programmes.js';
 import { S, log, addHistory, newBundle, recordRunEvent, earn } from '../core/state.js';
+import { redstonePayment } from './corporal.js';
 
 // The four research areas that belong to a rocket (the others are global: see core/state.js).
 export const VEHICLE_AREAS = ['p', 's', 'i', 'a'];
@@ -14,7 +15,11 @@ export const VEHICLE_AREAS = ['p', 's', 'i', 'a'];
 const PACKAGES_BY_AREA = {};
 for (const area of VEHICLE_AREAS) PACKAGES_BY_AREA[area] = PACKAGES.filter(item => item.area == area && !item.phase);
 // A programme that skipped a generation also takes on the slice of the rocket it skipped.
+// A lower stage researches its rocket's propulsion and structures packages, and nothing else.
+export const STAGE_AREAS = ['p', 's'];
 export function programmePackages(kind, area) {
+  const stageOf = PROGRAMMES[kind].stageOf;
+  if (stageOf) return STAGE_AREAS.includes(area) ? programmePackages(stageOf, area) : [];
   const list = PACKAGES_BY_AREA[area] || [];
   const slice = programme => {
     const count = Math.min(programme.packagesPerArea, list.length);
@@ -34,7 +39,8 @@ export function scaledForProgramme(item, kind) {
   const programme = PROGRAMMES[kind];
   if (!programme || !VEHICLE_AREAS.includes(item.area) && item.tier != 1) return item;
   const effects = {};
-  for (const key in item.effects) effects[key] = (key == 'f' || key == 'd') ? Math.round(item.effects[key] * programme.sizeScale * 10) / 10 : item.effects[key];
+  const scale = { f: programme.sizeScale, d: programme.dryScale || programme.sizeScale };
+  for (const key in item.effects) effects[key] = scale[key] ? Math.round(item.effects[key] * scale[key] * 10) / 10 : item.effects[key];
   return { ...item, cost: Math.round(item.cost * programme.costScale / 100) * 100, time: Math.round(item.time * programme.timeScale * .7), effects };
 }
 
@@ -45,14 +51,14 @@ export function rollProgramme(kind, skipping = false) {
   const programme = PROGRAMMES[kind], design = programme.design;
   const trueDesign = { c: design.c, i: design.i }, bias = {};
   const traitCount = programme.traitRange[0] + Math.floor(Math.random() * (programme.traitRange[1] - programme.traitRange[0] + 1)) + (skipping ? programme.skip.extraTraits : 0);
-  // Satellite launchers are rolled within a narrower spread: their flaws are in reliability, not in whether orbit is possible at all.
-  const spread = programme.canOrbit ? .45 : 1;
+  // Satellite launchers and their stages are rolled within a narrower spread: their flaws are in reliability, not in whether orbit is possible at all.
+  const spread = programme.canOrbit || programme.stageOf ? .45 : 1;
   for (const { key, startWidth } of DESIGN_STATS) {
     const deviation = Math.max(-1, Math.min(1, gaussian() * .45));
     trueDesign[key] = key == 'r' ? design.r + (skipping ? programme.skip.r : 0) + deviation * startWidth : design[key] * (1 + deviation * startWidth * spread);
     bias[key] = Math.max(-1.5, Math.min(1.5, gaussian()));
   }
-  const pool = TRAITS.filter(trait => !trait.stagedOnly || programme.booster), traits = [];
+  const pool = TRAITS.filter(trait => programme.stageOf ? STAGE_TRAITS.includes(trait.key) : !trait.stagedOnly || programme.booster || programme.stages), traits = [];
   while (traits.length < traitCount && pool.length) {
     const trait = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
     traits.push({ k: trait.key, found: 0 });
@@ -75,7 +81,34 @@ export function createProgramme(kind, skipping = false) {
     bundle.kn[area] = Math.max(best * (skipping ? programme.skip.headStart : programme.headStart || HEAD_START.best), parent * HEAD_START.parent);
   }
   S.progs[kind] = bundle;
+  for (const stage of programme.stages || []) createStage(stage);
   return bundle;
+}
+// A LOWER STAGE gets a bundle of its own (rules/stages.js), rolled like a rocket's, with the rocket's knowledge to start from.
+export function createStage(stage) {
+  const bundle = newBundle(), parent = S.progs[PROGRAMMES[stage].stageOf];
+  Object.assign(bundle, { kind: stage, start: Math.round(S.day), ...rollProgramme(stage), ready: 0 });
+  for (const area of VEHICLE_AREAS) bundle.kn[area] = parent ? parent.kn[area] || 0 : 0;
+  S.progs[stage] = bundle;
+  return bundle;
+}
+// Saves from before a rocket had stage designs get them on load.
+export function ensureStages() {
+  for (const kind of Object.keys(S.progs)) for (const stage of (PROGRAMMES[kind] && PROGRAMMES[kind].stages) || []) if (!S.progs[stage]) createStage(stage);
+}
+// The lower stages of a rocket that has them, and the rocket a stage belongs to (a rocket is its own).
+export const stagesOf = kind => (PROGRAMMES[kind] && PROGRAMMES[kind].stages || []).filter(stage => S.progs[stage]);
+export const rocketOf = kind => PROGRAMMES[kind] && PROGRAMMES[kind].stageOf || kind;
+// A fix's key on an airframe: a lower stage's fixes ride in the rocket's blueprint and airframes as mode@stage.
+export const fixKeyFor = (kind, mode) => PROGRAMMES[kind] && PROGRAMMES[kind].stageOf ? `${mode}@${kind}` : mode;
+// STAGED RESEARCH: on a rocket with stage designs, a propulsion or structures package goes to one stage (the rocket's own design
+// being its top stage), the development lead's choice: the stage furthest behind in that system, the lower stage on a tie.
+// Returns the stage that would get it, or null if every stage has it. Milestones and other work belong to the rocket.
+export function researchTarget(id, kind = S.cur) {
+  const item = BY_ID[id], stages = stagesOf(kind);
+  if (!stages.length || !item || isMilestone(id) || !STAGE_AREAS.includes(item.area)) return S.progs[kind] && S.progs[kind].pk[id] ? null : kind;
+  const doneIn = stage => Object.keys(S.progs[stage].pk).filter(other => BY_ID[other] && BY_ID[other].area == item.area).length;
+  return [...stages, kind].filter(stage => !S.progs[stage].pk[id]).sort((first, second) => doneIn(first) - doneIn(second))[0] || null;
 }
 export const programmeOf = airframe => airframe && airframe.prog || S.cur;
 export const programmeData = (kind = S.cur) => PROGRAMMES[kind];
@@ -108,6 +141,7 @@ export function startLock(kind) {
   if (closer) return `Closed: the ${PROGRAMMES[closer].name} programme took the other route.`;
   if (programme.needsNasa && !S.nasa) return 'Needs NASA.';
   if (programme.needsGemini && !(S.p2 && S.p2.fl.gem)) return 'Opens with Project Gemini, once Mercury is complete.';
+  if (programme.needsApollo && !(S.p2 && S.p2.ap && S.p2.ap.arch)) return 'Opens once Project Apollo has chosen how to reach the Moon.';
   const met = requirementsMet(programme) || isShortcut(kind) && isMature(programme.skip.from);
   const needs = programme.requires.map(required => PROGRAMMES[required].name).join(programme.anyRequirement ? ' or ' : ' and ');
   if (!met) return `Needs ${isShortcut(kind) ? `${PROGRAMMES[programme.skip.from].name} (to skip straight to it) or ${needs}` : needs} to mature (knowledge ${MATURE} and ${FLIGHTS_TO_MATURE} successful flights).`;
@@ -132,6 +166,7 @@ export function startProgramme(kind) {
     earn(programme.igyFunding);
     log(`[CONGRESS] ${programme.name} is named the American satellite for the International Geophysical Year. A dedicated appropriation of ${formatMoney(programme.igyFunding)} comes with it.`, 'hd');
   }
+  if (kind == 'redstone') redstonePayment();
   addHistory(`${programme.name} programme started`);
   recordRunEvent({ k: 'prog', id: kind });
   return true;
@@ -148,7 +183,9 @@ export function finishDesign(kind) {
   if (previous && previous != kind) log(`[PROGRAMME] The Design Bureau and Hangar now show the ${PROGRAMMES[kind].name}: new research goes to it. Switch back to the ${PROGRAMMES[previous].name} with the rocket bar at the top of either tab.`, 'wn');
 }
 
-// TRAITS. A trait is found when its failure mode is diagnosed or a review flags it; a stat trait surfaces once the team knows that system well (40).
+// TRAITS. A trait is found when its failure mode is diagnosed or a review flags it; one that costs performance also surfaces once
+// the team knows that system well (40). A found trait remembers how many flights the programme had flown (at): the cure for a
+// performance flaw needs more flights after that (rules/cures.js).
 export const traitsOf = kind => (S.progs[kind] || {}).traits || [];
 export function revealTraits(kind) {
   const bundle = S.progs[kind];
@@ -158,20 +195,21 @@ export function revealTraits(kind) {
     const details = traitByKey(trait.k);
     let found = false;
     if (details.mode && bundle.known[details.mode]) found = true;
-    if (!details.mode) {
+    if (details.statPenalty) {
       const stat = Object.keys(details.statPenalty)[0], area = DESIGN_STATS.find(entry => entry.key == stat).area;
       if ((bundle.kn[area] || 0) >= 40) found = true;
     }
     if (found) {
       trait.found = 1;
-      log(`[ENGINEERING] ${PROGRAMMES[kind].name}: ${details.name.toLowerCase()}. ${details.why}${details.mode ? ' A fix for it cures the flaw.' : ''}`, 'wn');
+      trait.at = bundle.nf || 0;
+      log(`[ENGINEERING] ${PROGRAMMES[kind].name}: ${details.name.toLowerCase()}. ${details.why}${details.mode ? ' A fix for it cures the flaw.' : ''}${details.statPenalty ? ` Fly it ${FLIGHTS_TO_FIND_CURE} more times and the team will find the cause.` : ''}`, 'wn');
     }
   }
 }
 // How much more likely failure mode `mode` is on this rocket because of a trait (1 = no trait, or the airframe carries the fix).
 export const traitWeight = (kind, mode, airframe) => {
   const trait = traitsOf(kind).find(entry => traitByKey(entry.k).mode == mode);
-  return trait && !(airframe && airframe.fix && airframe.fix[mode]) ? traitByKey(trait.k).weight : 1;
+  return trait && !(airframe && airframe.fix && airframe.fix[fixKeyFor(kind, mode)]) ? traitByKey(trait.k).weight : 1;
 };
 
 // The window the team believes for a stat: centred near the truth (an early bias that fades) and narrowing with knowledge.

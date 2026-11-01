@@ -35,6 +35,7 @@ import { anyCertified, isManRated, manRatingRecord } from './manrate.js';
 import { assignedPilot, joinSecondGroup } from './astronauts.js';
 import { checkFirsts, openSovietSectionTwo } from './race.js';
 import { openApollo } from './apollo.js';
+import { standDownLock } from './requests.js';
 
 export const newPhaseTwo = () => ({
   v: 3, sec: 1, dir: 0, pool: [], astros: [], selDone: 0, sel: { st: 0, at: Math.round(S.day + 50), reg: null }, veh: [], flights: 0, mem: [], stand: 0, secDone: 0, memo: null, nv: 1, chimp: 0, monk: 0,
@@ -125,12 +126,12 @@ export function boosterPlan(airframe, propellant, missionType) {
       for (let load = 1; load >= MIN_MERCURY_LOAD && !best; load = Math.round((load - loadStep) * 100) / 100) {
         const preview = previewFlight(airframe, propellant, type.payload || 'Mercury Capsule', staged, load, 0, ascent);
         const overLimit = preview.maxHeat >= 1 || preview.maxQ >= 1;
-        const enough = preview.thrustToWeight > 1.05 && (!type.needs.alt || preview.peakAltitude >= type.needs.alt) && (!type.needs.v || preview.peakSpeed >= type.needs.v);
+        const lifts = preview.thrustToWeight > 1.05, enough = lifts && (!type.needs.alt || preview.peakAltitude >= type.needs.alt) && (!type.needs.v || preview.peakSpeed >= type.needs.v);
         const plan = { staged, load, ascent, preview, ok: enough && !overLimit, overLimit };
         if (plan.ok) best = plan;
         else if (load == 1 && !ascent && (!fallback || preview.peakSpeed > fallback.preview.peakSpeed)) fallback = plan;
-        // Off-loading only helps a booster that is over its limits and still has speed to spare.
-        if (!overLimit || !enough) break;
+        // Off-loading helps a booster too heavy to lift off on full tanks, and one over its limits with speed to spare.
+        if (lifts && (!overLimit || !enough)) break;
       }
       if (best) break;
     }
@@ -160,6 +161,7 @@ export function crewLock(crew, airframe, missionType = 'mr') {
     return null;
   }
   if (state.stand > S.day) return `Crewed flights are stood down after the loss of a crew until ${formatDate(state.stand)}.`;
+  if (standDownLock()) return standDownLock();
   if (state.dir < 4) return 'NASA will not fly a crew until an animal has flown and been recovered alive.';
   if (missionType == 'mo' && !directiveDone('oanimal')) return 'NASA will not fly a crew into orbit until a chimpanzee has orbited and been recovered alive.';
   if (missionType == 'gt' && !directiveDone('g1')) return 'NASA will not fly a crew on Gemini until an uncrewed Gemini has flown and been recovered.';

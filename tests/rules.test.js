@@ -4,26 +4,31 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { S, resetState, withProgramme } from '../js/core/state.js';
 import { BY_ID, isMilestone } from '../js/data/research.js';
-import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea } from '../js/rules/research.js';
+import { commission, crashProgramme, crashLock, crashCost, itemAsSeen, itemsInArea, fullyResearched } from '../js/rules/research.js';
 import { queueResearch, queueLock, queuePosition, unqueue, moveUpQueue, queueAnalysis, analysisPosition, queueFix, fixPosition, queueReview, reviewPosition, RESEARCH_QUEUE_LENGTH } from '../js/rules/queue.js';
 import { MISSION_TYPES } from '../js/data/mercury.js';
 import { FAILURE_MODES } from '../js/data/failures.js';
 import { grant } from '../js/rules/economy.js';
 import { ensureStarter, hire, tickSecond, catchUp } from '../js/rules/game.js';
-import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages } from '../js/rules/programs.js';
-import { MATURE, FLIGHTS_TO_MATURE } from '../js/data/programmes.js';
-import { makeAirframe, retrofitQuote } from '../js/rules/production.js';
+import { createProgramme, isMature, startLock, startProgramme, candidates, programmePackages, ensureStages, stagesOf, researchTarget } from '../js/rules/programs.js';
+import { lowerStage } from '../js/rules/stages.js';
+import { PROPELLANTS } from '../js/data/launch.js';
+import { MATURE, FLIGHTS_TO_MATURE, PROGRAMMES } from '../js/data/programmes.js';
+import { makeAirframe, retrofitQuote, draftChanges, blueprintConfig } from '../js/rules/production.js';
 import { publishBlueprint, holdForLaunch } from '../js/rules/factory.js';
-import { previewFlight, beginFlight, step, hasEvent } from '../js/rules/flight.js';
+import { previewFlight, beginFlight, step, hasEvent, endFlight } from '../js/rules/flight.js';
 import { designSpec } from '../js/rules/design.js';
 import { manRatingRecord, recordBoosterFlight, isManRated, startNewFamilyIfRedesigned, CLEAN_FLIGHTS_NEEDED, MAN_RATING_RESEARCH } from '../js/rules/manrate.js';
 import { boosterPlan, crewLock, newPhaseTwo, requirementText, MIN_MERCURY_LOAD } from '../js/rules/mercury.js';
 import { selectCrew, makePool } from '../js/rules/astronauts.js';
 import { autoLaunch } from '../js/rules/auto.js';
 import { filedModes, systemOf } from '../js/rules/knowledge.js';
-import { startInvestigation, acceptFinding, nameCause, extendInvestigation } from '../js/rules/jobs.js';
-import { startCampaign, goAhead, directorMargin, recordCampaignFlight, provenProgramme, AEROBEE_FLIGHTS_TO_UNLOCK, DIRECTOR_FULL_SKILL, FLIGHTS_TO_PROVE } from '../js/rules/campaign.js';
+import { startInvestigation, acceptFinding, nameCause, extendInvestigation, finishJob } from '../js/rules/jobs.js';
+import { startCampaign, goAhead, directorMargin, recordCampaignFlight, provenProgramme, AEROBEE_FLIGHTS_TO_UNLOCK, FLIGHTS_TO_PROVE } from '../js/rules/campaign.js';
 import { runPoll } from '../js/rules/launch-site.js';
+import { cureLock, startCure, countFlight, curesReady } from '../js/rules/cures.js';
+import { FLIGHTS_TO_FIND_CURE } from '../js/data/programmes.js';
+import { revealTraits } from '../js/rules/programs.js';
 
 // The same small generator the balance bot uses.
 const seeded = seed => () => {
@@ -101,6 +106,16 @@ test('a Mercury booster plan never counts a booster that is over its heating or 
     assert.ok(plan.load >= MIN_MERCURY_LOAD && plan.load <= 1);
     if (plan.ok) assert.ok(plan.preview.maxHeat < 1 && plan.preview.maxQ < 1, `${missionType} plan is over its limits`);
   }
+});
+
+test('a booster too heavy to lift off on full tanks is off-loaded until it flies its mission', () => {
+  const titan = readyProgramme('titan');
+  // More propellant in the first stage than its engines can lift when full (a Titan II grown heavy with research).
+  S.progs.titan1.T.f *= 1.2;
+  assert.ok(previewFlight(titan, 'Aerozine & N2O4', 'Gemini Spacecraft', 1, 1).thrustToWeight < 1.05, 'too heavy on full tanks');
+  const plan = boosterPlan(titan, 'Aerozine & N2O4', 'gt');
+  assert.ok(plan.ok, 'a part load flies the Gemini mission');
+  assert.ok(plan.load < 1 && plan.preview.thrustToWeight > 1.05);
 });
 
 test('capsules need their research before they can be ordered', () => {
@@ -268,12 +283,12 @@ test('an attended first goes to the pad with her plan instead of flying unseen',
 // An open incident holds routine flights until it is dealt with; these tests close them as a player or Ellis's remit would.
 const closeIncidents = kind => withProgramme(kind, () => S.inc.forEach(incident => incident.st = 'done'));
 test('a standing order flies a new configuration without stopping to ask', async () => {
-  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  const { startOrder, standingOrder } = await import('../js/rules/orders.js');
   readyProgramme('aerobee');
   S.cur = 'aerobee';
   S.staff.director = 1;
   assert.equal(startOrder('aerobee', 1e6), null);
-  const flown = () => orderFor('aerobee').n;
+  const flown = () => standingOrder().n;
   for (let second = 0; second < 1500 && !flown(); second++) {
     tickSecond();
     autoLaunch();
@@ -290,13 +305,13 @@ test('a standing order flies a new configuration without stopping to ask', async
     closeIncidents('aerobee');
     for (const airframe of S.air) if (airframe.prog == 'aerobee' && !airframe.pk.includes('ms_test')) airframe.pk.push('ms_test');
     S.b = Math.max(S.b, 200000);
-    assert.equal(orderFor('aerobee').hold, null);
+    assert.equal(standingOrder().hold, null);
   }
   delete BY_ID.ms_test;
   assert.ok(flown() > before, 'it keeps flying with the new milestone aboard');
 });
 test('a standing order flies customer requests by itself and keeps flying after a campaign expires', async () => {
-  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  const { startOrder, standingOrder } = await import('../js/rules/orders.js');
   readyProgramme('aerobee');
   S.cur = 'aerobee';
   S.staff.director = 1;
@@ -310,43 +325,106 @@ test('a standing order flies customer requests by itself and keeps flying after 
     if (S.auto.camp && S.auto.camp.hold) goAhead();
     closeIncidents('aerobee');
     closeIncidents('wac');
-    if (orderFor('aerobee').hold) assert.fail(orderFor('aerobee').hold);
-    if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
+    if (standingOrder().hold) assert.fail(standingOrder().hold);
+    if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = standingOrder().n;
     S.b = Math.max(S.b, 200000);
   }
   assert.equal(S.auto.last.outcome, 'deadline');
-  assert.ok(orderFor('aerobee').n > flownAtExpiry, 'the order keeps flying once the campaign is over');
-  assert.ok(orderFor('aerobee').paid > 0, 'customers pay for good flights');
-  assert.ok(orderFor('aerobee').spent <= orderFor('aerobee').cap);
+  assert.ok(standingOrder().n > flownAtExpiry, 'the order keeps flying once the campaign is over');
+  assert.ok(standingOrder().paid > 0, 'customers pay for good flights');
+  assert.ok(standingOrder().paid >= standingOrder().spent, 'customers reimburse every flight, so routine flying breaks even');
+  assert.ok(standingOrder().spent <= standingOrder().cap);
 });
 
 test('a standing order stops and asks you when its cap is spent', async () => {
-  const { startOrder, orderFor } = await import('../js/rules/orders.js');
+  const { startOrder, standingOrder } = await import('../js/rules/orders.js');
   readyProgramme('aerobee');
   S.staff.director = 1;
   S.hi = 60000;
   assert.equal(startOrder('aerobee', 10000), null);
-  for (let second = 0; second < 3000 && !orderFor('aerobee').hold; second++) {
+  for (let second = 0; second < 3000 && !standingOrder().hold; second++) {
     tickSecond();
     autoLaunch();
     closeIncidents('aerobee');
     S.b = Math.max(S.b, 200000);
   }
-  assert.match(orderFor('aerobee').hold, /cap/);
-  assert.ok(orderFor('aerobee').spent <= 10000);
+  assert.match(standingOrder().hold, /cap/);
+  assert.ok(standingOrder().spent <= 10000);
 });
 
-test('Ellis flies a request on the cheapest ordered rocket that reaches it, not the newest', async () => {
-  const { startOrder, orderFor, ordersTurn } = await import('../js/rules/orders.js');
+test('Ellis flies a request on the cheapest rocket that reaches it, whichever brief started the order', async () => {
+  const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
   S.air.push(readyProgramme('aerobee'), readyProgramme('viking'));
   S.staff.director = 1;
-  startOrder('aerobee', 1e6);
-  startOrder('viking', 1e6);
+  assert.equal(startOrder('viking', 1e6), null);
   S.b = 1e6;
   S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
   ordersTurn(.85);
-  assert.equal(orderFor('aerobee').n, 1);
-  assert.equal(orderFor('viking').n, 0);
+  assert.equal(standingOrder().n, 1);
+  assert.equal(S.air.find(airframe => airframe.prog == 'viking').st, 'r', 'the Viking stays in the hangar');
+});
+test('a customer flight can slip in the countdown, as a campaign flight can', async () => {
+  const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
+  S.air.push(readyProgramme('aerobee'));
+  S.staff.director = 1;
+  assert.equal(startOrder('aerobee', 1e6), null);
+  S.b = 1e6;
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
+  const random = Math.random, day = S.day;
+  let first = true;
+  Math.random = () => first ? (first = false, 0) : random(); // the slip roll comes up
+  try {
+    ordersTurn(.85);
+  } finally {
+    Math.random = random;
+  }
+  assert.equal(standingOrder().n, 0, 'nothing flew');
+  assert.equal(S.day, day + 2, 'the slip costs two days');
+  assert.ok(standingOrder().spent > 0, 'and the turnaround is charged to the order');
+});
+test('with no cheap airframe ready, Ellis orders one rather than fly a dearer rocket', async () => {
+  const { startOrder, standingOrder, ordersTurn } = await import('../js/rules/orders.js');
+  readyProgramme('aerobee');
+  S.air.push(readyProgramme('viking'));
+  S.staff.director = 1;
+  assert.equal(startOrder('viking', 1e6), null);
+  S.b = 1e6;
+  S.orders.reqs.push({ id: 1, who: 'Army Ordnance', pay: 'Sensor Suite', km: 10, fee: 3000, by: S.day + 100, why: '' });
+  ordersTurn(.85);
+  assert.equal(standingOrder().n, 0, 'the Viking does not fly');
+  assert.ok(S.aq.some(item => item.k == 'build' && PROGRAMMES[item.prog].unitCost < PROGRAMMES.viking.unitCost), 'a cheaper airframe is on order');
+  assert.match(S.orders.reqs[0].why, /waiting for/);
+});
+test('saves with one standing order per rocket load as one order', async () => {
+  const { load } = await import('../js/core/state.js');
+  const saved = { cv: 3, orders: { by: { aerobee: { cap: 25000, spent: 1000, n: 2, okn: 1, paid: 3000, hold: null, pk: [] }, viking: { cap: 50000, spent: 2000, n: 1, okn: 1, paid: 5000, hold: null, pk: [] } }, reqs: [], n: 4, due: 10 } };
+  globalThis.localStorage = { getItem: () => JSON.stringify(saved), setItem() {} };
+  load();
+  assert.equal(S.orders.by, undefined);
+  assert.equal(S.orders.o.cap, 75000);
+  assert.equal(S.orders.o.n, 3);
+  assert.equal(S.orders.o.prog, 'aerobee');
+  delete globalThis.localStorage;
+});
+
+test('older saves get fields added since inside nested records', async () => {
+  const { load } = await import('../js/core/state.js');
+  const saved = { cv: 3, team: { n: 2, ok: 1, rev: 0, fix: 0, dir: 0, rec: 0, top: 0 }, shared: { cap: 0, spent: 0, jobs: 0, dry: null } };
+  globalThis.localStorage = { getItem: () => JSON.stringify(saved), setItem() {} };
+  load();
+  assert.equal(S.team.n, 2, 'saved values stay');
+  assert.deepEqual(S.team.watch, [], 'a missing field gets its starting value');
+  assert.deepEqual(S.shared.skip, []);
+  delete globalThis.localStorage;
+});
+test('an unreadable save is copied aside before anything can overwrite it', async () => {
+  const { load } = await import('../js/core/state.js');
+  const written = {};
+  globalThis.localStorage = { getItem: () => '{"cv":3, broken', setItem: (key, value) => { written[key] = value; } };
+  load();
+  assert.equal(written['vg3-unreadable'], '{"cv":3, broken');
+  assert.equal(written.vg3, undefined, 'the save itself is left alone');
+  delete globalThis.localStorage;
 });
 
 test('flights you fly yourself count towards the campaign; the director learns only from its own', () => {
@@ -383,10 +461,13 @@ test('unconfirmed Phase Two (capsule) packages do not make the booster less reli
   assert.deepEqual(fly(phaseTwo), fly([]));
 });
 
-test('an experienced director flies closer to the limits', () => {
+test('a confident launch team flies closer to the limits, and a chaotic culture closer still', () => {
   const rookie = directorMargin();
-  S.auto.xp = DIRECTOR_FULL_SKILL;
-  assert.ok(directorMargin() > rookie);
+  S.cult.conf = 1;
+  const confident = directorMargin();
+  assert.ok(confident > rookie);
+  S.cult.lean = 1;
+  assert.ok(directorMargin() > confident);
 });
 
 test('no two airframes are built alike, but the pre-flight estimate uses the drawings', () => {
@@ -1066,14 +1147,56 @@ test('without a Mercury flight reputation slips, and a flight ends the quiet spe
   assert.equal(S.fy.q, 0);
 });
 
+// Aaron's report: a station hired mid-flight started working on the rocket already in the air.
+test('during a launch, hires and releases wait for it to end, and so do new buildings', async () => {
+  const { hireStation, dismissStation, stationLock, arrivalsTick } = await import('../js/rules/launch-site.js');
+  const { constructionTick } = await import('../js/rules/site.js');
+  const { launchInProgress } = await import('../js/core/state.js');
+  S.b = 1e6;
+  S.crew.prop = 1;
+  S.fb = { wx: S.day };
+  let busy = true;
+  launchInProgress.busy = () => busy;
+  try {
+    hireStation('rso');
+    dismissStation('prop');
+    assert.ok(!S.crew.rso, 'the RSO waits for the flight to end');
+    assert.equal(S.crew.prop, 1, 'PROP stays on for this flight');
+    assert.match(stationLock('rso'), /after this launch/);
+    assert.equal(arrivalsTick(), false);
+    assert.equal(constructionTick(), false, 'a finished building opens after the launch');
+    busy = false;
+    assert.equal(arrivalsTick(), true);
+    assert.equal(S.crew.rso, 1);
+    assert.equal(S.crew.prop, 0);
+    assert.deepEqual(S.hq, []);
+    assert.equal(constructionTick(), true);
+    assert.equal(S.fac.wx, 1);
+    hireStation('prop');
+    assert.equal(S.crew.prop, 1, 'between launches a hire sits down at once');
+  } finally {
+    launchInProgress.busy = () => false;
+  }
+});
+
 // THE SITE (rules/site.js): construction crews, upkeep, mothballing and launch pads.
-test('in Phase One a building is in service at once; from NASA on it waits for a contractor crew and its construction days', async () => {
+// Aaron's report: Phase One buildings went up the moment they were paid for, which was abusable.
+test('a building waits for a contractor crew and its construction days: one crew in Phase One, more from NASA on', async () => {
   const { buildFacility } = await import('../js/rules/launch-site.js');
   const { constructionTick, upkeep, buildDaysOf } = await import('../js/rules/site.js');
   const { SITE } = await import('../js/data/launch-site.js');
   S.b = 1e6;
   buildFacility('wx');
+  buildFacility('radar');
+  assert.ok(!S.fac.wx, 'paid for, not yet in service');
+  assert.deepEqual(Object.keys(S.fb), ['wx'], 'one crew in Phase One');
+  assert.deepEqual(S.cq, ['radar']);
+  S.day += buildDaysOf('wx');
+  constructionTick();
   assert.equal(S.fac.wx, 1);
+  assert.deepEqual(Object.keys(S.fb), ['radar'], 'the crew moves on to the next order');
+  S.day += buildDaysOf('radar');
+  constructionTick();
   assert.equal(upkeep(), 0, 'no upkeep before NASA');
   S.day = S.nasa = 4400;
   for (const id of ['centrifuge', 'egress', 'zerog']) buildFacility(id);
@@ -1426,12 +1549,46 @@ test('a lane takes its experiments once the routine work is done, and says why w
   assert.equal(laneIdleReason('s'), 'no BSTR or lead yet');
 });
 
+// Aaron's report: milestones in a rocket's systems never started, because the lanes skip them and nothing told him. Now the lane
+// lead proposes each one in Mail and the lane waits for an answer.
+test('a lane proposes the milestones that open in its system and waits; approved, one starts on the lane; not now, routine resumes', async () => {
+  const { chenJoinTick, startLanes, lanesTick, laneJob, laneIdleReason, laneProposals, approveLaneMilestone, laneNotNow } = await import('../js/rules/lanes.js');
+  readyProgramme('aerobee');
+  S.progs.aerobee.okf = AEROBEE_FLIGHTS_TO_UNLOCK;
+  chenJoinTick();
+  readyProgramme('viking');
+  S.cur = 'viking';
+  S.b = 500000;
+  S.crew.prop = 1;
+  startLanes(100000);
+  assert.deepEqual(laneProposals('p'), [], 'nothing to propose before a breakthrough');
+  S.bt.p = 1;
+  assert.deepEqual(laneProposals('p').map(item => item.id).sort(), ['ms_eng', 'ms_rel'], 'the first propulsion milestones, a choice');
+  lanesTick();
+  assert.equal(laneJob('p'), undefined, 'the lane waits for your answer');
+  assert.equal(laneIdleReason('p'), 'a milestone proposal is waiting for you');
+  laneNotNow('p');
+  assert.deepEqual(laneProposals('p'), []);
+  lanesTick();
+  assert.ok(laneJob('p') && !isMilestone(laneJob('p').id), 'not now: routine work resumes');
+  S.jobs = S.jobs.filter(job => !job.ln);
+  S.lanes.skip = [];
+  const spent = S.lanes.spent, cost = itemAsSeen('ms_eng').cost;
+  S.cur = 'aerobee'; // the lanes keep their own rocket while you look at another
+  assert.equal(approveLaneMilestone('ms_eng'), null);
+  S.cur = 'viking';
+  assert.equal(laneJob('p').id, 'ms_eng');
+  assert.equal(laneJob('p').prog, 'viking');
+  assert.equal(S.lanes.spent, spent + cost, 'counted against the lanes budget');
+  assert.deepEqual(laneProposals('p'), [], 'the other approach closes');
+});
+
 // THE PROGRAMME BRIEF (rules/brief.js): one approval starts every free lead's line on the rocket in focus.
-test('one brief starts flights, production and research together, and Reed keeps one more airframe for the order', async () => {
+test('one brief starts flights, production and research together', async () => {
   const { approveBrief, briefLines, briefTotal, BRIEF_SIZES } = await import('../js/rules/brief.js');
   const { chenJoinTick } = await import('../js/rules/lanes.js');
   const { reedJoinTick, worksTick, airframesOnHand, airframesWanted, AIRFRAMES_ON_HAND } = await import('../js/rules/factory-lead.js');
-  const { orderFor } = await import('../js/rules/orders.js');
+  const { standingOrder } = await import('../js/rules/orders.js');
   S.air.push(readyProgramme('aerobee'));
   S.cur = 'aerobee';
   S.b = 300000;
@@ -1442,13 +1599,14 @@ test('one brief starts flights, production and research together, and Reed keeps
   reedJoinTick();
   assert.equal(briefTotal('aerobee', 1), BRIEF_SIZES[1].flights + BRIEF_SIZES[1].production + BRIEF_SIZES[1].research);
   assert.equal(approveBrief(1), null);
-  assert.ok(orderFor('aerobee') && S.works.prog == 'aerobee' && S.lanes.prog == 'aerobee', 'all three lines run');
+  assert.ok(standingOrder() && S.works.prog == 'aerobee' && S.lanes.prog == 'aerobee', 'all three lines run');
   assert.ok(approveBrief(1), 'nothing left to approve');
-  assert.equal(airframesWanted('aerobee'), AIRFRAMES_ON_HAND + 1, 'one more while the order flies');
+  assert.equal(airframesWanted(), AIRFRAMES_ON_HAND);
   for (let second = 0; second < 4; second++) worksTick();
-  assert.equal(airframesOnHand('aerobee'), AIRFRAMES_ON_HAND + 1);
+  assert.ok(airframesOnHand('aerobee') >= AIRFRAMES_ON_HAND);
   readyProgramme('viking');
   assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee', 'a busy lead is left out and says why');
+  assert.match(briefLines('viking')[0].state, /covers every rocket/, 'the one order already covers the Viking');
 });
 
 // SHARED RESEARCH (rules/leads.js, rules/shared-research.js): hired leads run the shared areas' lanes and propose milestones.
@@ -1477,6 +1635,10 @@ test('a hired lead runs the shared lane on the shared line, and proposes a miles
   S.jobs = [];
   S.bt.r = 1; // a breakthrough opens the first milestones, which are a choice
   assert.ok(proposals('r').length >= 2 && isChoice('r'));
+  const queued = proposals('r')[1].id;
+  S.rq.push({ id: queued, prog: null }); // queued behind other work (no team free yet)
+  assert.ok(!proposals('r').some(milestone => milestone.id == queued), 'a milestone you have queued is not proposed again');
+  S.rq = [];
   sharedTick();
   assert.equal(laneJob('r'), undefined, 'the lead waits for your call instead of carrying on');
   assert.equal(sharedIdleReason('r'), 'a milestone proposal is waiting for you');
@@ -1575,7 +1737,7 @@ test('Reed upgrades a ready airframe that is behind the published blueprint', as
 test('acceptance: the delegated team takes a fresh save from the Aerobee to the Viking', async () => {
   const { save, load } = await import('../js/core/state.js');
   const { approveBrief, briefLines } = await import('../js/rules/brief.js');
-  const { orderFor } = await import('../js/rules/orders.js');
+  const { standingOrder } = await import('../js/rules/orders.js');
   const { laneIdleReason, endLanes } = await import('../js/rules/lanes.js');
   const { endWorks } = await import('../js/rules/factory-lead.js');
   const { hireLead } = await import('../js/rules/leads.js');
@@ -1613,13 +1775,13 @@ test('acceptance: the delegated team takes a fresh save from the Aerobee to the 
     assert.equal(startCampaign({ prog: 'aerobee', fuel: 'Alcohol & LOX', pay: 'Inert Ballast', st: 0, kind: 'ok', goal: 50, months: 2, budget: 1e6 }), null);
     let flownAtExpiry = null, linesSpent = new Set();
     play(4000, () => {
-      if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = orderFor('aerobee').n;
-      if (orderFor('aerobee').hold && /cap/.test(orderFor('aerobee').hold)) linesSpent.add('flights');
+      if (!S.auto.camp && flownAtExpiry == null) flownAtExpiry = standingOrder().n;
+      if (standingOrder().hold && /cap/.test(standingOrder().hold)) linesSpent.add('flights');
       if (S.lanes && S.lanes.dry) linesSpent.add('research');
       if (S.works && S.works.dry) linesSpent.add('production');
     });
     assert.equal(S.auto.last.outcome, 'deadline', 'the campaign expired');
-    assert.ok(orderFor('aerobee').n > flownAtExpiry, 'routine flights carry on after it');
+    assert.ok(standingOrder().n > flownAtExpiry, 'routine flights carry on after it');
     assert.ok(linesSpent.size, 'a lean brief runs out somewhere and says so');
     assert.ok(S.shared.jobs > 0, 'the shared lane did research');
     // Save and reload: the same game comes back and carries on.
@@ -1629,21 +1791,22 @@ test('acceptance: the delegated team takes a fresh save from the Aerobee to the 
     load();
     assert.equal(JSON.stringify(S), saved);
     play(200);
-    // The Viking is ready: production and research move to it, and both rockets fly routine flights.
+    // The Viking is ready: production and research move to it, and the order flies on.
     readyProgramme('viking');
     assert.equal(briefLines('viking')[1].state, 'Reed runs the Aerobee');
     endLanes();
     endWorks();
     S.cur = 'viking';
     assert.equal(approveBrief(0), null);
-    assert.ok(orderFor('viking') && orderFor('aerobee') && S.works.prog == 'viking' && S.lanes.prog == 'viking');
-    const vikingFlown = orderFor('viking').n;
+    assert.ok(standingOrder() && S.works.prog == 'viking' && S.lanes.prog == 'viking');
+    const flown = standingOrder().n;
     play(3000, () => {
-      for (const prog of ['aerobee', 'viking']) if (orderFor(prog).hold) orderFor(prog).hold.startsWith('The cap') ? (orderFor(prog).cap += 25000, orderFor(prog).hold = null) : (orderFor(prog).hold = null);
+      const order = standingOrder();
+      if (order.hold) order.hold.startsWith('The cap') ? (order.cap += 25000, order.hold = null) : (order.hold = null);
       if (S.works.dry) { S.works.cap += 20000; S.works.dry = null; }
     });
     assert.ok(S.works.built > 0, 'Reed builds Vikings');
-    assert.ok(orderFor('viking').n + orderFor('aerobee').n > vikingFlown, 'the orders keep flying');
+    assert.ok(standingOrder().n > flown, 'the order keeps flying');
   } finally {
     delete globalThis.localStorage;
   }
@@ -1757,4 +1920,577 @@ test('the Apollo study reports after its months, and Gemini evidence firms up th
   assert.equal(chooseArchitecture('lor'), null);
   assert.equal(S.p2.ap.arch, 'lor');
   assert.ok(chooseArchitecture('eor'), 'the choice is made once');
+});
+
+test('Titan II and Atlas start with a first stage of their own, and older saves get theirs on load', () => {
+  readyProgramme('titan');
+  assert.deepEqual(stagesOf('titan'), ['titan1']);
+  assert.equal(S.progs.titan1.ready, 0, 'a stage is never a rocket you can fly on its own');
+  assert.ok(!candidates().includes('titan1'));
+  delete S.progs.titan1;
+  ensureStages();
+  assert.ok(S.progs.titan1.T.thr > 0);
+});
+
+test('a first-stage failure opens its incident on the stage, and the stage learns from it', () => {
+  const airframe = readyProgramme('titan');
+  S.b = 1e6;
+  S.fac.lc19 = 1;
+  const flight = withProgramme('titan', () => beginFlight(airframe, 'Aerozine & N2O4', 'Inert Ballast', 1, 1));
+  assert.equal(flight.stages[0].stage, 'titan1');
+  const before = S.progs.titan1.kn.p;
+  Object.assign(flight, { failure: 'p', failStage: 'titan1' });
+  endFlight(flight, false, 'fail');
+  assert.equal(S.progs.titan.inc.length, 0);
+  assert.equal(S.progs.titan1.inc.length, 1);
+  assert.match(S.progs.titan1.inc[0].lab, /first stage/);
+  assert.ok(S.progs.titan1.kn.p > before);
+});
+
+test("a stage's fix rides in the rocket's blueprint and lowers that stage's risk only", () => {
+  const airframe = readyProgramme('titan');
+  S.progs.titan1.fix.p = 'ind';
+  withProgramme('titan', () => publishBlueprint());
+  assert.equal(S.progs.titan.bp.fix['p@titan1'], 'ind');
+  assert.equal(S.progs.titan.bp.fix.p, undefined);
+  const bare = withProgramme('titan', () => lowerStage('titan', airframe, PROPELLANTS['Aerozine & N2O4']));
+  const fixed = withProgramme('titan', () => lowerStage('titan', { ...airframe, fix: { 'p@titan1': 'ind' } }, PROPELLANTS['Aerozine & N2O4']));
+  assert.ok(fixed.modeMultipliers.p < bare.modeMultipliers.p);
+  assert.ok(fixed.dry > bare.dry, 'the inducer adds its mass to the stage');
+});
+
+test('the development lead puts each propulsion package on the stage furthest behind', () => {
+  readyProgramme('titan');
+  S.b = 1e6;
+  const id = programmePackages('titan', 'p')[0].id;
+  const research = () => withProgramme('titan', () => {
+    commission(id);
+    const job = S.jobs.pop();
+    finishJob(job);
+    return job.prog;
+  });
+  assert.equal(research(), 'titan1', 'the lower stage first on a tie');
+  assert.ok(S.progs.titan1.pk[id] && !S.progs.titan.pk[id]);
+  assert.equal(withProgramme('titan', () => fullyResearched(id)), false, 'still on offer for the top stage');
+  assert.equal(research(), 'titan');
+  assert.equal(withProgramme('titan', () => fullyResearched(id)), true);
+  assert.equal(withProgramme('titan', () => researchTarget(id)), null);
+});
+
+test("a stage's research gets its own blueprint revision, and airframes and upgrades carry it", () => {
+  const airframe = readyProgramme('titan');
+  const id = programmePackages('titan', 'p')[0].id;
+  withProgramme('titan1', () => giveResearch([id]));
+  withProgramme('titan', () => {
+    assert.deepEqual(draftChanges().stages, [{ stage: 'titan1', id }]);
+    publishBlueprint();
+    assert.equal(S.progs.titan1.bp.rev, 2);
+    assert.equal(S.bp.rev, 1, 'the rocket keeps its revision when only a stage changed');
+    assert.deepEqual(S.progs.titan1.bp.pk, [id]);
+    assert.equal(retrofitQuote(airframe).changes, 1);
+    assert.deepEqual(makeAirframe(blueprintConfig(), 0, 'titan').stg.titan1, { pk: [id], rev: 2 });
+  });
+});
+
+test("a stage's own research changes how it flies; the rocket's research does not reach it", () => {
+  const airframe = readyProgramme('titan');
+  const thrust = programmePackages('titan', 'p').find(item => item.effects.t > 0).id, propellant = PROPELLANTS['Aerozine & N2O4'];
+  withProgramme('titan1', () => giveResearch([thrust]));
+  withProgramme('titan', () => giveResearch([thrust]));
+  const bare = withProgramme('titan', () => lowerStage('titan', airframe, propellant));
+  assert.equal(withProgramme('titan', () => lowerStage('titan', { ...airframe, pk: [thrust] }, propellant)).thrust, bare.thrust);
+  assert.ok(withProgramme('titan', () => lowerStage('titan', { ...airframe, stg: { titan1: { pk: [thrust], rev: 2 } } }, propellant)).thrust > bare.thrust);
+});
+
+// THE SATURN I (Apollo step 3): the second rocket with stage designs, opening once Apollo has its architecture.
+test('the Saturn I opens only once Apollo has chosen how to reach the Moon, with the S-I as a stage of its own', async () => {
+  await mercuryComplete();
+  readyProgramme('titan');
+  S.progs.titan.matured = 1;
+  assert.match(startLock('saturn1'), /Apollo/);
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  assert.equal(startLock('saturn1'), null);
+  startProgramme('saturn1');
+  assert.deepEqual(stagesOf('saturn1'), ['sat1_si']);
+});
+
+test('the S-I burns kerosene under a hydrogen upper stage, and the Saturn I can orbit an Apollo boilerplate the Titan II cannot', () => {
+  const saturn = readyProgramme('saturn1'), titan = readyProgramme('titan');
+  const first = withProgramme('saturn1', () => lowerStage('saturn1', saturn, PROPELLANTS['Hydrogen & LOX']));
+  assert.ok(Math.abs(first.vacuumIsp / first.isp - PROPELLANTS['Kerosene & LOX'].vacuumIsp / PROPELLANTS['Kerosene & LOX'].isp) < 1e-9);
+  assert.equal(previewFlight(saturn, 'Hydrogen & LOX', 'Apollo Boilerplate', 1, .8).orbit, true);
+  assert.equal(previewFlight(titan, 'Aerozine & N2O4', 'Apollo Boilerplate', 1, 1).orbit, false);
+});
+
+// Aaron's report: an upgraded Vanguard with a light payload left Earth (11 km/s, still climbing at 24,000 km when the flight timed out).
+test('without a satellite aboard, the guidance cuts the engine at orbital speed and the flight comes back down', () => {
+  const saturn = readyProgramme('saturn1');
+  const light = previewFlight(saturn, 'Hydrogen & LOX', 'Inert Ballast', 1, 1);
+  assert.ok(light.peakSpeed < 7200, `cut off near 7,000 m/s, not ${Math.round(light.peakSpeed)}`);
+  assert.ok(light.peakAltitude < 2e6, 'nowhere near leaving Earth');
+  assert.ok(light.path.altitude.length < 5000, 'it lands before the flight times out');
+  assert.equal(previewFlight(saturn, 'Hydrogen & LOX', 'Explorer Satellite', 1, 1).orbit, true, 'a satellite still goes to orbit');
+});
+
+// THE SAFETY BAR (Apollo step 4): estimates for each crew rocket's components, and ground tests that firm them up.
+test('the safety bar opens with the architecture, and the staff ground-test each new revision at a price', async () => {
+  const { safetyTick, safetyBar, crewRockets, testCost } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  S.b = 1e6;
+  assert.equal(safetyTick(1), false, 'no bar before the architecture is chosen');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  assert.ok(safetyBar());
+  assert.deepEqual(crewRockets(), ['titan']);
+  const before = S.b;
+  safetyTick(1);
+  assert.equal(before - S.b, testCost('titan'), 'a test is paid for when it starts');
+  for (let day = 0; day < 200; day++) safetyTick(1);
+  assert.equal(Object.values(safetyBar().t)[0], safetyBar().n, 'tests stop at the number you set');
+});
+test('the true figures leave the game dice alone, and tests narrow how far off the estimates are', async () => {
+  const { safetyTick, safetyBar, trueRisks, estimates, components, designKey } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  const dice = Math.random, sequence = () => [Math.random(), Math.random()];
+  Math.random = seeded(7);
+  trueRisks('titan');
+  const after = sequence();
+  Math.random = seeded(7);
+  assert.deepEqual(after, sequence(), 'the simulation flights roll their own dice');
+  Math.random = dice;
+  assert.deepEqual(Object.keys(trueRisks('titan')), components('titan'));
+  assert.deepEqual(components('titan'), ['titan1:eng', 'titan1:str', 'titan:eng', 'titan:str', 'titan:sep']);
+  const truth = trueRisks('titan'), key = 'titan1:eng', off = estimate => Math.abs(Math.log(estimate.evidence[key] / truth[key]));
+  const untested = estimates('titan');
+  safetyBar().t[designKey('titan')] = 6;
+  const tested = estimates('titan');
+  assert.ok(off(tested) < off(untested));
+  assert.ok(tested.figures[key] < tested.evidence[key], "the lead's reading is lower than the evidence");
+});
+test('the bar moves in steps and stays in its range', async () => {
+  const { safetyTick, safetyBar, moveTarget, moveLimit, moveTests, limitFor } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  for (let press = 0; press < 50; press++) moveTarget(1);
+  assert.equal(safetyBar().tgt, .99);
+  moveLimit('titan:eng', -1);
+  assert.equal(limitFor('titan:eng'), .035);
+  for (let press = 0; press < 20; press++) moveTests(-1);
+  assert.equal(safetyBar().n, 0);
+});
+test('the launch director will not fly a crew past the bar, and a launch you order past it is a habit the culture keeps', async () => {
+  const { safetyTick, safetyBar, barVerdict, launchOverBar, components } = await import('../js/rules/safety.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  for (const key of components('titan')) safetyBar().lim[key] = .005;
+  assert.match(barVerdict('titan'), /limit/);
+  for (const key of components('titan')) safetyBar().lim[key] = 1;
+  safetyBar().tgt = 0;
+  assert.equal(barVerdict('titan'), null);
+  assert.equal(barVerdict('atlas'), null, 'only crew rockets are judged');
+  launchOverBar('titan', 'a test');
+  assert.equal(S.cult.ev.at(-1).k, 'override');
+});
+
+// PRESSURE ON APOLLO (Apollo step 5): the press, the public and Congress.
+test('pressure opens with Apollo, rises with a Soviet first, eases with an American one and settles by itself', async () => {
+  const { pressureTick, pressure, notePressure } = await import('../js/rules/pressure.js');
+  notePressure('sovietFirst');
+  assert.equal(pressure(), null, 'nothing before Apollo');
+  await mercuryComplete();
+  pressureTick(1);
+  const start = { ...pressure() };
+  notePressure('sovietFirst', 'Test wire.');
+  assert.ok(pressure().press > start.press && pressure().cong > start.cong);
+  assert.equal(pressure().hl.at(-1).t, 'Test wire.');
+  const raised = pressure().cong;
+  notePressure('ourFirst');
+  assert.ok(pressure().cong < raised);
+  notePressure('crewLost');
+  const high = pressure().press;
+  for (let month = 0; month < 24; month++) pressureTick(30);
+  assert.ok(pressure().press < high, 'pressure settles with time');
+});
+test('each pressure has its own effect: Congress trims the budget, the press leaks, the public scales a first', async () => {
+  const { pressureTick, pressure, congressTrim, publicScale, pressLeak } = await import('../js/rules/pressure.js');
+  await mercuryComplete();
+  pressureTick(1);
+  assert.equal(congressTrim(), 0, 'no trim while Congress is calm');
+  pressure().cong = 100;
+  assert.ok(congressTrim() > 0);
+  pressure().pub = 0;
+  const calm = publicScale();
+  pressure().pub = 100;
+  assert.ok(publicScale() > calm);
+  S.rep = 50;
+  pressure().press = 20;
+  assert.equal(pressLeak('a test'), 0, 'a quiet press prints nothing');
+  pressure().press = 100;
+  assert.ok(pressLeak('a test') > 0);
+  assert.ok(S.rep < 50);
+});
+
+// LEAD REQUESTS, SHIELDING, HEARINGS AND CORNER-CUTTING (Apollo step 5).
+const withDice = (value, run) => {
+  const dice = Math.random;
+  Math.random = () => value;
+  try { return run(); } finally { Math.random = dice; }
+};
+const apolloUnderPressure = async () => {
+  const { safetyTick } = await import('../js/rules/safety.js');
+  const { pressureTick, pressure } = await import('../js/rules/pressure.js');
+  await mercuryComplete();
+  readyProgramme('titan');
+  Object.assign(S.p2.ap, { done: 1, arch: 'lor' });
+  safetyTick(1);
+  pressureTick(1);
+  Object.assign(pressure(), { press: 100, pub: 100, cong: 100 });
+  S.b = 1e9;
+};
+test('a lead asks under pressure; prove it first runs a test and brings the request back; granting it goes on the record', async () => {
+  const { safetyBar, safetyTick, components, limitFor } = await import('../js/rules/safety.js');
+  const { requestsTick, openRequest, answerRequest } = await import('../js/rules/requests.js');
+  await apolloUnderPressure();
+  for (const key of components('titan')) safetyBar().lim[key] = .005;
+  safetyBar().n = 0;
+  assert.ok(withDice(0, () => requestsTick(30)), 'the team asks');
+  const request = openRequest();
+  assert.equal(request.k, 'limit');
+  assert.equal(answerRequest('prove'), null);
+  assert.equal(answerRequest('accept'), 'The test is still running.');
+  withDice(.99, () => { for (let day = 0; day < 40; day++) safetyTick(1); });
+  assert.ok(!openRequest().prove && openRequest().pv, 'the request is back after the test');
+  assert.equal(answerRequest('accept'), null);
+  assert.equal(limitFor(request.comp), request.to);
+  assert.equal(S.p2.acc.length, 1);
+  assert.equal(S.cult.ev.at(-1).k, 'override');
+  assert.equal(openRequest(), null);
+});
+test('a bold team under pressure may sign a test off unrun: it leaves a missing data sheet, and re-running the tests clears it', async () => {
+  const { safetyBar, safetyTick, designKey, dataSheets, estimates, retest, cutChance } = await import('../js/rules/safety.js');
+  await apolloUnderPressure();
+  S.cult = { lean: 0, conf: 0, n: 0, tests: 0, ev: [] };
+  assert.equal(cutChance(), 0, 'a cautious team never cuts corners');
+  S.cult.lean = 1;
+  S.cult.conf = 1;
+  withDice(0, () => safetyTick(1));
+  assert.equal(estimates('titan').tests, 1, 'the test is signed off');
+  assert.equal(dataSheets('titan'), 0, 'but no data sheet is on file');
+  assert.equal(S.p2.lt.length, 1, 'and an engineer writes');
+  retest('titan');
+  assert.equal(safetyBar().t[designKey('titan')], 0);
+  assert.equal(S.p2.lt.length, 0);
+});
+test('a hearing takes its lead off work, then reads the record into plain effects', async () => {
+  const { safetyBar, designKey } = await import('../js/rules/safety.js');
+  const { openHearing, hearingOpen, leadAway, hearingTick, hearingRecord } = await import('../js/rules/hearing.js');
+  const { pressure } = await import('../js/rules/pressure.js');
+  await apolloUnderPressure();
+  safetyBar().t[designKey('titan')] = 3;
+  assert.equal(openHearing('apollo'), null);
+  assert.ok(leadAway('ellis') && !leadAway('reed'));
+  assert.match(openHearing('apollo'), /already/);
+  assert.equal(hearingTick(), false, 'not before its day');
+  S.day = hearingOpen().d;
+  assert.deepEqual(hearingRecord(), { accepted: 0, tests: 3, skipped: 0 });
+  assert.ok(hearingTick());
+  assert.ok(pressure().cong < 100, 'a careful record eases Congress');
+  assert.equal(hearingOpen(), null);
+  safetyBar().f = { [designKey('titan')]: 1 };
+  openHearing('apollo', 0);
+  const rep = S.rep = 50;
+  hearingTick();
+  assert.ok(S.rep < rep, 'a skipped test comes out at the hearing');
+});
+test('shielding: a briefing calms the press but a failure soon after costs more; a stand-down holds crews', async () => {
+  const { shield, standDownLock, vouchedFailure } = await import('../js/rules/requests.js');
+  const { pressure } = await import('../js/rules/pressure.js');
+  await apolloUnderPressure();
+  assert.equal(shield('briefing'), null);
+  assert.ok(pressure().press < 100);
+  assert.match(shield('briefing'), /Not again/);
+  S.rep = 50;
+  vouchedFailure();
+  assert.ok(S.rep < 50);
+  assert.equal(standDownLock(), null);
+  shield('standDown');
+  assert.match(standDownLock(), /stood down/);
+  assert.equal(shield('testify'), null);
+  assert.ok(S.p2.hg);
+});
+
+// FLAW CURES (rules/cures.js): every flaw that costs performance can be cured, after flying the flawed design to find the cause.
+test('an overweight structure is cured only after the flawed rocket has flown enough to find the cause', () => {
+  const airframe = readyProgramme('viking');
+  S.progs.viking.traits = [{ k: 'heavy', found: 1, at: 0 }];
+  S.b = 1e6;
+  assert.match(cureLock('viking', 'heavy'), new RegExp(`${FLIGHTS_TO_FIND_CURE} more times`));
+  for (let i = 0; i < FLIGHTS_TO_FIND_CURE; i++) countFlight('viking');
+  assert.equal(cureLock('viking', 'heavy'), null);
+  assert.deepEqual(curesReady('viking').map(cure => cure.traitKey), ['heavy']);
+  withProgramme('viking', () => startCure('viking', 'heavy'));
+  const job = S.jobs.find(each => each.k == 'cure');
+  withProgramme('viking', () => finishJob(job));
+  assert.equal(S.progs.viking.fix.heavy, 'lighten');
+  assert.equal(cureLock('viking', 'heavy'), 'Cured.');
+  // An airframe built with the cure flies the lighter structure; one built before it keeps the extra mass.
+  const flawed = withProgramme('viking', () => designSpec(airframe.pk, false, airframe.fix).dry);
+  const cured = withProgramme('viking', () => designSpec(airframe.pk, false, { heavy: 'lighten' }).dry);
+  assert.ok(Math.abs(flawed / cured - 1.15) < 1e-9);
+});
+
+test('any fix for thin tank walls also gives back the structural limit the flaw took', () => {
+  const airframe = readyProgramme('viking');
+  S.progs.viking.traits = [{ k: 'thin', found: 1, at: 0 }];
+  const limit = fixes => withProgramme('viking', () => designSpec(airframe.pk, false, fixes).g);
+  assert.ok(Math.abs(limit({}) / limit({ s: FAILURE_MODES.s.fixes[0].id }) - .85) < 1e-9);
+});
+
+test('a performance flaw with a failure mode also surfaces once the team knows that system well', () => {
+  readyProgramme('viking');
+  S.progs.viking.traits = [{ k: 'soak', found: 0 }];
+  S.progs.viking.kn.a = 40;
+  revealTraits('viking');
+  assert.equal(S.progs.viking.traits[0].found, 1);
+});
+
+// THE RACE (rules/race.js): the Soviet calendar and who gets each first.
+test('every Soviet date lands within its jitter of history: 5% early on, at most 45 days from the late 1950s', async () => {
+  const { RIVAL } = await import('../js/data/history.js');
+  for (let game = 0; game < 50; game++) {
+    resetState();
+    for (const event of RIVAL) {
+      // An event that follows another keeps its gap from it, so it carries that event's spread.
+      const timed = event.follows ? RIVAL.find(other => other.id == event.follows) : event;
+      const spread = Math.min(timed.day * .05, timed.day > 4590 ? 45 : Infinity);
+      assert.ok(Math.abs(S.rv[event.id] - event.day) <= spread + .5, `${event.id} on day ${S.rv[event.id]}`);
+    }
+  }
+});
+
+test('a first is ours if we get there before the Soviets, and only matched (second) after them', async () => {
+  const { checkFirsts, sovietEventsTick } = await import('../js/rules/race.js');
+  const { FIRSTS } = await import('../js/data/history.js');
+  const onlySpaceOpen = () => FIRSTS.forEach(first => { if (first.id != 'f_space') S.fs[first.id] = 'us'; });
+  const spaceFlight = { ok: true, why: 'land', peak: 101000, spd: 1500, dr: 0, pay: 'Inert Ballast', rec: false, got: [], staged: false };
+  S.day = S.rv.r_space - 10;
+  onlySpaceOpen();
+  checkFirsts(spaceFlight);
+  assert.equal(S.fs.f_space, 'us');
+  resetState();
+  S.day = S.rv.r_space + 1;
+  sovietEventsTick();
+  assert.equal(S.fs.f_space, 'them');
+  onlySpaceOpen();
+  const before = S.b, reward = FIRSTS.find(first => first.id == 'f_space').cash;
+  checkFirsts(spaceFlight);
+  assert.equal(S.fs.f_space, 'second');
+  assert.equal(S.b - before, Math.round(reward * .4), 'a matched first pays 40% of the reward');
+});
+
+// THE CENTRES LOBBY (rules/apollo.js, rules/bids.js).
+const studyReported = async () => {
+  const { decideRollover, startStudy } = await import('../js/rules/apollo.js');
+  await mercuryComplete();
+  decideRollover(true);
+  S.b = 1e7;
+  startStudy('full');
+  let seconds = 0;
+  while (!S.p2.ap.done && seconds++ < 2000) tickSecond();
+};
+test('each centre pitches its own architecture with figures that flatter it, and a track record that says by how much', async () => {
+  const { centreClaim, centreRecord, centres } = await import('../js/rules/apollo.js');
+  const { CENTRES, OPTIMISM_RANGE } = await import('../js/data/apollo.js');
+  await studyReported();
+  for (const [key, centre] of Object.entries(CENTRES)) {
+    for (const stat of ['cost', 'years', 'risk']) assert.ok(centreClaim(key, stat) < S.p2.ap.tr[centre.favours][stat], `${key} shades its ${stat}`);
+    const shading = centres()[key].opt * centre.stake;
+    assert.ok(Math.abs(centreRecord(key) - shading) <= .05 + 1e-9, 'the record is honest to within its noise');
+    assert.ok(centres()[key].opt >= OPTIMISM_RANGE[0] && centres()[key].opt <= OPTIMISM_RANGE[1]);
+  }
+});
+test('the overruled centre works slower, much slower against the study, and time or a share of the work brings it round', async () => {
+  const { chooseArchitecture, centres, centrePace, studyBacks, giveWorkShare } = await import('../js/rules/apollo.js');
+  const { AWARD } = await import('../js/rules/bids.js');
+  await studyReported();
+  // Pick direct ascent, which neither centre backs: each loser's hit depends on whether the study backs direct over its favourite.
+  assert.equal(chooseArchitecture('direct'), null);
+  for (const [key, favourite] of [['rocket', 'eor'], ['craft', 'lor']]) {
+    const expected = 1 - (studyBacks('direct', favourite) ? AWARD.LOSE_SUPPORTED : AWARD.LOSE_UNSUPPORTED);
+    assert.ok(Math.abs(centres()[key].coop - expected) < 1e-9, `${key} cooperation`);
+  }
+  assert.equal(centrePace('saturn'), centres().rocket.coop);
+  assert.equal(centrePace('anything else'), 1);
+  const before = centres().rocket.coop, cash = S.b;
+  assert.equal(giveWorkShare('rocket'), null);
+  assert.ok(centres().rocket.coop > before);
+  assert.ok(S.b < cash);
+  assert.ok(giveWorkShare('rocket'), 'only once');
+  const craft = centres().craft.coop;
+  for (let month = 0; month < 12; month++) tickSecond();
+  assert.ok(centres().craft.coop >= craft, 'cooperation drifts back');
+});
+test('the centre whose architecture wins is keen', async () => {
+  const { chooseArchitecture, centres } = await import('../js/rules/apollo.js');
+  await studyReported();
+  chooseArchitecture('lor');
+  assert.equal(centres().craft.mood, 'keen');
+  assert.ok(centres().craft.coop > 1);
+  assert.notEqual(centres().rocket.mood, 'keen');
+});
+
+
+test('lower-stage fix trials count only the matching carried stage fix', async () => {
+  const { recordFix, recordFixTrials, fixesHeld } = await import('../js/rules/team.js');
+  createProgramme('atlas'); S.cur = 'atlas';
+  withProgramme('atlas1', () => { S.fix.c = 'baffle'; recordFix('c'); });
+  for (let i = 0; i < 3; i++) recordFixTrials('atlas', true, { fix: { c: 'baffle' } });
+  assert.equal(fixesHeld(), 0, 'an upper-stage fix cannot qualify the lower stage');
+  for (let i = 0; i < 3; i++) recordFixTrials('atlas', true, { fix: { 'c@atlas1': 'other' } });
+  assert.equal(fixesHeld(), 0, 'a different fix cannot qualify the trial');
+  recordFixTrials('atlas', false, { fix: { 'c@atlas1': 'baffle' } });
+  for (let i = 0; i < 3; i++) recordFixTrials('atlas', true, { fix: { 'c@atlas1': 'baffle' } });
+  assert.equal(fixesHeld(), 1);
+  assert.equal(S.team.watch.length, 0);
+});
+
+test('an interrupted watched launch reloads its complete pre-launch checkpoint', async () => {
+  const { checkpointLaunch, releaseLaunchCheckpoint, save, load } = await import('../js/core/state.js');
+  const store = {};
+  globalThis.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; }, removeItem: k => { delete store[k]; } };
+  try {
+    ensureStarter(); const airframes = JSON.stringify(S.air), money = S.b, day = S.day;
+    checkpointLaunch();
+    S.air.length = 0; S.b -= 123; S.day += 7; S.team.n++;
+    save(); load();
+    assert.equal(JSON.stringify(S.air), airframes);
+    assert.equal(S.b, money); assert.equal(S.day, day); assert.equal(S.team.n, 0);
+    assert.equal(S.speed, 0, 'recovery pauses for review');
+    assert.equal(S.launchInterrupted, undefined);
+    checkpointLaunch(); S.b -= 10; releaseLaunchCheckpoint(); save(); load();
+    assert.equal(S.b, money - 10, 'a completed or scrubbed launch saves its resulting state');
+  } finally { releaseLaunchCheckpoint(); delete globalThis.localStorage; }
+});
+
+test('a save with an invalid nested record falls back to a usable fresh state', async () => {
+  const { load } = await import('../js/core/state.js');
+  const raw = JSON.stringify({ cv: 3, auto: null }), store = { vg3: raw };
+  globalThis.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
+  try { load(); assert.ok(S.auto); assert.equal(store['vg3-unreadable'], raw); tickSecond(); }
+  finally { delete globalThis.localStorage; }
+});
+
+
+// Priority backlog 1-3: campaign isolation, revision-bound proof and the selected flown configuration.
+test('safety risk cache is isolated across seeded campaigns, load and in-place design changes', async () => {
+  const safety = await import('../js/rules/safety.js');
+  const fresh = await import('../js/rules/safety.js?cache-isolation-regression');
+  const { save, load } = await import('../js/core/state.js');
+  const storage = {};
+  globalThis.localStorage = { getItem: k => storage[k] ?? null, setItem: (k,v) => { storage[k]=v; }, removeItem:k=>{delete storage[k];} };
+  try {
+    Math.random=seeded(1); resetState(); createProgramme('titan'); S.progs.titan.ready=1; save();
+    const savedCampaign=storage.vg3;
+    const one=safety.trueRisks('titan');
+    assert.equal(safety.trueRisks('titan'),one,'unchanged inputs reuse the cached calculation');
+    Math.random=seeded(2); resetState(); createProgramme('titan'); S.progs.titan.ready=1;
+    const two=safety.trueRisks('titan');
+    assert.notEqual(one,two,'a new campaign never inherits a cached object');
+    assert.deepEqual(two,fresh.trueRisks('titan'),'the second seeded game matches an independent cache');
+    S.progs.titan1.T.r -= .2;
+    assert.notEqual(safety.trueRisks('titan'),two,'design changes invalidate the calculation without a revision bump');
+    storage.vg3=savedCampaign;
+    load();
+    assert.deepEqual(safety.trueRisks('titan'),one,'loading the first campaign recovers its own risks');
+    assert.notEqual(safety.trueRisks('titan'),one,'load starts a new cache generation');
+  } finally { delete globalThis.localStorage; }
+});
+
+test('publishing during queued or running proof supersedes the request without crediting the new revision', async () => {
+  const { safetyBar, safetyTick, designKey, components } = await import('../js/rules/safety.js');
+  const { requestsTick, openRequest, answerRequest } = await import('../js/rules/requests.js');
+  const { save, load } = await import('../js/core/state.js');
+  await apolloUnderPressure();
+  for (const key of components('titan')) safetyBar().lim[key]=.005;
+  safetyBar().n=0;
+  assert.ok(withDice(0,()=>requestsTick(30)));
+  const old=designKey('titan'); answerRequest('prove');
+  // Publish before a queued proof gets a chance to start.
+  S.progs.titan.bp.rev++;
+  const store={};globalThis.localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>{store[k]=v;},removeItem:k=>{delete store[k];}};
+  try { save();load();assert.equal(openRequest(),null);assert.equal(safetyBar().pri,null); }
+  finally { delete globalThis.localStorage; }
+  assert.equal(safetyBar().t[old],undefined);
+  assert.ok(withDice(0,()=>requestsTick(30)),'the new revision can be reassessed immediately');
+  assert.equal(openRequest().cfg,designKey('titan'));
+  answerRequest('prove');
+  const tested=designKey('titan');
+  withDice(.99,()=>safetyTick(1));
+  assert.equal(safetyBar().j.k,tested);
+  S.progs.titan.bp.rev++;
+  assert.equal(openRequest(),null,'a running test also cannot pin an obsolete request');
+  withDice(.99,()=>{for(let day=0;day<40;day++)safetyTick(1);});
+  assert.equal(safetyBar().t[tested],1,'the finished test belongs to the old revision');
+  assert.equal(safetyBar().t[designKey('titan')],undefined);
+  assert.ok(withDice(0,()=>requestsTick(30)));
+  answerRequest('prove');
+  assert.equal(answerRequest('cancelproof'),null,'a waiting proof has an explicit withdrawal path');
+  assert.equal(openRequest(),null);
+});
+
+test('safety clearance and override records use the selected airframe and its stage revisions', async () => {
+  const { safetyBar,safetyTick,components,designKey,estimates,barVerdict,launchOverBar }=await import('../js/rules/safety.js');
+  await apolloUnderPressure();
+  const older=withProgramme('titan',()=>({prog:'titan',...blueprintConfig(),id:701,label:'Older Titan'}));
+  const oldKey=designKey('titan',older);
+  S.progs.titan.bp.rev++; S.progs.titan1.bp.rev++;
+  S.progs.titan.bp.fix={'c@titan1':'baffle'};
+  const newer=withProgramme('titan',()=>({prog:'titan',...blueprintConfig(),id:702,label:'Newer Titan'}));
+  const newKey=designKey('titan',newer);
+  assert.notEqual(oldKey,newKey);
+  safetyBar().z[oldKey]=Object.fromEntries(components('titan').map(k=>[k,0]));
+  safetyBar().z[newKey]=Object.fromEntries(components('titan').map(k=>[k,-1000]));
+  safetyBar().t[newKey]=8; safetyBar().tgt=.99;
+  for(const key of components('titan'))safetyBar().lim[key]=.005;
+  assert.ok(barVerdict('titan',older),'the unproven old vehicle is held');
+  assert.equal(barVerdict('titan',newer),null,'the new configuration uses its own evidence');
+  assert.equal(estimates('titan',older).tests,0,'new-revision evidence is not credited to an old airframe');
+  assert.equal(estimates('titan',newer).tests,8);
+  assert.equal(designKey('titan',older),oldKey,'publishing does not change the old airframe key');
+  launchOverBar('titan',barVerdict('titan',older),older);
+  assert.equal(S.p2.acc.at(-1).cfg,oldKey);assert.equal(S.p2.acc.at(-1).af,701);
+});
+
+
+test('beginMission holds the selected old booster and records an explicit override against that vehicle', async () => {
+  const { safetyBar, components, designKey }=await import('../js/rules/safety.js');
+  const { beginMission }=await import('../js/rules/mission.js');
+  await apolloUnderPressure();
+  S.fac.lc19=1;
+  for(const kind of ['titan','titan1']) {
+    S.progs[kind].T.h=100;S.progs[kind].T.q=100;
+    for(const key of ['p','s','i','a'])S.progs[kind].kn[key]=100;
+  }
+  const older=withProgramme('titan',()=>makeAirframe(blueprintConfig(),0,'titan'));
+  const key=designKey('titan',older);S.air.push(older);
+  S.progs.titan.bp.rev++;
+  const current=designKey('titan');
+  safetyBar().z[key]=Object.fromEntries(components('titan').map(k=>[k,0]));
+  safetyBar().z[current]=Object.fromEntries(components('titan').map(k=>[k,-1000]));
+  safetyBar().tgt=.99;for(const k of components('titan'))safetyBar().lim[k]=.005;
+  const capsule={id:901,mt:'mr',cfg:{pk:[],rev:1}};S.p2.veh.push(capsule);
+  const fuel=PROGRAMMES.titan.propellants[0],pilot=S.p2.astros[0].id;
+  assert.ok(boosterPlan(older,fuel,'mr').ok,'the mission is otherwise physically feasible');
+  const before={b:S.b,day:S.day,air:S.air.length,capsules:S.p2.veh.length};
+  assert.equal(beginMission(901,pilot,{af:older.id,fuel}),null);
+  assert.deepEqual({b:S.b,day:S.day,air:S.air.length,capsules:S.p2.veh.length},before,'a held launch consumes nothing');
+  assert.ok(beginMission(901,pilot,{af:older.id,fuel,overBar:true}));
+  assert.equal(S.p2.acc.at(-1).cfg,key);assert.equal(S.p2.acc.at(-1).af,older.id);
 });

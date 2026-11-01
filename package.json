@@ -9,6 +9,7 @@
     "start": "electron .",
     "test": "node --test tests/*.test.js",
     "balance": "node tools/balance.mjs",
+    "acceptance": "node tools/acceptance.mjs",
     "dist": "electron-builder --win --publish never"
   },
   "devDependencies": {

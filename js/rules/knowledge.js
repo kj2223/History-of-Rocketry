@@ -5,6 +5,7 @@ import { FAILURE_MODES } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { traitsOf, revealTraits, VEHICLE_AREAS } from './programs.js';
 import { traitByKey } from '../data/programmes.js';
+import { countFlight } from './cures.js';
 
 // Each research area is a system of the vehicle; the booster's failure modes belong to the system that would catch them.
 export const SYSTEMS = {
@@ -42,6 +43,7 @@ export const teachingValue = tracking => .6 + .3 * (tracking ? tracking.v : 0) +
 export function learnFromFlight(flight, ok) {
   const value = teachingValue(flight.tracking), bundle = S.progs[flight.programme];
   if (ok && bundle) bundle.okf = (bundle.okf || 0) + 1;
+  countFlight(flight.programme);
   for (const area of ['p', 's', 'a']) learn(area, .8 * value);
   if (!ok && flight.failure) learn(systemOf(flight.failure), 2.5 * value);
 }

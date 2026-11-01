@@ -4,6 +4,7 @@
 //   2. fixes: for a diagnosed failure, the strongest cure that fits what is left of the cap
 //   3. records analyses of the rocket's open incidents
 //   4. test-stand runs for propulsion packages built into the rocket but not yet confirmed
+//   5. cures for flaws whose cause the team has found (rules/cures.js)
 // The money stays in the treasury until she spends it (a cap, like a launch campaign's budget), and she waits when the
 // treasury cannot cover the next job. When the cap cannot cover it, she stops and asks you to raise it or close the remit.
 // She leaves the PROP console while she holds a remit (rules/launch-site.js coveredStations). No DOM.
@@ -14,9 +15,12 @@ import { BY_ID } from '../data/research.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { PROGRAMMES } from '../data/programmes.js';
 import { S, log, freeTeams, withProgramme } from '../core/state.js';
+import { stagesOf, rocketOf } from './programs.js';
 import { INVESTIGATION_COST, startInvestigation, acceptFinding, chooseFix } from './jobs.js';
 import { groundTest, TEST_STAND } from './launch-site.js';
 import { fixesHeld } from './team.js';
+import { leansChaotic, acceptRisk } from './culture.js';
+import { curesReady, startCure } from './cures.js';
 
 // EARNED, NOT DATED: Ellis can take a remit once she has led this many records analyses and signed this many fixes.
 export const REMIT_REVIEWS_TO_UNLOCK = 3;
@@ -57,10 +61,10 @@ export function endRemit() {
 }
 
 // The findings she has referred to you, in her remit's programme.
-export const referredFindings = () => S.remit && S.progs[S.remit.prog] ? withProgramme(S.remit.prog, () => S.inc.filter(incident => incident.st == 'found' && incident.ref)) : [];
+export const referredFindings = () => S.remit && S.progs[S.remit.prog] ? [S.remit.prog, ...stagesOf(S.remit.prog)].flatMap(kind => withProgramme(kind, () => S.inc.filter(incident => incident.st == 'found' && incident.ref))) : [];
 // Whether the incidents of the programme in focus go through Ellis: she works them, and the findings she refers to you come in
 // her remit's message, not the general incidents one. Once you make the call on a referred finding, she builds the fix.
-export const incidentsWithEllis = () => !!S.remit && S.remit.prog == S.cur;
+export const incidentsWithEllis = () => !!S.remit && S.remit.prog == rocketOf(S.cur);
 
 // A one-time note when Ellis has earned a remit. Returns true if it was made.
 export function remitEarnedTick() {
@@ -86,6 +90,8 @@ function routineWork() {
   for (const id of untested) {
     work.push({ name: `a test-stand run of ${BY_ID[id].name}`, cost: TEST_STAND.cost, start: () => groundTest(id) });
   }
+  const kind = S.cur;
+  for (const cure of curesReady(kind)) work.push({ name: `the ${cure.name.toLowerCase()}`, cost: cure.cost, start: () => startCure(kind, cure.traitKey) });
   return work;
 }
 
@@ -97,13 +103,18 @@ export function remitTick() {
     endRemit();
     return true;
   }
-  return withProgramme(remit.prog, () => ellisTurn(remit));
+  // She works the rocket's lower stages too (rules/stages.js).
+  return [remit.prog, ...stagesOf(remit.prog)].map(kind => withProgramme(kind, () => ellisTurn(remit))).some(Boolean);
 }
 function ellisTurn(remit) {
   let changed = false;
   for (const incident of S.inc.filter(candidate => candidate.st == 'found' && !candidate.ref)) {
     changed = true;
-    if (signsOff(incident.conf)) {
+    // A team leaning chaotic (rules/culture.js), or short of money, plays a moderate finding down and signs it off before her
+    // authority covers it: a risk accepted. Low-confidence findings still come to you.
+    const downplayed = !signsOff(incident.conf) && incident.conf == 'moderate' && leansChaotic('ellis');
+    if (downplayed) acceptRisk('ellis', 'CHIEF', `Ellis signs off incident #${incident.id} on moderate confidence before her record covers it.`);
+    if (signsOff(incident.conf) || downplayed) {
       log(`[CHIEF] Ellis signs off incident #${incident.id}: ${FAILURE_MODES[incident.dx].name.toLowerCase()} (${incident.conf} confidence).`, 'ok');
       acceptFinding(incident.id);
     } else {

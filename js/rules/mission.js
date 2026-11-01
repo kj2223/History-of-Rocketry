@@ -19,9 +19,10 @@
 //   rendezvous (closed in on the target), docked
 import { formatMoney, gaussian, clamp } from '../core/util.js';
 import { BY_ID } from '../data/research.js';
+import { confirmPackage } from './research.js';
 import { FAILURE_MODES } from '../data/failures.js';
 import { MISSION_TYPES, CHIMPANZEE_NAMES, MONKEY_NAMES, CAPSULE_NAMES, DECISIONS, ORBIT_SECONDS, RETROFIRE_AFTER_ORBITS, ORBITAL_ASCENT, ORBITAL_DESCENT,
-  ORBITAL_TIMES, FUEL_PER_ORBIT, DRIFTING_FUEL_PER_ORBIT, THRUSTER_FAULT_FUEL, RETRO_FUEL, LOW_FUEL, SPLASH_SPREAD_KM, LONG_WAIT_KM, TRACKING_STATIONS,
+  ORBITAL_TIMES, FUEL_PER_ORBIT, DRIFTING_FUEL_PER_ORBIT, THRUSTER_FAULT_FUEL, RETRO_FUEL, LOW_FUEL, SPLASH_SPREAD_KM, LONG_WAIT_KM,
   OAMS_BURN_FUEL, EVA_FUEL, RENDEZVOUS_FUEL, TARGET_DAYS } from '../data/mercury.js';
 import { S, log, addHistory, save, isResearched, isConfirmed, recordRunEvent, earn } from '../core/state.js';
 import { designSpec, quoteLaunch } from './design.js';
@@ -34,6 +35,9 @@ import { astronautById, simulatorTier, promoteBackup, assignedPilot } from './as
 import { recordMercuryFlight } from './budget.js';
 import { usePad, damagePad } from './site.js';
 import { checkFirsts } from './race.js';
+import { barVerdict, launchOverBar } from './safety.js';
+import { notePressure } from './pressure.js';
+import { vouchedFailure } from './requests.js';
 
 // Where the profile puts the capsule at a mission time: { alt (km), v (m/s), g }, interpolated between its points.
 const profileAt = (profile, time) => {
@@ -181,6 +185,9 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
   const type = MISSION_TYPES[capsule.mt].orbital ? orbitalTimeline(options.orbits, capsule.mt) : MISSION_TYPES[capsule.mt];
   const plan = boosterPlan(booster, propellant, capsule.mt), payload = type.payload || 'Mercury Capsule';
   if (!plan.ok) return null;
+  // The safety bar (rules/safety.js): a crew flies past it only on your order (options.overBar).
+  const barred = crewChoice && !['none', 'chimp', 'monkey'].includes(crewChoice) && barVerdict(booster.prog, booster);
+  if (barred && !options.overBar) return null;
   const quote = quoteLaunch(booster, propellant, payload, plan.staged, plan.load);
   if (quote.error) return null;
   S.b -= quote.cost;
@@ -205,6 +212,7 @@ export function beginMission(capsuleId, crewChoice, options = {}) {
     crew.cap = crew.cap || `${CAPSULE_NAMES[(crew.id * 7) % CAPSULE_NAMES.length]} ${state.astros.length}`;
     mission.callSign = crew.cap;
   }
+  if (barred) launchOverBar(booster.prog, barred, booster);
   const schedule = (time, kind) => mission.events.push({ time, kind });
   const orbitText = type.orbital ? `, ${type.orbits} orbit${type.orbits > 1 ? 's' : ''} planned` : '';
   const crewText = crew ? ` with ${isAnimal(crew) ? animalName(crew) : crew.name}${second ? ` and ${second.name}` : ''}` : '';
@@ -334,7 +342,6 @@ const PILOT_CALLS = {
   rdv: ['Radar\'s lost lock. I\'ve got the target visually, I think.', 'Copy. We\'re working a solution.'],
   spin: ['We have serious problems here. We\'re tumbling end over end. We\'re disengaged from the Agena.', 'Roger. We\'re standing by.'],
 };
-export const isGroundDecision = key => !!DECISIONS[key].ground;
 // THE GROUND COMMAND LINK (data uplink): a capsule built with a command receiver takes commands from the ground while a station
 // can reach it and the Uplink Engineer is on console to send it. The Cape and Bermuda cover a Little Joe or a suborbital arc; Big Joe and the orbital flights run far downrange,
 // out of their reach, so those need the worldwide tracking network. Returns why no command can be sent, or null.
@@ -1019,13 +1026,7 @@ export function endMission(mission) {
   log('=== MISSION COMPLETE ===', ok ? 'ok' : 'wn');
   // A flight that got past separation (or succeeded) confirms every spacecraft package aboard.
   if (!outcome.padShutdown && !outcome.strayLaunch && (mission.time > (mission.type.sep || 30) || ok)) for (const id of mission.capsule.cfg.pk) if (BY_ID[id] && BY_ID[id].phase == 2 && !isConfirmed(id)) {
-    const done = S.pk[id];
-    if (done) {
-      done.c = 1;
-      done.m = {};
-      for (const key in done.a) done.m[key] = done.a[key] * (1 + .08 * gaussian());
-      log(`[DESIGN] Flight data confirms ${BY_ID[id].name}.`, 'cyan');
-    }
+    confirmPackage(id);
   }
   if (pilot && (outcome.padShutdown || outcome.strayLaunch)) log(`[ASTRONAUT OFFICE] ${pilot.name} climbs out once the booster is safe. The flight does not count; mission training stands.`, 'wn');
   else for (const astronaut of [pilot, mission.second]) if (astronaut) recordPilotFlight(mission, astronaut, outcome, state);
@@ -1036,6 +1037,8 @@ export function endMission(mission) {
     } else log(`[PRESS] ${animalName(animal)} is recovered alive.${animal.species == 'chimpanzee' && !outcome.overspeed && !outcome.padShutdown ? ' It pulled its levers on cue all through the flight.' : ''}`.replace('[PRESS] the', '[PRESS] The'), 'ok');
   }
   if (!ok && !outcome.lost) S.rep = Math.max(0, S.rep - (outcome.boosterFailed ? 4 : 2));
+  if (pilot) notePressure(outcome.lost ? 'crewLost' : ok ? 'goodFlight' : 'failedFlight');
+  if (pilot && !ok) vouchedFailure();
   // What the failures teach: each investigation proposes the package that cures it.
   if (outcome.padShutdown && !state.fl.four) {
     state.fl.four = 1;

@@ -1,6 +1,6 @@
 // INPUT: every button, select and slider on the page. Buttons carry data-a (the action) and data-id; after an action the game is
 // saved and the screen redrawn, except where an action returns early.
-import { S, save, resetState, log } from '../core/state.js';
+import { S, save, resetState, log, withProgramme } from '../core/state.js';
 import { setRequest } from '../rules/budget.js';
 import { formNasa } from '../rules/race.js';
 import { commission, crashProgramme } from '../rules/research.js';
@@ -10,17 +10,22 @@ import { buildFacility, hireStation, dismissStation, scrub, troubleshoot, ground
 import { mothball, reopen } from '../rules/site.js';
 import { airborne } from '../rules/flight.js';
 import { orderAirframes, publishBlueprint, queueRetrofit, cancelQueueItem, holdForLaunch } from '../rules/factory.js';
+import { startCure } from '../rules/cures.js';
 import { startRetrofit, startInvestigation, chooseFix, startReview, acceptFinding, extendInvestigation, nameCause } from '../rules/jobs.js';
 import { hire, ensureStarter } from '../rules/game.js';
 import { startCampaign, endCampaign, goAhead } from '../rules/campaign.js';
 import { startRemit, raiseRemit, endRemit } from '../rules/remit.js';
-import { raiseLanes, endLanes } from '../rules/lanes.js';
+import { raiseLanes, endLanes, approveLaneMilestone, laneNotNow } from '../rules/lanes.js';
 import { raiseWorks, endWorks, publishHeld } from '../rules/factory-lead.js';
 import { raiseOrder, endOrder, resumeOrder } from '../rules/orders.js';
 import { approveBrief } from '../rules/brief.js';
 import { attendFirst, proceedWithFirst } from '../rules/invitations.js';
+import { bookRide, answerBumper } from '../rules/neighbours.js';
+import { answerCorporal } from '../rules/corporal.js';
 import { hireLead } from '../rules/leads.js';
-import { decideRollover, startStudy, chooseArchitecture } from '../rules/apollo.js';
+import { decideRollover, startStudy, chooseArchitecture, giveWorkShare } from '../rules/apollo.js';
+import { moveTarget, moveLimit, moveTests, retest } from '../rules/safety.js';
+import { answerRequest, shield } from '../rules/requests.js';
 import { startShared, raiseShared, endShared, approveProposal, notNow } from '../rules/shared-research.js';
 import { orderCapsule, pilotMissionType } from '../rules/mercury.js';
 import { manualAbort, chooseOption } from '../rules/mission.js';
@@ -38,6 +43,10 @@ import { hireAnalyst, releaseAnalyst } from '../rules/trajectory.js';
 import { render, renderHeader, showDesk, openDesk, markDirty, resetScreen } from './screen.js';
 import { openMail } from './mail.js';
 import { $ } from './dom.js';
+import { noteHabit, noteFix } from '../rules/culture.js';
+import { startOps, raiseOps, endOps, greenlight, notYet, startSeries, endSeries } from '../rules/flight-ops.js';
+import { FAILURE_MODES } from '../data/failures.js';
+import { BY_ID, AREAS } from '../data/research.js';
 
 let resetArmed = 0;
 
@@ -116,6 +125,21 @@ document.addEventListener('change', event => {
   render();
 });
 
+// THE CULTURE (rules/culture.js): your own tests and fixes are habits the team learns from. Each counts only if the work started
+// or was queued.
+const workCount = () => S.jobs.length + S.rq.length;
+function noteIfStarted(kind, what, start) {
+  const before = workCount();
+  start();
+  if (workCount() > before) noteHabit(kind, 1, what);
+}
+function noteFixChoice(incidentId, fixId, start) {
+  const incident = S.inc.find(candidate => candidate.id == incidentId), fixes = incident && FAILURE_MODES[incident.dx] && FAILURE_MODES[incident.dx].fixes;
+  const before = workCount();
+  start();
+  if (fixes && workCount() > before) noteFix(fixes, fixes.find(fix => fix.id == fixId));
+}
+
 // BUTTONS. Pad actions only apply while a countdown is open.
 const PAD_ACTIONS = {
   count: () => startCount(),
@@ -146,12 +170,16 @@ const PAD_ACTIONS = {
     }
   },
   scrub: count => {
-    if (count) scrub(count.poll);
+    if (count) {
+      scrub(count.poll);
+      noteHabit('scrub', 1, `${count.label} scrubbed`);
+    }
     closePad();
   },
   // Standing down after fuelling costs a scrub.
   stand: count => {
     if (count && count.fuel > .01) scrub(count.poll);
+    if (count && count.poll.nogo) noteHabit('scrub', 1, `${count.label} stood down`);
     closePad();
   },
   closepad: () => closePad(),
@@ -174,8 +202,8 @@ const GAME_ACTIONS = {
   unq: index => unqueue(+index),
   qup: index => moveUpQueue(+index),
   qinv: id => queueAnalysis(+id),
-  qfix: (id, button) => queueFix(+id, button.dataset.f),
-  qrev: id => queueReview(id),
+  qfix: (id, button) => noteFixChoice(+id, button.dataset.f, () => queueFix(+id, button.dataset.f)),
+  qrev: id => noteIfStarted('test', `a design review of ${AREAS[id] || id}`, () => queueReview(id)),
   ord: (id, button) => orderAirframes(+button.dataset.n),
   retro: id => startRetrofit(id),
   hire: id => hire(id),
@@ -193,6 +221,12 @@ const GAME_ACTIONS = {
   rend: () => endRemit(),
   lraise: (id, button) => raiseLanes(button.dataset.n == '2'),
   lend: () => endLanes(),
+  lapprove: id => {
+    const error = approveLaneMilestone(id);
+    if (error) log('[R&D] ' + error, 'bad');
+  },
+  lqueue: id => S.lanes && withProgramme(S.lanes.prog, () => queueResearch(id)),
+  lnot: area => laneNotNow(area),
   wraise: (id, button) => raiseWorks(button.dataset.n == '2'),
   wend: () => endWorks(),
   wpub: () => publishHeld(),
@@ -216,8 +250,32 @@ const GAME_ACTIONS = {
     const error = startStudy(size);
     if (error) log('[NASA] ' + error, 'bad');
   },
+  apshare: key => {
+    const error = giveWorkShare(key);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
   aparch: key => {
     const error = chooseArchitecture(key);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
+  sftgt: (_, button) => moveTarget(+button.dataset.n),
+  sflim: (key, button) => moveLimit(key, +button.dataset.n),
+  sftests: (_, button) => moveTests(+button.dataset.n),
+  v2ride: name => {
+    const error = bookRide(name);
+    if (error) log('[V-2 PANEL] ' + error, 'bad');
+  },
+  corpyes: () => answerCorporal(true),
+  corpno: () => answerCorporal(false),
+  bumpyes: () => answerBumper(true),
+  bumpno: () => answerBumper(false),
+  sfretest: kind => retest(kind),
+  rqans: answer => {
+    const error = answerRequest(answer);
+    if (error) log('[NASA] ' + error, 'bad');
+  },
+  shield: key => {
+    const error = shield(key);
     if (error) log('[NASA] ' + error, 'bad');
   },
   iattend: () => attendFirst(),
@@ -226,29 +284,47 @@ const GAME_ACTIONS = {
     const error = approveBrief(+size);
     if (error) log('[PROGRAMME] ' + error, 'bad');
   },
-  oraise: (prog, button) => raiseOrder(prog, button.dataset.n == '2'),
-  oend: prog => endOrder(prog),
-  ores: prog => resumeOrder(prog),
+  oraise: (_, button) => raiseOrder(button.dataset.n == '2'),
+  fstart: cap => {
+    const error = startOps(+cap);
+    if (error) log('[FLIGHT OPS] ' + error, 'bad');
+  },
+  fraise: (id, button) => raiseOps(button.dataset.n == '2'),
+  fend: () => endOps(),
+  fgo: (id, button) => greenlight(false, false, +(button.dataset.n || 1)),
+  fattend: () => {
+    greenlight(true);
+    openDesk('watch');
+  },
+  fnot: () => notYet(),
+  fseries: (id, button) => {
+    const error = startSeries(id, +button.dataset.n);
+    if (error) log('[FLIGHT OPS] ' + error, 'bad');
+  },
+  fsend: () => endSeries(),
+  oend: () => endOrder(),
+  ores: () => resumeOrder(),
   fac: id => buildFacility(id),
   mothball: id => mothball(id),
   reopen: id => reopen(id),
   inv: id => startInvestigation(+id),
-  fix: (id, button) => chooseFix(+id, button.dataset.f),
+  fix: (id, button) => noteFixChoice(+id, button.dataset.f, () => chooseFix(+id, button.dataset.f)),
   accept: id => acceptFinding(+id),
   extend: id => extendInvestigation(+id),
   name: (id, button) => nameCause(+id, button.dataset.f),
   publish: () => publishBlueprint(),
   upgrade: id => queueRetrofit(+id),
+  cure: id => { const [kind, traitKey] = id.split(':'); withProgramme(kind, () => startCure(kind, traitKey)); },
   afhold: id => holdForLaunch(+id, !(S.air.find(airframe => airframe.id == +id) || {}).hold),
   cancelq: id => cancelQueueItem(+id),
   aptog: () => S.ap.on = S.ap.on ? 0 : 1,
-  mcount: () => startMissionCount(),
+  mcount: id => startMissionCount(id == 'over'),
   mord: id => orderCapsule(id),
   prog: id => {
     if (S.progs[id]) S.cur = id;
   },
   pstart: id => startProgramme(id),
-  rev: id => startReview(id),
+  rev: id => noteIfStarted('test', `a design review of ${AREAS[id] || id}`, () => startReview(id)),
   reg: id => chooseTestingRegime(id),
   offy: () => answerOfficeDecision(true),
   offn: () => answerOfficeDecision(false),
@@ -271,7 +347,7 @@ const GAME_ACTIONS = {
   dismiss: id => dismissStation(id),
   analyst: () => hireAnalyst(),
   unanalyst: () => releaseAnalyst(),
-  gt: id => groundTest(id),
+  gt: id => noteIfStarted('test', `a ground test of ${BY_ID[id] ? BY_ID[id].name : id}`, () => groundTest(id)),
 };
 // Actions that only change what is shown: they return without saving or redrawing.
 const VIEW_ACTIONS = {
@@ -370,17 +446,6 @@ const VIEW_ACTIONS = {
   },
 };
 
-// HOVERING a research card shows it in the R&D desk's dossier. Moving between cards keeps the last one; leaving the columns
-// goes back to the picked card.
-document.addEventListener('mouseover', event => {
-  const card = event.target.closest('#rdesk .rcard');
-  if (!card && event.target.closest('#rdesk .rcols')) return;
-  const id = card ? card.dataset.id : null;
-  if (researchDesk.hover == id) return;
-  researchDesk.hover = id;
-  renderResearchDesk();
-});
-
 document.addEventListener('click', event => {
   const deskButton = event.target.closest('[data-desk]');
   if (deskButton) return showDesk(deskButton.dataset.desk);
@@ -402,7 +467,11 @@ document.addEventListener('click', event => {
   else if (action == 'abort') {
     if (airborne.flight) finishFlight(0, 'abort');
     else if (airborne.mission) manualAbort(airborne.mission);
-  } else if (GAME_ACTIONS[action]) GAME_ACTIONS[action](id, button);
+  } else if (GAME_ACTIONS[action]) {
+    // A button inside a lower stage's block (ui/design-bureau.js) acts with that stage in focus.
+    const stage = button.closest('[data-stage]');
+    stage ? withProgramme(stage.dataset.stage, () => GAME_ACTIONS[action](id, button)) : GAME_ACTIONS[action](id, button);
+  }
   else if (action == 'reset') {
     if (!resetArmed) return armReset(button);
     resetGame(button);

@@ -36,18 +36,29 @@
 //   p2      Phase Two (Mercury) state (see rules/mercury.js)
 //   fy      NASA's yearly budget (see rules/budget.js)
 //   cq      construction orders waiting for a crew    mb   mothballed buildings    pt   pads being readied (see rules/site.js)
+//   hq      launch-crew hires and releases waiting for the launch under way to end (see rules/launch-site.js)
 //   team    the core team's record: Ellis, Vega and Morgan (see rules/team.js)
 //   remit   Ellis's engineering remit, or null (see rules/remit.js)
 //   lanes   Chen's research lanes, or null (see rules/lanes.js)
 //   works   Reed's factory budget, or null (see rules/factory-lead.js)
-//   orders  standing flight orders and the customers' requests (see rules/orders.js)
+//   orders  Ellis's standing order and the customers' requests (see rules/orders.js)
 //   leads   the research leads you have hired (see rules/leads.js)
 //   shared  the shared research line (see rules/shared-research.js)
-import { RIVAL } from '../data/history.js';
+//   cult    the programme's culture and the team's confidence (see rules/culture.js)
+//   ops     Ellis running the Mercury tests, or null (see rules/flight-ops.js)
+import { RIVAL, V2_PROGRAMME } from '../data/history.js';
 import { BY_ID } from '../data/research.js';
 
 // Soviet dates vary run to run: about 5% early or late in the period, but no more than six weeks either way once the race is close (after day 4590).
 export const jitterSovietDate = day => Math.round(day + (Math.random() * 2 - 1) * Math.min(day * .05, day > 4590 ? 45 : 1e9));
+// The Soviet dates of a new game. An event that follows another (follows: its id) keeps its historical gap from it rather than
+// drawing its own jitter, so adding such events leaves every other roll of the game unchanged.
+const sovietDates = () => {
+  const dates = {};
+  for (const event of RIVAL) if (!event.follows) dates[event.id] = jitterSovietDate(event.day);
+  for (const event of RIVAL) if (event.follows) dates[event.id] = dates[event.follows] + event.day - RIVAL.find(other => other.id == event.follows).day;
+  return dates;
+};
 
 // ROCKET PROGRAMMES: each rocket keeps its own research, blueprint, fixes, incidents, knowledge, production line and man-rating.
 // Payload & recovery work and the Mercury spacecraft are not part of any rocket: they live in the global bundle S.g.
@@ -70,7 +81,7 @@ export const newBundle = () => ({ pk: {}, bt: {}, fix: {}, inc: [], known: {}, k
 export const newGameState = () => ({
   b: 60000, day: 0, rep: 100, dir: 0, hi: 0, pb: 0, progs: {}, cur: null, g: newBundle(), jobs: [], rq: [], teams: 2, air: [], aq: [], fac: {},
   nid: 1, prod: 0, ok: 0, fr: {}, gt: 30, sg: 0, hs: 0, hd: 0, crew: {}, fs: {}, rvd: {},
-  rv: Object.fromEntries(RIVAL.map(event => [event.id, jitterSovietDate(event.day)])),
+  rv: sovietDates(),
   fsd: {}, hist: [], speed: 1, ap: { on: 0, n: 3 }, dev: { v: 1, ps: 0, fl: 0, ev: [], snap: [] }, nasa: 0, cv: 3, pt: {},
   staff: { pr: 0, director: 0, ta: 0 },
   auto: { xp: 0, camp: null, cd: 15, last: null, inv: null },
@@ -78,9 +89,15 @@ export const newGameState = () => ({
   remit: null,
   lanes: null,
   works: null,
-  orders: { by: {}, reqs: [], n: 1, due: 0 },
+  orders: { o: null, reqs: [], n: 1, due: 0 },
   leads: {},
   shared: { cap: 0, spent: 0, jobs: 0, dry: null, skip: [] },
+  cult: { lean: 0, conf: 0, n: 0, tests: 0, ev: [] },
+  ops: null,
+  v2: { n: 0, ok: 0, hi: 0, next: V2_PROGRAMME.start, ride: null, bump: null },
+  corp: null,
+  rm: null,
+  rmi: null,
 });
 
 export const S = newGameState();
@@ -129,38 +146,87 @@ for (const name of ['bp', 'fix', 'inc', 'known', 'line', 'mrate']) {
 }
 
 // SAVING. The save lives in the browser's localStorage under one key.
+export let stateGeneration = 0;
 function replaceState(next) {
+  stateGeneration++;
   for (const key of Object.keys(S)) delete S[key];
   Object.assign(S, next);
 }
 const SAVE_KEY = 'vg3';
+// Watched launches are recovered from a complete pre-launch state, not a half-written flight.
+let launchCheckpoint = null;
+export const checkpointLaunch = () => { launchCheckpoint = JSON.stringify(S); };
+export const releaseLaunchCheckpoint = () => { launchCheckpoint = null; };
 export const resetState = () => {
+  launchCheckpoint = null;
   replaceState(newGameState());
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
 };
 // Saves from before version 3 are ignored (a fresh game starts). Older version-3 saves get any fields added since.
 export const load = () => {
+  launchCheckpoint = null;
   replaceState(newGameState());
+  let raw = null;
   try {
-    const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    raw = localStorage.getItem(SAVE_KEY);
+    const saved = JSON.parse(raw || 'null');
     if (saved && saved.cv >= 3) {
       Object.assign(S, saved);
+      if (S.launchInterrupted) {
+        delete S.launchInterrupted;
+        S.speed = 0;
+        log('[SAVE] An interrupted launch was restored to its pre-launch checkpoint. Vehicles and funds are intact. The game is paused.', 'wn');
+      }
       if (!saved.dev) S.dev = { v: 1, ps: 0, fl: 0, ev: [], snap: [] };
+      // Saves from before the culture: the crews' confidence starts from the flights the launch director has already run.
+      if (!saved.cult) S.cult.conf = Math.min(.6, (S.auto.xp || 0) * .06);
       // Saves from before launch campaigns hold the director's old standing orders: replace them with an empty campaign record.
       if ('on' in S.auto) S.auto = newGameState().auto;
-      for (const event of RIVAL) if (!(event.id in S.rv)) S.rv[event.id] = jitterSovietDate(event.day);
+      // Soviet events added since: their dates are set, and those already past by the save's date count as done without a word.
+      for (const event of RIVAL) if (!(event.id in S.rv)) {
+        S.rv[event.id] = event.follows && S.rv[event.follows] ? S.rv[event.follows] + event.day - RIVAL.find(other => other.id == event.follows).day : jitterSovietDate(event.day);
+        if (S.day > S.rv[event.id]) S.rvd[event.id] = 1;
+      }
+      // Saves from when each rocket had its own standing order: one order now covers every rocket, under their caps combined.
+      if (S.orders.by) {
+        const old = Object.entries(S.orders.by);
+        S.orders.o = old.length ? old.reduce((order, [prog, each]) => ({ ...order, prog: order.prog || prog, cap: order.cap + each.cap, spent: order.spent + each.spent, n: order.n + each.n, okn: order.okn + each.okn, paid: order.paid + each.paid, hold: order.hold || each.hold }), { prog: null, cap: 0, spent: 0, n: 0, okn: 0, paid: 0, hold: null, pk: {}, aside: 0 }) : null;
+        delete S.orders.by;
+      }
       // Saves from before launch pads that already have an Atlas get its pad, so their next launch is not held up.
       if (!saved.pt && saved.progs && saved.progs.atlas) S.fac.lc14 = 1;
+      // Fields added since inside the nested records (S.team, S.orders, S.shared and so on) get their starting values.
+      const fresh = newGameState();
+      for (const key in fresh) if (isRecord(fresh[key]) && isRecord(S[key])) {
+        for (const field in fresh[key]) if (!(field in S[key])) S[key][field] = fresh[key][field];
+      }
     }
-  } catch (e) {}
+  } catch (e) {
+    replaceState(newGameState());
+    // A save that cannot be read is copied aside before the autosave can write over it.
+    try { if (raw) localStorage.setItem(SAVE_KEY + '-unreadable', raw); } catch (copyFailed) {}
+    log('[SAVE] Your saved game could not be read. A copy is kept under ' + SAVE_KEY + '-unreadable.', 'bad');
+  }
 };
+const isRecord = value => !!value && typeof value == 'object' && !Array.isArray(value);
+// A save that fails (storage full, say) is reported once, so play does not go on unsaved without a word.
+let saveFailed = false;
 export const save = () => {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {}
+  try {
+    localStorage.setItem(SAVE_KEY, launchCheckpoint ? JSON.stringify({ ...JSON.parse(launchCheckpoint), launchInterrupted: true }) : JSON.stringify(S));
+    saveFailed = false;
+  } catch (e) {
+    if (!saveFailed) log('[SAVE] The game could not be saved. Progress since the last save will be lost if you close it.', 'bad');
+    saveFailed = true;
+  }
 };
 
 // THE LOG. Every line goes to the page (through logSink) and, unless it is routine, to the run log.
 // The second argument is a style class: ok, wn (warning), bad, hd (headline), nar (narrative), cyan.
 export const logSink = { fn: null };
+// Whether a count or a flight is under way, as the launch screen knows it (ui/launch-view.js sets busy). The launch crew and the
+// consoles change only between launches.
+export const launchInProgress = { busy: () => false };
 const RUN_LOG_LIMIT = 5000;
 // Routine lines the run log skips: flight readouts, money, dispatches, analysis and banners.
 const ROUTINE_LINE = /^(T\+|\[FISCAL\]|\[PAYROLL\]|\[DISPATCH\]|\[ANALYSIS\]|=== |--- )/;

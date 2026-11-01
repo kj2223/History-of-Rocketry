@@ -12,6 +12,7 @@ import { skillEstimate, isQualified, simulatorTier, activeAstronauts, assignedPi
 import { requirementText, crewLock, capsuleSystems, boosterPlan, needText, readyBoosters, pilotMissionType, orbitChoices, orbitalBoosterCertified, targetUp, targetLock } from '../rules/mercury.js';
 import { manRatingRecord, cleanFlightsNeeded, MAN_RATING_RESEARCH, manRatingResearchFor, isManRated, isFamilyCertified, anyCertified, certifiedNames } from '../rules/manrate.js';
 import { quoteLaunch } from '../rules/design.js';
+import { barVerdict, designKey, safetyBar } from '../rules/safety.js';
 import { $, escapeHtml, percent, setHTML } from './dom.js';
 
 // The finalists ticked during selection.
@@ -163,6 +164,8 @@ function flightPreparationHTML(state, capsules, boosters) {
     : quote.error ? quote.error
     : S.b < quote.cost ? `Need ${formatMoney(quote.cost - S.b)} more for propellant and the pad.`
     : crewLock(state.lc, booster, capsule.mt);
+  // The safety bar (rules/safety.js): the launch director will not fly a crew past it, but you can order the launch.
+  const barred = !lock && booster && !['none', 'chimp', 'monkey'].includes(state.lc) && barVerdict(booster.prog, booster);
   const second = type.gemini && assignedPilot('gtp');
   const crewName = choice => choice == 'none' ? 'No crew (instruments only)' : choice == 'chimp' ? 'Chimpanzee' : choice == 'monkey' ? 'Rhesus monkey'
     : `Astronaut${second ? 's' : ''}: ${(state.astros.find(astronaut => astronaut.id == choice) || {}).name}${second ? ` and ${second.name}` : ''}`;
@@ -171,9 +174,10 @@ function flightPreparationHTML(state, capsules, boosters) {
 <select data-mf="1">${propellants.map(propellant => `<option${propellant == state.lf ? ' selected' : ''}>${propellant}</option>`).join('')}</select>
 <select data-mc="1">${crewChoices.map(choice => `<option value="${choice}"${choice == state.lc ? ' selected' : ''}>${crewName(choice)}</option>`).join('')}</select>
 ${type.target ? `<div class="m">${agenaText()}</div>` : ''}${type.orbital && !type.target ? `<select data-mo="1">${orbits.map(count => `<option value="${count}"${count == state.lo ? ' selected' : ''}>${count} orbit${count > 1 ? 's' : ''} (${hoursAloft(count)})</option>`).join('')}</select>${type.gemini ? geminiNotesHTML(state, capsule, systems) : `<div class="m">The capsule's oxygen, coolant and batteries last ${systems.endurance} orbits${systems.endurance < 22 ? '; research stretches them' : ''}. Attitude fuel is spent holding the capsule steady, most of it in the first three orbits, and it must last through retrofire.</div>`}` : ''}
+${booster && safetyBar() ? `<div class="m">Selected booster safety configuration: ${designKey(booster.prog, booster)}.</div>` : ''}
 ${booster ? `<div class="m">With the capsule aboard, ${booster.label} ${plan.staged ? '(staged)' : '(single stage)'}${plan.ok && plan.load < 1 ? `, off-loaded to ${Math.round(plan.load * 100)}% propellant to stay inside its limits,` : ''} should reach <b>${kilometres(plan.preview.peakAltitude)}</b> and <b>${Math.round(plan.preview.peakSpeed).toLocaleString()} m/s</b>. This mission needs ${needText(capsule.mt)}: ${plan.ok ? '<b class="ok">enough</b>' : plan.overLimit ? '<b class="bad">not safely</b>' : '<b class="bad">not enough</b>'}. Liftoff thrust-to-weight ${plan.preview.thrustToWeight.toFixed(2)}, peak skin heating ${Math.round(plan.preview.maxHeat * 100)}% and aero load ${Math.round(plan.preview.maxQ * 100)}% of limit.${quote && !quote.error ? ` Propellant and pad ${formatMoney(quote.cost)}.` : ''}</div>` : ''}
 <div class="m">Capsule systems${systems.unproven ? ` (${systems.unproven} unproven package${systems.unproven > 1 ? 's' : ''} aboard)` : ''}:</div><div class="rels">${shown.map(([key, name]) => `<div class="r"><span class="d">${name}</span><b class="${systems.reliability(key) < .85 ? 'bad' : systems.reliability(key) < .92 ? 'wn' : 'ok'}">${percent(systems.reliability(key))}</b></div>`).join('')}</div>
-<button data-a="mcount" class="big"${lock ? ' disabled' : ''}>BEGIN COUNTDOWN</button>${lock ? `<div class="m bad">${lock}</div>` : ''}</div>`;
+<button data-a="mcount" class="big"${lock || barred ? ' disabled' : ''}>BEGIN COUNTDOWN</button>${lock ? `<div class="m bad">${lock}</div>` : ''}${barred ? `<div class="m bad">The launch director will not fly this crew: ${barred} (the safety bar, in Mail).</div><button data-a="mcount" data-id="over">ORDER THE LAUNCH PAST THE SAFETY BAR</button>` : ''}</div>`;
 }
 
 // The Gemini planner's notes: how long the spacecraft lasts, the orbit change, and whether a spacewalk can be planned (state.le).

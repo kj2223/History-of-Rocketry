@@ -7,7 +7,7 @@ import { ROOMS, STATIONS } from '../data/launch-site.js';
 import { MISSION_TYPES } from '../data/mercury.js';
 import { PAYLOADS } from '../data/launch.js';
 import { FAILURE_MODES, SYMPTOMS } from '../data/failures.js';
-import { S, log, logSink } from '../core/state.js';
+import { S, log, logSink, launchInProgress, checkpointLaunch, releaseLaunchCheckpoint, save } from '../core/state.js';
 import { hasBoosterStage, quoteLaunch } from '../rules/design.js';
 import { holdForLaunch } from '../rules/factory.js';
 import { roomLevel, runPoll, PAD_FIX_COST, padFixOdds, scrubCost } from '../rules/launch-site.js';
@@ -16,6 +16,7 @@ import { boosterPlan, crewLock } from '../rules/mercury.js';
 import { PART_CHANNELS, partReading, watchedChannels, warningLevel, availableChannels, canRetune, offLinkWarning } from '../rules/telemetry.js';
 import { crewCallouts } from '../rules/callouts.js';
 import { chiefOnFailure } from '../rules/team.js';
+import { noteLaunch } from '../rules/culture.js';
 import { beginMission, stepMission, endMission, reading, decisionOptions, decisionOdds, speakerName, groundCommandLock, missionStepSeconds, currentOrbit, inQuietOrbit } from '../rules/mission.js';
 import { launchForm, renderControlRoom } from './launch-panel.js';
 import { renderConsoles } from './consoles.js';
@@ -34,6 +35,8 @@ export const launchView = { count: null, countTimer: null, flightTimer: null, la
 // Busy: a count or a flight holds the game to 1x, except a mission in its quiet stretch in orbit, which flies in the background.
 export const isBusy = () => !!launchView.count && !(airborne.mission && !airborne.mission.pending && inQuietOrbit(airborne.mission));
 export const isCounting = () => !!launchView.count && launchView.count.phase == 'count';
+// The launch crew and the consoles change only between launches (rules/launch-site.js arrivals, rules/site.js construction).
+launchInProgress.busy = () => !!launchView.count && launchView.count.phase != 'done';
 
 const COUNT_FROM = 30, POLL_AT = 15, COUNT_RATE = 2; // count seconds per real second
 
@@ -45,6 +48,7 @@ function openPad() {
   $('#comms').hidden = true;
 }
 export function closePad() {
+  releaseLaunchCheckpoint();
   clearInterval(launchView.countTimer);
   launchView.countTimer = null;
   launchView.count = null;
@@ -154,8 +158,10 @@ function runCount() {
   renderPad();
 }
 export function startCount(byDirector = false) {
+  if (launchInProgress.busy()) return;
   const form = launchForm, airframe = S.air.find(candidate => candidate.id == form.af && candidate.st == 'r');
   if (!airframe || quoteLaunch(airframe, form.fuel, form.pay, form.st, form.load / 100).error) return;
+  checkpointLaunch();
   holdForLaunch(airframe.id);
   launchView.count = newCount(runPoll(airframe, form.fuel, form.st && hasBoosterStage(airframe) ? 1 : 0), form.load / 100, airframe.label);
   // The settings go to the pad with the rocket, so changing the launch form during the count does not change this launch.
@@ -176,7 +182,7 @@ export function startDirectorCount() {
 // One 100 ms tick of the count: loading, the clock, reading out the poll, and the holds.
 function countTick() {
   const count = launchView.count;
-  if (!count || count.phase != 'count') return;
+  if (!count || count.phase != 'count' || S.speed === 0) return;
   let redraw = false;
   const poll = count.poll;
   if (count.filling) {
@@ -325,6 +331,7 @@ function launchFlight(override) {
   const planned = airframe && previewFlight(airframe, form.fuel, form.pay, form.st, count.fuel, poll.wind, form.plan);
   const flight = airframe && beginFlight(airframe, form.fuel, form.pay, form.st, count.fuel, { latent: poll.fault, wind: poll.wind, over: override, plan: form.plan });
   if (!flight) return;
+  if (!count.byDirector) noteLaunch(airframe, !!override);
   flight.byDirector = !!count.byDirector;
   launchView.planned = flight.prediction = planned;
   flight.watch = watchedChannels(airframe, form.ch);
@@ -332,13 +339,7 @@ function launchFlight(override) {
   flight.warningTicks = 0;
   airborne.flight = flight;
   flight.countdown = 0;
-  clearInterval(launchView.countTimer);
-  launchView.countTimer = null;
-  count.phase = 'flight';
-  log('[TC] Ignition. Liftoff!', 'hd');
-  document.documentElement.classList.add('flying');
-  $('#fl').hidden = false;
-  renderPad();
+  enterFlight(count);
   drawFlightInstruments(flight);
   $('#ln').textContent = roomLevel() >= 2 ? 'Trajectory is plotted on the board above.' : 'No plotting board yet: radar calls are marked by hand above.';
   launchView.flightTimer = setInterval(flightTick, 250);
@@ -354,21 +355,17 @@ export function finishFlight(ok, why) {
   launchView.lastEvents = flight.events.slice();
   endFlight(flight, ok, why);
   airborne.flight = null;
-  document.documentElement.classList.remove('flying');
   if (launchView.count) {
     launchView.count.phase = 'done';
     launchView.count.result = { ok, why, report: flight.report };
     launchView.count.lastCalls = { ...flight.lastCalls, tc: FLIGHT_VERDICTS[why] };
   }
-  $('#fl').hidden = true;
-  markDirty();
-  render();
-  renderPad();
+  leaveFlight();
 }
 // A quarter-second of the flight: two seconds of flight time under power, 25 while coasting above the atmosphere.
 function flightTick() {
   const flight = airborne.flight;
-  if (!flight) return;
+  if (!flight || S.speed === 0) return;
   const phase = $('#padph');
   if (flight.countdown > 0) {
     phase.textContent = `T-MINUS ${flight.countdown}`;
@@ -402,32 +399,29 @@ function flightTick() {
 }
 
 // A MERCURY FLIGHT: the same count and poll, then the mission timeline with decisions and the air-to-ground loop.
-export function startMissionCount() {
+// overBar: you ordered a crew past the safety bar (rules/safety.js).
+export function startMissionCount(overBar = false) {
+  if (launchInProgress.busy()) return;
   const state = S.p2, capsule = state && state.veh.find(candidate => candidate.id == state.lv), booster = state && S.air.find(airframe => airframe.id == state.lb && airframe.st == 'r');
   if (!capsule || !booster) return;
   const crew = state.lc || 'none', propellant = state.lf || 'Alcohol & LOX', plan = boosterPlan(booster, propellant, capsule.mt);
   if (!plan.ok || crewLock(crew, booster, capsule.mt)) return;
+  checkpointLaunch();
   holdForLaunch(booster.id);
-  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo, eva: state.le, target: state.lr });
+  launchView.count = newCount(runPoll(booster, propellant, plan.staged), 1, `${MISSION_TYPES[capsule.mt].fullName}: capsule #${capsule.id} on ${booster.label}`, { vid: capsule.id, crew, af: booster.id, fuel: propellant, orbits: state.lo, eva: state.le, target: state.lr, overBar });
   openPad();
   runCount();
 }
 function launchMission(override) {
   const count = launchView.count, poll = count.poll;
-  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind, orbits: count.mission.orbits, eva: count.mission.eva, target: count.mission.target });
+  const mission = beginMission(count.mission.vid, count.mission.crew, { af: count.mission.af, fuel: count.mission.fuel, latent: poll.fault, over: override, wind: poll.wind, orbits: count.mission.orbits, eva: count.mission.eva, target: count.mission.target, overBar: count.mission.overBar });
   if (!mission) return;
   airborne.mission = mission;
   mission.shownTranscript = 0;
   $('#ctx').innerHTML = '';
   $('#comms').hidden = false;
   drawTranscript(mission);
-  clearInterval(launchView.countTimer);
-  launchView.countTimer = null;
-  count.phase = 'flight';
-  log('[TC] Ignition. Liftoff!', 'hd');
-  document.documentElement.classList.add('flying');
-  $('#fl').hidden = false;
-  renderPad();
+  enterFlight(count);
   drawMissionInstruments(mission);
   $('#ln').textContent = mission.crew && !mission.crew.species ? `${mission.crew.name} is aboard. Decisions in flight are theirs, with CAPCOM's help.` : 'Telemetry from the capsule.';
   launchView.flightTimer = setInterval(missionTick, 250);
@@ -436,7 +430,7 @@ function launchMission(override) {
 // missionStepSeconds), and as many steps as the game speed in the quiet stretch in orbit. The clock stops for decisions.
 function missionTick() {
   const mission = airborne.mission;
-  if (!mission) return;
+  if (!mission || S.speed === 0) return;
   if (mission.pending) {
     $('#padph').textContent = 'DECISION';
     return;
@@ -486,11 +480,28 @@ function finishMission() {
   launchView.lastTrace = mission.trace.slice();
   launchView.lastRangeTrace = null;
   airborne.mission = null;
-  document.documentElement.classList.remove('flying');
   if (launchView.count) {
     launchView.count.phase = 'done';
     launchView.count.result = { ok: result.ok, met: result.met, lost: result.lost, text: mission.log.slice(-4).join(' ') };
   }
+  leaveFlight();
+}
+
+// Into the air, for a rocket or a mission: the count stops and the flight instruments open.
+function enterFlight(count) {
+  clearInterval(launchView.countTimer);
+  launchView.countTimer = null;
+  count.phase = 'flight';
+  log('[TC] Ignition. Liftoff!', 'hd');
+  document.documentElement.classList.add('flying');
+  $('#fl').hidden = false;
+  renderPad();
+}
+// Back from a flight or a mission: the flight instruments close and the screen redraws.
+function leaveFlight() {
+  releaseLaunchCheckpoint();
+  save();
+  document.documentElement.classList.remove('flying');
   $('#fl').hidden = true;
   markDirty();
   render();
