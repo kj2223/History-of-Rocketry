@@ -1,2 +1,35 @@
 node_modules/
 dist/
+
+# IDE and local workspace state
+.vs/
+
+# Reproducible extracts, page renders and scratch output
+tmp/
+
+# Generated documents, screenshots and review builds
+output/
+
+# Old plan/code snapshots; keep locally, do not track from the root repo
+document-backups/
+
+# Local audit and experiment artifacts
+work/audit/
+work/finance-experiment/
+
+# The WAC testbed is a separate local git repository; manage it from its own folder.
+work/wac-slice/
+
+# Local-only development work and design/reference documents.
+/work/
+/plans/
+*.md
+*.markdown
+*.pdf
+*.doc
+*.docx
+*.odt
+*.rtf
+
+# Per-machine Git guards (configured with core.hooksPath).
+/.local-git-hooks/
