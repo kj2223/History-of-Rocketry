@@ -134,7 +134,6 @@ function run(seed) {
       delegated.at = t;
     }
     for (const area of openPosts()) hireLead(area, postCandidates(area).slice().sort((first, second) => first.salary - second.salary)[0].id);
-    if (S.nasa && S.nasaReview?.restricted && !S.nasaReview.assurance && !S.leads.e) hireLead('e', 'ortiz');
     const latest = latestProgramme();
     S.cur = latest;
     if (!S.remit && remitUnlocked() && S.b > reserve + REMIT_CAPS[0]) startRemit(REMIT_CAPS[0]);

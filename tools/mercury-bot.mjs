@@ -30,6 +30,7 @@ import { curesReady, startCure } from '../js/rules/cures.js';
 import { barVerdict, testsPending } from '../js/rules/safety.js';
 import { openRequest, reasonOnFile, answerRequest, shield, shieldReady } from '../js/rules/requests.js';
 import { pressure } from '../js/rules/pressure.js';
+import { hireLead } from '../js/rules/leads.js';
 
 // Facilities and launch-crew stations, in the order the bot buys them. The tracking network takes ten months to build, so it goes first.
 // The Gemini buildings open once Mercury is complete.
@@ -239,6 +240,8 @@ export function playMercury(game) {
       continue;
     }
     if (report.nasaAt === null) report.nasaAt = game.now();
+    // Every route must satisfy NASA's crew assurance gate, including hands-on play.
+    if (S.nasaReview?.restricted && !S.nasaReview.assurance && !S.leads.e) hireLead('e', 'ortiz');
     const state = S.p2;
     if (!state) {
       advance(1);
