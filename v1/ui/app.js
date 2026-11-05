@@ -11,15 +11,19 @@ const UI_KEY = 'pa-v1-ui';
 const ACTS = { wac: 'WAC at White Sands', 'aerobee-viking': 'Aerobee and Viking', 'vanguard-explorer': 'Vanguard and Explorer', 'nasa-formation': 'NASA formation' };
 const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', 'Engineering'], ['flights', 'Test and flight'], ['site', 'Site and funds']];
 
-// Optional look: ?theme=console | ledger | blueprint (default is the dossier in style.css).
-const theme = new URLSearchParams(location.search).get('theme');
-if (/^[a-z]+$/.test(theme ?? '')) document.head.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: `ui/themes/${theme}.css` }));
-
 // ---- game and interface state ----
 let game, view, notice = null;
 const prefs = (() => { try { return JSON.parse(storage.getItem(UI_KEY)) ?? {}; } catch { return {}; } })();
-const ui = { view: 'mail', mailId: null, seen: new Set(prefs.seen ?? []), open: new Set(), confirmReset: false };
-const persistUi = () => storage.setItem(UI_KEY, JSON.stringify({ seen: [...ui.seen] }));
+const THEMES = [['dossier', 'Dossier'], ['console', 'Console'], ['ledger', 'Ledger'], ['blueprint', 'Blueprint']];
+const queryTheme = new URLSearchParams(location.search).get('theme');
+const ui = { view: 'mail', mailId: null, seen: new Set(prefs.seen ?? []), open: new Set(), confirmReset: false,
+  theme: [queryTheme, prefs.theme].find(t => THEMES.some(([k]) => k === t)) ?? 'dossier' };
+const persistUi = () => storage.setItem(UI_KEY, JSON.stringify({ seen: [...ui.seen], theme: ui.theme }));
+// The dossier look lives in style.css; every other theme is a small override file loaded on top.
+const applyTheme = () => {
+  document.getElementById('theme-link')?.remove();
+  if (ui.theme !== 'dossier') document.head.append(Object.assign(document.createElement('link'), { id: 'theme-link', rel: 'stylesheet', href: `ui/themes/${ui.theme}.css` }));
+};
 
 const refresh = () => { view = project(game); };
 // After anything new arrives, open the newest unread decision, else the newest unread item.
@@ -352,6 +356,8 @@ const render = () => {
   const off = view.concluded;
   app.replaceChildren(h('div', { class: 'case' },
     h('header', { class: 'bar' }, h('h1', {}, 'Per Aspera'), h('span', { class: 'date' }, view.date), h('span', { class: 'meta' }, `${ACTS[view.act]} · available ${money(view.fiscal.available)}`),
+      h('label', { class: 'theme' }, h('span', { class: 'sr-only' }, 'Theme'), h('select', { 'data-key': 'theme', 'aria-label': 'Theme', onchange: e => { ui.theme = e.target.value; applyTheme(); persistUi(); render(); } },
+        THEMES.map(([k, l]) => h('option', { value: k, selected: k === ui.theme }, `Theme: ${l}`)))),
       h('div', { class: 'controls', role: 'group', 'aria-label': 'Calendar' },
         button('Next day', () => step(1), { key: 'adv-1', disabled: off }), button('One week', () => step(7), { key: 'adv-7', disabled: off }),
         button('One month', () => step(30), { key: 'adv-30', disabled: off }), button('To next mail', () => step(0, true), { key: 'adv-mail', primary: true, disabled: off }))),
@@ -382,7 +388,7 @@ const importFile = async e => {
   render();
 };
 const startOver = () => {
-  resetGame(storage); storage.removeItem(UI_KEY); ui.seen.clear(); ui.mailId = null; ui.confirmReset = false; ui.view = 'mail';
+  resetGame(storage); ui.seen.clear(); persistUi(); ui.mailId = null; ui.confirmReset = false; ui.view = 'mail';
   game = newGame(); refresh(); persist(); say('A new campaign begins on 1 January 1945.'); render();
 };
 
@@ -399,6 +405,6 @@ document.addEventListener('keydown', e => {
 
 try { game = loadGame(storage); } catch (err) { game = null; setTimeout(() => say(`${err.message} Starting a new campaign.`, true), 0); }
 if (!game) { game = newGame(); persist(); }
-refresh();
+refresh(); applyTheme();
 if (view.summary) ui.view = 'summary';
 render();

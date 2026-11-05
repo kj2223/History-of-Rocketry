@@ -15,7 +15,7 @@ body { margin: 0; font: 16px/1.5 var(--serif); color: var(--ink); background: va
 header.bar { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; padding: 10px 16px; border-bottom: 2px solid var(--ink); background: var(--paper-2); }
 header.bar h1 { font: 700 1.1rem var(--type); letter-spacing: .06em; margin: 0; text-transform: uppercase; }
 .date { font: 700 1.05rem var(--type); } .meta { color: var(--ink-soft); font-size: .9rem; }
-.controls { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.theme { margin: 0; } .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 nav.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 16px 0; border-bottom: 1px solid var(--ink); }
 nav.tabs button { font: 600 .9rem var(--type); padding: 6px 14px; border: 1px solid var(--rule); border-bottom: 0; background: var(--paper-2); color: var(--ink); cursor: pointer; border-radius: 6px 6px 0 0; }
 nav.tabs button[aria-current="page"] { background: var(--paper); border-color: var(--ink); position: relative; top: 1px; }
