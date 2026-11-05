@@ -43,8 +43,8 @@ export const HYPOTHESES = {
 export const ANOMALIES = {
   'sustainer-overtemp': { name: 'Sustainer runs hot', stage: 'aerobee-sustainer', trigger: 'aerobee-sustainer.wall-temp', hypotheses: ['liner-debond', 'injector-blockage'] },
   // A flight lost off course, or an abnormal stand reading, opens an investigation of the stage.
-  'upper-stage-loss': { name: 'Upper stage lost in flight', stage: 'wac-upper', vehicles: ['wac', 'bumper'], trigger: ['vehicle.deviation', 'wac-upper.chamber-pressure'], hypotheses: ['igniter-hangfire', 'feed-starvation'] },
-  'v2-loss': { name: 'V-2 lost in flight', stage: 'v2', vehicles: ['bumper'], trigger: ['vehicle.deviation', 'v2.chamber-pressure'], hypotheses: ['turbopump-wear', 'steering-vane-erosion'] },
+  'upper-stage-loss': { name: 'Upper-stage start or flight fault', stage: 'wac-upper', vehicles: ['wac', 'bumper'], trigger: ['vehicle.deviation', 'wac-upper.chamber-pressure'], hypotheses: ['igniter-hangfire', 'feed-starvation'] },
+  'v2-loss': { name: 'V-2 start or flight fault', stage: 'v2', vehicles: ['bumper'], trigger: ['vehicle.deviation', 'v2.chamber-pressure'], hypotheses: ['turbopump-wear', 'steering-vane-erosion'] },
 };
 
 // Ground test plans engineering can propose.
