@@ -97,6 +97,19 @@ export const greenlight = (state, { id }) => {
   if (p.stage !== 'preliminary' || state.day > p.window.closes) throw new Rejection(`${id} has no open greenlight window`);
   p.stage = 'greenlit';
   log(p, state.day, 'programme greenlight');
+  // A programme with no vehicle yet starts its design work now; the vehicle arrives when that is done.
+  const design = PROGRAMMES.find(d => d.id === id)?.design;
+  if (!p.vehicle && design) { p.designReady = state.day + TUNING.designDays[design]; log(p, state.day, 'design work begins'); }
+};
+
+// Design work finishing: the programme gets its vehicle and baseline, and the teams can build, test and fly it.
+export const designsReady = state => {
+  for (const p of Object.values(state.programmes).filter(x => !x.vehicle && x.designReady === state.day)) {
+    const design = PROGRAMMES.find(d => d.id === p.id).design;
+    Object.assign(p, { vehicle: design, baseline: { ...BASELINE[design] } });
+    log(p, state.day, 'first vehicles delivered');
+    memo(state, { from: 'technical-director', text: `The first ${p.name} vehicles are delivered. Nothing has been fired or flown on this design yet, so we know nothing for certain about it; the team will propose its first stand firing.`, refs: { programme: p.id } });
+  }
 };
 
 // Windows that pass without greenlight lapse visibly.

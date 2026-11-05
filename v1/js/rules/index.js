@@ -248,6 +248,7 @@ const oneDay = s => {
   if (q.start === s.day) { if (q.fy !== s.fiscal.fy) closeYear(s); startQuarter(s); quarterReport(s); }
   s.act = [...ACTS].reverse().find(a => s.day >= a.from).id;
   programme.arrivals(s);
+  programme.designsReady(s);
   programme.lapseWindows(s);
   for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
   payDue(s);

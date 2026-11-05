@@ -5,6 +5,7 @@
 export const BASE = {
   wac: { 'wac-upper.chamber-pressure': 20, 'vehicle.apogee': 70, 'vehicle.deviation': 2.5 },
   aerobee: { 'aerobee-sustainer.wall-temp': 610, 'aerobee-sustainer.chamber-pressure': 20.5, 'vehicle.apogee': 110, 'vehicle.deviation': 1.5 },
+  viking: { 'viking.chamber-pressure': 21, 'vehicle.apogee': 170, 'vehicle.deviation': 1 },
   bumper: { 'v2.chamber-pressure': 15.5, 'wac-upper.chamber-pressure': 20, 'v2|wac-upper.separation': 0.2, 'vehicle.apogee': 390, 'vehicle.deviation': 2 },
 };
 
@@ -34,7 +35,10 @@ export const MECHANISMS = {
   // Early WAC Corporal firings lost a fair share of rounds to ignition and feed trouble.
   // A short stand firing shows it as a rough, low-pressure start.
   'pm-11': { stage: 'wac-upper', absentFrom: ['wac-upper/r3'], when: { burn: 'short' }, effects: { 'wac-upper.chamber-pressure': -5 }, flightFailureChance: 0.2 },
+  // Early Vikings lost flights to premature motor cutoff. Only a full-duration stand firing shows it,
+  // as chamber pressure sagging late in the burn.
+  'pm-19': { stage: 'viking', absentFrom: ['viking/r2'], when: { burn: 'long' }, effects: { 'viking.chamber-pressure': -5 }, flightFailureChance: 0.25 },
 };
 
 // Mechanisms every new campaign starts with, besides the worked-case defect.
-export const LATENT = ['pm-03', 'pm-11'];
+export const LATENT = ['pm-03', 'pm-11', 'pm-19'];

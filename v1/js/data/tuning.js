@@ -32,6 +32,8 @@ export const TUNING = {
   // per capacity step (at least one step). A deposit is paid when work starts and the balance on completion.
   facilityBuildCost: { range: 120000, 'static-stand': 90000, 'environmental-chamber': 150000, 'structural-rig': 100000,
     'instrumentation-lab': 50000, 'integration-space': 60000, tracking: 80000, archive: 30000 },
+  // Months of design and contractor work between a programme's greenlight and its first deliverable vehicle.
+  designDays: { viking: 720 },
   facilityUpgradeShare: 0.5,
   facilityDepositShare: 0.5,
   jobDays: { 'integration-assessment': 10, recycle: 14, repair: 7, upgrade: 60, commissioning: 30 },
