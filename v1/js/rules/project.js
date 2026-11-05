@@ -18,7 +18,7 @@ export const project = s => {
   return {
     day: s.day, date: dateLabel(s.day), act: s.act, concluded: s.concluded,
     inbox: [
-      ...s.decisions.filter(d => d.status === 'open').map(d => ({ kind: 'decision', id: d.id, day: d.day, from: d.raisedBy, text: d.text, options: d.options, positions: d.positions })),
+      ...s.decisions.filter(d => d.status === 'open').map(d => ({ kind: 'decision', id: d.id, day: d.day, from: d.raisedBy, text: d.text, options: d.options, positions: d.positions, evidence: d.evidence })),
       ...(s.staff?.proposals ?? []).filter(x => x.status === 'open').map(x => ({ kind: 'proposal', id: x.id, day: x.day, from: x.from, text: x.text, options: ['go-ahead', 'not-now'], refs: { programme: x.programmeId } })),
       ...s.memos.map(m => ({ kind: m.kind, id: m.id, day: m.day, from: m.from, text: m.text, refs: copy(m.refs ?? {}) })),
     ].sort((a, b) => b.day - a.day),
