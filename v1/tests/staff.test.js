@@ -61,3 +61,18 @@ test('staff reason from claims and beliefs only: the module never touches the ph
   const src = readFileSync(new URL('../js/rules/staff.js', import.meta.url), 'utf8');
   assert.equal(/physics\.js|physical|trueDefectMechanism|rng/.test(src), false);
 });
+
+test('a stand fault leads the team through cause, fix, trial and adoption, then back to flying', () => {
+  const g = game();
+  const seen = [];
+  for (let d = 0; d < 90; d++) {
+    for (const x of proposals(g)) { seen.push(g.state.staff.proposals.find(p => p.id === x.id).step.kind); g.cmd('approve-proposal', 'administrator', { proposalId: x.id }); }
+    for (const x of g.state.decisions.filter(d => d.status === 'open')) g.approve(x.id);
+    g.days(1);
+  }
+  assert.ok(seen.includes('develop'), 'the team proposed a fix');
+  assert.ok(g.state.decisions.some(d => d.type === 'trial') && g.state.decisions.some(d => d.type === 'deployment'), 'it raised the trial and the adoption');
+  assert.equal(g.state.programmes.wac.baseline['wac-upper'], 'wac-upper/r3');
+  assert.ok(g.state.launches.filter(l => l.status === 'flown').length >= 2, 'and it kept flying');
+  assert.ok(g.state.memos.some(m => /monthly update/.test(m.text)), 'and it sent monthly updates');
+});

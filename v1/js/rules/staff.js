@@ -6,7 +6,7 @@
 // Teams reason only from claims and beliefs, never from hidden truth, and draw no random numbers.
 // Staff act through the same commands as the player: the façade passes `run(state, type, actor, payload)`.
 
-import { dateLabel, fiscalQuarter } from '../core/calendar.js';
+import { dateLabel, dateOf, fiscalQuarter } from '../core/calendar.js';
 import { FLIGHT_CONDITIONS, ANOMALIES, HYPOTHESES } from '../data/engineering.js';
 import { PROGRAMMES } from '../data/scenario.js';
 import { TUNING } from '../data/tuning.js';
@@ -30,17 +30,43 @@ const team = p => `The ${p.name} team`;
 
 // ---- what a team would do next on a greenlit programme ----
 
+const stageQuantities = (p, stage) => VEHICLE_QUANTITIES[p.vehicle].filter(q => q.startsWith(`${stage}.`));
+const anomalyOn = (state, p, stage) => Object.values(state.beliefs.anomalies).find(a => ANOMALIES[a.id].stage === stage && (!ANOMALIES[a.id].vehicles || ANOMALIES[a.id].vehicles.includes(p.vehicle)));
+// The corrective revision for the leading explanation, if the team has one it can develop (§5.1).
+const remedyFor = (stage, hypothesis) => Object.keys(REVISIONS).find(r => REVISIONS[r].stage === stage && REVISIONS[r].remedies?.includes(hypothesis) && STAGES[stage].developable);
+const trialFlown = (state, p, stage, rev) => state.launches.some(l => l.programmeId === p.id && l.status === 'flown' && l.outcome === 'success' && l.stages[stage] === rev);
+
+// Developing a fix (§5.1–5.2): define it, ground-test it short and long, ask for a trial, fly it, ask to adopt it.
+const fixStep = (state, p, stage, rev, hypothesis) => {
+  const r = state.hardware.revisions[rev];
+  if (!r || r.status === 'proposed') return { kind: 'develop', stage, rev, hypothesis };
+  const config = { vehicle: p.vehicle, stages: { ...p.baseline, [stage]: rev } }, qs = stageQuantities(p, stage);
+  const bad = qs.filter(q => claimStatus(state, config, q).status === 'adverse');
+  if (bad.length) return { kind: 'adverse', stage, quantities: bad, failedFix: rev };
+  for (const burn of ['short', 'long']) if (qs.some(q => claimStatus(state, config, q, { burn }).status !== 'measured-normal')) return { kind: 'ground-test', stage, rev, burn, channels: qs, why: 'fix' };
+  if (!r.trial) return { kind: 'trial', stage, rev };
+  if (!trialFlown(state, p, stage, rev)) return { kind: 'fly', stage, rev };
+  return { kind: 'adopt', stage, rev };
+};
+
 // The next step, from what the team knows: ground-test each stage under flight conditions, then fly.
-// A finding outside normal limits stops the work until a test can discriminate or the administrator directs.
+// A finding outside normal limits sends the team after its cause: a discriminating test while explanations
+// compete, then the corrective revision for the leading one. Without a fix the work stops for direction.
 export const nextStep = (state, p) => {
   const config = { vehicle: p.vehicle, stages: p.baseline };
   for (const stage of VEHICLES[p.vehicle].stages) {
-    const qs = VEHICLE_QUANTITIES[p.vehicle].filter(q => q.startsWith(`${stage}.`));
+    const qs = stageQuantities(p, stage);
     if (!qs.length) continue;
     const adverse = qs.filter(q => claimStatus(state, config, q).status === 'adverse');
     if (adverse.length) {
-      const anomaly = Object.values(state.beliefs.anomalies).find(a => ANOMALIES[a.id].stage === stage && a.proposedTests?.length);
-      if (anomaly) { const t = anomaly.proposedTests[0]; return { kind: 'ground-test', stage, burn: t.conditions.burn, channels: t.channels, why: 'anomaly', anomaly: anomaly.id }; }
+      const anomaly = anomalyOn(state, p, stage);
+      if (anomaly?.proposedTests?.length) { const t = anomaly.proposedTests[0]; return { kind: 'ground-test', stage, burn: t.conditions.burn, channels: t.channels, why: 'anomaly', anomaly: anomaly.id }; }
+      const leading = anomaly?.status === 'leading' ? openHypotheses(anomaly)[0] : null, rev = leading && remedyFor(stage, leading);
+      if (rev) return fixStep(state, p, stage, rev, leading);
+      // You accepted the known risk after a failure review: the team may fly this configuration again.
+      const assessed = new Set(state.beliefs.assessed ?? []);
+      const unassessed = adverse.filter(q => claimStatus(state, config, q).observations.some(id => { const o = state.evidence.observations.find(x => x.id === id); return o.state === 'measured' && !o.normal && !assessed.has(id); }));
+      if (!unassessed.length) continue;
       return { kind: 'adverse', stage, quantities: adverse };
     }
     if (qs.every(q => claimStatus(state, config, q, FLIGHT_CONDITIONS).status === 'measured-normal')) continue;
@@ -49,7 +75,7 @@ export const nextStep = (state, p) => {
   }
   return { kind: 'fly' };
 };
-const keyOf = s => [s.kind, s.stage, s.burn, s.channels?.join('+')].filter(Boolean).join(':');
+const keyOf = s => [s.kind, s.stage, s.rev, s.burn, s.channels?.join('+')].filter(Boolean).join(':');
 
 const openLaunchDecision = (state, pid) => state.launches.some(l => l.programmeId === pid && l.status === 'awaiting-decision'
   && state.decisions.some(d => d.type === 'launch' && d.subject === l.id && d.status === 'open'));
@@ -60,6 +86,11 @@ const busy = (state, p) => {
   const running = state.work.find(j => j.programmeId === p.id && (j.status === 'running' || j.status === 'paused'));
   if (running) return running.status === 'paused' ? `${running.kind.replace(/-/g, ' ')} is paused` : `${running.kind.replace(/-/g, ' ')} under way`;
   if (openLaunchDecision(state, p.id)) return 'a launch is waiting for your decision';
+  const launches = new Set(state.launches.filter(l => l.programmeId === p.id).map(l => l.id));
+  const review = state.decisions.find(d => d.status === 'open' && launches.has(d.subject) && d.type !== 'launch');
+  if (review) return `the ${review.type.replace(/-/g, ' ')} of ${review.subject} is waiting for your decision`;
+  const rev = state.decisions.find(d => d.status === 'open' && ['trial', 'deployment'].includes(d.type) && REVISIONS[d.subject]?.stage && VEHICLES[p.vehicle].stages.includes(REVISIONS[d.subject].stage));
+  if (rev) return `the ${rev.type === 'trial' ? 'trial' : 'adoption'} of the ${REVISIONS[rev.subject].label} is waiting for your decision`;
   if (state.decisions.some(d => d.status === 'open' && d.type === 'displacement' && d.text.startsWith(p.name))) return 'a facility clash is waiting for your decision';
   return null;
 };
@@ -73,22 +104,28 @@ const pickUnit = (state, kind, from, to) => {
   return (units.find(u => holders(state, u.id, from, to).length < (FACILITY_KINDS[kind].exclusive ? 1 : u.capacity)) ?? units[0])?.id ?? null;
 };
 
-const readyArticle = (state, p) => Object.values(state.hardware.articles).find(a => a.programmeId === p.id && a.status === 'built'
-  && !state.hardware.batches[a.batchId].held && Object.entries(p.baseline).every(([s, r]) => a.stages[s] === r));
+const configOf = (p, step) => ({ ...p.baseline, ...(step?.rev ? { [step.stage]: step.rev } : {}) });
+const readyArticle = (state, p, step) => Object.values(state.hardware.articles).find(a => a.programmeId === p.id && a.status === 'built'
+  && !state.hardware.batches[a.batchId].held && Object.entries(configOf(p, step)).every(([s, r]) => a.stages[s] === r));
 
 const describe = (state, p, step) => {
   if (step.kind === 'feasibility') return `Shall we look into ${p.name}${p.client ? ` for ${p.client}` : ''}? `
     + `If you authorise bounded feasibility work, the technical director and the financial officer will report on whether it is possible and what it would cost (about ${Math.ceil(TUNING.staffCaseDays / 7)} weeks)`
     + `${PROGRAMMES.find(d => d.id === p.id)?.terms ? ` and we will meet ${p.client} to hear their terms` : ''}. The dossier then comes back to you.`;
+  if (step.kind === 'develop') return `${team(p)} has narrowed the cause to ${HYPOTHESES[step.hypothesis].name.toLowerCase()}. `
+    + `The department head proposes the ${REVISIONS[step.rev].label} as the fix: we would define a prototype and then fire it on the stand before asking you for a trial flight.`;
   if (step.kind === 'ground-test') {
     const stand = pickUnit(state, 'static-stand', state.day, state.day + TUNING.staffTestBookingDays);
-    const what = `a ${step.burn}-burn ground test of the ${STAGES[step.stage].name} on ${stand ? `static test stand ${stand}` : 'a static test stand'}, reading ${list(step.channels.map(qname))}`;
+    const what = `a ${step.burn}-burn ground test of the ${step.rev ? `${REVISIONS[step.rev].label} on the ` : ''}${STAGES[step.stage].name} on ${stand ? `static test stand ${stand}` : 'a static test stand'}, reading ${list(step.channels.map(qname))}`;
     const why = { first: 'We have no readings on it yet, so this is where we start.',
       'flight-conditions': 'The short-burn readings are in. Flights run the full burn, so we need readings at full duration before we fly.',
-      anomaly: `${ANOMALIES[step.anomaly]?.name ?? 'The anomaly'} has more than one explanation, and this test should tell them apart.` }[step.why];
+      anomaly: `${ANOMALIES[step.anomaly]?.name ?? 'The anomaly'} has more than one explanation, and this test should tell them apart.`,
+      fix: step.burn === 'short' ? 'The fault showed at start-up, so we fire the fix short first to see whether it is gone.' : 'The fix behaves at start-up. Flights run the full burn, so we fire it at full duration before asking for a trial flight.' }[step.why];
     return `${team(p)} would like to run ${what}. ${why}`;
   }
-  const article = readyArticle(state, p);
+  const article = readyArticle(state, p, step);
+  if (step.rev) return `The ${REVISIONS[step.rev].label} is authorised for a trial flight. ${article ? `Article ${article.id} is ready` : 'Production would build a trial article'}, `
+    + 'and we would book pad and tracking and ask for the launch. The launch itself still comes to you for decision.';
   return `Ground readings for every stage of ${VEHICLES[p.vehicle].name} are within normal limits under flight conditions. `
     + `${article ? `Article ${article.id} is ready` : 'Production would build the next article'}, and we would book pad and tracking and ask for a launch. `
     + 'The launch itself still comes to you for decision.';
@@ -105,15 +142,22 @@ const execute = (state, run, p, step, actor) => {
     return r.decision ? { decision: r.decision } : { reservation: rid };
   };
   if (step.kind === 'feasibility') { run(state, 'authorise-feasibility', 'administrator', { programmeId: p.id }); return {}; }
+  if (step.kind === 'develop') {
+    if (!state.hardware.revisions[step.rev]) run(state, 'propose-revision', 'department-head', { revId: step.rev, reason: `the leading explanation for the fault is ${HYPOTHESES[step.hypothesis].name.toLowerCase()}` });
+    run(state, 'approve-prototype', 'technical-director', { programmeId: p.id, revId: step.rev });
+    return {};
+  }
+  if (step.kind === 'trial') return { decision: run(state, 'request-trial', 'department-head', { programmeId: p.id, revId: step.rev }) };
+  if (step.kind === 'adopt') return { decision: run(state, 'adopt-revision', 'administrator', { revId: step.rev, programmeIds: [p.id] }) };
   if (step.kind === 'ground-test') {
     const stand = book('static-stand', TUNING.staffTestBookingDays, `${step.burn}-burn ground test`);
     if (stand.decision) return stand;
-    run(state, 'schedule-test', as('department-head'), { jobId: id(), programmeId: p.id, stage: step.stage, stages: {}, conditions: { burn: step.burn }, channels: step.channels, reservation: stand.reservation });
+    run(state, 'schedule-test', as('department-head'), { jobId: id(), programmeId: p.id, stage: step.stage, stages: step.rev ? { [step.stage]: step.rev } : {}, conditions: { burn: step.burn }, channels: step.channels, reservation: stand.reservation });
     return {};
   }
   let n = Object.values(state.hardware.articles).filter(a => a.programmeId === p.id).length + 1;
   while (state.hardware.articles[`${p.id}-${n}`]) n++;
-  const articleId = readyArticle(state, p)?.id ?? run(state, 'build-article', as('department-head'), { id: `${p.id}-${n}`, programmeId: p.id });
+  const articleId = readyArticle(state, p, step)?.id ?? run(state, 'build-article', as('department-head'), { id: `${p.id}-${n}`, programmeId: p.id, stages: step.rev ? { [step.stage]: step.rev } : null });
   const pad = book('range', TUNING.staffLaunchBookingDays, 'launch');
   if (pad.decision) return pad;
   const tracking = book('tracking', TUNING.staffLaunchBookingDays, 'tracking');
@@ -216,16 +260,28 @@ const workRound = (state, run, p) => {
   if (open && (waiting || open.key !== key)) open.status = 'superseded';
   if (waiting || (open && open.status === 'open')) return;
   if (step.kind === 'adverse') {
-    const remedy = Object.entries(REVISIONS).find(([r, x]) => x.stage === step.stage && x.remedies && !state.hardware.revisions[r]);
-    const anomaly = Object.values(state.beliefs.anomalies).find(a => ANOMALIES[a.id].stage === step.stage);
+    const anomaly = anomalyOn(state, p, step.stage);
     const leading = anomaly?.status === 'leading' ? HYPOTHESES[openHypotheses(anomaly)[0]].name.toLowerCase() : null;
-    noteOnce(state, `adverse:${p.id}:${step.stage}:${step.quantities.join('+')}`, { from: 'technical-director', kind: 'warning', refs: { programme: p.id },
-      text: `${team(p)} has stopped new work on the ${STAGES[step.stage].name}: ${list(step.quantities.map(qname))} came back outside normal limits. ${leading ? `Our leading explanation is ${leading}.` : 'No test we can run would explain it.'} `
-        + (remedy ? `The department head recommends the ${remedy[1].label} (see Engineering).` : 'We need your direction before we spend more on it.') });
+    noteOnce(state, `adverse:${p.id}:${step.stage}:${step.failedFix ?? ''}:${step.quantities.join('+')}`, { from: 'technical-director', kind: 'warning', refs: { programme: p.id },
+      text: step.failedFix
+        ? `${team(p)} has stopped work on the ${REVISIONS[step.failedFix].label}: ${list(step.quantities.map(qname))} is still outside normal limits with the fix fitted, so it is not the cure. We need your direction before we spend more on it.`
+        : `${team(p)} has stopped new work on the ${STAGES[step.stage].name}: ${list(step.quantities.map(qname))} came back outside normal limits. ${leading ? `Our leading explanation is ${leading}, but we have no fix for it we can develop.` : 'No test we can run would explain it.'} We need your direction before we spend more on it.` });
+    return;
+  }
+  // Trials and adoption are decisions in their own right (§5.1): the team raises them, and raises them again only after a while.
+  if (step.kind === 'trial' || step.kind === 'adopt') {
+    const k = `${step.kind}:${p.id}:${step.rev}`;
+    if ((s.raised[k] ?? -Infinity) + TUNING.proposalSnoozeDays * 3 > state.day) return;
+    s.raised[k] = state.day;
+    execute(state, run, p, step, 'team');
+    memo(state, { from: 'department-head', kind: 'report', refs: { programme: p.id },
+      text: step.kind === 'trial'
+        ? `The ${REVISIONS[step.rev].label} fired normally on the stand, short and long. We have asked you to authorise a trial flight; that is in your Mail.`
+        : `The trial flight of the ${REVISIONS[step.rev].label} reached its planned apogee. We have asked you to adopt it for future ${p.name} articles; that is in your Mail.` });
     return;
   }
   if ((s.snooze[p.id] ?? -Infinity) > state.day) return;
-  if (step.kind === 'fly' && state.day - lastFlight(state, p.id) < TUNING.staffFlightSpacingDays) return;
+  if (step.kind === 'fly' && !step.rev && state.day - lastFlight(state, p.id) < TUNING.staffFlightSpacingDays) return;
   if (isDelegated(state, p.id)) {
     const text = describe(state, p, step);
     try {
@@ -240,7 +296,7 @@ const workRound = (state, run, p) => {
     }
     return;
   }
-  propose(state, p, step, key, step.kind === 'fly' ? 'department-head' : 'technical-director');
+  propose(state, p, step, key, ['fly', 'develop'].includes(step.kind) ? 'department-head' : 'technical-director');
 };
 
 const propose = (state, p, step, key, from) => {
@@ -273,8 +329,24 @@ export const openingBriefing = state => {
       + 'The team has put its first proposal in your Mail. Until we have a track record, the teams propose and you give the go-ahead.' });
 };
 
+// The monthly update each greenlit team sends (§3.2, §8.4 consolidated reporting): what finished, what we know, what is next.
+const monthlyUpdate = (state, p) => {
+  const since = state.day - 31, done = state.work.filter(j => j.programmeId === p.id && j.status === 'done' && j.started >= since);
+  const tests = done.filter(j => j.kind === 'ground-test').length, flights = state.launches.filter(l => l.programmeId === p.id && l.status === 'flown' && l.day >= since);
+  const config = { vehicle: p.vehicle, stages: p.baseline };
+  const claims = VEHICLE_QUANTITIES[p.vehicle].map(q => claimStatus(state, config, q, FLIGHT_CONDITIONS));
+  const normal = claims.filter(c => c.status === 'measured-normal').length, adverse = claims.filter(c => c.status === 'adverse').map(c => qname(c.quantity));
+  const last = [tests && `${tests} ground test${tests > 1 ? 's' : ''}`, flights.length && `${flights.length} flight${flights.length > 1 ? 's' : ''} (${flights.filter(l => l.outcome === 'success').length} reached apogee)`].filter(Boolean);
+  const pm = state.delegation.appointments.find(a => a.status === 'active' && a.role === 'project-manager' && a.programmeId === p.id);
+  memo(state, { from: pm ? 'project-manager' : 'technical-director', kind: 'report', refs: { programme: p.id },
+    text: `${p.name}, monthly update. Last month: ${last.length ? list(last) : 'no tests or flights finished'}. `
+      + `What we know: ${normal} of ${claims.length} measured quantities are within normal limits under flight conditions${adverse.length ? `; outside limits: ${list(adverse)}` : ''}. `
+      + `Next: ${teamStatus(state, p) ?? 'nothing planned'}` });
+};
+
 export const staffDay = (state, run) => {
   staffOf(state);
+  if (state.day > 0 && dateOf(state.day).date === 1) for (const p of Object.values(state.programmes).filter(eligible)) monthlyUpdate(state, p);
   for (const p of Object.values(state.programmes)) {
     try {
       if (p.stage === 'feasibility') feasibilityRound(state, p);
