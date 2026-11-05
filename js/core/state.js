@@ -154,7 +154,8 @@ function replaceState(next) {
 }
 const SAVE_KEY = 'vg3';
 const LAST_GOOD_SAVE_KEY = SAVE_KEY + '-last-good';
-const isValidSave = saved => !!saved && typeof saved == 'object' && !Array.isArray(saved) && saved.cv >= 3;
+const SAVE_VERSIONS = [3];
+const isValidSave = saved => !!saved && typeof saved == 'object' && !Array.isArray(saved) && SAVE_VERSIONS.includes(saved.cv);
 const parseSave = raw => {
   const saved = JSON.parse(raw || 'null');
   if (!isValidSave(saved)) throw new Error('Not a version-3 save.');
