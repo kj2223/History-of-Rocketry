@@ -18,7 +18,7 @@ import { initFiscal, startQuarter, payDue, closeYear, commit, cancelCommitment, 
 import { initStock, reserveStock, consumeStock } from './stock.js';
 import * as programme from './programme.js';
 import { initDelegation, appoint, checkDelegation, isDelegated, recordFailure } from './delegation.js';
-import { initLaunches, requestLaunch, executeLaunch, completeFlight } from './launch.js';
+import { initLaunches, requestLaunch, executeLaunch, completeFlight, answerInvitation } from './launch.js';
 import { startJob, advanceWork, pauseJob, resumeJob, cancelJob, job } from './work.js';
 import { initContinuation, conclude } from './summary.js';
 import { project as projectPublic } from './project.js';
@@ -159,6 +159,7 @@ const COMMANDS = {
     return startJob(s, { id: jobId, kind: 'ground-test', programmeId, reservations: [reservation], plan: { kind: 'ground', ...config, stage, conditions, channels } }).id;
   } },
   'request-launch': { roles: ['administrator', 'project-manager'], delegated: ['department-head'], run: (s, l) => requestLaunch(s, l) },
+  'answer-invitation': { roles: ['administrator'], run: (s, a) => answerInvitation(s, a) },
   'pause-work': { roles: ['administrator', 'technical-director'], run: (s, { jobId, preserve }) => pauseJob(s, jobId, { preserve }) },
   'resume-work': { roles: ['administrator', 'technical-director'], run: (s, { jobId }) => {
     const r = resumeJob(s, jobId);

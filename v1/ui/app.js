@@ -146,7 +146,7 @@ const mailView = () => {
   const list = h('ul', { 'aria-label': 'Inbox' }, items.map(i => h('li', {},
     h('button', { type: 'button', class: `mail-row${ui.seen.has(i.id) ? '' : ' unread'}`, 'data-key': `mail-${i.id}`,
       'aria-current': i === current ? 'true' : null, onclick: () => { ui.mailId = i.id; render(); } },
-    h('span', { class: 'from' }, `${i.kind === 'decision' ? 'For decision · ' : i.kind === 'proposal' ? 'Proposal · ' : ''}${cap(i.from)} · ${day(i.day)}`), h('span', { class: 'subject' }, subject(i.text))))));
+    h('span', { class: 'from' }, `${i.kind === 'decision' ? 'For decision · ' : i.kind === 'proposal' ? 'Proposal · ' : i.kind === 'invitation' ? 'Invitation · ' : ''}${cap(i.from)} · ${day(i.day)}`), h('span', { class: 'subject' }, subject(i.text))))));
   const pane = !current ? h('p', { class: 'muted' }, 'Nothing in the inbox. Advance the calendar to receive mail.') : h('article', { class: 'letter', 'aria-label': 'Selected message' },
     h('div', { class: 'head' }, `From: ${cap(current.from)} · ${day(current.day)} · ${cap(current.kind)}`),
     h('p', {}, current.text),
@@ -162,6 +162,10 @@ const mailView = () => {
     current.kind === 'proposal' && h('div', { class: 'actions', role: 'group', 'aria-label': 'Your answer' },
       button('Go ahead', () => act('approve-proposal', 'administrator', { proposalId: current.id }, 'Go-ahead given. The team is on it.'), { primary: true, key: `go-${current.id}` }),
       button('Not now', () => act('decline-proposal', 'administrator', { proposalId: current.id }, 'The team will wait and propose again later.'), { key: `wait-${current.id}` })),
+    // Flight Control's invitation to watch a launch (freeze §8.3, §10.3).
+    current.kind === 'invitation' && h('div', { class: 'actions', role: 'group', 'aria-label': 'Your answer' },
+      button('Attend', () => { if (send('answer-invitation', 'administrator', { launchId: current.refs.launch, attend: true })) observe(current.refs.launch); }, { primary: true, key: `attend-${current.id}` }),
+      button('Send apologies', () => act('answer-invitation', 'administrator', { launchId: current.refs.launch, attend: false }, 'Apologies sent. The flight report will come to Mail.'), { key: `apol-${current.id}` })),
     );
   return h('div', {}, h('h2', {}, 'Mail'), h('div', { class: 'mail' }, h('div', {}, list), pane));
 };
@@ -360,7 +364,41 @@ const flightsView = () => {
     h('section', { class: 'card' }, h('h3', {}, 'Launch record'),
       view.launches.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Launch', 'Article', 'Kind', 'Status', 'Outcome'].map(t => h('th', {}, t)))),
         h('tbody', {}, view.launches.map(l => h('tr', {}, h('td', {}, l.id), h('td', {}, l.articleId), h('td', {}, l.experimental ? 'Experimental' : 'Routine'), h('td', {}, cap(l.status)),
-          h('td', {}, l.outcome ? `${cap(l.outcome)}${l.rangeAction ? ` (${l.rangeAction})` : ''}` : '—'))))) : h('p', { class: 'muted' }, 'Nothing has flown.')));
+          h('td', {}, l.outcome ? `${cap(l.outcome)}${l.rangeAction ? ` (${l.rangeAction})` : ''}` : '—', l.invitation === 'attending' && button(l.status === 'in-flight' ? 'Back to the blockhouse' : 'Blockhouse view', () => observe(l.id), { key: `obs-${l.id}` })))))) : h('p', { class: 'muted' }, 'Nothing has flown.')));
+};
+
+// ---- the blockhouse (freeze §10.3): a plain observer for a launch the administrator attends ----
+// It shows only readings already recorded by tracking and telemetry; watching advances the calendar one day at a time.
+const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const observe = launchId => { ui.observe = launchId; ui.countdown = reduced() ? 0 : 10; ui.view = 'observer'; render(); document.getElementById('main')?.focus(); tickCountdown(); };
+const tickCountdown = () => { if (ui.view !== 'observer' || ui.countdown <= 0) return; setTimeout(() => { ui.countdown--; if (ui.view === 'observer') { render(); tickCountdown(); } }, 400); };
+const watchFlight = () => {
+  const l = view.launches.find(x => x.id === ui.observe);
+  if (!l || l.status !== 'in-flight' || ui.view !== 'observer' || view.concluded) { ui.watching = false; render(); return; }
+  ui.watching = true;
+  const r = advance(game, 1); game = r.state; refresh(); persist(); render();
+  setTimeout(watchFlight, reduced() ? 300 : 1200);
+};
+const reading = o => {
+  const q = view.quantities[o.quantity] ?? { name: o.quantity, unit: '' };
+  if (o.state === 'lost') return `${q.name}: signal lost. No reading; that is not the same as normal.`;
+  if (o.state === 'unmeasured') return `${q.name}: no instrument on this channel.`;
+  return `${q.name}: ${o.value} ${q.unit}, ${o.normal ? 'within normal limits' : 'outside normal limits'}.`;
+};
+const observerView = () => {
+  const l = view.launches.find(x => x.id === ui.observe);
+  if (!l) return h('div', {}, h('h2', {}, 'Blockhouse'), h('p', { class: 'muted' }, 'No launch selected. Attend one from its invitation in Mail.'));
+  const name = view.vehicles.find(v => v.id === l.vehicle)?.name ?? cap(l.vehicle);
+  const readings = view.evidence.filter(o => o.workId === l.jobId);
+  const counting = ui.countdown > 0 && !readings.length;
+  return h('div', {}, h('h2', {}, `Blockhouse: ${name} ${l.articleId}`),
+    h('section', { class: 'card' },
+      h('p', {}, `${l.experimental ? 'Experimental' : 'Routine'} flight for ${programmeName(l.programmeId)}. Flying ${Object.values(l.stages).join(', ')}.`),
+      h('p', { class: 'stamp', 'aria-live': 'polite' }, counting ? `T minus ${ui.countdown}` : l.status === 'in-flight' ? (readings.length ? 'In flight. Tracking and telemetry coming in.' : 'Lift-off.') : `Flight over: ${cap(l.outcome)}${l.rangeAction ? `, ${l.rangeAction}` : ''}.`),
+      readings.length ? h('ol', { 'aria-label': 'Readings as they came in' }, readings.map(o => h('li', {}, reading(o)))) : h('p', { class: 'muted' }, 'No readings yet.'),
+      l.status === 'in-flight'
+        ? button(ui.watching ? 'Watching…' : 'Watch the flight', () => { if (!ui.watching) watchFlight(); }, { primary: true, key: 'watch', disabled: ui.watching || counting })
+        : [readingsLink(l.jobId), button('Back to Mail', () => go('mail'), { key: 'obs-back' })]));
 };
 
 // ---- production and stores (freeze §5.4, §5.5, §7.6) ----
@@ -571,8 +609,8 @@ const render = () => {
   const focusKey = document.activeElement?.dataset?.key;
   const app = document.getElementById('app');
   const views = view.summary ? [...VIEWS, ['summary', 'Summary']] : VIEWS;
-  if (!views.some(([k]) => k === ui.view)) ui.view = 'mail';
-  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, records: recordsView, summary: summaryView }[ui.view]();
+  if (ui.view !== 'observer' && !views.some(([k]) => k === ui.view)) ui.view = 'mail';
+  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, records: recordsView, summary: summaryView, observer: observerView }[ui.view]();
   const unread = view.inbox.filter(i => !ui.seen.has(i.id)).length;
   const off = view.concluded;
   const [left, right] = sidePanels(view, { h, day, cap, money, programmeName, openMail: id => { ui.mailId = id; go('mail'); } });
