@@ -60,3 +60,29 @@ kbd { font: .85rem var(--type); border: 1px solid var(--rule); padding: 0 4px; b
 @media (prefers-reduced-motion: no-preference) { button, .mail-row { transition: background-color .15s; } .positions .stamp { animation: thud .25s ease-out; } }
 @keyframes thud { from { transform: scale(1.4) rotate(-2deg); opacity: 0; } to { transform: scale(1) rotate(-2deg); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+/* Side panels: what is going on around the site, at a glance. Below the main area on narrow screens, beside it on wide ones. */
+.shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.shell > .case { order: -1; }
+.side { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px; align-content: start; }
+@media (min-width: 1500px) {
+  #app:has(.shell) { max-width: 1880px; }
+  .shell { grid-template-columns: 300px minmax(0, 1fr) 300px; }
+  .shell > .case { order: 0; } .side { grid-template-columns: minmax(0, 1fr); }
+}
+.panel { background: var(--paper); border: 1px solid var(--rule); padding: 10px 14px; font-size: .88rem; }
+.panel h3 { display: flex; justify-content: space-between; gap: 8px; font: 700 .78rem var(--type); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); margin: 0 0 6px; }
+.panel h3 span { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.prow { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 6px; padding: 6px 0; border-top: 1px solid var(--rule); overflow-wrap: anywhere; }
+.panel h3 + .prow { border-top: 0; }
+.pk, .psub, .pd, .pfoot { color: var(--ink-soft); font-size: .8rem; } .pfoot { margin-top: 6px; font-style: italic; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--rule); }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.alert { background: var(--stamp); }
+.plink { border: 0; background: none; padding: 0; color: var(--focus); text-decoration: underline; font-size: .8rem; }
+.pbar { height: 6px; background: var(--paper-2); border: 1px solid var(--rule); margin: 6px 0 4px; overflow: hidden; } .pbar i { display: block; height: 100%; background: var(--focus); }
+.pcal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; font-size: .75rem; margin-bottom: 6px; }
+.pcal i { font-style: normal; color: var(--ink-soft); } .pcal b { font-weight: 400; padding: 3px 0; background: var(--paper-2); }
+.pcal b.e { background: none; } .pcal b.p { color: var(--ink-soft); } .pcal b.r { box-shadow: inset 0 -3px 0 var(--warn); } .pcal b.t { outline: 2px solid var(--focus); font-weight: 700; }
+.pev { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px; padding: 5px 0; border-top: 1px solid var(--rule); }
+.pnews { padding: 6px 0; border-top: 1px solid var(--rule); } .panel h3 + .pnews { border-top: 0; } .pnews .pd { text-transform: uppercase; letter-spacing: .03em; font-size: .72rem; }
+.ptag { display: inline-block; padding: 0 7px; border: 1px solid var(--rule); border-radius: 999px; font-size: .75rem; color: var(--ink-soft); }
+.ptag.success { color: var(--ok); border-color: currentColor; } .ptag.failure { color: var(--stamp); border-color: currentColor; } .ptag.indeterminate { color: var(--warn); border-color: currentColor; }

@@ -6,3 +6,4 @@
 header.bar h1, h2, h4, th, .date { text-transform: none; letter-spacing: 0; } .stamp { transform: none; border-width: 1px; border-radius: 999px; padding: 0 10px; font-weight: 600; text-transform: none; letter-spacing: 0; }
 button { border-radius: 6px; border-color: var(--rule); } nav.tabs { border-bottom: 1px solid var(--rule); } nav.tabs button { border-radius: 6px 6px 0 0; background: transparent; border-color: transparent; }
 nav.tabs button[aria-current="page"] { border-color: var(--rule); border-bottom: 2px solid var(--focus); }
+.panel { border-radius: 8px; }

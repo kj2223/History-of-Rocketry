@@ -1,10 +1,11 @@
 // The V1 playable UI. Mail first. It renders only from project() and changes the game only by dispatching
 // commands or advancing days. It never reads game state directly, and imports nothing but the façade,
-// the calendar's date label and the storage fallback.
+// the calendar's date label, the storage fallback and its own side panels.
 
 import { newGame, dispatch, advance, project, saveGame, loadGame, exportGame, importGame, resetGame } from '../js/rules/index.js';
 import { dateLabel } from '../js/core/calendar.js';
 import { memoryStorage } from '../js/core/save.js';
+import { sidePanels } from './panels.js';
 
 const storage = (() => { try { const s = window.localStorage; s.setItem('pa-probe', '1'); s.removeItem('pa-probe'); return s; } catch { return memoryStorage(); } })();
 const UI_KEY = 'pa-v1-ui';
@@ -574,7 +575,8 @@ const render = () => {
   const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, records: recordsView, summary: summaryView }[ui.view]();
   const unread = view.inbox.filter(i => !ui.seen.has(i.id)).length;
   const off = view.concluded;
-  app.replaceChildren(h('div', { class: 'case' },
+  const [left, right] = sidePanels(view, { h, day, cap, money, programmeName, openMail: id => { ui.mailId = id; go('mail'); } });
+  app.replaceChildren(h('div', { class: 'shell' }, left, h('div', { class: 'case' },
     h('header', { class: 'bar' }, h('h1', {}, 'Per Aspera'), h('span', { class: 'date' }, view.date), h('span', { class: 'meta' }, `${ACTS[view.act]} · available ${money(view.fiscal.available)}`),
       h('label', { class: 'theme' }, h('span', { class: 'sr-only' }, 'Theme'), h('select', { 'data-key': 'theme', 'aria-label': 'Theme', onchange: e => { ui.theme = e.target.value; applyTheme(); persistUi(); render(); } },
         THEMES.map(([k, l]) => h('option', { value: k, selected: k === ui.theme }, `Theme: ${l}`)))),
@@ -590,7 +592,7 @@ const render = () => {
         button('Export save', exportFile, { key: 'save-export' }), button('Import save', () => document.getElementById('import-file').click(), { key: 'save-import' }),
         h('input', { id: 'import-file', type: 'file', accept: '.json,application/json', class: 'sr-only', 'aria-label': 'Choose a save file', onchange: importFile }),
         ui.confirmReset ? [h('span', {}, 'Start over and lose this campaign?'), button('Yes, start over', startOver, { danger: true, key: 'reset-yes' }), button('Keep playing', () => { ui.confirmReset = false; render(); }, { key: 'reset-no' })]
-          : button('New game', () => { ui.confirmReset = true; render(); setTimeout(() => document.querySelector('[data-key="reset-no"]')?.focus(), 0); }, { key: 'reset-new', danger: true }))))));
+          : button('New game', () => { ui.confirmReset = true; render(); setTimeout(() => document.querySelector('[data-key="reset-no"]')?.focus(), 0); }, { key: 'reset-new', danger: true }))))), right));
   const target = focusKey && document.querySelector(`[data-key="${CSS.escape(focusKey)}"]`);
   if (target) target.focus();
 };
