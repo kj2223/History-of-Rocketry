@@ -1,5 +1,5 @@
 // Freeze gates FRZ-01–FRZ-10 (freeze §12), proven through the façade. Each test names its gate.
-// FRZ-08 and FRZ-10 also have a UI half; it is checked here only once js/ui exists (see the notes in those tests).
+// FRZ-08 and FRZ-10 also have a UI half; it is checked here only once v1/ui exists (see the notes in those tests).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -162,7 +162,7 @@ test('FRZ-07: the Tank Case is not canon: its structure is built, its numbers ar
   assert.equal(claimStatus(s, r2, 'v2.chamber-pressure').status, 'measured-normal');
   assert.equal(claimStatus(s, r2, 'v2|wac-upper.separation').status, 'unknown');
   // Numbers: nothing in js/ names the Tank Case or its sources.
-  for (const dir of ['js/data/', 'js/rules/', 'js/ui/']) for (const [f, src] of sourceFiles(dir)) assert.doesNotMatch(src, /tank[- ]case|TANK-CASE|tank-candidate|tank-test/i, `${dir}${f}`);
+  for (const dir of ['js/data/', 'js/rules/', 'ui/']) for (const [f, src] of sourceFiles(dir)) assert.doesNotMatch(src, /tank[- ]case|TANK-CASE|tank-candidate|tank-test/i, `${dir}${f}`);
 });
 
 test('FRZ-08: projections are stable across reload and the rules never read presentation state', () => {
@@ -174,13 +174,13 @@ test('FRZ-08: projections are stable across reload and the rules never read pres
   const before = JSON.stringify(g.state);
   project(g.state); project(g.state);
   assert.equal(JSON.stringify(g.state), before, 'projecting changes nothing');
-  // UI half: js/ui may not draw randomness, read the physical layer, or reach past the façade.
-  const ui = sourceFiles('js/ui/');
+  // UI half: ui/ may not draw randomness, read the physical layer, or reach past the façade.
+  const ui = sourceFiles('ui/');
   if (!ui.length) return;
   for (const [f, src] of ui) {
-    assert.doesNotMatch(src, /Math\.random|crypto\.getRandomValues|\.rng\b|\.physical\b|physical:/, `js/ui/${f} draws randomness or reads physical truth`);
-    assert.doesNotMatch(src, /from ['"](\.\.\/)+(rules\/(?!index\.js)|data\/physical)/, `js/ui/${f} bypasses the façade`);
-    assert.doesNotMatch(src, /\bstate\.(?!day\b)\w+(\.\w+)*\s*=[^=]/, `js/ui/${f} assigns into game state`);
+    assert.doesNotMatch(src, /Math\.random|crypto\.getRandomValues|\.rng\b|\.physical\b|physical:/, `ui/${f} draws randomness or reads physical truth`);
+    assert.doesNotMatch(src, /from ['"](\.\.\/)+(rules\/(?!index\.js)|data\/physical)/, `ui/${f} bypasses the façade`);
+    assert.doesNotMatch(src, /\bstate\.(?!day\b)\w+(\.\w+)*\s*=[^=]/, `ui/${f} assigns into game state`);
   }
 });
 
@@ -219,4 +219,10 @@ test('FRZ-10: the summary is a persisted six-section projection and the continua
   // No new game state: the summary is not a score and does not alter the concluded state.
   assert.equal(g.try('decide', 'administrator', { decisionId: 'x', choice: 'approve' }).rejection.reason, 'The campaign has concluded');
   assert.ok(!('score' in p.summary) && !('grade' in p.summary));
+  // UI half: the summary screen reads the projection, never the raw continuation or its hook.
+  const ui = sourceFiles('ui/');
+  if (!ui.length) return;
+  const all = ui.map(([, src]) => src).join('\n');
+  assert.match(all, /view\.summary/, 'a summary screen reads the projected summary');
+  assert.doesNotMatch(all, /continuation|\.hook\b/, 'the UI does not touch the continuation hook');
 });
