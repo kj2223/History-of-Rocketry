@@ -9,6 +9,7 @@ import { readiness } from './belief.js';
 import { article } from './hardware.js';
 import { assessFlight, recordExposure, resolveExposure, commit } from './fiscal.js';
 import { startJob } from './work.js';
+import { money as dollars, programmeName } from './reports.js';
 
 export const initLaunches = () => [];
 
@@ -51,7 +52,7 @@ export const requestLaunch = (state, { id, articleId, pad, tracking, cost, repla
   };
   state.launches.push(launch);
   const d = openDecision(state, { type: 'launch', subject: id, raisedBy: 'flight-control', vetoable: true,
-    text: `Launch ${articleId} (${experimental ? 'experimental' : 'routine'} flight). ${money.text}`,
+    text: `Launch ${VEHICLES[a.vehicle].name} ${articleId}${programmeName(state, a.programmeId) === VEHICLES[a.vehicle].name ? '' : ` for ${programmeName(state, a.programmeId)}`} (${experimental ? 'experimental' : 'routine'} flight, costing ${dollars(cost)}). ${money.text}`,
     finance: launch.tiers['ground-executive'], technical: launch.tiers['ground-technical'], effect: { kind: 'launch', payload: { id } } });
   return { decision: d.id };
 };
@@ -85,7 +86,7 @@ export const completeFlight = (state, j) => {
     // Separate the useful evidence, the actual loss and the unaffordable replacement; charge nothing.
     const money = assessFlight(state, { cost: l.replacementCost, replacementCost: 0 });
     openDecision(state, { type: 'replacement', subject: l.id, raisedBy: 'financial-officer', evidence: j.observations,
-      text: `${l.articleId} was lost. ${obs.filter(o => o.state === 'measured').length} readings were recovered. A replacement would cost ${l.replacementCost}; ${money.affordable ? 'that is affordable' : 'that is not affordable this year'}.`,
+      text: `${VEHICLES[l.vehicle].name} ${l.articleId} was lost. ${obs.filter(o => o.state === 'measured').length} readings were recovered and are in Records. A replacement would cost ${dollars(l.replacementCost)}; ${money.affordable ? 'that is affordable' : 'that is not affordable this year'}.`,
       options: ['defer', 'fund-replacement', 'seek-supplementary'], effect: { kind: 'none' } });
   }
   return l;

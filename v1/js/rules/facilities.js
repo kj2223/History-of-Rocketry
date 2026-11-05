@@ -3,6 +3,8 @@
 
 import { FACILITY_KINDS, STARTING_UNITS } from '../data/facilities.js';
 import { Rejection, openDecision } from './authority.js';
+import { programmeName, unitName } from './reports.js';
+import { dateLabel } from '../core/calendar.js';
 
 export const initFacilities = () => ({
   units: Object.fromEntries(STARTING_UNITS.map(u => [u.id, { ...u, status: 'operational' }])),
@@ -25,7 +27,7 @@ export const reserve = (state, { id, unitId, programmeId, from, to, purpose }) =
   const others = taken.filter(r => r.programmeId !== programmeId);
   if (!others.length) throw new Rejection(`${programmeId} already holds ${unitId} for that time`);
   const d = openDecision(state, { type: 'displacement', subject: unitId, raisedBy: 'technical-director',
-    text: `${programmeId} wants ${unitId} from day ${from} to ${to}, which would displace ${others.map(r => r.programmeId).join(', ')}.`,
+    text: `${programmeName(state, programmeId)} wants the ${unitName(state, unitId)} from ${dateLabel(from)} to ${dateLabel(to)} for ${purpose}. That would displace ${others.map(r => `${programmeName(state, r.programmeId)} (${r.purpose})`).join(', ')}.`,
     evidence: others.map(r => r.id), options: ['displace', 'decline'], effect: { kind: 'displace', payload: { reservation, displaced: others[0].id } } });
   return { decision: d.id };
 };

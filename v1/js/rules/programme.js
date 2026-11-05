@@ -114,7 +114,7 @@ export const requestChange = (state, id, { kind, detail, external = false, provi
   if (!MATERIAL_CHANGES.includes(kind)) throw new Rejection(`Unknown change ${kind}`);
   if (external && !providerAgreed) throw new Rejection('This change affects an external commitment and needs the provider\'s agreement', 'provider agreement');
   return { decision: openDecision(state, { type: 'material-change', subject: id, raisedBy: 'project-manager', vetoable: true,
-    text: `Material change to ${p.name}: ${kind} — ${detail}`, finance: position([]), technical: position([]),
+    text: `Material change to ${p.name} (${kind.replace(/-/g, ' ')}): ${detail}`, finance: position([]), technical: position([]),
     effect: { kind: 'apply-change', payload: { id, kind, detail } } }).id };
 };
 
@@ -122,7 +122,7 @@ export const applyChange = (state, { id, kind, detail }) => programme(state, id)
 
 // Stop recommendations (§8.6) are discussed; the administrator may ask for one more bounded attempt.
 export const recommendStop = (state, id, by, reason) => openDecision(state, { type: 'stop', subject: id, raisedBy: by,
-  text: `${by} recommends stopping ${programme(state, id).name}: ${reason}`, options: ['stop', 'further-attempt'], effect: { kind: 'stop', payload: { id } } }).id;
+  text: `The ${by.replace(/-/g, ' ')} recommends stopping ${programme(state, id).name}: ${reason}`, options: ['stop', 'further-attempt'], effect: { kind: 'stop', payload: { id } } }).id;
 
 // Closure (§8.7). Obligations are gathered from the ledger, stock and facilities so none is forgotten.
 export const beginClosure = (state, { id }) => {

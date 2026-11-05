@@ -22,6 +22,8 @@ import { initLaunches, requestLaunch, executeLaunch, completeFlight } from './la
 import { startJob, advanceWork, pauseJob, resumeJob, cancelJob, job } from './work.js';
 import { initContinuation, conclude } from './summary.js';
 import { project as projectPublic } from './project.js';
+import { jobReport } from './reports.js';
+import { programmeName } from './reports.js';
 
 export { Rejection };
 
@@ -103,7 +105,7 @@ const COMMANDS = {
     const config = configOf(s, programmeIds[0], { [REVISIONS[revId].stage]: revId });
     const blockers = [...readiness(s, 'experimental-flight', config, revId).blockers, ...(flown ? [] : ['no authorised flight has demonstrated it'])];
     return openDecision(s, { type: 'deployment', subject: revId, raisedBy: 'administrator', vetoable: true,
-      text: `Adopt ${REVISIONS[revId].label} for ${programmeIds.join(', ')}? Articles already built keep their revisions.`,
+      text: `Adopt ${REVISIONS[revId].label} for ${programmeIds.map(id => programmeName(s, id)).join(', ')}? Articles already built keep their revisions.`,
       finance: position([]), technical: position(blockers), effect: { kind: 'adopt', payload: { revId, programmeIds } } }).id;
   } },
   'build-article': { roles: ['administrator', 'production'], delegated: TEAM, run: (s, a) => buildArticle(s, a).id },
@@ -197,7 +199,7 @@ const oneDay = s => {
   s.act = [...ACTS].reverse().find(a => s.day >= a.from).id;
   programme.arrivals(s);
   programme.lapseWindows(s);
-  for (const j of advanceWork(s)) COMPLETIONS[j.kind](s, j);
+  for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
   payDue(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
   for (const a of ANCHORS.filter(x => x.day === s.day)) {

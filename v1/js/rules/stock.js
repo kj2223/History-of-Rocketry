@@ -2,6 +2,7 @@
 // Purchase provenance is recorded but is not a restriction.
 
 import { Rejection, openDecision } from './authority.js';
+import { programmeName } from './reports.js';
 
 export const initStock = () => ({ items: {} });
 
@@ -24,7 +25,7 @@ export const reserveStock = (state, { itemId, programmeId, qty }) => {
   }
   const decision = openDecision(state, {
     type: 'stock-conflict', subject: itemId, raisedBy: 'financial-officer',
-    text: `${programmeId} needs ${qty} ${it.material}, but only ${freeQty(state, itemId)} is unreserved.`,
+    text: `${programmeName(state, programmeId)} needs ${qty} ${it.material}, but only ${freeQty(state, itemId)} is unreserved. The rest is reserved for ${Object.keys(it.reserved).map(p => programmeName(state, p)).join(', ') || 'nobody'}.`,
     options: ['reallocate', 'buy-more', 'decline'], effect: { kind: 'none' },
   });
   return { reserved: false, decision: decision.id };

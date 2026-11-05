@@ -123,8 +123,10 @@ test('AC07: reports cite configuration and evidence; reload preserves work, evid
   const g = aerobeeGame(27);
   const job = groundTest(g, 'aerobee', 'short', { channels: WALL });
   const p = project(g.state);
-  const report = p.inbox.find(m => m.kind === 'report' && /gt-/.test(m.text));
+  const report = p.inbox.find(m => m.kind === 'report' && m.refs?.job === job.id);
   assert.ok(report, 'a report reached the inbox');
+  assert.match(report.text, /Production sustainer/, 'the report names the configuration it tested');
+  assert.doesNotMatch(report.text, new RegExp(job.id), 'the report reads as plain language, not an internal id');
   const cited = p.evidence.filter(o => o.workId === job.id);
   assert.ok(cited.length > 0, 'the work cites evidence');
   assert.ok(cited.every(o => o.stages && o.vehicle), 'each observation names the configuration it measured');

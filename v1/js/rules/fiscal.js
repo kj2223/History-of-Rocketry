@@ -6,6 +6,7 @@ import { TUNING } from '../data/tuning.js';
 import { AWARD_CONDITIONS } from '../data/scenario.js';
 import { Rejection, openDecision, memo, position } from './authority.js';
 import { receive } from './stock.js';
+import { money, programmeName } from './reports.js';
 
 export const initFiscal = day => {
   const fy = fiscalQuarter(day).fy;
@@ -57,7 +58,7 @@ export const payDue = state => {
     } else if (e.status === 'open') {
       e.status = 'overdue';
       openDecision(state, { type: 'payment-shortfall', subject: e.id, raisedBy: 'financial-officer',
-        text: `A payment of ${e.amount} is due but this quarter's capacity is spent.`, options: ['seek-supplementary', 'defer'], evidence: [e.id], effect: { kind: 'none' } });
+        text: `A ${e.kind} payment of ${money(e.amount)}${e.programmeId ? ` for ${programmeName(state, e.programmeId)}` : ''} is due, but this year's spending capacity is used up.`, options: ['seek-supplementary', 'defer'], evidence: [e.id], effect: { kind: 'none' } });
     }
   }
 };
@@ -78,7 +79,7 @@ export const commit = (state, req, { approved = false } = {}) => {
   if (state.fiscal.commitments[req.id]) throw new Rejection(`Commitment ${req.id} already exists`);
   if (a.needsDecision && !approved) {
     const d = openDecision(state, { type: 'funding-commitment', subject: req.id, raisedBy: req.dept, vetoable: true,
-      text: `${req.dept} asks to commit ${a.total}${a.futureYear ? ', with payments in a future year' : ''}.`,
+      text: `${req.dept.replace(/^./, c => c.toUpperCase())} asks to commit ${money(a.total)}${req.programmeId ? ` for ${programmeName(state, req.programmeId)}` : ''}${a.futureYear ? ', with payments in a future year' : ''}.`,
       finance: position([], a.futureYear ? 'future-year exposure presented to the administrator' : 'affordable within the award'),
       technical: position([]), effect: { kind: 'commit', payload: req } });
     return { decision: d.id };
@@ -103,7 +104,7 @@ export const checkTimingConflicts = state => {
     if (due > capacity && !f.flagged.includes(key)) {
       f.flagged.push(key);
       openDecision(state, { type: 'timing-conflict', subject: key, raisedBy: 'financial-officer',
-        text: `Payments due by the end of Q${q} (${due}) exceed forecast capacity (${capacity}).`,
+        text: `Payments due by the end of quarter ${q} of fiscal ${f.fy} (${money(due)}) exceed what we expect to be able to spend by then (${money(capacity)}).`,
         evidence: f.ledger.filter(e => isOpen(e) && e.due <= quarter.end && e.commitmentId).map(e => e.id),
         options: ['reschedule', 'seek-supplementary', 'accept-risk'], effect: { kind: 'none' } });
     }
@@ -160,6 +161,6 @@ export const closeYear = state => {
     const flown = state.launches.filter(l => l.outcome === 'success' && fiscalQuarter(l.day).fy === f.fy).length;
     f.conditions.push({ fy: f.fy, text: condition.text, honoured: flown >= condition.successfulFlights });
   }
-  memo(state, { from: 'financial-officer', kind: 'report', text: `Fiscal ${f.fy} closed. Unspent ${unspent}; retained ${granted}.`, refs: { fy: f.fy } });
+  memo(state, { from: 'financial-officer', kind: 'report', text: `Fiscal ${f.fy} is closed. We had ${money(unspent)} unspent and negotiated to keep ${money(granted)} of it${continuing ? `, ${money(continuing)} of that for commitments already made` : ''}.`, refs: { fy: f.fy } });
   Object.assign(f, { fy: newFy, award: TUNING.awards[newFy] ?? f.award, released: 0, retained: granted, paidFY: 0, flagged: [] });
 };

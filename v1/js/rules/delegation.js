@@ -4,6 +4,7 @@
 import { TUNING } from '../data/tuning.js';
 import { Rejection, memo } from './authority.js';
 import { applies } from './evidence.js';
+import { programmeName } from './reports.js';
 
 export const initDelegation = () => ({ programmes: {}, appointments: [] });
 
@@ -61,7 +62,7 @@ export const checkDelegation = (state, pid) => {
   const d = state.delegation.programmes[pid] ??= { active: false, since: null, failures: [], reversed: [] };
   if (!d.active && conditions(state, pid).every(c => c.met)) {
     Object.assign(d, { active: true, since: state.day, failures: [] });
-    memo(state, { from: 'technical-director', text: `${pid} now schedules its own routine work. You will see exceptions and invitations.`, refs: { programme: pid } });
+    memo(state, { from: 'technical-director', text: `${programmeName(state, pid)} now schedules its own routine work. You will see exceptions and invitations.`, refs: { programme: pid } });
   }
   return d.active;
 };
@@ -76,6 +77,6 @@ export const recordFailure = (state, pid, { beyondRemit, text }) => {
   if (recent.length < TUNING.reversalFailures) return false;
   Object.assign(d, { active: false, since: null });
   d.reversed.push({ day: state.day, failures: recent });
-  memo(state, { from: 'technical-director', kind: 'warning', text: `Delegation of ${pid} withdrawn after ${recent.length} failures beyond remit.`, refs: { programme: pid } });
+  memo(state, { from: 'technical-director', kind: 'warning', text: `${programmeName(state, pid)} no longer schedules its own routine work: delegation was withdrawn after ${recent.length} failures beyond remit.`, refs: { programme: pid } });
   return true;
 };

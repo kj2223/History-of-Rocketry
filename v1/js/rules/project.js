@@ -18,7 +18,7 @@ export const project = s => {
     day: s.day, date: dateLabel(s.day), act: s.act, concluded: s.concluded,
     inbox: [
       ...s.decisions.filter(d => d.status === 'open').map(d => ({ kind: 'decision', id: d.id, day: d.day, from: d.raisedBy, text: d.text, options: d.options, positions: d.positions })),
-      ...s.memos.map(m => ({ kind: m.kind, id: m.id, day: m.day, from: m.from, text: m.text })),
+      ...s.memos.map(m => ({ kind: m.kind, id: m.id, day: m.day, from: m.from, text: m.text, refs: copy(m.refs ?? {}) })),
     ].sort((a, b) => b.day - a.day),
     programmes: Object.values(s.programmes).map(p => ({
       id: p.id, name: p.name, stage: p.stage, source: p.source, client: p.client, vehicle: p.vehicle, baseline: p.baseline, window: p.window,
@@ -33,7 +33,7 @@ export const project = s => {
     })),
     evidence: copy(s.evidence.observations),
     decisions: copy(s.decisions),
-    workload: s.work.map(j => ({ id: j.id, kind: j.kind, programmeId: j.programmeId, status: j.status, cursor: j.cursor, total: j.total, result: j.result, assessment: j.assessment, observations: j.observations.length })),
+    workload: s.work.map(j => ({ id: j.id, kind: j.kind, programmeId: j.programmeId, started: j.started, subject: j.payload?.unitId ?? j.payload?.articleId ?? (j.plan?.stage ? STAGES[j.plan.stage].name : j.plan ? 'the vehicle' : null), status: j.status, cursor: j.cursor, total: j.total, result: j.result, assessment: j.assessment, observations: j.observations.length })),
     calendar: copy(s.facilities.reservations),
     facilities: copy(Object.values(s.facilities.units)),
     facilityKinds: Object.entries(FACILITY_KINDS).map(([id, k]) => ({ id, name: k.name, exclusive: k.exclusive })),

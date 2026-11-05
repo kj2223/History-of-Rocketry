@@ -122,6 +122,12 @@ const stance = p => !p ? null : h('div', { class: 'position' },
   h('span', { class: `stamp ${p.stance === 'veto' ? 'veto' : 'approve'}` }, p.stance === 'veto' ? 'Veto' : cap(p.stance)), ' ', p.reason);
 
 // ---- mail ----
+// A report that cites a test links to its readings in Records.
+const readingsLink = jobId => {
+  const j = jobId && view.workload.find(x => x.id === jobId);
+  return j && j.observations > 0 ? button('See the readings in Records', () => { ui.openJob = jobId; go('records'); document.querySelector(`[data-key="rec-${jobId}"]`)?.scrollIntoView(); }, { key: `readings-${jobId}` }) : null;
+};
+const jobLabel = j => `${cap(j.kind)}${j.subject ? ` of ${j.subject}` : ''}${j.programmeId ? `, ${programmeName(j.programmeId)}` : ''}, started ${day(j.started)}`;
 const mailView = () => {
   const items = view.inbox;
   const current = items.find(i => i.id === ui.mailId) ?? items[0] ?? null;
@@ -133,6 +139,7 @@ const mailView = () => {
   const pane = !current ? h('p', { class: 'muted' }, 'Nothing in the inbox. Advance the calendar to receive mail.') : h('article', { class: 'letter', 'aria-label': 'Selected message' },
     h('div', { class: 'head' }, `From: ${cap(current.from)} · ${day(current.day)} · ${cap(current.kind)}`),
     h('p', {}, current.text),
+    readingsLink(current.refs?.job),
     current.kind === 'decision' && [
       current.positions && h('div', { class: 'positions' },
         h('div', {}, h('h4', {}, 'Financial officer'), stance(current.positions.finance)),
@@ -318,7 +325,7 @@ const workControls = j => {
   if (j.status === 'running' && TESTS.includes(j.kind)) return h('span', { class: 'muted' }, 'A test runs to completion');
   if (j.status === 'running') return formBox(`pause-${j.id}`, 'Pause', [
     { name: 'preserve', label: `Fund preservation while paused (${money(view.preservationCostPerDay)} a day, billed on resuming)`, type: 'checkbox', value: true }],
-  'Technical director pauses', v => act('pause-work', 'technical-director', { jobId: j.id, preserve: v.preserve }, `${j.id} paused. The team's assessment is shown with it.`));
+  'Technical director pauses', v => act('pause-work', 'technical-director', { jobId: j.id, preserve: v.preserve }, 'Paused. The team\'s assessment is shown with it.'));
   if (j.status === 'paused') {
     const a = j.assessment;
     return h('div', {}, h('ul', {},
@@ -326,7 +333,7 @@ const workControls = j => {
       h('li', {}, `Materials ${a.materials}; records ${a.records}`),
       h('li', {}, a.reworkDays ? `${a.reworkDays} days of rework before it can continue` : 'No rework needed'),
       h('li', {}, a.preserve ? `Preservation so far: ${money((view.day - a.paused) * a.preservationCostPerDay)}` : 'Not preserved')),
-    button('Resume', () => act('resume-work', 'technical-director', { jobId: j.id }, `${j.id} resumed.`), { key: `resume-${j.id}`, primary: true }));
+    button('Resume', () => act('resume-work', 'technical-director', { jobId: j.id }, 'Resumed.'), { key: `resume-${j.id}`, primary: true }));
   }
   return null;
 };
@@ -341,9 +348,9 @@ const flightsView = () => {
         h('tbody', {}, articles.map(a => h('tr', {}, h('td', {}, a.id), h('td', {}, cap(a.vehicle)), h('td', {}, Object.values(a.stages).map(words).join(', ')), h('td', {}, cap(a.status)),
           h('td', {}, a.status === 'built' && launchForm(a)))))) : h('p', { class: 'muted' }, 'Nothing built yet.')),
     h('section', { class: 'card' }, h('h3', {}, 'Work under way and finished'),
-      view.workload.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Job', 'Kind', 'Status', 'Progress', 'Readings', ''].map(t => h('th', {}, t)))),
-        h('tbody', {}, view.workload.slice().reverse().map(j => h('tr', {}, h('td', {}, j.id), h('td', {}, cap(j.kind)), h('td', {}, j.result ? `${cap(j.status)} (${j.result})` : cap(j.status)),
-          h('td', {}, h('progress', { max: j.total || 1, value: j.cursor, 'aria-label': `${j.id} progress` }), ` ${j.cursor}/${j.total}`), h('td', { class: 'num' }, j.observations), h('td', {}, workControls(j)))))) : h('p', { class: 'muted' }, 'No work yet.')),
+      view.workload.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Work', 'Status', 'Progress', 'Readings', ''].map(t => h('th', {}, t)))),
+        h('tbody', {}, view.workload.slice().reverse().map(j => h('tr', {}, h('td', {}, jobLabel(j)), h('td', {}, j.result ? `${cap(j.status)} (${j.result})` : cap(j.status)),
+          h('td', {}, h('progress', { max: j.total || 1, value: j.cursor, 'aria-label': `${jobLabel(j)} progress` }), ` ${j.cursor}/${j.total}`), h('td', { class: 'num' }, j.observations), h('td', {}, workControls(j)))))) : h('p', { class: 'muted' }, 'No work yet.')),
     h('section', { class: 'card' }, h('h3', {}, 'Launch record'),
       view.launches.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Launch', 'Article', 'Kind', 'Status', 'Outcome'].map(t => h('th', {}, t)))),
         h('tbody', {}, view.launches.map(l => h('tr', {}, h('td', {}, l.id), h('td', {}, l.articleId), h('td', {}, l.experimental ? 'Experimental' : 'Routine'), h('td', {}, cap(l.status)),
@@ -520,7 +527,7 @@ const recordsView = () => {
         : h('p', { class: 'muted' }, 'No decisions taken yet. Open ones wait in Mail.')),
     h('section', { class: 'card' }, h('h3', {}, 'Readings by test'),
       h('p', { class: 'muted' }, 'Every reading as recorded. Nothing here is new evidence; consulting a record does not repeat a test.'),
-      jobs.length ? jobs.map(j => h('details', {}, h('summary', {}, `${j.id}: ${words(j.kind)}${j.programmeId ? `, ${programmeName(j.programmeId)}` : ''}, ${j.observations} readings${j.result ? `, ${j.result}` : ''}`),
+      jobs.length ? jobs.map(j => h('details', { open: ui.openJob === j.id, ontoggle: e => { if (!e.target.open && ui.openJob === j.id) ui.openJob = null; } }, h('summary', { 'data-key': `rec-${j.id}` }, `${jobLabel(j)}: ${j.observations} reading${j.observations === 1 ? '' : 's'}${j.result ? `, ${j.result}` : ''}`),
         h('table', {}, h('thead', {}, h('tr', {}, ['Day', 'Quantity', 'Configuration', 'Conditions', 'Reading', 'Value'].map(t => h('th', {}, t)))),
           h('tbody', {}, view.evidence.filter(o => o.workId === j.id).map(o => h('tr', {}, h('td', {}, day(o.day)), h('td', {}, names.get(o.quantity) ?? words(o.quantity)),
             h('td', {}, Object.values(o.stages).map(words).join(', ')), h('td', {}, Object.entries(o.conditions).map(([k, v]) => `${k} ${v}`).join(', ')),

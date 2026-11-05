@@ -28,12 +28,12 @@ export const startJob = (state, { id, kind, programmeId = null, plan = null, day
   state.work.push(j);
   const running = state.work.filter(x => x.status === 'running' && x.programmeId && x.programmeId === programmeId).length;
   if (programmeId && running > TUNING.workloadWarningJobs) {
-    memo(state, { from: 'project-manager', kind: 'warning', text: `${programmeId} has ${running} jobs running; escalating workload to the technical director.`, refs: { programme: programmeId } });
+    memo(state, { from: 'project-manager', kind: 'warning', text: `${state.programmes[programmeId]?.name ?? programmeId} has ${running} jobs running; escalating workload to the technical director.`, refs: { programme: programmeId } });
   }
   return j;
 };
 
-// Advance every running job one day. Returns the jobs that finished today.
+// Advance every running job one day. Returns the jobs that finished today; the facade reports them once their completion is applied.
 export const advanceWork = state => {
   const finished = [];
   for (const j of state.work.filter(x => x.status === 'running')) {
@@ -51,7 +51,6 @@ export const advanceWork = state => {
       j.result = j.changedBelief || snapshot(state, j.plan).some((s, i) => s !== j.before[i]) ? 'informative' : 'inconclusive';
     }
     j.reservations.forEach(r => setReservation(state, r, 'released'));
-    memo(state, { from: 'project-manager', kind: 'report', text: `${j.kind} ${j.id} finished${j.result ? ` (${j.result})` : ''}.`, refs: { job: j.id } });
     finished.push(j);
   }
   return finished;
