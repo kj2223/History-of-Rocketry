@@ -480,6 +480,8 @@ test('exports and imports a validated save without losing game state', async () 
   assert.equal(S.b, 123456);
   assert.equal(S.day, 789);
   assert.equal(importSave('{"cv":2}'), false);
+  for (const bad of ['{"cv":4}', '{"cv":"3"}', '{"cv":3.5}', '{"cv":true}', '{}'])
+    assert.equal(importSave(bad), false, bad + ' is not an allowed content version');
   assert.equal(S.b, 123456, 'invalid transfer does not replace the current state');
   delete globalThis.localStorage;
 });
