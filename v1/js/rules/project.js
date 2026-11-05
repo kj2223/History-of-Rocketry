@@ -20,6 +20,9 @@ export const project = s => {
     inbox: [
       ...s.decisions.filter(d => d.status === 'open').map(d => ({ kind: 'decision', id: d.id, day: d.day, from: d.raisedBy, text: d.text, options: d.options, positions: d.positions, evidence: d.evidence })),
       ...(s.staff?.proposals ?? []).filter(x => x.status === 'open').map(x => ({ kind: 'proposal', id: x.id, day: x.day, from: x.from, text: x.text, options: ['go-ahead', 'not-now'], refs: { programme: x.programmeId } })),
+      ...s.launches.filter(l => l.invitation === 'open').map(l => ({ kind: 'invitation', id: `invite-${l.id}`, day: l.launchDay, from: 'flight-control',
+        text: `${VEHICLES[l.vehicle].name} ${l.articleId} is on the pad and the count has started. You are welcome in the blockhouse to watch the launch, or you can send your apologies and read the report afterwards.`,
+        refs: { launch: l.id } })),
       ...s.memos.map(m => ({ kind: m.kind, id: m.id, day: m.day, from: m.from, text: m.text, refs: copy(m.refs ?? {}) })),
     ].sort((a, b) => b.day - a.day),
     programmes: Object.values(s.programmes).map(p => ({
@@ -38,7 +41,7 @@ export const project = s => {
     workload: s.work.map(j => ({ id: j.id, kind: j.kind, programmeId: j.programmeId, started: j.started, subject: j.payload?.unitId ?? j.payload?.articleId ?? (j.plan?.stage ? STAGES[j.plan.stage].name : j.plan ? 'the vehicle' : null), status: j.status, cursor: j.cursor, total: j.total, result: j.result, assessment: j.assessment, observations: j.observations.length })),
     calendar: copy(s.facilities.reservations),
     facilities: copy(Object.values(s.facilities.units)),
-    facilityKinds: Object.entries(FACILITY_KINDS).map(([id, k]) => ({ id, name: k.name, exclusive: k.exclusive })),
+    facilityKinds: Object.entries(FACILITY_KINDS).map(([id, k]) => ({ id, name: k.name, exclusive: k.exclusive, buildCost: TUNING.facilityBuildCost[id], upgradeCost: TUNING.facilityBuildCost[id] * TUNING.facilityUpgradeShare })),
     vehicles: Object.entries(VEHICLES).map(([id, v]) => ({ id, name: v.name })),
     appointments: copy(s.delegation.appointments),
     findings: copy(s.production.findings),
@@ -50,6 +53,7 @@ export const project = s => {
     revisionCatalogue: Object.entries(REVISIONS).filter(([, r]) => r.parent && STAGES[r.stage].developable).map(([id, r]) => ({ id, label: r.label, stage: r.stage, stageName: STAGES[r.stage].name, affects: r.affects })),
     hardware: copy({ revisions: s.hardware.revisions, articles: s.hardware.articles, batches: s.hardware.batches }),
     launches: copy(s.launches),
+    quantities: Object.fromEntries(Object.entries(QUANTITIES).map(([q, x]) => [q, { name: x.name, unit: x.unit }])),
     summary: s.continuation.summary && copy(s.continuation.summary),
   };
 };

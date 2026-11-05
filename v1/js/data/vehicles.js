@@ -9,12 +9,15 @@ export const STAGES = {
   // Captured hardware: not redesigned, but it can be refurbished to a corrected standard.
   'v2': { name: 'V-2 first stage', developable: true },
   'wac-upper': { name: 'WAC Corporal upper stage', developable: true },
+  // Contractor-built airframe around a motor our own team develops; gimballed for steering.
+  viking: { name: 'Viking motor and airframe', developable: true },
 };
 
 export const VEHICLES = {
   wac: { name: 'WAC Corporal', stages: ['tiny-tim', 'wac-upper'], crewed: false },
   aerobee: { name: 'Aerobee', stages: ['aerobee-booster', 'aerobee-sustainer'], crewed: false },
   bumper: { name: 'Bumper', stages: ['v2', 'wac-upper'], crewed: false },
+  viking: { name: 'Viking', stages: ['viking'], crewed: false },
 };
 
 // Normal limits teams judge readings against: [low, high].
@@ -23,6 +26,7 @@ export const QUANTITIES = {
   'aerobee-sustainer.chamber-pressure': { name: 'Sustainer chamber pressure', unit: 'bar', normal: [17, 23] },
   'wac-upper.chamber-pressure': { name: 'Upper stage chamber pressure', unit: 'bar', normal: [17, 23] },
   'v2.chamber-pressure': { name: 'V-2 chamber pressure', unit: 'bar', normal: [13, 18] },
+  'viking.chamber-pressure': { name: 'Viking motor chamber pressure', unit: 'bar', normal: [18, 24] },
   'v2|wac-upper.separation': { name: 'Stage separation timing error', unit: 's', normal: [0, 0.5] },
   'vehicle.apogee': { name: 'Apogee', unit: 'km', normal: [60, Infinity] },
   'vehicle.deviation': { name: 'Trajectory deviation', unit: 'deg', normal: [0, 5] },
@@ -33,6 +37,7 @@ export const VEHICLE_QUANTITIES = {
   wac: ['wac-upper.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   aerobee: ['aerobee-sustainer.wall-temp', 'aerobee-sustainer.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   bumper: ['v2.chamber-pressure', 'wac-upper.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee', 'vehicle.deviation'],
+  viking: ['viking.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
 };
 
 // Flight channels: tracking always sees the integrated trajectory; telemetry depends on the revisions flown.
@@ -70,12 +75,19 @@ export const REVISIONS = {
     affects: ['v2.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
     remedies: ['turbopump-wear'], telemetry: ['v2.chamber-pressure'],
   },
+  'viking/r1': { stage: 'viking', parent: null, label: 'First Viking airframes and motor', affects: [], telemetry: ['viking.chamber-pressure'] },
+  'viking/r2': {
+    stage: 'viking', parent: 'viking/r1', label: 'Redesigned Viking steam generator and turbine feed',
+    affects: ['viking.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
+    remedies: ['viking-steam-generator'], telemetry: ['viking.chamber-pressure'],
+  },
 };
 
 export const BASELINE = {
   wac: { 'tiny-tim': 'tiny-tim/r1', 'wac-upper': 'wac-upper/r1' },
   aerobee: { 'aerobee-booster': 'aerobee-booster/r1', 'aerobee-sustainer': 'aerobee-sustainer/r1' },
   bumper: { 'v2': 'v2/r1', 'wac-upper': 'wac-upper/r1' },
+  viking: { viking: 'viking/r1' },
 };
 
 // A revision and its ancestors, newest first.

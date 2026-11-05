@@ -33,6 +33,17 @@ export const HYPOTHESES = {
     name: 'Worn V-2 turbopump',
     predicts: [{ quantity: 'v2.chamber-pressure', when: { burn: 'short' }, normal: false }],
   },
+  'viking-steam-generator': {
+    name: 'Viking steam generator failing late in the burn',
+    predicts: [
+      { quantity: 'viking.chamber-pressure', when: { burn: 'long' }, normal: false },
+      { quantity: 'viking.chamber-pressure', when: { burn: 'short' }, normal: true },
+    ],
+  },
+  'viking-gimbal-fault': {
+    name: 'Viking gimbal or control fault',
+    predicts: [{ quantity: 'viking.chamber-pressure', when: {}, normal: true }],
+  },
   'steering-vane-erosion': {
     name: 'Eroded V-2 steering vanes',
     predicts: [{ quantity: 'v2.chamber-pressure', when: {}, normal: true }],
@@ -44,6 +55,7 @@ export const ANOMALIES = {
   'sustainer-overtemp': { name: 'Sustainer runs hot', stage: 'aerobee-sustainer', trigger: 'aerobee-sustainer.wall-temp', hypotheses: ['liner-debond', 'injector-blockage'] },
   // A flight lost off course, or an abnormal stand reading, opens an investigation of the stage.
   'upper-stage-loss': { name: 'Upper-stage start or flight fault', stage: 'wac-upper', vehicles: ['wac', 'bumper'], trigger: ['vehicle.deviation', 'wac-upper.chamber-pressure'], hypotheses: ['igniter-hangfire', 'feed-starvation'] },
+  'viking-loss': { name: 'Viking motor or control fault', stage: 'viking', vehicles: ['viking'], trigger: ['vehicle.deviation', 'viking.chamber-pressure'], hypotheses: ['viking-steam-generator', 'viking-gimbal-fault'] },
   'v2-loss': { name: 'V-2 start or flight fault', stage: 'v2', vehicles: ['bumper'], trigger: ['vehicle.deviation', 'v2.chamber-pressure'], hypotheses: ['turbopump-wear', 'steering-vane-erosion'] },
 };
 
@@ -55,6 +67,8 @@ export const CANDIDATE_TESTS = [
   { kind: 'ground', stage: 'wac-upper', conditions: { burn: 'short' }, channels: ['wac-upper.chamber-pressure'] },
   { kind: 'ground', stage: 'wac-upper', conditions: { burn: 'long' }, channels: ['wac-upper.chamber-pressure'] },
   { kind: 'ground', stage: 'v2', conditions: { burn: 'short' }, channels: ['v2.chamber-pressure'] },
+  { kind: 'ground', stage: 'viking', conditions: { burn: 'short' }, channels: ['viking.chamber-pressure'] },
+  { kind: 'ground', stage: 'viking', conditions: { burn: 'long' }, channels: ['viking.chamber-pressure'] },
   { kind: 'ground', stage: 'v2', conditions: { burn: 'long' }, channels: ['v2.chamber-pressure'] },
 ];
 

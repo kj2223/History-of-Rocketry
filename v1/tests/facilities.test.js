@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FACILITY_KINDS } from '../js/data/facilities.js';
+import { TUNING } from '../js/data/tuning.js';
 import { game } from './game.js';
 
 const res = (g, id, unitId, programmeId, from, to) =>
@@ -64,4 +65,40 @@ test('§6.3: paused work is assessed; preservation is funded, declining it adds 
   g.cmd('resume-work', 'administrator', { jobId: 'job-b' });
   assert.equal(g.state.fiscal.ledger.length, ledger + 1, 'no preservation bill when declined');
   assert.equal(g.state.work.find(j => j.id === 'job-b').total, 30 + drop.reworkDays);
+});
+
+test('§6.4, §7.2: facility work is paid for, a deposit at the start and the balance on completion', () => {
+  const g = game();
+  const owed = () => g.state.fiscal.ledger.filter(e => e.kind === 'facility');
+  g.cmd('add-facility', 'administrator', { jobId: 'b', id: 'stand-2', kind: 'static-stand' });
+  const build = owed();
+  assert.equal(build.reduce((a, e) => a + e.amount, 0), TUNING.facilityBuildCost['static-stand']);
+  assert.deepEqual(build.map(e => e.due), [g.state.day, g.state.day + TUNING.jobDays.commissioning]);
+  g.finish('b');
+  assert.ok(build.every(e => g.state.fiscal.ledger.find(x => x.id === e.id).status === 'paid'));
+  g.cmd('begin-upgrade', 'technical-director', { jobId: 'u', unitId: 'integration-1', capacityAfter: 4 });
+  assert.equal(owed().length, 4);
+  assert.equal(owed().slice(2).reduce((a, e) => a + e.amount, 0), TUNING.facilityBuildCost['integration-space'] * TUNING.facilityUpgradeShare * 2);
+});
+
+test('§3.1, §7.2: a consequential facility commitment waits for a decision before work starts', () => {
+  const g = game();
+  const out = g.cmd('add-facility', 'administrator', { jobId: 'big', id: 'pad-2', kind: 'range', capacity: 3 });
+  assert.ok(out.decision);
+  assert.equal(g.state.facilities.units['pad-2'], undefined, 'nothing is built before approval');
+  assert.equal(g.state.work.some(j => j.id === 'big'), false);
+  g.approve(out.decision);
+  assert.equal(g.state.facilities.units['pad-2'].status, 'commissioning');
+  assert.equal(g.state.fiscal.commitments['facility-big'].total, TUNING.facilityBuildCost.range * 3);
+});
+
+test('§7.7: cancelling facility work stops the balance; an upgrade returns the unit to service as it was', () => {
+  const g = game();
+  g.cmd('begin-upgrade', 'technical-director', { jobId: 'u', unitId: 'stand-1', capacityAfter: 1 });
+  g.days(3);
+  const r = g.cmd('cancel-commitment', 'administrator', { commitmentId: 'facility-u' });
+  assert.equal(r.stopped, 1);
+  assert.equal(r.paid, TUNING.facilityBuildCost['static-stand'] * TUNING.facilityUpgradeShare * TUNING.facilityDepositShare);
+  assert.equal(g.state.facilities.units['stand-1'].status, 'operational');
+  assert.equal(g.state.work.find(j => j.id === 'u').status, 'cancelled');
 });

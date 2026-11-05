@@ -2,6 +2,7 @@
 // reservations never overlap; displacing another programme escalates to the administrator.
 
 import { FACILITY_KINDS, STARTING_UNITS } from '../data/facilities.js';
+import { TUNING } from '../data/tuning.js';
 import { Rejection, openDecision } from './authority.js';
 import { programmeName, unitName } from './reports.js';
 import { dateLabel } from '../core/calendar.js';
@@ -40,14 +41,31 @@ export const displace = (state, { reservation, displaced }) => {
 // Work starting on a reservation consumes it; finishing releases it.
 export const setReservation = (state, id, status) => { state.facilities.reservations.find(r => r.id === id).status = status; };
 
+// What facility work costs (tuning, §13): building is priced per unit of capacity; an upgrade per capacity step.
+export const buildCost = (kind, capacity = 1) => TUNING.facilityBuildCost[kind] * capacity;
+export const upgradeCost = (state, unitId, capacityAfter) => {
+  const u = unit(state, unitId);
+  return Math.round(TUNING.facilityBuildCost[u.kind] * TUNING.facilityUpgradeShare * Math.max(1, capacityAfter - u.capacity));
+};
+
 // An upgrade takes the unit out of service until done; its benefit only arrives at completion.
-export const beginUpgrade = (state, unitId, capacityAfter) => {
+export const checkUpgrade = (state, unitId) => {
   const u = unit(state, unitId);
   if (u.status !== 'operational') throw new Rejection(`${unitId} is ${u.status}`);
   if (state.facilities.reservations.some(r => r.unitId === unitId && r.status === 'held' && r.to >= state.day)) {
     throw new Rejection(`${unitId} has reservations still held; release or move them first`);
   }
-  Object.assign(u, { status: 'upgrading', capacityAfter });
+};
+
+export const beginUpgrade = (state, unitId, capacityAfter) => {
+  checkUpgrade(state, unitId);
+  Object.assign(unit(state, unitId), { status: 'upgrading', capacityAfter });
+};
+
+// Cancelled facility work: an upgrade returns the unit to service as it was; an unfinished build is abandoned.
+export const abandonFacilityWork = (state, kind, unitId) => {
+  const u = unit(state, unitId);
+  if (kind === 'upgrade') { u.status = 'operational'; delete u.capacityAfter; } else u.status = 'abandoned';
 };
 
 export const finishUpgrade = (state, unitId) => {
@@ -57,8 +75,13 @@ export const finishUpgrade = (state, unitId) => {
 };
 
 // A new facility must be commissioned before it can be reserved.
-export const addUnit = (state, { id, kind, capacity = 1 }) => {
+export const checkUnit = (state, { id, kind }) => {
   if (!FACILITY_KINDS[kind]) throw new Rejection(`Unknown facility kind ${kind}`);
+  if (state.facilities.units[id]) throw new Rejection(`A facility ${id} already exists`);
+};
+
+export const addUnit = (state, { id, kind, capacity = 1 }) => {
+  checkUnit(state, { id, kind });
   state.facilities.units[id] = { id, kind, capacity, status: 'commissioning' };
 };
 

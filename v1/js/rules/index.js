@@ -13,17 +13,18 @@ import { initEvidence } from './evidence.js';
 import { initBeliefs, readiness } from './belief.js';
 import { initHardware, proposeRevision, defineRevision, approveTrial, adopt, buildArticle } from './hardware.js';
 import { initProduction, recordFinding, holdBatch, releaseBatch, storeArticle, completeReuse, completeRecycle } from './production.js';
-import { initFacilities, reserve, displace, beginUpgrade, finishUpgrade, addUnit, commissioned } from './facilities.js';
-import { initFiscal, startQuarter, payDue, closeYear, commit, cancelCommitment, supplementary } from './fiscal.js';
+import { initFacilities, reserve, displace, beginUpgrade, finishUpgrade, addUnit, commissioned, checkUpgrade, checkUnit, buildCost, upgradeCost, abandonFacilityWork } from './facilities.js';
+import { initFiscal, startQuarter, payDue, closeYear, commit, cancelCommitment, supplementary, assessCommitment } from './fiscal.js';
 import { initStock, reserveStock, consumeStock } from './stock.js';
 import * as programme from './programme.js';
 import { initDelegation, appoint, checkDelegation, isDelegated, recordFailure } from './delegation.js';
-import { initLaunches, requestLaunch, executeLaunch, completeFlight } from './launch.js';
+import { initLaunches, requestLaunch, executeLaunch, completeFlight, answerInvitation } from './launch.js';
 import { startJob, advanceWork, pauseJob, resumeJob, cancelJob, job } from './work.js';
 import { initContinuation, conclude } from './summary.js';
 import { project as projectPublic } from './project.js';
 import { jobReport } from './reports.js';
-import { programmeName } from './reports.js';
+import { programmeName, money, unitName } from './reports.js';
+import { initAssurance, assuranceDay, challengeRiskAcceptance, answerChallenge } from './assurance.js';
 import { initStaff, staffDay, approveProposal, declineProposal, quarterReport, openingBriefing } from './staff.js';
 
 export { Rejection };
@@ -34,7 +35,7 @@ export const newGame = (seed = 19451958) => {
     physical: initPhysical(), evidence: initEvidence(), beliefs: initBeliefs(),
     hardware: initHardware(), production: initProduction(), facilities: initFacilities(),
     fiscal: initFiscal(0), stock: initStock(), programmes: programme.initProgrammes(), delegation: initDelegation(),
-    ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(),
+    ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(), assurance: initAssurance(),
   };
   startQuarter(state);
   programme.arrivals(state);
@@ -63,6 +64,33 @@ const EFFECTS = {
   'approve-trial': (s, { revId }) => approveTrial(s, revId),
   'accept-risk': (s, { observations }) => { (s.beliefs.assessed ??= []).push(...observations); },
   adopt: (s, { revId, programmeIds }) => adopt(s, revId, programmeIds),
+  'facility-work': startFacilityWork,
+};
+
+// Facility work is paid for (freeze §6.4, §7.2): a deposit when it starts and the balance due at completion.
+// A consequential or future-year commitment goes to a joint decision first, and the work starts only on approval.
+const FACILITY_START = {
+  upgrade: (s, { unitId, capacityAfter }) => beginUpgrade(s, unitId, capacityAfter),
+  commissioning: (s, unit) => addUnit(s, unit),
+};
+function startFacilityWork(s, { jobId, kind, unit, req }) {
+  FACILITY_START[kind](s, unit);
+  commit(s, req, { approved: true });
+  return startJob(s, { id: jobId, kind, days: TUNING.jobDays[kind], payload: { unitId: unit.unitId ?? unit.id } }).id;
+}
+const facilityWork = (s, { jobId, kind, unit, cost, what }) => {
+  const deposit = Math.round(cost * TUNING.facilityDepositShare);
+  const req = { id: `facility-${jobId}`, dept: 'technical', kind: 'facility', workId: jobId,
+    payments: [{ amount: deposit, due: s.day }, { amount: cost - deposit, due: s.day + TUNING.jobDays[kind] }] };
+  const a = assessCommitment(s, req);
+  if (a.blockers.length) throw new Rejection(`Finance cannot commit: ${a.blockers.join('; ')}`);
+  const work = { jobId, kind, unit, req };
+  if (!a.needsDecision) return startFacilityWork(s, work);
+  const d = openDecision(s, { type: 'funding-commitment', subject: req.id, raisedBy: 'technical-director', vetoable: true,
+    text: `The technical director asks to commit ${money(cost)} to ${what}${a.futureYear ? ', with the balance due in a future year' : ''}.`,
+    finance: position([], a.futureYear ? 'future-year exposure presented to the administrator' : 'affordable within the award'),
+    technical: position([]), effect: { kind: 'facility-work', payload: work } });
+  return { decision: d.id };
 };
 
 const financeOnCost = (s, cost) => (cost > s.fiscal.award && !s.fiscal.multiYearAuthority ? ['cost exceeds the annual award'] : []);
@@ -73,6 +101,8 @@ const COMMANDS = {
   decide: { roles: ['administrator'], run: (s, { decisionId, choice, consequence }, actor) => {
     const d = decide(s, decisionId, choice, actor, consequence);
     if (d.choice === d.options[0] && d.effect) EFFECTS[d.effect.kind](s, d.effect.payload);
+    if (d.type === 'failure-review' && d.choice === 'accept-known-risk') challengeRiskAcceptance(s, d, d.effect.payload.observations);
+    if (d.type === 'assurance-challenge') answerChallenge(s, d);
     return d.id;
   } },
   'create-programme': { roles: ['administrator', 'department-head'], run: (s, p, actor) =>
@@ -132,6 +162,7 @@ const COMMANDS = {
     return startJob(s, { id: jobId, kind: 'ground-test', programmeId, reservations: [reservation], plan: { kind: 'ground', ...config, stage, conditions, channels } }).id;
   } },
   'request-launch': { roles: ['administrator', 'project-manager'], delegated: ['department-head'], run: (s, l) => requestLaunch(s, l) },
+  'answer-invitation': { roles: ['administrator'], run: (s, a) => answerInvitation(s, a) },
   'pause-work': { roles: ['administrator', 'technical-director'], run: (s, { jobId, preserve }) => pauseJob(s, jobId, { preserve }) },
   'resume-work': { roles: ['administrator', 'technical-director'], run: (s, { jobId }) => {
     const r = resumeJob(s, jobId);
@@ -139,19 +170,23 @@ const COMMANDS = {
     return r;
   } },
   'begin-upgrade': { roles: ['administrator', 'technical-director'], run: (s, { jobId, unitId, capacityAfter }) => {
-    beginUpgrade(s, unitId, capacityAfter);
-    return startJob(s, { id: jobId, kind: 'upgrade', days: TUNING.jobDays.upgrade, payload: { unitId } }).id;
+    checkUpgrade(s, unitId);
+    return facilityWork(s, { jobId, kind: 'upgrade', unit: { unitId, capacityAfter }, cost: upgradeCost(s, unitId, capacityAfter), what: `upgrading ${unitName(s, unitId)}` });
   } },
   'add-facility': { roles: ['administrator'], run: (s, { jobId, ...u }) => {
-    addUnit(s, u);
-    return startJob(s, { id: jobId, kind: 'commissioning', days: TUNING.jobDays.commissioning, payload: { unitId: u.id } }).id;
+    checkUnit(s, u);
+    return facilityWork(s, { jobId, kind: 'commissioning', unit: u, cost: buildCost(u.kind, u.capacity), what: `building ${u.id}` });
   } },
 
   'commit-funds': { roles: ['administrator', 'financial-officer', 'department-head'], run: (s, req) => commit(s, req) },
   'cancel-commitment': { roles: ['administrator', 'financial-officer'], run: (s, { commitmentId }) => {
     const c = s.fiscal.commitments[commitmentId];
     const r = cancelCommitment(s, commitmentId);
-    if (c.workId) cancelJob(s, c.workId);
+    if (c.workId) {
+      const j = s.work.find(x => x.id === c.workId);
+      if (j && FACILITY_START[j.kind] && j.status !== 'done') abandonFacilityWork(s, j.kind, j.payload.unitId);
+      cancelJob(s, c.workId);
+    }
     return r;
   } },
   'reserve-stock': { roles: ['administrator', 'department-head', 'production'], run: (s, r) => reserveStock(s, r) },
@@ -216,10 +251,12 @@ const oneDay = s => {
   if (q.start === s.day) { if (q.fy !== s.fiscal.fy) closeYear(s); startQuarter(s); quarterReport(s); }
   s.act = [...ACTS].reverse().find(a => s.day >= a.from).id;
   programme.arrivals(s);
+  programme.designsReady(s);
   programme.lapseWindows(s);
   for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
   payDue(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
+  assuranceDay(s);
   if (!s.concluded) staffDay(s, staffCommand);
   for (const a of ANCHORS.filter(x => x.day === s.day)) {
     memo(s, { from: 'administrator-office', text: a.text, refs: { anchor: a.id } });

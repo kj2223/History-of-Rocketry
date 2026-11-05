@@ -67,8 +67,15 @@ export const executeLaunch = (state, { id }) => {
   const telemetry = [...new Set(Object.values(l.stages).flatMap(r => REVISIONS[r].telemetry))];
   const j = startJob(state, { id: `flight-${id}`, kind: 'flight', programmeId: l.programmeId, reservations: l.reservations,
     plan: { kind: 'flight', vehicle: l.vehicle, stages: l.stages, conditions: { ...FLIGHT_CONDITIONS }, channels: [...TRACKING_CHANNELS, ...telemetry] } });
-  Object.assign(l, { status: 'in-flight', jobId: j.id });
+  // Flight Control invites the administrator to the blockhouse (freeze §8.3, §10.3). Watching changes nothing.
+  Object.assign(l, { status: 'in-flight', jobId: j.id, launchDay: state.day, invitation: 'open' });
   article(state, l.articleId).status = 'flying';
+};
+
+export const answerInvitation = (state, { launchId, attend }) => {
+  const l = launchRecord(state, launchId);
+  if (!l || l.invitation !== 'open') throw new Rejection(`There is no open invitation for ${launchId}`);
+  l.invitation = attend ? 'attending' : 'apologies';
 };
 
 // The outcome is what tracking and telemetry showed, not hidden truth.
@@ -80,6 +87,7 @@ export const completeFlight = (state, j) => {
   if (dev.state === 'measured' && !dev.normal) l.rangeAction = 'range-safety destruct';
   l.outcome = l.rangeAction ? 'failure' : apogee.state === 'measured' && apogee.normal ? 'success' : apogee.state === 'measured' ? 'failure' : 'indeterminate';
   l.status = 'flown';
+  if (l.invitation === 'open') l.invitation = 'lapsed';
   article(state, l.articleId).status = l.outcome === 'failure' ? 'lost' : 'expended';
   resolveExposure(state, l.id, l.outcome);
   if (l.outcome === 'failure') {

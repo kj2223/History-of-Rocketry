@@ -131,6 +131,7 @@ const OPTIONS = {
   displace: 'Displace the other programme', decline: 'Decline', reallocate: 'Reallocate the stock', 'buy-more': 'Buy more',
   reschedule: 'Reschedule payments', 'accept-risk': 'Accept the timing risk', stop: 'Stop the programme', 'further-attempt': 'Allow a further bounded attempt',
   'go-ahead': 'Go ahead', 'not-now': 'Not now',
+  'stand-by-decision': 'Stand by the decision', 'ground-configuration': 'Ground the configuration',
 };
 const optionLabel = o => OPTIONS[o] ?? cap(o);
 // A report that cites a test links to its readings in Records.
@@ -146,7 +147,7 @@ const mailView = () => {
   const list = h('ul', { 'aria-label': 'Inbox' }, items.map(i => h('li', {},
     h('button', { type: 'button', class: `mail-row${ui.seen.has(i.id) ? '' : ' unread'}`, 'data-key': `mail-${i.id}`,
       'aria-current': i === current ? 'true' : null, onclick: () => { ui.mailId = i.id; render(); } },
-    h('span', { class: 'from' }, `${i.kind === 'decision' ? 'For decision · ' : i.kind === 'proposal' ? 'Proposal · ' : ''}${cap(i.from)} · ${day(i.day)}`), h('span', { class: 'subject' }, subject(i.text))))));
+    h('span', { class: 'from' }, `${i.kind === 'decision' ? 'For decision · ' : i.kind === 'proposal' ? 'Proposal · ' : i.kind === 'invitation' ? 'Invitation · ' : ''}${cap(i.from)} · ${day(i.day)}`), h('span', { class: 'subject' }, subject(i.text))))));
   const pane = !current ? h('p', { class: 'muted' }, 'Nothing in the inbox. Advance the calendar to receive mail.') : h('article', { class: 'letter', 'aria-label': 'Selected message' },
     h('div', { class: 'head' }, `From: ${cap(current.from)} · ${day(current.day)} · ${cap(current.kind)}`),
     h('p', {}, current.text),
@@ -162,6 +163,10 @@ const mailView = () => {
     current.kind === 'proposal' && h('div', { class: 'actions', role: 'group', 'aria-label': 'Your answer' },
       button('Go ahead', () => act('approve-proposal', 'administrator', { proposalId: current.id }, 'Go-ahead given. The team is on it.'), { primary: true, key: `go-${current.id}` }),
       button('Not now', () => act('decline-proposal', 'administrator', { proposalId: current.id }, 'The team will wait and propose again later.'), { key: `wait-${current.id}` })),
+    // Flight Control's invitation to watch a launch (freeze §8.3, §10.3).
+    current.kind === 'invitation' && h('div', { class: 'actions', role: 'group', 'aria-label': 'Your answer' },
+      button('Attend', () => { if (send('answer-invitation', 'administrator', { launchId: current.refs.launch, attend: true })) observe(current.refs.launch); }, { primary: true, key: `attend-${current.id}` }),
+      button('Send apologies', () => act('answer-invitation', 'administrator', { launchId: current.refs.launch, attend: false }, 'Apologies sent. The flight report will come to Mail.'), { key: `apol-${current.id}` })),
     );
   return h('div', {}, h('h2', {}, 'Mail'), h('div', { class: 'mail' }, h('div', {}, list), pane));
 };
@@ -360,7 +365,41 @@ const flightsView = () => {
     h('section', { class: 'card' }, h('h3', {}, 'Launch record'),
       view.launches.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Launch', 'Article', 'Kind', 'Status', 'Outcome'].map(t => h('th', {}, t)))),
         h('tbody', {}, view.launches.map(l => h('tr', {}, h('td', {}, l.id), h('td', {}, l.articleId), h('td', {}, l.experimental ? 'Experimental' : 'Routine'), h('td', {}, cap(l.status)),
-          h('td', {}, l.outcome ? `${cap(l.outcome)}${l.rangeAction ? ` (${l.rangeAction})` : ''}` : '—'))))) : h('p', { class: 'muted' }, 'Nothing has flown.')));
+          h('td', {}, l.outcome ? `${cap(l.outcome)}${l.rangeAction ? ` (${l.rangeAction})` : ''}` : '—', l.invitation === 'attending' && button(l.status === 'in-flight' ? 'Back to the blockhouse' : 'Blockhouse view', () => observe(l.id), { key: `obs-${l.id}` })))))) : h('p', { class: 'muted' }, 'Nothing has flown.')));
+};
+
+// ---- the blockhouse (freeze §10.3): a plain observer for a launch the administrator attends ----
+// It shows only readings already recorded by tracking and telemetry; watching advances the calendar one day at a time.
+const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const observe = launchId => { ui.observe = launchId; ui.countdown = reduced() ? 0 : 10; ui.view = 'observer'; render(); document.getElementById('main')?.focus(); tickCountdown(); };
+const tickCountdown = () => { if (ui.view !== 'observer' || ui.countdown <= 0) return; setTimeout(() => { ui.countdown--; if (ui.view === 'observer') { render(); tickCountdown(); } }, 400); };
+const watchFlight = () => {
+  const l = view.launches.find(x => x.id === ui.observe);
+  if (!l || l.status !== 'in-flight' || ui.view !== 'observer' || view.concluded) { ui.watching = false; render(); return; }
+  ui.watching = true;
+  const r = advance(game, 1); game = r.state; refresh(); persist(); render();
+  setTimeout(watchFlight, reduced() ? 300 : 1200);
+};
+const reading = o => {
+  const q = view.quantities[o.quantity] ?? { name: o.quantity, unit: '' };
+  if (o.state === 'lost') return `${q.name}: signal lost. No reading; that is not the same as normal.`;
+  if (o.state === 'unmeasured') return `${q.name}: no instrument on this channel.`;
+  return `${q.name}: ${o.value} ${q.unit}, ${o.normal ? 'within normal limits' : 'outside normal limits'}.`;
+};
+const observerView = () => {
+  const l = view.launches.find(x => x.id === ui.observe);
+  if (!l) return h('div', {}, h('h2', {}, 'Blockhouse'), h('p', { class: 'muted' }, 'No launch selected. Attend one from its invitation in Mail.'));
+  const name = view.vehicles.find(v => v.id === l.vehicle)?.name ?? cap(l.vehicle);
+  const readings = view.evidence.filter(o => o.workId === l.jobId);
+  const counting = ui.countdown > 0 && !readings.length;
+  return h('div', {}, h('h2', {}, `Blockhouse: ${name} ${l.articleId}`),
+    h('section', { class: 'card' },
+      h('p', {}, `${l.experimental ? 'Experimental' : 'Routine'} flight for ${programmeName(l.programmeId)}. Flying ${Object.values(l.stages).join(', ')}.`),
+      h('p', { class: 'stamp', 'aria-live': 'polite' }, counting ? `T minus ${ui.countdown}` : l.status === 'in-flight' ? (readings.length ? 'In flight. Tracking and telemetry coming in.' : 'Lift-off.') : `Flight over: ${cap(l.outcome)}${l.rangeAction ? `, ${l.rangeAction}` : ''}.`),
+      readings.length ? h('ol', { 'aria-label': 'Readings as they came in' }, readings.map(o => h('li', {}, reading(o)))) : h('p', { class: 'muted' }, 'No readings yet.'),
+      l.status === 'in-flight'
+        ? button(ui.watching ? 'Watching…' : 'Watch the flight', () => { if (!ui.watching) watchFlight(); }, { primary: true, key: 'watch', disabled: ui.watching || counting })
+        : [readingsLink(l.jobId), button('Back to Mail', () => go('mail'), { key: 'obs-back' })]));
 };
 
 // ---- production and stores (freeze §5.4, §5.5, §7.6) ----
@@ -491,15 +530,15 @@ const siteView = () => {
 const kindName = id => view.facilityKinds.find(k => k.id === id)?.name ?? cap(id);
 const facilityStatus = u => u.status === 'upgrading' ? `Upgrading, out of service (capacity ${u.capacity} to ${u.capacityAfter})` : u.status === 'commissioning' ? 'Being commissioned, not yet usable' : cap(u.status);
 const facilityActions = u => u.status !== 'operational' ? null : formBox(`upg-${u.id}`,
-  view.facilities.filter(x => x.kind === u.kind && x.status === 'operational').length === 1 ? 'Upgrade (our only one in service)' : 'Upgrade', [{ name: 'capacityAfter', label: 'Capacity afterwards', type: 'number', value: u.capacity + 1, min: 1 }],
-  'Technical director starts it', v => act('begin-upgrade', 'technical-director', { jobId: uid('upgrade'), unitId: u.id, capacityAfter: v.capacityAfter }, `${u.id} taken out of service for its upgrade. The benefit arrives when the work finishes.`));
+  `${view.facilities.filter(x => x.kind === u.kind && x.status === 'operational').length === 1 ? 'Upgrade (our only one in service)' : 'Upgrade'}, ${money(view.facilityKinds.find(k => k.id === u.kind).upgradeCost)} per capacity step`, [{ name: 'capacityAfter', label: 'Capacity afterwards', type: 'number', value: u.capacity + 1, min: 1 }],
+  'Technical director starts it', v => act('begin-upgrade', 'technical-director', { jobId: uid('upgrade'), unitId: u.id, capacityAfter: v.capacityAfter }, `${u.id} taken out of service for its upgrade. Half the cost is paid now and the rest on completion; the benefit arrives when the work finishes.`));
 const newFacilityForm = () => formBox('newfac', 'Build a new facility', [
-  { name: 'kind', label: 'Kind', options: view.facilityKinds.map(k => [k.id, `${k.name}${k.exclusive ? ' (exclusive)' : ' (shared)'}`]) },
+  { name: 'kind', label: 'Kind', options: view.facilityKinds.map(k => [k.id, `${k.name}${k.exclusive ? ' (exclusive)' : ' (shared)'}, ${money(k.buildCost)} per unit of capacity`]) },
   { name: 'capacity', label: 'Capacity', type: 'number', value: 1, min: 1 }],
 'Commission it', v => {
   let n = view.facilities.filter(u => u.kind === v.kind).length + 1;
   while (view.facilities.some(u => u.id === `${v.kind}-${n}`)) n++;
-  act('add-facility', 'administrator', { jobId: uid('commission'), id: `${v.kind}-${n}`, kind: v.kind, capacity: v.capacity }, `${kindName(v.kind)} ${v.kind}-${n} is being commissioned. It cannot be reserved until that is done.`);
+  act('add-facility', 'administrator', { jobId: uid('commission'), id: `${v.kind}-${n}`, kind: v.kind, capacity: v.capacity }, `${kindName(v.kind)} ${v.kind}-${n} is being commissioned. Half the cost is paid now and the rest on completion. It cannot be reserved until that is done.`);
 });
 
 // Commitments (freeze §7.2, §7.7): cancellation stops avoidable payments under the terms; nothing paid comes back.
@@ -548,7 +587,7 @@ const listOr = (items, empty, line) => items.length ? h('ul', {}, items.map(x =>
 const openQuestionsView = q => [
   h('p', { class: 'muted' }, 'What NASA inherits from our records.'),
   h('h4', {}, 'Readiness restrictions still open'),
-  listOr(q.readinessRestrictions, 'None.', r => `${programmeName(r.programmeId)}: ${r.restrictions.join('; ')}`),
+  listOr(q.readinessRestrictions, 'None.', r => `${programmeName(r.programmeId)}: ${[...r.restrictions, ...(r.assurance ?? []).map(a => `assurance restriction on ${(quantityNames().get(a.quantity) ?? words(a.quantity)).toLowerCase()} since ${day(a.placed)}`)].join('; ')}`),
   h('h4', {}, 'Obligations not yet settled'),
   listOr(q.unsettledObligations, 'None.', o => `${cap(o.kind)}${o.amount != null ? ` of ${money(o.amount)}` : ''}${o.due != null ? ` due ${day(o.due)}` : ''}${o.programmeId ? ` for ${programmeName(o.programmeId)}` : ''}, owner ${o.owner ? words(o.owner) : 'not named'} (${words(o.status)})`),
   h('h4', {}, 'Disagreements left on the record'),
@@ -571,8 +610,8 @@ const render = () => {
   const focusKey = document.activeElement?.dataset?.key;
   const app = document.getElementById('app');
   const views = view.summary ? [...VIEWS, ['summary', 'Summary']] : VIEWS;
-  if (!views.some(([k]) => k === ui.view)) ui.view = 'mail';
-  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, records: recordsView, summary: summaryView }[ui.view]();
+  if (ui.view !== 'observer' && !views.some(([k]) => k === ui.view)) ui.view = 'mail';
+  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, records: recordsView, summary: summaryView, observer: observerView }[ui.view]();
   const unread = view.inbox.filter(i => !ui.seen.has(i.id)).length;
   const off = view.concluded;
   const [left, right] = sidePanels(view, { h, day, cap, money, programmeName, openMail: id => { ui.mailId = id; go('mail'); } });

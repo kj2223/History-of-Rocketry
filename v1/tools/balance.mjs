@@ -97,7 +97,8 @@ const play = seed => {
 
   const flown = state.launches.filter(l => l.status === 'flown');
   const pub = project(state);
-  const open = state.decisions.filter(d => d.status === 'open');
+  // A decision raised in the last step before NASA formation had no chance to be answered; that is not a dead end.
+  const open = state.decisions.filter(d => d.status === 'open' && state.day - d.day >= STEP);
   if (!state.concluded) deadEnds.push('campaign did not reach NASA formation');
   if (open.length) deadEnds.push(`${open.length} decisions still open at the end: ${open.map(d => d.type).join(', ')}`);
   return { seed, state, pub, stats, flown, deadEnds };
