@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { END_DAY } from '../js/core/calendar.js';
-import { game, greenlightProgramme, fly, groundTest } from './game.js';
+import { game, greenlightProgramme, fly, groundTest, book } from './game.js';
 import { conditions } from '../js/rules/delegation.js';
 
 test('§8.1–8.2: three sources and four stages; greenlight is separate from preliminary acceptance', () => {
@@ -125,8 +125,30 @@ test('§8.8, §10.4: NASA formation ends the campaign with a six-section summary
   assert.equal(g.state.concluded, true);
   const { summary, hook } = g.state.continuation;
   assert.deepEqual(summary.sections.map(s => s.id), ['technical', 'institutional', 'stewardship', 'political', 'narrative', 'open-questions']);
-  assert.equal(summary.sections[5].placeholder, true);
+  assert.deepEqual(Object.keys(summary.sections[5].items), ['readinessRestrictions', 'unsettledObligations', 'disagreements', 'untestedClaims']);
   assert.equal(hook.active, false);
   assert.match(g.try('appoint', 'administrator', { id: 'late', role: 'project-manager', person: 'x' }).rejection.reason, /concluded/);
   assert.ok(g.state.memos.some(m => /satellite in orbit/.test(m.text)), 'Sputnik anchor fired');
+});
+
+test('§8.8: open questions list what NASA inherits from existing records, without hidden truth', () => {
+  const g = game(77);
+  g.until(1946, 5, 17);
+  greenlightProgramme(g, 'aerobee');
+  groundTest(g, 'aerobee', 'long');
+  // A future-year commitment goes through a joint decision before it enters the ledger.
+  g.approve(g.cmd('commit-funds', 'department-head', { id: 'late-bill', dept: 'propulsion', programmeId: 'aerobee', payments: [{ amount: 500, due: END_DAY + 30 }], terms: { cancellable: false, cancelFee: 0 } }).decision);
+  g.cmd('build-article', 'production', { id: 'a1', programmeId: 'aerobee' });
+  const pad = book(g, 'pad-1', 'aerobee', 5), tracking = book(g, 'tracking-1', 'aerobee', 5);
+  g.cmd('request-launch', 'administrator', { id: 'L', articleId: 'a1', pad, tracking, cost: 1, replacementCost: 1 });
+  g.days(END_DAY);
+  const section = g.state.continuation.summary.sections[5];
+  assert.equal(section.placeholder, undefined);
+  const q = section.items;
+  assert.ok(q.readinessRestrictions.find(r => r.programmeId === 'aerobee').restrictions.some(t => /adverse/.test(t)));
+  assert.ok(q.unsettledObligations.some(o => o.id && o.owner === 'propulsion' && o.amount === 500));
+  assert.ok(q.disagreements.some(d => d.type === 'launch' && d.vetoes.some(v => v.who === 'technical')));
+  assert.ok(q.untestedClaims.some(c => c.programmeId === 'aerobee' && c.quantity === 'vehicle.apogee'));
+  const text = JSON.stringify(section);
+  for (const word of ['physical', 'trueDefectMechanism', 'pm-07']) assert.equal(text.includes(word), false, word);
 });

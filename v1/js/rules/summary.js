@@ -3,6 +3,33 @@
 
 import { CONTENT_VERSION } from '../core/save.js';
 import { unresolved } from './programme.js';
+import { readiness } from './belief.js';
+import { claimStatus } from './evidence.js';
+import { VEHICLE_QUANTITIES } from '../data/vehicles.js';
+import { FLIGHT_CONDITIONS } from '../data/engineering.js';
+
+// What NASA inherits (§8.8, 6th section), read from existing records only: no new state, no hidden truth.
+export const openQuestions = state => {
+  const live = Object.values(state.programmes).filter(p => p.vehicle && p.stage !== 'closed');
+  const config = p => ({ vehicle: p.vehicle, stages: p.baseline });
+  const UNTESTED = ['unknown', 'unmeasured', 'lost'];
+  return {
+    readinessRestrictions: live.map(p => ({ programmeId: p.id,
+      restrictions: readiness(state, 'routine-use', config(p)).blockers.filter(b => /adverse|unresolved/.test(b)) })).filter(r => r.restrictions.length),
+    unsettledObligations: [
+      ...state.fiscal.ledger.filter(e => e.status === 'open' || e.status === 'overdue')
+        .map(e => ({ id: e.id, kind: e.kind, amount: e.amount, due: e.due, owner: e.dept, programmeId: e.programmeId, status: e.status })),
+      ...Object.values(state.programmes).filter(p => p.closure).flatMap(p => unresolved(p)
+        .filter(o => o.kind !== 'payment')
+        .map(o => ({ id: o.id, kind: o.kind, amount: o.amount ?? null, due: null, owner: o.owner, programmeId: p.id, status: o.status }))),
+    ],
+    disagreements: state.decisions.filter(d => d.status === 'open' && d.vetoable && Object.values(d.positions).some(x => x?.stance === 'veto'))
+      .map(d => ({ decisionId: d.id, type: d.type, subject: d.subject, text: d.text,
+        vetoes: Object.entries(d.positions).filter(([, x]) => x?.stance === 'veto').map(([who, x]) => ({ who, reason: x.reason })) })),
+    untestedClaims: live.flatMap(p => VEHICLE_QUANTITIES[p.vehicle].map(q => claimStatus(state, config(p), q, FLIGHT_CONDITIONS))
+      .filter(c => UNTESTED.includes(c.status)).map(c => ({ programmeId: p.id, quantity: c.quantity, status: c.status }))),
+  };
+};
 
 export const initContinuation = () => ({ summary: null, hook: null });
 
@@ -40,8 +67,7 @@ export const buildSummary = state => {
         currentAward: state.fiscal.award,
       } },
       { id: 'narrative', title: 'Programme narrative', items: Object.values(state.programmes).map(p => ({ id: p.id, name: p.name, stage: p.stage, history: p.history })) },
-      // Placeholder until the open-questions content is designed (Aaron, 5 Nov 2026).
-      { id: 'open-questions', title: 'Open questions carried forward', items: [], placeholder: true },
+      { id: 'open-questions', title: 'Open questions carried forward', items: openQuestions(state) },
     ],
   };
 };
