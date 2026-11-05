@@ -1,10 +1,20 @@
 # Project Vanguard
 
-A management game about the American space programme, from the first sounding rockets in 1946 to the first American in space. Develop rockets, manage research and a launch site, and guide the programme through its early milestones.
+**The space race is on. Can you get America to orbit—and bring its first astronaut home?**
 
-The game is built with HTML, CSS, and JavaScript ES modules. It has no build step and can run as a desktop app or in a browser.
+Project Vanguard is a historical space-programme management game set in the dawn of the Space Age. Starting with sounding rockets in 1946, build the people, technology, rockets, and launch facilities needed to reach orbit and carry the first American into space.
 
-## Get started
+Every launch is a test of engineering and judgement. Research new systems, choose what to build, prepare your launch site, and decide when a vehicle is ready to fly. Setbacks can cost time, money, and confidence—but they can also reveal what your engineers need to fix before the next attempt.
+
+## Lead the programme
+
+- **Build a rocket programme.** Develop launch vehicles, commission research, and turn proven designs into production hardware.
+- **Make every launch count.** Plan trajectories, prepare the pad and crew, and follow each flight as it unfolds.
+- **Manage risk and resources.** Work within NASA's budget, balance competing priorities, and learn from failures before they become repeat problems.
+- **Shape the people behind the mission.** Grow your engineering and launch teams, build experience, and select and train astronauts.
+- **Race through history.** Respond to directives and milestones as the programme advances from early rockets toward Mercury—and beyond.
+
+## Start playing
 
 You’ll need Node.js 18 or newer.
 
@@ -13,24 +23,26 @@ npm install
 npm start
 ```
 
-`npm start` opens the game in an Electron desktop window. To run it in a browser, serve the project folder with a local web server and open the served page.
+The game opens in its own desktop window using Electron. You can also run it in a browser by serving the project folder with a local web server and opening the served page.
 
-## Development commands
+## For developers
 
-| Command | What it does |
+This project uses HTML, CSS, and JavaScript ES modules, with no application build step.
+
+| Command | Purpose |
 |---|---|
-| `npm test` | Runs the rule tests in `tests/`. |
-| `npm run acceptance` | Replays bot scenarios that previously stalled and checks save/load behavior. |
-| `npm run balance` | Runs a seeded, headless playthrough to check game balance. You can pass run count and maximum minutes: `node tools/balance.mjs [runs] [maxMinutes]`. |
-| `npm run dist` | Builds a Windows installer and portable executable in `dist/` (run on Windows). |
+| `npm test` | Run the rule tests in `tests/`. |
+| `npm run acceptance` | Replay bot scenarios that previously stalled and check save/load behavior. |
+| `npm run balance` | Run seeded, headless playthroughs to check game balance. Optional arguments: `node tools/balance.mjs [runs] [maxMinutes]`. |
+| `npm run dist` | Build a Windows installer and portable executable in `dist/` (run on Windows). |
 
-Pushes to `main` build Windows packages through GitHub Actions. Pushes and pull requests to `dev` run the test and acceptance checks with Node 22; they do not package or publish the game.
+Pushes to `main` build Windows packages through GitHub Actions. Pushes and pull requests to `dev` run the tests and acceptance checks with Node 22; they do not package or publish the game.
 
-## Project structure
+### Project layout
 
-The game code is under `js/`. `js/main.js` starts the interface and game clock.
+`js/main.js` starts the interface and game clock. Game code is organized by responsibility:
 
-| Directory | Purpose |
+| Directory | Contents |
 |---|---|
 | `js/core/` | Game state, saves and loads, log, and shared helpers. |
 | `js/data/` | Research, rocket, failure, launch-site, history, Mercury, and other game data. |
@@ -40,25 +52,8 @@ The game code is under `js/`. `js/main.js` starts the interface and game clock.
 | `tools/` | Balance and acceptance-test scripts. |
 | `desktop/` | Electron entry point and desktop app configuration. |
 
-### Where to make common changes
+For common changes, start with the corresponding file in `js/data/`—for example, `research.js`, `programmes.js`, `launch.js`, `failures.js`, `launch-site.js`, `history.js`, `mercury.js`, `astronauts.js`, or `team.js`. Economy rules are in `js/rules/economy.js`, and flight behavior is in `js/rules/flight.js`. Other rules and interface components are split across `js/rules/` and `js/ui/`; files include comments describing their contents.
 
-| To change… | Start with… |
-|---|---|
-| Research packages and milestones | `js/data/research.js` |
-| Research explanations and confidence lines | `js/data/research-notes.js` |
-| Rocket designs, costs, flaws, and cures | `js/data/programmes.js` |
-| Propellants, payloads, and pitch programs | `js/data/launch.js` |
-| Failure modes, symptoms, and fixes | `js/data/failures.js` |
-| Facilities, launch pads, crews, and site upkeep | `js/data/launch-site.js` |
-| Historical events, eras, and directives | `js/data/history.js` |
-| Mercury and Gemini missions | `js/data/mercury.js` |
-| Astronauts and training | `js/data/astronauts.js` |
-| Core team members | `js/data/team.js` |
-| Economy rules | `js/rules/economy.js` |
-| Flight behavior and physics | `js/rules/flight.js` |
+### Save compatibility
 
-Other rules are split by responsibility across `js/rules/`; interface components live in `js/ui/`. Files include comments describing their contents.
-
-## Save data
-
-Saved games use short field names in the game state for compatibility with existing saves. Renaming a saved field can make older saves unreadable. Per-programme research, blueprints, and fixes are associated with the programme in focus; use the existing programme helpers when working with that state. Temporary runtime objects, such as flights and missions, use descriptive full names.
+Saved games use short field names in the game state for compatibility with existing saves. Renaming a saved field can make older saves unreadable. Research, blueprints, and fixes are kept per rocket programme; use the existing programme helpers when working with that state. Temporary runtime objects, such as flights and missions, use descriptive full names.
