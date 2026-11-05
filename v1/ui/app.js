@@ -14,10 +14,10 @@ const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', '
 // ---- game and interface state ----
 let game, view, notice = null;
 const prefs = (() => { try { return JSON.parse(storage.getItem(UI_KEY)) ?? {}; } catch { return {}; } })();
-const THEMES = [['dossier', 'Dossier'], ['console', 'Console'], ['ledger', 'Ledger'], ['blueprint', 'Blueprint']];
+const THEMES = [['ledger', 'Ledger (dark)'], ['ledger-light', 'Ledger (light)'], ['dossier', 'Dossier'], ['console', 'Console'], ['blueprint', 'Blueprint']];
 const queryTheme = new URLSearchParams(location.search).get('theme');
 const ui = { view: 'mail', mailId: null, seen: new Set(prefs.seen ?? []), open: new Set(), confirmReset: false,
-  theme: [queryTheme, prefs.theme].find(t => THEMES.some(([k]) => k === t)) ?? 'dossier' };
+  theme: [queryTheme, prefs.theme].find(t => THEMES.some(([k]) => k === t)) ?? 'ledger' };
 const persistUi = () => storage.setItem(UI_KEY, JSON.stringify({ seen: [...ui.seen], theme: ui.theme }));
 // The dossier look lives in style.css; every other theme is a small override file loaded on top.
 const applyTheme = () => {
