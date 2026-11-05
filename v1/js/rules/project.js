@@ -2,7 +2,9 @@
 // Receives state with the physical layer already removed, so it cannot leak hidden truth.
 
 import { dateLabel } from '../core/calendar.js';
-import { VEHICLE_QUANTITIES, QUANTITIES, REVISIONS, STAGES } from '../data/vehicles.js';
+import { VEHICLE_QUANTITIES, QUANTITIES, REVISIONS, STAGES, VEHICLES } from '../data/vehicles.js';
+import { FACILITY_KINDS } from '../data/facilities.js';
+import { TUNING } from '../data/tuning.js';
 import { HYPOTHESES, ANOMALIES, FLIGHT_CONDITIONS } from '../data/engineering.js';
 import { claimStatus } from './evidence.js';
 import { capacityRemaining, protectedBaseline, available } from './fiscal.js';
@@ -34,7 +36,13 @@ export const project = s => {
     workload: s.work.map(j => ({ id: j.id, kind: j.kind, programmeId: j.programmeId, status: j.status, cursor: j.cursor, total: j.total, result: j.result, assessment: j.assessment, observations: j.observations.length })),
     calendar: copy(s.facilities.reservations),
     facilities: copy(Object.values(s.facilities.units)),
+    facilityKinds: Object.entries(FACILITY_KINDS).map(([id, k]) => ({ id, name: k.name, exclusive: k.exclusive })),
+    vehicles: Object.entries(VEHICLES).map(([id, v]) => ({ id, name: v.name })),
+    appointments: copy(s.delegation.appointments),
+    findings: copy(s.production.findings),
+    preservationCostPerDay: TUNING.preservationCostPerDay,
     fiscal: { fy: s.fiscal.fy, award: s.fiscal.award, cash: s.fiscal.cash, capacityRemaining: capacityRemaining(s), protectedBaseline: protectedBaseline(s), available: available(s),
+      commitments: copy(Object.values(s.fiscal.commitments)),
       ledger: copy(s.fiscal.ledger), exposures: copy(s.fiscal.exposures), retentions: copy(s.fiscal.retentions), conditions: copy(s.fiscal.conditions) },
     stock: copy(Object.values(s.stock.items)),
     revisionCatalogue: Object.entries(REVISIONS).filter(([, r]) => r.parent && STAGES[r.stage].developable).map(([id, r]) => ({ id, label: r.label, stage: r.stage, stageName: STAGES[r.stage].name, affects: r.affects })),

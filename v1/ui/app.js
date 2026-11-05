@@ -9,7 +9,7 @@ import { memoryStorage } from '../js/core/save.js';
 const storage = (() => { try { const s = window.localStorage; s.setItem('pa-probe', '1'); s.removeItem('pa-probe'); return s; } catch { return memoryStorage(); } })();
 const UI_KEY = 'pa-v1-ui';
 const ACTS = { wac: 'WAC at White Sands', 'aerobee-viking': 'Aerobee and Viking', 'vanguard-explorer': 'Vanguard and Explorer', 'nasa-formation': 'NASA formation' };
-const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', 'Engineering'], ['flights', 'Test and flight'], ['site', 'Site and funds']];
+const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', 'Engineering'], ['flights', 'Test and flight'], ['production', 'Production and stores'], ['site', 'Site and funds'], ['records', 'Records']];
 
 // ---- game and interface state ----
 let game, view, notice = null;
@@ -200,16 +200,34 @@ const closureView = p => [
 const programmesView = () => h('div', {}, h('h2', {}, 'Programmes'),
   view.programmes.map(p => h('section', { class: 'card', 'aria-labelledby': `h-${p.id}` },
     h('header', {}, h('h3', { id: `h-${p.id}` }, p.name), h('span', { class: 'stamp warn' }, STAGE_TEXT[p.stage] ?? p.stage),
-      h('span', { class: 'meta' }, `${cap(p.source)}${p.client ? ` · ${p.client}` : ''}${p.delegated ? ' · schedules its own routine work' : ''}`)),
+      h('span', { class: 'meta' }, `${cap(p.source)}${p.client ? ` · ${p.client}` : ''}${p.vehicle ? ` · ${vehicleName(p.vehicle)}` : ''}${p.delegated ? ' · schedules its own routine work' : ''}`)),
     programmeActions(p),
     p.vehicle && p.stage === 'greenlit' && h('details', {}, h('summary', {}, 'Delegation conditions'), h('ul', {}, p.delegationConditions.map(c => h('li', {}, `${c.met ? 'Met' : 'Not met'}: ${c.detail}`)))),
+    p.delegated && formBox(`${p.id}-dfail`, 'Report a failure beyond remit', [{ name: 'text', label: 'What went wrong', required: true }],
+      'Technical director reports it', v => act('report-delegation-failure', 'technical-director', { programmeId: p.id, beyondRemit: true, text: v.text },
+        'Failure recorded. One failure is an anecdote; delegation is withdrawn only on a pattern.')),
     h('details', {}, h('summary', {}, 'History'), h('ul', {}, p.history.map(e => h('li', {}, `${day(e.day)}: ${e.event}`)))))),
-  staffView());
+  proposalView(), staffView());
+
+// Programme sources (freeze §8.1): administrator objectives and team initiatives. External requests arrive by mail.
+const vehicleName = id => view.vehicles.find(v => v.id === id)?.name ?? cap(id);
+const proposalView = () => h('section', { class: 'card' }, h('h3', {}, 'New proposals'),
+  h('p', { class: 'muted' }, 'A proposal starts at feasibility and goes through the same four stages as an outside request.'),
+  formBox('propose', 'Propose a programme', [
+    { name: 'name', label: 'Name', required: true },
+    { name: 'source', label: 'Source', options: [['administrator', 'Your objective'], ['department-head', 'A team initiative (department head)']] },
+    { name: 'vehicle', label: 'Vehicle', options: [['', 'None yet'], ...view.vehicles.map(v => [v.id, v.name])] },
+    { name: 'client', label: 'Client (optional)' }],
+  'Propose', v => act('create-programme', v.source, { id: uid('prog'), name: v.name, vehicle: v.vehicle || null, client: v.client || null }, `${v.name} proposed.`)));
 
 const staffView = () => {
   const greenlit = view.programmes.filter(p => p.stage === 'greenlit' && p.vehicle);
   return h('section', { class: 'card' }, h('h3', {}, 'Appointments'),
     h('p', { class: 'muted' }, 'A programme schedules its own routine work once it has two successful experimental flights, a project manager and a department head with scheduling remit.'),
+    view.appointments.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Name', 'Role', 'Programme', 'Since', 'Status', 'Handover'].map(t => h('th', {}, t)))),
+      h('tbody', {}, view.appointments.map(a => h('tr', {}, h('td', {}, a.person), h('td', {}, cap(a.role)), h('td', {}, a.programmeId ? programmeName(a.programmeId) : '—'), h('td', {}, day(a.day)), h('td', {}, cap(a.status)),
+        h('td', {}, a.handover ? `Inherited ${a.handover.records} records (${Math.round(a.handover.retrievalQuality * 100)}% retrievable), ${a.handover.commitments.length} commitments, ${a.handover.concerns.length} open concerns` : '—')))))
+      : h('p', { class: 'muted' }, 'Nobody appointed yet.'),
     formBox('appoint', 'Appoint someone', [
       { name: 'role', label: 'Role', options: [['project-manager', 'Project manager'], ['department-head', 'Department head']] },
       { name: 'person', label: 'Name', required: true },
@@ -294,6 +312,25 @@ const launchForm = a => formBox(`ln-${a.id}`, 'Request launch', [
   ], 'Launch raised for your decision.');
 });
 
+// Interrupted work (freeze §6.3): pausing is neither free nor a write-off. Tests run to completion.
+const TESTS = ['ground-test', 'flight'];
+const workControls = j => {
+  if (j.status === 'running' && TESTS.includes(j.kind)) return h('span', { class: 'muted' }, 'A test runs to completion');
+  if (j.status === 'running') return formBox(`pause-${j.id}`, 'Pause', [
+    { name: 'preserve', label: `Fund preservation while paused (${money(view.preservationCostPerDay)} a day, billed on resuming)`, type: 'checkbox', value: true }],
+  'Technical director pauses', v => act('pause-work', 'technical-director', { jobId: j.id, preserve: v.preserve }, `${j.id} paused. The team's assessment is shown with it.`));
+  if (j.status === 'paused') {
+    const a = j.assessment;
+    return h('div', {}, h('ul', {},
+      h('li', {}, `Paused ${day(a.paused)}; ${a.completedPreserved} days of work preserved`),
+      h('li', {}, `Materials ${a.materials}; records ${a.records}`),
+      h('li', {}, a.reworkDays ? `${a.reworkDays} days of rework before it can continue` : 'No rework needed'),
+      h('li', {}, a.preserve ? `Preservation so far: ${money((view.day - a.paused) * a.preservationCostPerDay)}` : 'Not preserved')),
+    button('Resume', () => act('resume-work', 'technical-director', { jobId: j.id }, `${j.id} resumed.`), { key: `resume-${j.id}`, primary: true }));
+  }
+  return null;
+};
+
 const flightsView = () => {
   const articles = Object.values(view.hardware.articles);
   return h('div', {}, h('h2', {}, 'Test and flight'),
@@ -304,13 +341,107 @@ const flightsView = () => {
         h('tbody', {}, articles.map(a => h('tr', {}, h('td', {}, a.id), h('td', {}, cap(a.vehicle)), h('td', {}, Object.values(a.stages).map(words).join(', ')), h('td', {}, cap(a.status)),
           h('td', {}, a.status === 'built' && launchForm(a)))))) : h('p', { class: 'muted' }, 'Nothing built yet.')),
     h('section', { class: 'card' }, h('h3', {}, 'Work under way and finished'),
-      view.workload.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Job', 'Kind', 'Status', 'Progress', 'Readings'].map(t => h('th', {}, t)))),
+      view.workload.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Job', 'Kind', 'Status', 'Progress', 'Readings', ''].map(t => h('th', {}, t)))),
         h('tbody', {}, view.workload.slice().reverse().map(j => h('tr', {}, h('td', {}, j.id), h('td', {}, cap(j.kind)), h('td', {}, j.result ? `${cap(j.status)} (${j.result})` : cap(j.status)),
-          h('td', {}, h('progress', { max: j.total || 1, value: j.cursor, 'aria-label': `${j.id} progress` }), ` ${j.cursor}/${j.total}`), h('td', { class: 'num' }, j.observations))))) : h('p', { class: 'muted' }, 'No work yet.')),
+          h('td', {}, h('progress', { max: j.total || 1, value: j.cursor, 'aria-label': `${j.id} progress` }), ` ${j.cursor}/${j.total}`), h('td', { class: 'num' }, j.observations), h('td', {}, workControls(j)))))) : h('p', { class: 'muted' }, 'No work yet.')),
     h('section', { class: 'card' }, h('h3', {}, 'Launch record'),
       view.launches.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Launch', 'Article', 'Kind', 'Status', 'Outcome'].map(t => h('th', {}, t)))),
         h('tbody', {}, view.launches.map(l => h('tr', {}, h('td', {}, l.id), h('td', {}, l.articleId), h('td', {}, l.experimental ? 'Experimental' : 'Routine'), h('td', {}, cap(l.status)),
           h('td', {}, l.outcome ? `${cap(l.outcome)}${l.rangeAction ? ` (${l.rangeAction})` : ''}` : '—'))))) : h('p', { class: 'muted' }, 'Nothing has flown.')));
+};
+
+// ---- production and stores (freeze §5.4, §5.5, §7.6) ----
+const programmeName = id => view.programmes.find(p => p.id === id)?.name ?? cap(id);
+const FINDING_SOURCES = ['manufacture', 'inspection', 'acceptance', 'test', 'operation'];
+const hypothesisOptions = () => {
+  const seen = new Map();
+  for (const a of view.anomalies) for (const x of a.hypotheses) seen.set(x.id, x.name);
+  return [['', 'No suspected cause'], ...seen];
+};
+
+const articleActions = a => {
+  const k = `art-${a.id}`, usable = a.status === 'built' || a.status === 'stored';
+  const others = view.programmes.filter(p => p.vehicle === a.vehicle && p.id !== a.programmeId && p.stage === 'greenlit');
+  return [
+    a.status !== 'recycled' && formBox(`${k}-find`, 'Record a finding', [
+      { name: 'source', label: 'Found during', options: FINDING_SOURCES.map(x => [x, cap(x)]) },
+      { name: 'note', label: 'What was found', required: true },
+      { name: 'hypothesis', label: 'Suspected cause', options: hypothesisOptions() }],
+    'Production records it', v => act('record-finding', 'production', { source: v.source, articleId: a.id, note: v.note, hypothesis: v.hypothesis || null }, 'Finding recorded and sent to engineering.')),
+    a.status === 'built' && button('Store', () => act('store-article', 'production', { articleId: a.id }, `${a.id} stored.`), { key: `${k}-store` }),
+    usable && others.length > 0 && formBox(`${k}-reuse`, 'Reuse for another programme', [{ name: 'programmeId', label: 'Programme', options: others.map(p => [p.id, p.name]) }],
+      'Start integration assessment', v => {
+        const res = uid('res'), from = view.day;
+        chain([
+          () => ['reserve-facility', 'administrator', { id: res, unitId: 'integration-1', programmeId: v.programmeId, from, to: from + 10, purpose: 'integration assessment' }],
+          () => ['reuse-article', 'production', { jobId: uid('reuse'), articleId: a.id, programmeId: v.programmeId, reservation: res }],
+        ], 'Integration assessment under way. The article keeps its evidence but gains no new qualification.');
+      }),
+    usable && button('Recycle', () => act('recycle-article', 'production', { jobId: uid('recycle'), articleId: a.id }, 'Recycling under way. It recovers material by its own yield.'), { key: `${k}-recycle` }),
+  ];
+};
+
+const stockActions = it => {
+  const free = it.qty - Object.values(it.reserved).reduce((n, q) => n + q, 0);
+  const progs = view.programmes.filter(p => p.vehicle && p.stage === 'greenlit' && it.compatible.includes(p.vehicle));
+  if (!progs.length) return h('span', { class: 'muted' }, 'No compatible programme');
+  const fields = [{ name: 'programmeId', label: 'Programme', options: progs.map(p => [p.id, p.name]) }, { name: 'qty', label: 'Quantity', type: 'number', value: Math.min(1, it.qty), min: 0 }];
+  return [
+    formBox(`stk-r-${it.id}`, 'Reserve', fields, 'Department head reserves', v => act('reserve-stock', 'department-head', { itemId: it.id, programmeId: v.programmeId, qty: v.qty }, 'Reserved, or raised for your decision if it is already spoken for.')),
+    formBox(`stk-u-${it.id}`, 'Use', fields, 'Production uses it', v => act('consume-stock', 'production', { itemId: it.id, programmeId: v.programmeId, qty: v.qty, vehicle: view.programmes.find(p => p.id === v.programmeId)?.vehicle }, `Used. ${free} was unreserved before this.`)),
+  ];
+};
+
+const orderForm = () => {
+  const progs = view.programmes.filter(p => p.vehicle && p.stage !== 'closed');
+  return formBox('order', 'Order materials', [
+    { name: 'dept', label: 'Ordering department', options: [['engineering', 'Engineering'], ['production', 'Production'], ['administration', 'Administration']] },
+    { name: 'programmeId', label: 'Bought for', options: [['', 'The agency generally'], ...progs.map(p => [p.id, p.name])] },
+    { name: 'material', label: 'Material', required: true },
+    { name: 'qty', label: 'Quantity', type: 'number', value: 10, min: 1 },
+    ...view.vehicles.map(v => ({ name: `fit:${v.id}`, label: `Fits ${v.name}`, type: 'checkbox', value: true })),
+    { name: 'deposit', label: 'Deposit on order ($)', type: 'number', value: 5000, min: 0 },
+    { name: 'balance', label: 'Balance on delivery ($)', type: 'number', value: 15000, min: 0 },
+    { name: 'days', label: 'Days to delivery', type: 'number', value: 60, min: 1 },
+    { name: 'cancellable', label: 'Undelivered payments can be cancelled', type: 'checkbox', value: true },
+    { name: 'cancelFee', label: 'Cancellation fee ($)', type: 'number', value: 0, min: 0 }],
+  'Department head commits', v => {
+    const compatible = view.vehicles.filter(x => v[`fit:${x.id}`]).map(x => x.id);
+    if (!compatible.length) { say('Say which vehicles the material fits.', true); return; }
+    const delivers = { material: v.material, qty: v.qty, compatible };
+    const payments = [...(v.deposit ? [{ amount: v.deposit, due: view.day }] : []), { amount: v.balance, due: view.day + v.days, delivers }];
+    act('commit-funds', 'department-head', { id: uid('order'), dept: v.dept, programmeId: v.programmeId || null, kind: 'materials', payments, terms: { cancellable: v.cancellable, cancelFee: v.cancelFee } },
+      'Order committed, or raised for decision if it is consequential. Stock arrives when the delivery is paid.');
+  });
+};
+
+const productionView = () => {
+  const articles = Object.values(view.hardware.articles), batches = Object.values(view.hardware.batches);
+  return h('div', {}, h('h2', {}, 'Production and stores'),
+    h('div', { class: 'cols' },
+      h('section', { class: 'card' }, h('h3', {}, 'Batches'),
+        batches.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Batch', 'Vehicle', 'Articles', 'Status', ''].map(t => h('th', {}, t)))),
+          h('tbody', {}, batches.map(b => h('tr', {}, h('td', {}, b.id), h('td', {}, vehicleName(b.vehicle)), h('td', { class: 'num' }, b.articles.length), h('td', {}, b.held ? 'On hold' : 'Open'),
+            h('td', {}, b.held ? button('Release', () => act('release-batch', 'production', { batchId: b.id }, `${b.id} released.`), { key: `rel-${b.id}` })
+              : formBox(`hold-${b.id}`, 'Hold', [{ name: 'reason', label: 'Reason', required: true }], 'Production holds it', v => act('hold-batch', 'production', { batchId: b.id, reason: v.reason }, `${b.id} on hold. An early memo has gone out.`)))))))
+          : h('p', { class: 'muted' }, 'Nothing built yet, so no batches.')),
+      h('section', { class: 'card' }, h('h3', {}, 'Findings'),
+        view.findings.length ? h('ul', {}, view.findings.slice().reverse().map(f => h('li', {}, `${day(f.day)}, ${f.articleId} (${f.batchId}), ${words(f.source)}: ${f.note}${f.hypothesis ? `. Suspected: ${hypothesisOptions().find(([id]) => id === f.hypothesis)?.[1] ?? words(f.hypothesis)}` : ''}`)))
+          : h('p', { class: 'muted' }, 'No findings recorded. A recurring defect in one batch comes to you as a decision.'))),
+    h('section', { class: 'card' }, h('h3', {}, 'Articles and disposition'),
+      articles.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Article', 'Programme', 'Batch', 'Status', ''].map(t => h('th', {}, t)))),
+        h('tbody', {}, articles.map(a => h('tr', {}, h('td', {}, a.id), h('td', {}, programmeName(a.programmeId), a.reusedFrom ? ` (from ${programmeName(a.reusedFrom)})` : ''), h('td', {}, a.batchId), h('td', {}, cap(a.status)), h('td', {}, articleActions(a))))))
+        : h('p', { class: 'muted' }, 'Nothing built yet.')),
+    h('section', { class: 'card' }, h('h3', {}, 'Agency stores'),
+      h('p', { class: 'muted' }, 'Materials belong to the agency. Programmes reserve them; they do not own them.'),
+      view.stock.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Material', 'Held', 'Unreserved', 'Reserved for', 'Fits', 'Bought by', ''].map(t => h('th', {}, t)))),
+        h('tbody', {}, view.stock.map(it => {
+          const reserved = Object.entries(it.reserved), free = it.qty - reserved.reduce((n, [, q]) => n + q, 0), from = it.provenance ?? {};
+          return h('tr', {}, h('td', {}, it.material), h('td', { class: 'num' }, fmt(it.qty)), h('td', { class: 'num' }, fmt(free)),
+            h('td', {}, reserved.length ? reserved.map(([pid, q]) => `${programmeName(pid)} ${fmt(q)}`).join(', ') : '—'), h('td', {}, it.compatible.map(vehicleName).join(', ')),
+            h('td', {}, from.recycledFrom ? `Recycled from ${from.recycledFrom}` : from.programmeId ? programmeName(from.programmeId) : from.commitmentId ? 'The agency' : '—'), h('td', {}, stockActions(it)));
+        }))) : h('p', { class: 'muted' }, 'The stores are empty. Ordered materials arrive when their delivery payment is made.'),
+      orderForm()));
 };
 
 // ---- site and funds ----
@@ -322,25 +453,102 @@ const siteView = () => {
         h('table', {}, h('tbody', {}, [['Annual award', f.award], ['Cash held', f.cash], ['Capacity remaining this year', f.capacityRemaining], ['Already owed in this quarter', f.protectedBaseline], ['Available to commit', f.available]]
           .map(([k, v]) => h('tr', {}, h('th', { scope: 'row' }, k), h('td', { class: 'num' }, money(v)))))),
         f.conditions.length > 0 && [h('h4', {}, 'Award conditions'), h('ul', {}, f.conditions.map(c => h('li', {}, `${c.fy}: ${c.text} — ${c.honoured ? 'honoured' : 'missed'}`)))]),
-      h('section', { class: 'card' }, h('h3', {}, 'Facilities'),
-        h('table', {}, h('thead', {}, h('tr', {}, ['Unit', 'Kind', 'Capacity', 'Status'].map(t => h('th', {}, t)))),
-          h('tbody', {}, view.facilities.map(u => h('tr', {}, h('td', {}, u.id), h('td', {}, cap(u.kind)), h('td', { class: 'num' }, u.capacity), h('td', {}, cap(u.status)))))))),
+      h('section', { class: 'card' }, h('h3', {}, 'Recovery exposures'),
+        h('p', { class: 'muted' }, 'What a failed flight would leave us needing. Stated and recorded, never charged.'),
+        f.exposures.length ? h('ul', {}, f.exposures.slice().reverse().map(x => h('li', {}, `${day(x.day)}, ${x.launchId}: ${x.text} Replacement ${money(x.replacementCost)}. ${cap(x.status)}.`)))
+          : h('p', { class: 'muted' }, 'No launch has carried an exposure yet.'))),
+    h('section', { class: 'card' }, h('h3', {}, 'Facilities'),
+        h('table', {}, h('thead', {}, h('tr', {}, ['Unit', 'Kind', 'Capacity', 'Status', ''].map(t => h('th', {}, t)))),
+          h('tbody', {}, view.facilities.map(u => h('tr', {}, h('td', {}, u.id), h('td', {}, kindName(u.kind)), h('td', { class: 'num' }, u.capacity), h('td', {}, facilityStatus(u)), h('td', {}, facilityActions(u)))))),
+        newFacilityForm()),
     h('section', { class: 'card' }, h('h3', {}, 'Reservations'),
       view.calendar.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Unit', 'Programme', 'From', 'To', 'Purpose', 'Status'].map(t => h('th', {}, t)))),
         h('tbody', {}, view.calendar.slice(-15).map(r => h('tr', {}, h('td', {}, r.unitId), h('td', {}, cap(r.programmeId)), h('td', {}, day(r.from)), h('td', {}, day(r.to)), h('td', {}, r.purpose), h('td', {}, cap(r.status)))))) : h('p', { class: 'muted' }, 'Nothing reserved.')),
+    commitmentsView(),
     h('section', { class: 'card' }, h('h3', {}, 'Open obligations'),
       f.ledger.filter(open).length ? h('table', {}, h('thead', {}, h('tr', {}, ['Due', 'Programme', 'Kind', 'Status', 'Amount'].map(t => h('th', {}, t)))),
-        h('tbody', {}, f.ledger.filter(open).map(e => h('tr', {}, h('td', {}, day(e.due)), h('td', {}, cap(e.programmeId ?? e.dept)), h('td', {}, cap(e.kind)), h('td', {}, cap(e.status)), h('td', { class: 'num' }, money(e.amount)))))) : h('p', { class: 'muted' }, 'Nothing owed.')));
+        h('tbody', {}, f.ledger.filter(open).map(e => h('tr', {}, h('td', {}, day(e.due)), h('td', {}, cap(e.programmeId ?? e.dept)), h('td', {}, cap(e.kind)), h('td', {}, cap(e.status)), h('td', { class: 'num' }, money(e.amount)))))) : h('p', { class: 'muted' }, 'Nothing owed.')),
+    h('section', { class: 'card' }, h('h3', {}, 'Year-end retention'),
+        f.retentions.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Year', 'Unspent', 'Continuing commitments', 'Savings', 'Proposed use', 'Retained'].map(t => h('th', {}, t)))),
+          h('tbody', {}, f.retentions.map(r => h('tr', {}, h('td', {}, r.fy), h('td', { class: 'num' }, money(r.unspent)), h('td', { class: 'num' }, money(r.continuing)), h('td', { class: 'num' }, money(r.savings)), h('td', {}, r.proposedUse), h('td', { class: 'num' }, money(r.granted))))))
+          : h('p', { class: 'muted' }, 'No fiscal year has closed yet. Finance negotiates retention with a documented case at each year end.')));
 };
 
-// ---- summary (freeze §8.8): six sections, the last a placeholder ----
+// Facilities (freeze §6.1, §6.4): existence is not readiness; an upgrading unit is out of service until done.
+const kindName = id => view.facilityKinds.find(k => k.id === id)?.name ?? cap(id);
+const facilityStatus = u => u.status === 'upgrading' ? `Upgrading, out of service (capacity ${u.capacity} to ${u.capacityAfter})` : u.status === 'commissioning' ? 'Being commissioned, not yet usable' : cap(u.status);
+const facilityActions = u => u.status !== 'operational' ? null : formBox(`upg-${u.id}`,
+  view.facilities.filter(x => x.kind === u.kind && x.status === 'operational').length === 1 ? 'Upgrade (our only one in service)' : 'Upgrade', [{ name: 'capacityAfter', label: 'Capacity afterwards', type: 'number', value: u.capacity + 1, min: 1 }],
+  'Technical director starts it', v => act('begin-upgrade', 'technical-director', { jobId: uid('upgrade'), unitId: u.id, capacityAfter: v.capacityAfter }, `${u.id} taken out of service for its upgrade. The benefit arrives when the work finishes.`));
+const newFacilityForm = () => formBox('newfac', 'Build a new facility', [
+  { name: 'kind', label: 'Kind', options: view.facilityKinds.map(k => [k.id, `${k.name}${k.exclusive ? ' (exclusive)' : ' (shared)'}`]) },
+  { name: 'capacity', label: 'Capacity', type: 'number', value: 1, min: 1 }],
+'Commission it', v => {
+  let n = view.facilities.filter(u => u.kind === v.kind).length + 1;
+  while (view.facilities.some(u => u.id === `${v.kind}-${n}`)) n++;
+  act('add-facility', 'administrator', { jobId: uid('commission'), id: `${v.kind}-${n}`, kind: v.kind, capacity: v.capacity }, `${kindName(v.kind)} ${v.kind}-${n} is being commissioned. It cannot be reserved until that is done.`);
+});
+
+// Commitments (freeze §7.2, §7.7): cancellation stops avoidable payments under the terms; nothing paid comes back.
+const commitmentsView = () => {
+  const cs = view.fiscal.commitments, entry = id => view.fiscal.ledger.find(e => e.id === id);
+  return h('section', { class: 'card' }, h('h3', {}, 'Commitments'),
+    cs.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Commitment', 'Department', 'Programme', 'Total', 'Paid', 'Outstanding', 'Terms', 'Status', ''].map(t => h('th', {}, t)))),
+      h('tbody', {}, cs.slice().reverse().map(c => {
+        const es = c.entries.map(entry), paid = es.filter(e => e.status === 'paid').reduce((n, e) => n + e.amount, 0), owed = es.filter(e => e.status === 'open' || e.status === 'overdue').reduce((n, e) => n + e.amount, 0);
+        return h('tr', {}, h('td', {}, c.id), h('td', {}, cap(c.dept)), h('td', {}, c.programmeId ? programmeName(c.programmeId) : '—'), h('td', { class: 'num' }, money(c.total)), h('td', { class: 'num' }, money(paid)), h('td', { class: 'num' }, money(owed)),
+          h('td', {}, c.terms.cancellable ? `Cancellable${c.terms.cancelFee ? `, fee ${money(c.terms.cancelFee)}` : ''}` : 'Not cancellable'), h('td', {}, cap(c.status)),
+          h('td', {}, c.status === 'active' && owed > 0 && button('Cancel', () => {
+            const r = send('cancel-commitment', 'financial-officer', { commitmentId: c.id });
+            if (r) { say(`Cancelled. ${r.result.stopped} payment${r.result.stopped === 1 ? '' : 's'} stopped, ${r.result.remaining} still owed, ${money(r.result.paid)} already paid and not refunded.`); render(); }
+          }, { key: `cancel-${c.id}`, danger: true })));
+      }))) : h('p', { class: 'muted' }, 'No commitments yet. Orders placed under Production and stores appear here.'));
+};
+
+// ---- records (freeze §3.3, §10.2): who decided what, when, on what evidence; and the readings behind it ----
+const READING = { measured: 'Measured', unmeasured: 'Not instrumented', lost: 'Reading lost' };
+const quantityNames = () => new Map(view.programmes.flatMap(p => p.claims.map(c => [c.quantity, c.name])));
+const recordsView = () => {
+  const closed = view.decisions.filter(d => d.status !== 'open').slice().reverse(), names = quantityNames();
+  const jobs = view.workload.filter(j => j.observations > 0).slice().reverse();
+  return h('div', {}, h('h2', {}, 'Records'),
+    h('section', { class: 'card' }, h('h3', {}, 'Decision record'),
+      closed.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Decided', 'Raised by', 'Question', 'Positions', 'Evidence cited', 'Decision'].map(t => h('th', {}, t)))),
+        h('tbody', {}, closed.map(d => h('tr', {}, h('td', {}, day(d.decidedDay)), h('td', {}, `${cap(d.raisedBy)}, ${day(d.day)}`), h('td', {}, d.text),
+          h('td', {}, d.positions ? [['Finance', d.positions.finance], ['Technical', d.positions.technical]].filter(([, x]) => x).map(([w, x]) => `${w}: ${x.stance}, ${x.reason}`).join('; ') : '—'),
+          h('td', {}, d.evidence.length ? d.evidence.join(', ') : '—'), h('td', {}, `${cap(d.choice)} by ${words(d.decidedBy)}${d.consequence ? `. ${d.consequence}` : ''}`)))))
+        : h('p', { class: 'muted' }, 'No decisions taken yet. Open ones wait in Mail.')),
+    h('section', { class: 'card' }, h('h3', {}, 'Readings by test'),
+      h('p', { class: 'muted' }, 'Every reading as recorded. Nothing here is new evidence; consulting a record does not repeat a test.'),
+      jobs.length ? jobs.map(j => h('details', {}, h('summary', {}, `${j.id}: ${words(j.kind)}${j.programmeId ? `, ${programmeName(j.programmeId)}` : ''}, ${j.observations} readings${j.result ? `, ${j.result}` : ''}`),
+        h('table', {}, h('thead', {}, h('tr', {}, ['Day', 'Quantity', 'Configuration', 'Conditions', 'Reading', 'Value'].map(t => h('th', {}, t)))),
+          h('tbody', {}, view.evidence.filter(o => o.workId === j.id).map(o => h('tr', {}, h('td', {}, day(o.day)), h('td', {}, names.get(o.quantity) ?? words(o.quantity)),
+            h('td', {}, Object.values(o.stages).map(words).join(', ')), h('td', {}, Object.entries(o.conditions).map(([k, v]) => `${k} ${v}`).join(', ')),
+            h('td', {}, READING[o.state] ?? cap(o.state)), h('td', { class: 'num' }, o.state === 'measured' ? `${o.value}${o.normal ? '' : ' (outside normal)'}` : 'no value')))))))
+        : h('p', { class: 'muted' }, 'No test has produced readings yet.')));
+};
+
+// ---- summary (freeze §8.8): six sections; the sixth lists what successors inherit ----
 const fmt = v => v === true ? 'yes' : v === false ? 'no' : typeof v === 'number' ? v.toLocaleString('en-US') : v == null ? '—' : String(v);
 const value = v => Array.isArray(v) ? (v.length ? h('ul', {}, v.map(x => h('li', {}, typeof x === 'object' ? Object.entries(x).map(([k, y]) => `${words(k)}: ${Array.isArray(y) ? y.length : fmt(y)}`).join(', ') : words(x)))) : 'none') : fmt(v);
+const listOr = (items, empty, line) => items.length ? h('ul', {}, items.map(x => h('li', {}, line(x)))) : h('p', { class: 'muted' }, empty);
+const openQuestionsView = q => [
+  h('p', { class: 'muted' }, 'What NASA inherits from our records.'),
+  h('h4', {}, 'Readiness restrictions still open'),
+  listOr(q.readinessRestrictions, 'None.', r => `${programmeName(r.programmeId)}: ${r.restrictions.join('; ')}`),
+  h('h4', {}, 'Obligations not yet settled'),
+  listOr(q.unsettledObligations, 'None.', o => `${cap(o.kind)}${o.amount != null ? ` of ${money(o.amount)}` : ''}${o.due != null ? ` due ${day(o.due)}` : ''}${o.programmeId ? ` for ${programmeName(o.programmeId)}` : ''}, owner ${o.owner ? words(o.owner) : 'not named'} (${words(o.status)})`),
+  h('h4', {}, 'Disagreements left on the record'),
+  listOr(q.disagreements, 'None.', d => [d.text, d.vetoes.length ? ` Objections: ${d.vetoes.map(v => `${words(v.who)}, ${v.reason}`).join('; ')}.` : '']),
+  h('h4', {}, 'Claims still untested or unsupported'),
+  listOr(q.untestedClaims, 'None.', c => `${programmeName(c.programmeId)}: ${quantityNames().get(c.quantity) ?? words(c.quantity)}, ${(STATUS_TEXT[c.status] ?? words(c.status)).toLowerCase()}`),
+];
 const summaryView = () => {
   const s = view.summary;
   return h('div', { class: 'summary' }, h('h2', {}, 'NASA formation: where we stand'), h('p', { class: 'muted' }, `The campaign concluded on ${day(s.day)}. This is a record, not a score.`),
     s.sections.map((sec, n) => h('section', { class: 'card', 'aria-labelledby': `sum-${sec.id}` }, h('h3', { id: `sum-${sec.id}` }, `${n + 1}. ${sec.title}`),
       sec.placeholder ? h('p', { class: 'placeholder' }, 'Reserved. The content for this section has not been designed yet.')
+        : sec.id === 'open-questions' ? openQuestionsView(sec.items)
         : sec.id === 'narrative' ? sec.items.map(p => h('div', {}, h('h4', {}, `${p.name} — ${words(p.stage)}`), h('ul', {}, p.history.map(e => h('li', {}, `${day(e.day)}: ${e.event}`)))))
         : h('dl', {}, Object.entries(sec.items).flatMap(([k, v]) => [h('dt', {}, cap(k.replace(/([A-Z])/g, ' $1').toLowerCase())), h('dd', {}, value(v))])))));
 };
@@ -351,7 +559,7 @@ const render = () => {
   const app = document.getElementById('app');
   const views = view.summary ? [...VIEWS, ['summary', 'Summary']] : VIEWS;
   if (!views.some(([k]) => k === ui.view)) ui.view = 'mail';
-  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, site: siteView, summary: summaryView }[ui.view]();
+  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, records: recordsView, summary: summaryView }[ui.view]();
   const unread = view.inbox.filter(i => !ui.seen.has(i.id)).length;
   const off = view.concluded;
   app.replaceChildren(h('div', { class: 'case' },
