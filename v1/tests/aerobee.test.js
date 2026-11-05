@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { game, greenlightProgramme, groundTest, fly } from './game.js';
 import { claimStatus } from '../js/rules/evidence.js';
+import { REVISIONS } from '../js/data/vehicles.js';
 
 const R2 = { 'aerobee-sustainer': 'aerobee-sustainer/r2' };
 
@@ -50,6 +51,9 @@ test('§5.2 Aerobee sustainer revision: identify, ground test, review, trial fli
   assert.equal(flight.experimental, true);
   assert.deepEqual(flight.stages, { 'aerobee-booster': 'aerobee-booster/r1', 'aerobee-sustainer': 'aerobee-sustainer/r2' });
   assert.equal(flight.outcome, 'success');
+  // AC05: the remedy moves two coupled concerns, and the integrated apogee is evaluated in flight.
+  assert.ok(REVISIONS['aerobee-sustainer/r2'].affects.length >= 2);
+  assert.equal(claimStatus(g.state, r2, 'vehicle.apogee').status, 'measured-normal');
 
   // 5. Deployment affects the Aerobee programme's future vehicles, not the Navy's, and not built articles.
   g.approve(g.cmd('adopt-revision', 'administrator', { revId: 'aerobee-sustainer/r2', programmeIds: ['aerobee'] }));

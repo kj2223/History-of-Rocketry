@@ -1,0 +1,120 @@
+// Contract tests: §9 continuation and saves, §10 commands in / projections out, the hidden-truth guard.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dispatch, project, saveGame, loadGame, exportGame, checkSave, newGame } from '../js/rules/index.js';
+import { memoryStorage } from '../js/core/save.js';
+import { MECHANISMS } from '../js/data/physical.js';
+import { VEHICLES } from '../js/data/vehicles.js';
+import { LAUNCH_TIERS } from '../js/rules/authority.js';
+import { game, greenlightProgramme, groundTest, fly, book } from './game.js';
+
+const reload = s => checkSave(exportGame(s));
+const HIDDEN = ['physical', 'trueDefectMechanism', 'traces', ...Object.keys(MECHANISMS)];
+const assertNoLeak = s => {
+  const text = JSON.stringify(project(s));
+  for (const word of HIDDEN) assert.equal(text.includes(word), false, `projection leaks "${word}"`);
+};
+
+// A short campaign that exercises tests, a trial, flights and an anomaly.
+const scripted = () => {
+  const g = game(77);
+  const frames = [g.state];
+  g.until(1946, 5, 17); frames.push(g.state);
+  greenlightProgramme(g, 'aerobee'); frames.push(g.state);
+  g.cmd('build-article', 'production', { id: 'a1', programmeId: 'aerobee' });
+  fly(g, 'aerobee', 'a1'); frames.push(g.state);
+  groundTest(g, 'aerobee', 'long'); frames.push(g.state);
+  // After an adverse long-burn finding the technical director vetoes further r1 flights.
+  g.cmd('build-article', 'production', { id: 'a2', programmeId: 'aerobee' });
+  const pad = book(g, 'pad-1', 'aerobee', 5), tracking = book(g, 'tracking-1', 'aerobee', 5);
+  const d = g.cmd('request-launch', 'administrator', { id: 'L2', articleId: 'a2', pad, tracking, cost: 1, replacementCost: 1 }).decision;
+  assert.match(g.try('decide', 'administrator', { decisionId: d, choice: 'approve' }).rejection.reason, /Vetoed by technical/);
+  frames.push(g.state);
+  return { g, frames };
+};
+
+test('FRZ-08 / AC01: no projection at any point contains physical truth or mechanism IDs', () => {
+  for (const s of scripted().frames) assertNoLeak(s);
+});
+
+test('§4.1: only physics.js reads the physical layer or its data', () => {
+  const dir = new URL('../js/rules/', import.meta.url);
+  for (const f of readdirSync(dir)) {
+    const src = readFileSync(new URL(f, dir), 'utf8');
+    if (f !== 'physics.js') assert.doesNotMatch(src, /data\/physical\.js/, `${f} imports physical data`);
+    if (!['physics.js', 'index.js'].includes(f)) assert.doesNotMatch(src, /\.physical\b|physical:/, `${f} touches state.physical`);
+  }
+});
+
+test('§10.1: dispatch never mutates its input; rejections return the same state; ids are stable', () => {
+  const s = newGame(3);
+  const before = JSON.stringify(s);
+  const ok = dispatch(s, { id: 'x1', type: 'appoint', actor: 'administrator', payload: { id: 'pm', role: 'project-manager', person: 'A', programmeId: 'wac' } });
+  assert.equal(JSON.stringify(s), before);
+  assert.notEqual(ok.state, s);
+  const again = dispatch(ok.state, { id: 'x1', type: 'appoint', actor: 'administrator', payload: { id: 'pm2', role: 'project-manager', person: 'B', programmeId: 'wac' } });
+  assert.match(again.rejection.reason, /already applied/);
+  assert.equal(again.state, ok.state);
+  assert.match(dispatch(s, { id: 'x2', type: 'appoint', actor: 'crew', payload: {} }).rejection.reason, /may not/);
+  assert.match(dispatch(s, { type: 'appoint', actor: 'administrator' }).rejection.reason, /stable id/);
+});
+
+test('§9.4: reload mid-test continues the same work; nothing rerolls', () => {
+  const g = game(12);
+  g.until(1946, 5, 17);
+  greenlightProgramme(g, 'aerobee');
+  g.cmd('build-article', 'production', { id: 'a1', programmeId: 'aerobee' });
+  const pad = book(g, 'pad-1', 'aerobee', 5), tracking = book(g, 'tracking-1', 'aerobee', 5);
+  g.approve(g.cmd('request-launch', 'administrator', { id: 'L1', articleId: 'a1', pad, tracking, cost: 1000, replacementCost: 1000 }).decision);
+  g.days(2);
+  const midway = g.state;
+  assert.equal(midway.work.find(j => j.id === 'flight-L1').status, 'running');
+  const straight = game(); straight.state = midway; straight.days(6);
+  const reloaded = game(); reloaded.state = reload(midway); reloaded.days(6);
+  assert.equal(JSON.stringify(reloaded.state), JSON.stringify(straight.state));
+});
+
+test('FRZ-08 / AC07: projections are stable across reload; raw records are never rewritten', () => {
+  const { g, frames } = scripted();
+  assert.deepEqual(project(reload(g.state)), project(g.state));
+  const early = frames[3].evidence.observations;
+  assert.deepEqual(g.state.evidence.observations.slice(0, early.length), early);
+});
+
+test('§9.5: saves use only this scenario\'s keys and leave the legacy vg3 save alone', () => {
+  const storage = memoryStorage();
+  storage.setItem('vg3', 'legacy campaign');
+  const s = scripted().g.state;
+  saveGame(s, storage);
+  assert.deepEqual(loadGame(storage), JSON.parse(JSON.stringify(s)));
+  assert.equal(storage.getItem('vg3'), 'legacy campaign');
+  assert.throws(() => checkSave(exportGame({ ...s, rng: {} })), /damaged/);
+});
+
+test('FRZ-06: ground tiers are exercised; the crew tier exists but is inactive', () => {
+  const l = scripted().g.state.launches[0];
+  assert.deepEqual(Object.keys(l.tiers), LAUNCH_TIERS.map(t => t.tier));
+  assert.equal(l.tiers.flight.stance, 'inactive');
+  assert.notEqual(l.tiers['ground-technical'].stance, 'inactive');
+});
+
+test('FRZ-06: Flight Control holds a launch without a pad, before any decision is raised', () => {
+  const g = game();
+  g.cmd('build-article', 'production', { id: 'w1', programmeId: 'wac' });
+  const r = g.try('request-launch', 'administrator', { id: 'L', articleId: 'w1', pad: 'none', tracking: 'none', cost: 1, replacementCost: 1 });
+  assert.match(r.rejection.reason, /Flight Control holds/);
+  assert.equal(g.state.decisions.length, 0);
+});
+
+test('FRZ-01: v1 content has no crewed vehicles', () => {
+  assert.equal(Object.values(VEHICLES).some(v => v.crewed), false);
+});
+
+test('AC06: approved routine work proceeds quietly, with one report and no decisions', () => {
+  const g = game(5);
+  const decisions = g.state.decisions.length, memos = g.state.memos.length;
+  groundTest(g, 'wac', 'short', { stage: 'wac-upper', channels: ['wac-upper.chamber-pressure'] });
+  assert.equal(g.state.decisions.length, decisions);
+  assert.deepEqual(g.state.memos.slice(memos).map(m => m.kind), ['report']);
+});

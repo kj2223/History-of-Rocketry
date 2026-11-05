@@ -120,7 +120,8 @@ export const cancelCommitment = (state, id) => {
   avoidable.forEach(e => { e.status = 'cancelled'; });
   if (c.terms.cancelFee) c.entries.push(addEntry(state, { kind: 'cancellation-fee', dept: c.dept, programmeId: c.programmeId, commitmentId: id, amount: c.terms.cancelFee, due: state.day }).id);
   c.status = 'cancelled';
-  return { stopped: avoidable.length, remaining: entries.filter(isOpen).length, paid: entries.filter(e => e.status === 'paid').reduce((a, e) => a + e.amount, 0) };
+  const now = c.entries.map(eid => state.fiscal.ledger.find(e => e.id === eid));
+  return { stopped: avoidable.length, remaining: now.filter(isOpen).length, paid: now.filter(e => e.status === 'paid').reduce((a, e) => a + e.amount, 0) };
 };
 
 // Recovery exposure (§7.4): stated and recorded, never charged.
