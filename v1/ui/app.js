@@ -11,6 +11,10 @@ const UI_KEY = 'pa-v1-ui';
 const ACTS = { wac: 'WAC at White Sands', 'aerobee-viking': 'Aerobee and Viking', 'vanguard-explorer': 'Vanguard and Explorer', 'nasa-formation': 'NASA formation' };
 const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', 'Engineering'], ['flights', 'Test and flight'], ['site', 'Site and funds']];
 
+// Optional look: ?theme=console | ledger | blueprint (default is the dossier in style.css).
+const theme = new URLSearchParams(location.search).get('theme');
+if (/^[a-z]+$/.test(theme ?? '')) document.head.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: `ui/themes/${theme}.css` }));
+
 // ---- game and interface state ----
 let game, view, notice = null;
 const prefs = (() => { try { return JSON.parse(storage.getItem(UI_KEY)) ?? {}; } catch { return {}; } })();
