@@ -2,15 +2,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { claimStatus } from '../js/rules/evidence.js';
-import { bareState, fire, bumper, flight } from './helpers.js';
+import { nominalFlights, bumper, flight } from './helpers.js';
 import { game, greenlightProgramme, fly, book } from './game.js';
 
 const ALL = ['v2.chamber-pressure', 'wac-upper.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee', 'vehicle.deviation'];
 
 test('§5.3: revising the upper stage keeps the V-2 evidence and re-opens interface and integrated claims', () => {
-  const s = bareState(21);
-  fire(s, flight(bumper(), ALL));
-  fire(s, flight(bumper(), ALL));
+  const s = nominalFlights([flight(bumper(), ALL), flight(bumper(), ALL)]);
   const r2 = bumper('wac-upper/r2');
   const status = q => claimStatus(s, r2, q).status;
   assert.equal(status('v2.chamber-pressure'), 'measured-normal', 'other stage untouched');

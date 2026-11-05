@@ -14,7 +14,7 @@ import { PROGRAMMES } from '../js/data/scenario.js';
 import { VEHICLES } from '../js/data/vehicles.js';
 import { conditions } from '../js/rules/delegation.js';
 import { claimStatus } from '../js/rules/evidence.js';
-import { bareState, fire, bumper, flight } from './helpers.js';
+import { bareState, fire, bumper, flight, nominalFlights } from './helpers.js';
 import { game, greenlightProgramme, groundTest, fly, book } from './game.js';
 
 const here = new URL('../', import.meta.url);
@@ -156,8 +156,7 @@ test('FRZ-06: ground tiers are exercised and the crew tier is present but inacti
 
 test('FRZ-07: the Tank Case is not canon: its structure is built, its numbers are absent', () => {
   // Structure: independent stage revisions, evidence kept for the untouched stage, interface and integrated re-assessed (§5.3).
-  const s = bareState(21);
-  fire(s, flight(bumper(), ['v2.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee']));
+  const s = nominalFlights([flight(bumper(), ['v2.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee'])]);
   const r2 = bumper('wac-upper/r2');
   assert.equal(claimStatus(s, r2, 'v2.chamber-pressure').status, 'measured-normal');
   assert.equal(claimStatus(s, r2, 'v2|wac-upper.separation').status, 'unknown');

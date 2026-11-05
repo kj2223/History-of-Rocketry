@@ -1,11 +1,11 @@
 // Physical reality (freeze §4.1). The only module that reads data/physical.js or state.physical.
 // It never reads beliefs, evidence or UI state, and it draws only from the physical stream.
 
-import { BASE, REVISION_EFFECTS, SCATTER, MECHANISMS } from '../data/physical.js';
+import { BASE, REVISION_EFFECTS, SCATTER, MECHANISMS, LATENT } from '../data/physical.js';
 import { VEHICLE_QUANTITIES, lineage } from '../data/vehicles.js';
 import { draw, normal } from '../core/rng.js';
 
-export const initPhysical = () => ({ trueDefectMechanism: 'pm-07', traces: {} });
+export const initPhysical = () => ({ trueDefectMechanism: 'pm-07', latentMechanisms: [...LATENT], traces: {} });
 
 const active = (m, stages, conditions) => {
   const rev = stages[m.stage];
@@ -14,16 +14,25 @@ const active = (m, stages, conditions) => {
 };
 
 // Generate the true trace of a test and keep it in the physical layer.
-// The draw count depends only on the vehicle (1 + 2 per quantity), never on channels or beliefs.
+// The draw count is fixed (1 + 2 per quantity), never dependent on channels or beliefs.
 export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions }) => {
   const stream = state.rng.physical;
-  const mechanisms = [state.physical.trueDefectMechanism].map(id => MECHANISMS[id]).filter(m => active(m, stages, conditions));
+  // shortcut: saves made before latent mechanisms existed get the default set on load.
+  const ids = [state.physical.trueDefectMechanism, ...(state.physical.latentMechanisms ?? LATENT)];
+  const mechanisms = ids.map(id => MECHANISMS[id]).filter(m => active(m, stages, conditions));
+  // One roll decides the flight: each active mechanism brings it down with its own chance, independently.
   const roll = draw(stream);
-  const failed = kind === 'flight' && roll < Math.max(0, ...mechanisms.map(m => m.flightFailureChance ?? 0));
+  let survive = 1, culprit = null;
+  for (const m of mechanisms) {
+    survive *= 1 - (m.flightFailureChance ?? 0);
+    if (!culprit && roll < 1 - survive) culprit = m;
+  }
+  const failed = kind === 'flight' && !!culprit;
   const samples = VEHICLE_QUANTITIES[vehicle].map(quantity => {
     let value = BASE[vehicle][quantity];
     for (const rev of Object.values(stages)) for (const r of lineage(rev)) value += REVISION_EFFECTS[r]?.[quantity] ?? 0;
     for (const m of mechanisms) value += m.effects[quantity] ?? 0;
+    if (failed) value += culprit.onFailure?.[quantity] ?? 0;
     value *= 1 + SCATTER * normal(stream);
     if (failed && quantity === 'vehicle.apogee') value *= 0.3;
     if (failed && quantity === 'vehicle.deviation') value += 40;

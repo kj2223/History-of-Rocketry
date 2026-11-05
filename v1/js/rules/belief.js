@@ -6,7 +6,8 @@ import { REVISIONS, STAGES, VEHICLE_QUANTITIES, lineage } from '../data/vehicles
 import { TUNING } from '../data/tuning.js';
 import { claimStatus } from './evidence.js';
 
-export const initBeliefs = () => ({ anomalies: {} });
+// `assessed` holds abnormal observations whose failure consequences the technical director has reviewed.
+export const initBeliefs = () => ({ anomalies: {}, assessed: [] });
 
 const matches = (have, want) => Object.entries(want).every(([k, v]) => have[k] === v);
 
@@ -80,8 +81,16 @@ export const readiness = (state, decision, config, revId = null) => {
     case 'experimental-flight': {
       const changed = revId ? REVISIONS[revId].affects.filter(q => q.startsWith(`${REVISIONS[revId].stage}.`)) : [];
       const untested = changed.filter(q => claimStatus(state, config, q, FLIGHT_CONDITIONS).status !== 'measured-normal').map(q => `${q} has no ground evidence for flight conditions`);
-      const blockers = [...adverse, ...untested];
-      return { ready: !blockers.length, blockers, gaps };
+      // §4.4: an experimental flight needs failure consequences assessed, not eliminated. Routine use still
+      // treats every adverse finding as blocking (§4.5).
+      const assessed = new Set(state.beliefs.assessed ?? []);
+      const unassessed = claims.filter(c => c.status === 'adverse' && c.observations.some(id => {
+        const o = state.evidence.observations.find(x => x.id === id);
+        return o.state === 'measured' && !o.normal && !assessed.has(id);
+      })).map(c => `${c.quantity} has an adverse finding`);
+      const risks = claims.filter(c => c.status === 'adverse' && !unassessed.includes(`${c.quantity} has an adverse finding`)).map(c => `${c.quantity} carries an assessed failure risk`);
+      const blockers = [...unassessed, ...untested];
+      return { ready: !blockers.length, blockers, gaps: [...gaps, ...risks] };
     }
     case 'routine-use': {
       const thin = claims.filter(c => c.status === 'measured-normal' && c.tests < TUNING.routineDistinctTests).map(c => `${c.quantity} has ${c.tests} of ${TUNING.routineDistinctTests} distinct tests`);

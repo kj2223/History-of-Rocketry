@@ -25,3 +25,13 @@ export const ground = (config, burn, channels = ['aerobee-sustainer.wall-temp', 
   ({ kind: 'ground', ...config, stage, conditions: { burn }, channels });
 
 export const flight = (config, channels) => ({ kind: 'flight', ...config, conditions: { burn: 'long' }, channels });
+
+// A state where the given flights all flew nominally (latent mechanisms make some flights fail).
+export const nominalFlights = (plans, from = 1) => {
+  for (let seed = from; seed < from + 500; seed++) {
+    const s = bareState(seed);
+    const runs = plans.map(p => fire(s, p));
+    if (runs.every(r => r.obs.every(o => o.state !== 'measured' || o.normal))) return s;
+  }
+  throw new Error('no seed flew nominally');
+};

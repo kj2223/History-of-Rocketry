@@ -83,3 +83,14 @@ test('§4.4: readiness depends on the decision', () => {
   assert.equal(readiness(s, 'routine-use', r2).ready, false);
   assert.equal(readiness(s, 'experimental-flight', r1).ready, false, 'r1 carries an adverse finding');
 });
+
+test('latent defects: early WAC Corporal flights fail at roughly the historical rate', () => {
+  const s = bareState(1);
+  const wac = { vehicle: 'wac', stages: { 'tiny-tim': 'tiny-tim/r1', 'wac-upper': 'wac-upper/r1' } };
+  let failures = 0;
+  for (let i = 0; i < 500; i++) {
+    const { obs } = fire(s, flight(wac, ['vehicle.apogee', 'vehicle.deviation']));
+    if (obs.some(o => o.quantity === 'vehicle.deviation' && o.state === 'measured' && !o.normal)) failures++;
+  }
+  assert.ok(failures > 500 * 0.12 && failures < 500 * 0.28, `${failures} of 500 failed`);
+});

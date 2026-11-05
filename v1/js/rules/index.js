@@ -61,6 +61,7 @@ const EFFECTS = {
   'apply-change': programme.applyChange,
   stop: programme.beginClosure,
   'approve-trial': (s, { revId }) => approveTrial(s, revId),
+  'accept-risk': (s, { observations }) => { (s.beliefs.assessed ??= []).push(...observations); },
   adopt: (s, { revId, programmeIds }) => adopt(s, revId, programmeIds),
 };
 

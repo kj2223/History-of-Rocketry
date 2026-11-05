@@ -88,6 +88,11 @@ export const completeFlight = (state, j) => {
     openDecision(state, { type: 'replacement', subject: l.id, raisedBy: 'financial-officer', evidence: j.observations,
       text: `${VEHICLES[l.vehicle].name} ${l.articleId} was lost. ${obs.filter(o => o.state === 'measured').length} readings were recovered and are in Records. A replacement would cost ${dollars(l.replacementCost)}; ${money.affordable ? 'that is affordable' : 'that is not affordable this year'}.`,
       options: ['defer', 'fund-replacement', 'seek-supplementary'], effect: { kind: 'none' } });
+    // The abnormal readings block further experimental flights until the technical director reviews them.
+    const abnormal = obs.filter(o => o.state === 'measured' && !o.normal);
+    if (abnormal.length) openDecision(state, { type: 'failure-review', subject: l.id, raisedBy: 'technical-director', evidence: abnormal.map(o => o.id),
+      text: `${VEHICLES[l.vehicle].name} ${l.articleId} failed with ${abnormal.length} abnormal reading${abnormal.length > 1 ? 's' : ''}. The cause is not known. Fly this configuration again knowing the risk, or ground it until engineering finds the cause?`,
+      options: ['accept-known-risk', 'ground'], effect: { kind: 'accept-risk', payload: { observations: abnormal.map(o => o.id) } } });
   }
   return l;
 };

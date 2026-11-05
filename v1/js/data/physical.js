@@ -18,7 +18,8 @@ export const REVISION_EFFECTS = {
 export const SCATTER = 0.015;
 
 // Mechanisms present in hardware. A mechanism acts on revisions of its stage unless a revision in the
-// chain is listed in `absentFrom`.
+// chain is listed in `absentFrom`. `effects` show whenever it is active; `onFailure` shows only on the
+// flights it actually brings down.
 export const MECHANISMS = {
   'pm-07': {
     stage: 'aerobee-sustainer',
@@ -27,4 +28,11 @@ export const MECHANISMS = {
     effects: { 'aerobee-sustainer.wall-temp': 180 },
     flightFailureChance: 0.25,
   },
+  // Captured V-2s were old, reassembled hardware; roughly a third failed at White Sands.
+  'pm-03': { stage: 'v2', absentFrom: [], when: {}, effects: {}, onFailure: { 'v2.chamber-pressure': -6 }, flightFailureChance: 0.3 },
+  // Early WAC Corporal firings lost a fair share of rounds to ignition and feed trouble.
+  'pm-11': { stage: 'wac-upper', absentFrom: [], when: {}, effects: {}, onFailure: { 'wac-upper.chamber-pressure': -9 }, flightFailureChance: 0.2 },
 };
+
+// Mechanisms every new campaign starts with, besides the worked-case defect.
+export const LATENT = ['pm-03', 'pm-11'];

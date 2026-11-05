@@ -10,7 +10,7 @@ import { LAUNCH_TIERS } from '../js/rules/authority.js';
 import { game, greenlightProgramme, groundTest, fly, book } from './game.js';
 
 const reload = s => checkSave(exportGame(s));
-const HIDDEN = ['physical', 'trueDefectMechanism', 'traces', ...Object.keys(MECHANISMS)];
+const HIDDEN = ['physical', 'trueDefectMechanism', 'latentMechanisms', 'traces', ...Object.keys(MECHANISMS)];
 const assertNoLeak = s => {
   const text = JSON.stringify(project(s));
   for (const word of HIDDEN) assert.equal(text.includes(word), false, `projection leaks "${word}"`);
@@ -117,4 +117,30 @@ test('AC06: approved routine work proceeds quietly, with one report and no decis
   groundTest(g, 'wac', 'short', { stage: 'wac-upper', channels: ['wac-upper.chamber-pressure'] });
   assert.equal(g.state.decisions.length, decisions);
   assert.deepEqual(g.state.memos.slice(memos).map(m => m.kind), ['report']);
+});
+
+test('§4.4: after a failure, experimental flights are held until the failure risk is reviewed', () => {
+  for (let seed = 1; seed < 200; seed++) {
+    const g = game(seed);
+    g.cmd('build-article', 'production', { id: 'w1', programmeId: 'wac' });
+    if (fly(g, 'wac', 'w1').outcome !== 'failure') continue;
+    const review = g.state.decisions.find(d => d.type === 'failure-review');
+    assert.deepEqual(review.options, ['accept-known-risk', 'ground']);
+    g.cmd('build-article', 'production', { id: 'w2', programmeId: 'wac' });
+    const ask = () => {
+      const pad = book(g, 'pad-1', 'wac', 5), tracking = book(g, 'tracking-1', 'wac', 5);
+      return g.cmd('request-launch', 'administrator', { id: `L${g.state.day}`, articleId: 'w2', pad, tracking, cost: 1, replacementCost: 1 }).decision;
+    };
+    const held = ask();
+    assert.match(g.try('decide', 'administrator', { decisionId: held, choice: 'approve' }).rejection.reason, /Vetoed by technical/);
+    g.approve(held, 'reject');
+    g.approve(review.id, 'accept-known-risk');
+    g.days(6);
+    const clearedId = ask();
+    const cleared = g.state.decisions.find(d => d.id === clearedId);
+    assert.equal(cleared.positions.technical.stance, 'approve');
+    assert.match(cleared.positions.technical.reason, /assessed failure risk/);
+    return;
+  }
+  assert.fail('no seed produced a failure');
 });
