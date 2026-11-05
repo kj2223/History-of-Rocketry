@@ -46,5 +46,5 @@ test('upholding the challenge grounds the configuration again', () => {
   g.cmd('build-article', 'production', { id: 'w2', programmeId: 'wac' });
   const pad = book(g, 'pad-1', 'wac', 5), tracking = book(g, 'tracking-1', 'wac', 5);
   const ask = g.cmd('request-launch', 'administrator', { id: 'L2', articleId: 'w2', pad, tracking, cost: 1, replacementCost: 1 }).decision;
-  assert.match(g.try('decide', 'administrator', { decisionId: ask, choice: 'approve' }).rejection.reason, /Vetoed by technical/);
+  assert.match(g.state.decisions.find(x => x.id === ask).consequence, /Scrubbed: vetoed by technical/);
 });

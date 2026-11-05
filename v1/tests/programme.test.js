@@ -138,16 +138,17 @@ test('§8.8: open questions list what NASA inherits from existing records, witho
   groundTest(g, 'aerobee', 'long');
   // A future-year commitment goes through a joint decision before it enters the ledger.
   g.approve(g.cmd('commit-funds', 'department-head', { id: 'late-bill', dept: 'propulsion', programmeId: 'aerobee', payments: [{ amount: 500, due: END_DAY + 30 }], terms: { cancellable: false, cancelFee: 0 } }).decision);
-  g.cmd('build-article', 'production', { id: 'a1', programmeId: 'aerobee' });
-  const pad = book(g, 'pad-1', 'aerobee', 5), tracking = book(g, 'tracking-1', 'aerobee', 5);
-  g.cmd('request-launch', 'administrator', { id: 'L', articleId: 'a1', pad, tracking, cost: 1, replacementCost: 1 });
+  // A trial asked for before any ground evidence stays open under a technical veto.
+  g.cmd('propose-revision', 'department-head', { revId: 'aerobee-sustainer/r2', reason: 'liner' });
+  g.cmd('approve-prototype', 'technical-director', { programmeId: 'aerobee', revId: 'aerobee-sustainer/r2' });
+  g.cmd('request-trial', 'department-head', { programmeId: 'aerobee', revId: 'aerobee-sustainer/r2' });
   g.days(END_DAY);
   const section = g.state.continuation.summary.sections[5];
   assert.equal(section.placeholder, undefined);
   const q = section.items;
   assert.ok(q.readinessRestrictions.find(r => r.programmeId === 'aerobee').restrictions.some(t => /adverse/.test(t)));
   assert.ok(q.unsettledObligations.some(o => o.id && o.owner === 'propulsion' && o.amount === 500));
-  assert.ok(q.disagreements.some(d => d.type === 'launch' && d.vetoes.some(v => v.who === 'technical')));
+  assert.ok(q.disagreements.some(d => d.type === 'trial' && d.vetoes.some(v => v.who === 'technical')));
   assert.ok(q.untestedClaims.some(c => c.programmeId === 'aerobee' && c.quantity === 'vehicle.apogee'));
   const text = JSON.stringify(section);
   for (const word of ['physical', 'trueDefectMechanism', 'pm-07']) assert.equal(text.includes(word), false, word);

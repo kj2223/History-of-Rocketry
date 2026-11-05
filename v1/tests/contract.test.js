@@ -29,7 +29,8 @@ const scripted = () => {
   g.cmd('build-article', 'production', { id: 'a2', programmeId: 'aerobee' });
   const pad = book(g, 'pad-1', 'aerobee', 5), tracking = book(g, 'tracking-1', 'aerobee', 5);
   const d = g.cmd('request-launch', 'administrator', { id: 'L2', articleId: 'a2', pad, tracking, cost: 1, replacementCost: 1 }).decision;
-  assert.match(g.try('decide', 'administrator', { decisionId: d, choice: 'approve' }).rejection.reason, /Vetoed by technical/);
+  assert.match(g.state.decisions.find(x => x.id === d).consequence, /Scrubbed: vetoed by technical/);
+  assert.equal(g.state.launches.find(l => l.id === 'L2').status, 'scrubbed');
   frames.push(g.state);
   return { g, frames };
 };
@@ -132,8 +133,7 @@ test('§4.4: after a failure, experimental flights are held until the failure ri
       return g.cmd('request-launch', 'administrator', { id: `L${g.state.day}`, articleId: 'w2', pad, tracking, cost: 1, replacementCost: 1 }).decision;
     };
     const held = ask();
-    assert.match(g.try('decide', 'administrator', { decisionId: held, choice: 'approve' }).rejection.reason, /Vetoed by technical/);
-    g.approve(held, 'reject');
+    assert.match(g.state.decisions.find(x => x.id === held).consequence, /Scrubbed: vetoed by technical/);
     g.approve(review.id, 'accept-known-risk');
     g.days(6);
     const clearedId = ask();
@@ -143,4 +143,26 @@ test('§4.4: after a failure, experimental flights are held until the failure ri
     return;
   }
   assert.fail('no seed produced a failure');
+});
+
+test('a launch that is refused, or whose pad is given away, clears the pad', () => {
+  const g = game(3);
+  g.cmd('create-programme', 'administrator', { id: 'wac-2', name: 'Second WAC series', vehicle: 'wac' });
+  for (const id of ['w1', 'w2']) g.cmd('build-article', 'production', { id, programmeId: 'wac' });
+  const ask = (id, articleId) => {
+    const pad = book(g, 'pad-1', 'wac', 5), tracking = book(g, 'tracking-1', 'wac', 5);
+    return g.cmd('request-launch', 'administrator', { id, articleId, pad, tracking, cost: 1, replacementCost: 1 }).decision;
+  };
+  const padFree = () => !g.state.facilities.reservations.some(r => r.unitId === 'pad-1' && r.status === 'held');
+  g.approve(ask('refused', 'w1'), 'reject');
+  assert.equal(g.state.launches.find(l => l.id === 'refused').status, 'scrubbed');
+  assert.ok(padFree(), 'refusing releases the pad at once');
+  assert.equal(g.state.hardware.articles.w1.status, 'built', 'the article can fly another day');
+  const waiting = ask('bumped', 'w2');
+  const clash = g.cmd('reserve-facility', 'administrator', { id: 'next', unitId: 'pad-1', programmeId: 'wac-2', from: g.state.day, to: g.state.day + 2, purpose: 'launch' });
+  g.approve(clash.decision, 'displace');
+  g.days(1);
+  assert.equal(g.state.launches.find(l => l.id === 'bumped').status, 'scrubbed');
+  assert.equal(g.state.decisions.find(d => d.id === waiting).decidedBy, 'flight-control');
+  assert.equal(g.state.facilities.reservations.find(r => r.id === 'next').status, 'held');
 });
