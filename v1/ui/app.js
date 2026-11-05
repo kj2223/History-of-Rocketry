@@ -491,15 +491,15 @@ const siteView = () => {
 const kindName = id => view.facilityKinds.find(k => k.id === id)?.name ?? cap(id);
 const facilityStatus = u => u.status === 'upgrading' ? `Upgrading, out of service (capacity ${u.capacity} to ${u.capacityAfter})` : u.status === 'commissioning' ? 'Being commissioned, not yet usable' : cap(u.status);
 const facilityActions = u => u.status !== 'operational' ? null : formBox(`upg-${u.id}`,
-  view.facilities.filter(x => x.kind === u.kind && x.status === 'operational').length === 1 ? 'Upgrade (our only one in service)' : 'Upgrade', [{ name: 'capacityAfter', label: 'Capacity afterwards', type: 'number', value: u.capacity + 1, min: 1 }],
-  'Technical director starts it', v => act('begin-upgrade', 'technical-director', { jobId: uid('upgrade'), unitId: u.id, capacityAfter: v.capacityAfter }, `${u.id} taken out of service for its upgrade. The benefit arrives when the work finishes.`));
+  `${view.facilities.filter(x => x.kind === u.kind && x.status === 'operational').length === 1 ? 'Upgrade (our only one in service)' : 'Upgrade'}, ${money(view.facilityKinds.find(k => k.id === u.kind).upgradeCost)} per capacity step`, [{ name: 'capacityAfter', label: 'Capacity afterwards', type: 'number', value: u.capacity + 1, min: 1 }],
+  'Technical director starts it', v => act('begin-upgrade', 'technical-director', { jobId: uid('upgrade'), unitId: u.id, capacityAfter: v.capacityAfter }, `${u.id} taken out of service for its upgrade. Half the cost is paid now and the rest on completion; the benefit arrives when the work finishes.`));
 const newFacilityForm = () => formBox('newfac', 'Build a new facility', [
-  { name: 'kind', label: 'Kind', options: view.facilityKinds.map(k => [k.id, `${k.name}${k.exclusive ? ' (exclusive)' : ' (shared)'}`]) },
+  { name: 'kind', label: 'Kind', options: view.facilityKinds.map(k => [k.id, `${k.name}${k.exclusive ? ' (exclusive)' : ' (shared)'}, ${money(k.buildCost)} per unit of capacity`]) },
   { name: 'capacity', label: 'Capacity', type: 'number', value: 1, min: 1 }],
 'Commission it', v => {
   let n = view.facilities.filter(u => u.kind === v.kind).length + 1;
   while (view.facilities.some(u => u.id === `${v.kind}-${n}`)) n++;
-  act('add-facility', 'administrator', { jobId: uid('commission'), id: `${v.kind}-${n}`, kind: v.kind, capacity: v.capacity }, `${kindName(v.kind)} ${v.kind}-${n} is being commissioned. It cannot be reserved until that is done.`);
+  act('add-facility', 'administrator', { jobId: uid('commission'), id: `${v.kind}-${n}`, kind: v.kind, capacity: v.capacity }, `${kindName(v.kind)} ${v.kind}-${n} is being commissioned. Half the cost is paid now and the rest on completion. It cannot be reserved until that is done.`);
 });
 
 // Commitments (freeze §7.2, §7.7): cancellation stops avoidable payments under the terms; nothing paid comes back.

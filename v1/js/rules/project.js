@@ -38,7 +38,7 @@ export const project = s => {
     workload: s.work.map(j => ({ id: j.id, kind: j.kind, programmeId: j.programmeId, started: j.started, subject: j.payload?.unitId ?? j.payload?.articleId ?? (j.plan?.stage ? STAGES[j.plan.stage].name : j.plan ? 'the vehicle' : null), status: j.status, cursor: j.cursor, total: j.total, result: j.result, assessment: j.assessment, observations: j.observations.length })),
     calendar: copy(s.facilities.reservations),
     facilities: copy(Object.values(s.facilities.units)),
-    facilityKinds: Object.entries(FACILITY_KINDS).map(([id, k]) => ({ id, name: k.name, exclusive: k.exclusive })),
+    facilityKinds: Object.entries(FACILITY_KINDS).map(([id, k]) => ({ id, name: k.name, exclusive: k.exclusive, buildCost: TUNING.facilityBuildCost[id], upgradeCost: TUNING.facilityBuildCost[id] * TUNING.facilityUpgradeShare })),
     vehicles: Object.entries(VEHICLES).map(([id, v]) => ({ id, name: v.name })),
     appointments: copy(s.delegation.appointments),
     findings: copy(s.production.findings),
