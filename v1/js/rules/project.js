@@ -2,7 +2,7 @@
 // Receives state with the physical layer already removed, so it cannot leak hidden truth.
 
 import { dateLabel } from '../core/calendar.js';
-import { VEHICLE_QUANTITIES, QUANTITIES } from '../data/vehicles.js';
+import { VEHICLE_QUANTITIES, QUANTITIES, REVISIONS, STAGES } from '../data/vehicles.js';
 import { HYPOTHESES, ANOMALIES, FLIGHT_CONDITIONS } from '../data/engineering.js';
 import { claimStatus } from './evidence.js';
 import { capacityRemaining, protectedBaseline, available } from './fiscal.js';
@@ -22,6 +22,7 @@ export const project = s => {
       id: p.id, name: p.name, stage: p.stage, source: p.source, client: p.client, vehicle: p.vehicle, baseline: p.baseline, window: p.window,
       delegated: isDelegated(s, p.id), delegationConditions: p.vehicle ? conditions(s, p.id) : [],
       claims: p.vehicle ? VEHICLE_QUANTITIES[p.vehicle].map(q => ({ ...claimStatus(s, { vehicle: p.vehicle, stages: p.baseline }, q, FLIGHT_CONDITIONS), name: QUANTITIES[q].name })) : [],
+      cases: copy(p.cases), meeting: p.meeting && copy(p.meeting), history: copy(p.history),
       closure: p.closure && { steps: p.closure.steps, unresolved: unresolved(p) },
     })),
     anomalies: Object.values(s.beliefs.anomalies).map(a => ({
@@ -36,6 +37,7 @@ export const project = s => {
     fiscal: { fy: s.fiscal.fy, award: s.fiscal.award, cash: s.fiscal.cash, capacityRemaining: capacityRemaining(s), protectedBaseline: protectedBaseline(s), available: available(s),
       ledger: copy(s.fiscal.ledger), exposures: copy(s.fiscal.exposures), retentions: copy(s.fiscal.retentions), conditions: copy(s.fiscal.conditions) },
     stock: copy(Object.values(s.stock.items)),
+    revisionCatalogue: Object.entries(REVISIONS).filter(([, r]) => r.parent && STAGES[r.stage].developable).map(([id, r]) => ({ id, label: r.label, stage: r.stage, stageName: STAGES[r.stage].name, affects: r.affects })),
     hardware: copy({ revisions: s.hardware.revisions, articles: s.hardware.articles, batches: s.hardware.batches }),
     launches: copy(s.launches),
     summary: s.continuation.summary && copy(s.continuation.summary),
