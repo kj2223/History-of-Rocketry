@@ -122,16 +122,6 @@ const stance = p => !p ? null : h('div', { class: 'position' },
   h('span', { class: `stamp ${p.stance === 'veto' ? 'veto' : 'approve'}` }, p.stance === 'veto' ? 'Veto' : cap(p.stance)), ' ', p.reason);
 
 // ---- mail ----
-// Plain words for decision options; anything not listed reads from its id.
-const OPTIONS = {
-  'accept-known-risk': 'Fly again, accepting the known risk', ground: 'Ground it until engineering finds the cause',
-  'fund-replacement': 'Fund a replacement', 'seek-supplementary': 'Ask for supplementary funds', defer: 'Defer',
-  'corrective-revision': 'Order a corrective revision', 'hold-and-inspect': 'Hold the batch and inspect', 'accept-with-limits': 'Accept with limits',
-  displace: 'Displace the other programme', decline: 'Decline', reallocate: 'Reallocate the stock', 'buy-more': 'Buy more',
-  reschedule: 'Reschedule payments', 'accept-risk': 'Accept the timing risk', stop: 'Stop the programme', 'further-attempt': 'Allow a further bounded attempt',
-  'go-ahead': 'Go ahead', 'not-now': 'Not now',
-};
-const optionLabel = o => OPTIONS[o] ?? cap(o);
 // A report that cites a test links to its readings in Records.
 const readingsLink = jobId => {
   const j = jobId && view.workload.find(x => x.id === jobId);
@@ -149,13 +139,13 @@ const mailView = () => {
   const pane = !current ? h('p', { class: 'muted' }, 'Nothing in the inbox. Advance the calendar to receive mail.') : h('article', { class: 'letter', 'aria-label': 'Selected message' },
     h('div', { class: 'head' }, `From: ${cap(current.from)} · ${day(current.day)} · ${cap(current.kind)}`),
     h('p', {}, current.text),
-    readingsLink(current.refs?.job ?? view.evidence.find(o => current.evidence?.includes(o.id))?.workId),
+    readingsLink(current.refs?.job),
     current.kind === 'decision' && [
       current.positions && h('div', { class: 'positions' },
         h('div', {}, h('h4', {}, 'Financial officer'), stance(current.positions.finance)),
         h('div', {}, h('h4', {}, 'Technical director'), stance(current.positions.technical))),
       h('div', { class: 'actions', role: 'group', 'aria-label': 'Your decision' }, current.options.map((o, n) =>
-        button(optionLabel(o), () => act('decide', 'administrator', { decisionId: current.id, choice: o }, `Decided: ${optionLabel(o).toLowerCase()}.`), { primary: n === 0, key: `opt-${o}` }))),
+        button(cap(o), () => act('decide', 'administrator', { decisionId: current.id, choice: o }, `Decided: ${words(o)}.`), { primary: n === 0, key: `opt-${o}` }))),
     ],
     // A team's proposed next step: the go-ahead carries it out; "not now" asks them to wait a month.
     current.kind === 'proposal' && h('div', { class: 'actions', role: 'group', 'aria-label': 'Your answer' },
@@ -528,7 +518,7 @@ const recordsView = () => {
       closed.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Decided', 'Raised by', 'Question', 'Positions', 'Evidence cited', 'Decision'].map(t => h('th', {}, t)))),
         h('tbody', {}, closed.map(d => h('tr', {}, h('td', {}, day(d.decidedDay)), h('td', {}, `${cap(d.raisedBy)}, ${day(d.day)}`), h('td', {}, d.text),
           h('td', {}, d.positions ? [['Finance', d.positions.finance], ['Technical', d.positions.technical]].filter(([, x]) => x).map(([w, x]) => `${w}: ${x.stance}, ${x.reason}`).join('; ') : '—'),
-          h('td', {}, d.evidence.length ? d.evidence.join(', ') : '—'), h('td', {}, `${optionLabel(d.choice)} by ${words(d.decidedBy)}${d.consequence ? `. ${d.consequence}` : ''}`)))))
+          h('td', {}, d.evidence.length ? d.evidence.join(', ') : '—'), h('td', {}, `${cap(d.choice)} by ${words(d.decidedBy)}${d.consequence ? `. ${d.consequence}` : ''}`)))))
         : h('p', { class: 'muted' }, 'No decisions taken yet. Open ones wait in Mail.')),
     h('section', { class: 'card' }, h('h3', {}, 'Readings by test'),
       h('p', { class: 'muted' }, 'Every reading as recorded. Nothing here is new evidence; consulting a record does not repeat a test.'),

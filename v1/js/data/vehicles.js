@@ -6,7 +6,8 @@ export const STAGES = {
   'aerobee-booster': { name: 'Aerobee solid booster', developable: false },
   'aerobee-sustainer': { name: 'Aerobee liquid sustainer', developable: true },
   'tiny-tim': { name: 'Tiny Tim solid booster', developable: false },
-  'v2': { name: 'V-2 first stage', developable: false },
+  // Captured hardware: not redesigned, but it can be refurbished to a corrected standard.
+  'v2': { name: 'V-2 first stage', developable: true },
   'wac-upper': { name: 'WAC Corporal upper stage', developable: true },
 };
 
@@ -56,6 +57,18 @@ export const REVISIONS = {
     stage: 'wac-upper', parent: 'wac-upper/r1', label: 'Revised upper-stage ignition timer',
     affects: ['v2|wac-upper.separation', 'vehicle.apogee'],
     telemetry: ['wac-upper.chamber-pressure'],
+  },
+  // Corrective revisions for in-flight losses. They change the flight-outcome claims, so a loss on the
+  // old revision is not held against the corrected one.
+  'wac-upper/r3': {
+    stage: 'wac-upper', parent: 'wac-upper/r1', label: 'Reworked upper-stage igniter',
+    affects: ['wac-upper.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
+    remedies: ['igniter-hangfire'], telemetry: ['wac-upper.chamber-pressure'],
+  },
+  'v2/r2': {
+    stage: 'v2', parent: 'v2/r1', label: 'Refurbished V-2 turbopump and steam generator',
+    affects: ['v2.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
+    remedies: ['turbopump-wear'], telemetry: ['v2.chamber-pressure'],
   },
 };
 

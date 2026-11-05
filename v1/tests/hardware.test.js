@@ -2,8 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { claimStatus } from '../js/rules/evidence.js';
-import { nominalFlights, bumper, flight } from './helpers.js';
-import { game, greenlightProgramme, fly, book } from './game.js';
+import { nominalFlights, bareState, fire, bumper, flight } from './helpers.js';
+import { game, greenlightProgramme, fly, book, groundTest } from './game.js';
 
 const ALL = ['v2.chamber-pressure', 'wac-upper.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee', 'vehicle.deviation'];
 
@@ -60,4 +60,34 @@ test('§5.5: reuse needs integration work and recycling recovers by yield; neith
   assert.equal(g.state.hardware.articles.w2.status, 'recycled');
   const recovered = Object.values(g.state.stock.items).find(i => i.provenance.recycledFrom === 'w2');
   assert.ok(recovered.qty < 1);
+});
+
+test('latent defects: teams can trace the WAC Corporal fault and fix it through trial', () => {
+  const g = game(31);
+  const pressure = { stage: 'wac-upper', channels: ['wac-upper.chamber-pressure'] };
+  groundTest(g, 'wac', 'short', pressure);
+  const anomaly = () => g.state.beliefs.anomalies['upper-stage-loss'];
+  assert.equal(anomaly().status, 'competing', 'a rough short firing opens the investigation');
+  groundTest(g, 'wac', 'long', pressure);
+  assert.equal(anomaly().status, 'leading');
+  assert.equal(anomaly().hypotheses['feed-starvation'].status, 'ruled-out');
+  g.cmd('propose-revision', 'department-head', { revId: 'wac-upper/r3', reason: 'igniter hang-fire' });
+  g.cmd('approve-prototype', 'technical-director', { programmeId: 'wac', revId: 'wac-upper/r3' });
+  groundTest(g, 'wac', 'long', { ...pressure, stages: { 'wac-upper': 'wac-upper/r3' } });
+  g.approve(g.cmd('request-trial', 'department-head', { programmeId: 'wac', revId: 'wac-upper/r3' }));
+  assert.equal(g.state.hardware.revisions['wac-upper/r3'].trial, true);
+});
+
+test('latent defects: corrected revisions stop the in-flight losses they remedy', () => {
+  const rate = config => {
+    const s = bareState(2);
+    let lost = 0;
+    for (let i = 0; i < 300; i++) if (fire(s, flight(config, ['vehicle.deviation'])).obs.find(o => o.quantity === 'vehicle.deviation').normal === false) lost++;
+    return lost / 300;
+  };
+  const wac = upper => ({ vehicle: 'wac', stages: { 'tiny-tim': 'tiny-tim/r1', 'wac-upper': upper } });
+  assert.ok(rate(wac('wac-upper/r1')) > 0.1);
+  assert.equal(rate(wac('wac-upper/r3')), 0);
+  const both = { vehicle: 'bumper', stages: { v2: 'v2/r2', 'wac-upper': 'wac-upper/r3' } };
+  assert.equal(rate(both), 0);
 });

@@ -28,7 +28,7 @@ export const updateBeliefs = (state, observations) => {
   let changed = false;
   for (const obs of observations.filter(o => o.state === 'measured')) {
     for (const [id, def] of Object.entries(ANOMALIES)) {
-      if (!state.beliefs.anomalies[id] && obs.quantity === def.trigger && !obs.normal) {
+      if (!state.beliefs.anomalies[id] && [def.trigger].flat().includes(obs.quantity) && !obs.normal && (!def.vehicles || def.vehicles.includes(obs.vehicle))) {
         state.beliefs.anomalies[id] = {
           id, opened: state.day, openedBy: obs.id, evidence: [],
           hypotheses: Object.fromEntries(def.hypotheses.map(h => [h, { status: 'open', ruledOutBy: null }])),

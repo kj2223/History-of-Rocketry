@@ -114,7 +114,7 @@ test('FRZ-01: v1 content has no crewed vehicles', () => {
 test('AC06: approved routine work proceeds quietly, with one report and no decisions', () => {
   const g = game(5);
   const decisions = g.state.decisions.length, memos = g.state.memos.length;
-  groundTest(g, 'wac', 'short', { stage: 'wac-upper', channels: ['wac-upper.chamber-pressure'] });
+  groundTest(g, 'wac', 'long', { stage: 'wac-upper', channels: ['wac-upper.chamber-pressure'] });
   assert.equal(g.state.decisions.length, decisions);
   assert.deepEqual(g.state.memos.slice(memos).map(m => m.kind), ['report']);
 });

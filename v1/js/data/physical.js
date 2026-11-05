@@ -29,9 +29,11 @@ export const MECHANISMS = {
     flightFailureChance: 0.25,
   },
   // Captured V-2s were old, reassembled hardware; roughly a third failed at White Sands.
-  'pm-03': { stage: 'v2', absentFrom: [], when: {}, effects: {}, onFailure: { 'v2.chamber-pressure': -6 }, flightFailureChance: 0.3 },
+  // A short stand firing shows it as low chamber pressure at start-up.
+  'pm-03': { stage: 'v2', absentFrom: ['v2/r2'], when: { burn: 'short' }, effects: { 'v2.chamber-pressure': -3.5 }, flightFailureChance: 0.3 },
   // Early WAC Corporal firings lost a fair share of rounds to ignition and feed trouble.
-  'pm-11': { stage: 'wac-upper', absentFrom: [], when: {}, effects: {}, onFailure: { 'wac-upper.chamber-pressure': -9 }, flightFailureChance: 0.2 },
+  // A short stand firing shows it as a rough, low-pressure start.
+  'pm-11': { stage: 'wac-upper', absentFrom: ['wac-upper/r3'], when: { burn: 'short' }, effects: { 'wac-upper.chamber-pressure': -5 }, flightFailureChance: 0.2 },
 };
 
 // Mechanisms every new campaign starts with, besides the worked-case defect.

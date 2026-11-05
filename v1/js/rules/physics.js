@@ -7,11 +7,10 @@ import { draw, normal } from '../core/rng.js';
 
 export const initPhysical = () => ({ trueDefectMechanism: 'pm-07', latentMechanisms: [...LATENT], traces: {} });
 
-const active = (m, stages, conditions) => {
-  const rev = stages[m.stage];
-  return !!rev && !lineage(rev).some(r => m.absentFrom.includes(r))
-    && Object.entries(m.when).every(([k, v]) => conditions[k] === v);
-};
+// A mechanism is present on every article whose stage revision has not removed it; its `effects` show
+// only under its `when` conditions, but it can bring down any flight it is present on.
+const present = (m, stages) => { const rev = stages[m.stage]; return !!rev && !lineage(rev).some(r => m.absentFrom.includes(r)); };
+const showing = (m, conditions) => Object.entries(m.when).every(([k, v]) => conditions[k] === v);
 
 // Generate the true trace of a test and keep it in the physical layer.
 // The draw count is fixed (1 + 2 per quantity), never dependent on channels or beliefs.
@@ -19,7 +18,7 @@ export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions
   const stream = state.rng.physical;
   // shortcut: saves made before latent mechanisms existed get the default set on load.
   const ids = [state.physical.trueDefectMechanism, ...(state.physical.latentMechanisms ?? LATENT)];
-  const mechanisms = ids.map(id => MECHANISMS[id]).filter(m => active(m, stages, conditions));
+  const mechanisms = ids.map(id => MECHANISMS[id]).filter(m => present(m, stages));
   // One roll decides the flight: each active mechanism brings it down with its own chance, independently.
   const roll = draw(stream);
   let survive = 1, culprit = null;
@@ -31,7 +30,7 @@ export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions
   const samples = VEHICLE_QUANTITIES[vehicle].map(quantity => {
     let value = BASE[vehicle][quantity];
     for (const rev of Object.values(stages)) for (const r of lineage(rev)) value += REVISION_EFFECTS[r]?.[quantity] ?? 0;
-    for (const m of mechanisms) value += m.effects[quantity] ?? 0;
+    for (const m of mechanisms) if (showing(m, conditions)) value += m.effects[quantity] ?? 0;
     if (failed) value += culprit.onFailure?.[quantity] ?? 0;
     value *= 1 + SCATTER * normal(stream);
     if (failed && quantity === 'vehicle.apogee') value *= 0.3;
