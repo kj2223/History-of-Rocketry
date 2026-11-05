@@ -19,5 +19,14 @@ export const TUNING = {
   operatingCostPerQuarter: 60000,
   awards: { 1945: 400000, 1946: 900000, 1947: 1200000, 1948: 1500000, 1949: 1600000, 1950: 1800000, 1951: 2200000, 1952: 2500000,
     1953: 2600000, 1954: 2800000, 1955: 3500000, 1956: 4500000, 1957: 5000000, 1958: 9000000, 1959: 12000000 },
+  // Staff pacing (freeze §2.2, §8.2): how long cases and meetings take, and how teams space their work.
+  staffCaseDays: 28,
+  staffMeetingDays: 14,
+  staffGreenlightPrepDays: 60,
+  proposalSnoozeDays: 30,
+  staffTestBookingDays: 10,
+  staffLaunchBookingDays: 5,
+  staffFlightCost: 20000,
+  staffFlightSpacingDays: 60,
   jobDays: { 'integration-assessment': 10, recycle: 14, repair: 7, upgrade: 60, commissioning: 30 },
 };

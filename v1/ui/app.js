@@ -27,7 +27,7 @@ const applyTheme = () => {
 
 const refresh = () => { view = project(game); };
 // After anything new arrives, open the newest unread decision, else the newest unread item.
-const selectNew = () => { const fresh = view.inbox.filter(i => !ui.seen.has(i.id)); const next = fresh.find(i => i.kind === 'decision') ?? fresh[0]; if (next) ui.mailId = next.id; };
+const selectNew = () => { const fresh = view.inbox.filter(i => !ui.seen.has(i.id)); const next = fresh.find(i => i.kind === 'decision') ?? fresh.find(i => i.kind === 'proposal') ?? fresh[0]; if (next) ui.mailId = next.id; };
 const persist = () => { try { saveGame(game, storage); } catch { say('This browser would not keep the save. Export it to be safe.', true); } };
 
 let counter = 0;
@@ -135,7 +135,7 @@ const mailView = () => {
   const list = h('ul', { 'aria-label': 'Inbox' }, items.map(i => h('li', {},
     h('button', { type: 'button', class: `mail-row${ui.seen.has(i.id) ? '' : ' unread'}`, 'data-key': `mail-${i.id}`,
       'aria-current': i === current ? 'true' : null, onclick: () => { ui.mailId = i.id; render(); } },
-    h('span', { class: 'from' }, `${i.kind === 'decision' ? 'For decision · ' : ''}${cap(i.from)} · ${day(i.day)}`), h('span', { class: 'subject' }, subject(i.text))))));
+    h('span', { class: 'from' }, `${i.kind === 'decision' ? 'For decision · ' : i.kind === 'proposal' ? 'Proposal · ' : ''}${cap(i.from)} · ${day(i.day)}`), h('span', { class: 'subject' }, subject(i.text))))));
   const pane = !current ? h('p', { class: 'muted' }, 'Nothing in the inbox. Advance the calendar to receive mail.') : h('article', { class: 'letter', 'aria-label': 'Selected message' },
     h('div', { class: 'head' }, `From: ${cap(current.from)} · ${day(current.day)} · ${cap(current.kind)}`),
     h('p', {}, current.text),
@@ -146,7 +146,12 @@ const mailView = () => {
         h('div', {}, h('h4', {}, 'Technical director'), stance(current.positions.technical))),
       h('div', { class: 'actions', role: 'group', 'aria-label': 'Your decision' }, current.options.map((o, n) =>
         button(cap(o), () => act('decide', 'administrator', { decisionId: current.id, choice: o }, `Decided: ${words(o)}.`), { primary: n === 0, key: `opt-${o}` }))),
-    ]);
+    ],
+    // A team's proposed next step: the go-ahead carries it out; "not now" asks them to wait a month.
+    current.kind === 'proposal' && h('div', { class: 'actions', role: 'group', 'aria-label': 'Your answer' },
+      button('Go ahead', () => act('approve-proposal', 'administrator', { proposalId: current.id }, 'Go-ahead given. The team is on it.'), { primary: true, key: `go-${current.id}` }),
+      button('Not now', () => act('decline-proposal', 'administrator', { proposalId: current.id }, 'The team will wait and propose again later.'), { key: `wait-${current.id}` })),
+    );
   return h('div', {}, h('h2', {}, 'Mail'), h('div', { class: 'mail' }, h('div', {}, list), pane));
 };
 
@@ -158,24 +163,13 @@ const programmeActions = p => {
   const id = p.id, k = `p-${id}`;
   switch (p.stage) {
     case 'feasibility': return [button('Authorise feasibility work', () => act('authorise-feasibility', 'administrator', { programmeId: id }, `Feasibility work authorised for ${p.name}.`), { key: `${k}-feas`, primary: true })];
-    case 'investigation': {
-      const ready = p.cases.engineering && p.cases.funding && p.meeting;
-      return [
-        h('ul', {},
-          h('li', {}, 'Engineering case: ', p.cases.engineering ? p.cases.engineering.summary : 'not yet'),
-          h('li', {}, 'Funding case: ', p.cases.funding ? p.cases.funding.summary : 'not yet'),
-          h('li', {}, 'Client meeting: ', p.meeting ? `${money(p.meeting.cost)}, ${p.meeting.timeline}` : 'not yet')),
-        formBox(`${k}-eng`, 'Record the engineering case', [{ name: 'summary', label: 'Summary', required: true }], 'Technical director files it', v => act('complete-case', 'technical-director', { programmeId: id, summary: v.summary }, 'Engineering case filed.')),
-        formBox(`${k}-fin`, 'Record the funding case', [{ name: 'summary', label: 'Summary', required: true }], 'Financial officer files it', v => act('complete-case', 'financial-officer', { programmeId: id, summary: v.summary }, 'Funding case filed.')),
-        formBox(`${k}-meet`, 'Record the client meeting', [
-          { name: 'cost', label: 'Estimated cost ($)', type: 'number', value: 300000, min: 0 }, { name: 'contribution', label: 'Client contribution', required: true },
-          { name: 'timeline', label: 'Timeline', required: true }, { name: 'requirements', label: 'Requirements', required: true }], 'Record meeting', v => act('record-meeting', 'administrator', { programmeId: id, ...v }, 'Meeting recorded.')),
-        button('Submit dossier', () => act('submit-dossier', 'administrator', { programmeId: id }, 'Dossier submitted.'), { key: `${k}-dossier`, primary: ready, disabled: !ready }),
-      ];
-    }
+    // The team does stage 2 and 3 itself (freeze §8.2); the player reads the cases and decides on the dossier.
+    case 'investigation': return [h('ul', {},
+      h('li', {}, 'Client meeting: ', p.meeting ? `${money(p.meeting.cost)} over ${p.meeting.timeline}; they contribute ${p.meeting.contribution}` : 'not yet'),
+      h('li', {}, 'Engineering case (technical director): ', p.cases.engineering ? p.cases.engineering.summary : 'in preparation'),
+      h('li', {}, 'Funding case (financial officer): ', p.cases.funding ? p.cases.funding.summary : 'in preparation'))];
     case 'dossier': return [h('p', { class: 'muted' }, 'The dossier is awaiting your decision in Mail.')];
     case 'preliminary': return [
-      h('p', {}, `Greenlight window closes ${day(p.window.closes)}.`),
       button('Request greenlight', () => act('request-greenlight', 'administrator', { programmeId: id }, 'Greenlight raised for your decision.'), { key: `${k}-gl`, primary: true }),
       formBox(`${k}-ext`, 'Extend the window', [{ name: 'question', label: 'Question to answer', required: true }, { name: 'resources', label: 'Resources', required: true }, { name: 'days', label: 'Days', type: 'number', value: 30, min: 1 }],
         'Extend', v => act('extend-window', 'administrator', { programmeId: id, ...v }, 'Window extended.')),
@@ -208,6 +202,7 @@ const programmesView = () => h('div', {}, h('h2', {}, 'Programmes'),
   view.programmes.map(p => h('section', { class: 'card', 'aria-labelledby': `h-${p.id}` },
     h('header', {}, h('h3', { id: `h-${p.id}` }, p.name), h('span', { class: 'stamp warn' }, STAGE_TEXT[p.stage] ?? p.stage),
       h('span', { class: 'meta' }, `${cap(p.source)}${p.client ? ` · ${p.client}` : ''}${p.vehicle ? ` · ${vehicleName(p.vehicle)}` : ''}${p.delegated ? ' · schedules its own routine work' : ''}`)),
+    p.team && h('p', {}, h('strong', {}, 'The team: '), p.team),
     programmeActions(p),
     p.vehicle && p.stage === 'greenlit' && h('details', {}, h('summary', {}, 'Delegation conditions'), h('ul', {}, p.delegationConditions.map(c => h('li', {}, `${c.met ? 'Met' : 'Not met'}: ${c.detail}`)))),
     p.delegated && formBox(`${p.id}-dfail`, 'Report a failure beyond remit', [{ name: 'text', label: 'What went wrong', required: true }],

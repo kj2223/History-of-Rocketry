@@ -67,7 +67,7 @@ export const submitDossier = (state, id, { financeBlockers = [], technicalBlocke
   if (!p.cases.engineering || !p.cases.funding || !p.meeting) throw new Rejection('The dossier needs both cases and the client meeting');
   p.stage = 'dossier';
   return openDecision(state, { type: 'preliminary-acceptance', subject: id, raisedBy: 'project-manager', vetoable: true,
-    text: `${p.name}: we think it is possible; begin the work needed to decide?`, evidence: [],
+    text: `${p.name}: we think it is possible; begin the work needed to decide? Engineering: ${p.cases.engineering.summary} Funding: ${p.cases.funding.summary}`, evidence: [],
     finance: position(financeBlockers), technical: position(technicalBlockers), effect: { kind: 'preliminary-accept', payload: { id } } }).id;
 };
 

@@ -10,6 +10,7 @@ import { claimStatus } from './evidence.js';
 import { capacityRemaining, protectedBaseline, available } from './fiscal.js';
 import { conditions, isDelegated } from './delegation.js';
 import { unresolved } from './programme.js';
+import { teamStatus } from './staff.js';
 
 export const project = s => {
   if ('physical' in s) throw new Error('project() must not receive the physical layer');
@@ -18,11 +19,12 @@ export const project = s => {
     day: s.day, date: dateLabel(s.day), act: s.act, concluded: s.concluded,
     inbox: [
       ...s.decisions.filter(d => d.status === 'open').map(d => ({ kind: 'decision', id: d.id, day: d.day, from: d.raisedBy, text: d.text, options: d.options, positions: d.positions })),
+      ...(s.staff?.proposals ?? []).filter(x => x.status === 'open').map(x => ({ kind: 'proposal', id: x.id, day: x.day, from: x.from, text: x.text, options: ['go-ahead', 'not-now'], refs: { programme: x.programmeId } })),
       ...s.memos.map(m => ({ kind: m.kind, id: m.id, day: m.day, from: m.from, text: m.text, refs: copy(m.refs ?? {}) })),
     ].sort((a, b) => b.day - a.day),
     programmes: Object.values(s.programmes).map(p => ({
       id: p.id, name: p.name, stage: p.stage, source: p.source, client: p.client, vehicle: p.vehicle, baseline: p.baseline, window: p.window,
-      delegated: isDelegated(s, p.id), delegationConditions: p.vehicle ? conditions(s, p.id) : [],
+      delegated: isDelegated(s, p.id), team: teamStatus(s, p), delegationConditions: p.vehicle ? conditions(s, p.id) : [],
       claims: p.vehicle ? VEHICLE_QUANTITIES[p.vehicle].map(q => ({ ...claimStatus(s, { vehicle: p.vehicle, stages: p.baseline }, q, FLIGHT_CONDITIONS), name: QUANTITIES[q].name })) : [],
       cases: copy(p.cases), meeting: p.meeting && copy(p.meeting), history: copy(p.history),
       closure: p.closure && { steps: p.closure.steps, unresolved: unresolved(p) },

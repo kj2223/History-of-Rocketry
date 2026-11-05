@@ -24,6 +24,7 @@ import { initContinuation, conclude } from './summary.js';
 import { project as projectPublic } from './project.js';
 import { jobReport } from './reports.js';
 import { programmeName } from './reports.js';
+import { initStaff, staffDay, approveProposal, declineProposal, quarterReport, openingBriefing } from './staff.js';
 
 export { Rejection };
 
@@ -33,10 +34,13 @@ export const newGame = (seed = 19451958) => {
     physical: initPhysical(), evidence: initEvidence(), beliefs: initBeliefs(),
     hardware: initHardware(), production: initProduction(), facilities: initFacilities(),
     fiscal: initFiscal(0), stock: initStock(), programmes: programme.initProgrammes(), delegation: initDelegation(),
-    ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(),
+    ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(),
   };
   startQuarter(state);
   programme.arrivals(state);
+  openingBriefing(state);
+  quarterReport(state);
+  staffDay(state, staffCommand);
   return state;
 };
 
@@ -152,12 +156,25 @@ const COMMANDS = {
   'reserve-stock': { roles: ['administrator', 'department-head', 'production'], run: (s, r) => reserveStock(s, r) },
   'consume-stock': { roles: ['department-head', 'production'], run: (s, r) => consumeStock(s, r) },
   'report-delegation-failure': { roles: ['technical-director'], run: (s, { programmeId, ...f }) => recordFailure(s, programmeId, f) },
+
+  // A team's proposed next step (freeze §2.2, §5.1): the go-ahead carries it out through the commands above.
+  'approve-proposal': { roles: ['administrator'], run: (s, { proposalId }) => approveProposal(s, staffCommand, proposalId) },
+  'decline-proposal': { roles: ['administrator'], run: (s, { proposalId }) => declineProposal(s, proposalId) },
 };
 
 export const COMMAND_TYPES = Object.keys(COMMANDS);
 
 const permitted = (s, cmd, spec) => spec.roles.includes(cmd.actor)
   || (spec.delegated?.includes(cmd.actor) && isDelegated(s, cmd.payload?.programmeId ?? s.hardware.articles[cmd.payload?.articleId]?.programmeId));
+
+// Staff act through the same command table, inside their own authority, on the state they are given.
+function staffCommand(s, type, actor, payload) {
+  const spec = COMMANDS[type], cmd = { type, actor, payload };
+  if (!permitted(s, cmd, spec)) throw new Rejection(`${actor} may not ${type}`, 'authority');
+  const result = spec.run(s, payload, actor);
+  s.commands.push({ id: `staff-${s.commands.length + 1}`, type, actor, day: s.day, by: 'staff' });
+  return result;
+}
 
 // Apply an authorised command. A rejection returns the original state untouched.
 export const dispatch = (state, cmd) => {
@@ -195,13 +212,14 @@ const COMPLETIONS = {
 const oneDay = s => {
   s.day += 1;
   const q = fiscalQuarter(s.day);
-  if (q.start === s.day) { if (q.fy !== s.fiscal.fy) closeYear(s); startQuarter(s); }
+  if (q.start === s.day) { if (q.fy !== s.fiscal.fy) closeYear(s); startQuarter(s); quarterReport(s); }
   s.act = [...ACTS].reverse().find(a => s.day >= a.from).id;
   programme.arrivals(s);
   programme.lapseWindows(s);
   for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
   payDue(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
+  if (!s.concluded) staffDay(s, staffCommand);
   for (const a of ANCHORS.filter(x => x.day === s.day)) {
     memo(s, { from: 'administrator-office', text: a.text, refs: { anchor: a.id } });
     if (a.supplementary) supplementary(s, a.supplementary, a.id);
