@@ -1,0 +1,42 @@
+// The wider world, 1945–1958: dated period headlines for the side panel. Background only (freeze §1:
+// historical footnotes, no rules). Nothing here is read by the rules, and none of it names a programme
+// the player runs, so it never contradicts how their campaign has gone.
+// Each entry: [year, month, date, place, text]. A date of 0 means only the month is known.
+
+export const HEADLINES = [
+  [1945, 5, 8, 'Europe', 'Germany surrenders. The war in Europe is over.'],
+  [1945, 8, 6, 'Japan', 'An atomic bomb destroys Hiroshima. Three weeks ago a test lit the desert just north of the range.'],
+  [1945, 9, 2, 'Tokyo Bay', 'Japan signs the surrender aboard USS Missouri. The Second World War is over.'],
+  [1945, 9, 20, 'Delaware', 'Wernher von Braun lands in the United States, the first of the German rocket engineers the Army is bringing to Fort Bliss, Texas.'],
+  [1946, 3, 5, 'Fulton, Missouri', 'Churchill warns that an "iron curtain" has fallen across Europe.'],
+  [1946, 4, 16, 'White Sands', 'The Army fires its first captured V-2 from the range.'],
+  [1946, 7, 1, 'Bikini Atoll', 'The armed forces set off an atomic bomb over a fleet of target ships.'],
+  [1946, 10, 22, 'Soviet zone of Germany', 'Overnight the Soviets ship thousands of German rocket and aircraft specialists east.'],
+  [1946, 10, 24, 'White Sands', 'A camera carried on an Army V-2 photographs the Earth from 65 miles up.'],
+  [1947, 3, 12, 'Washington', 'Truman asks Congress for aid to Greece and Turkey. Talk in the capital turns to a long contest with the Soviets.'],
+  [1947, 6, 5, 'Harvard', 'Secretary Marshall proposes a programme to rebuild Europe.'],
+  [1947, 7, 26, 'Washington', 'The National Security Act creates a Department of Defense. The Air Force will be a service of its own.'],
+  [1948, 6, 15, 'Washington', 'The Air Force confirms that its Bell X-1 has flown faster than sound.'],
+  [1948, 6, 24, 'Berlin', 'The Soviets cut the roads and railways into West Berlin. The airlift begins.'],
+  [1949, 4, 4, 'Washington', 'Twelve nations sign the North Atlantic Treaty.'],
+  [1949, 5, 12, 'Berlin', 'The Soviets lift the Berlin blockade.'],
+  [1949, 9, 23, 'Washington', 'Truman announces that the Soviet Union has exploded an atomic bomb.'],
+  [1949, 10, 1, 'Peking', 'Mao Zedong proclaims the People\'s Republic of China.'],
+  [1950, 4, 0, 'Huntsville', 'The Army moves its German rocket team from Fort Bliss to Redstone Arsenal in Alabama.'],
+  [1950, 6, 25, 'Korea', 'North Korea invades the South. American troops are sent within days.'],
+  [1952, 10, 0, 'Amsterdam', 'Scientists agree to hold an International Geophysical Year in 1957 and 1958.'],
+  [1952, 11, 1, 'Pacific', 'The first hydrogen bomb test vaporises an island at Enewetak.'],
+  [1953, 7, 27, 'Korea', 'An armistice ends the fighting in Korea.'],
+  [1953, 8, 12, 'Soviet Union', 'The Soviets test a thermonuclear weapon of their own.'],
+  [1953, 8, 20, 'Cape Canaveral', 'The Army\'s Redstone missile makes its first flight.'],
+  [1954, 3, 1, 'Bikini Atoll', 'The Castle Bravo test runs far larger than planned. Fallout reaches a Japanese fishing boat.'],
+  [1955, 7, 29, 'Washington', 'The White House says America will launch a small satellite during the Geophysical Year.'],
+  [1955, 8, 2, 'Copenhagen', 'A Soviet scientist says his country will launch a satellite too.'],
+  [1956, 11, 4, 'Budapest', 'Soviet tanks crush the Hungarian uprising.'],
+  [1957, 7, 1, 'Worldwide', 'The International Geophysical Year begins.'],
+  [1957, 8, 27, 'Moscow', 'TASS says the Soviet Union has tested an intercontinental ballistic missile.'],
+  [1957, 10, 4, 'Moscow', 'The Soviet Union launches Sputnik, the first artificial satellite. Its beeping is heard around the world.'],
+  [1957, 11, 3, 'Moscow', 'Sputnik 2 goes up carrying a dog, Laika.'],
+  [1958, 5, 15, 'Moscow', 'Sputnik 3, a heavy scientific laboratory, reaches orbit.'],
+  [1958, 7, 29, 'Washington', 'Eisenhower signs the National Aeronautics and Space Act.'],
+];
