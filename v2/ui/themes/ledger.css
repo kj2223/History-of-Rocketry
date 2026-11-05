@@ -1,0 +1,11 @@
+/* Ledger: quiet sans-serif briefing look on soft dark slate. No pure white or pure black, easy on OLED. */
+:root { --desk: #101318; --paper: #181c22; --paper-2: #1f242c; --raised: #1c2128; --hover: #262c36; --ink: #d5dae2; --ink-soft: #96a1b1; --paper-ink: #12151a;
+  --rule: #323946; --stamp: #ff9a90; --ok: #78d39e; --warn: #e8bb5c; --focus: #7db0ff;
+  --serif: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --type: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color-scheme: dark; }
+.case { box-shadow: 0 1px 3px #0006; border-radius: 8px; overflow: hidden; } header.bar { background: var(--paper); border-bottom: 1px solid var(--rule); }
+header.bar h1, h2, h4, th, .date { text-transform: none; letter-spacing: 0; } .stamp { transform: none; border-width: 1px; border-radius: 999px; padding: 0 10px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+button { border-radius: 6px; border-color: var(--rule); } nav.tabs { border-bottom: 1px solid var(--rule); } nav.tabs button { border-radius: 6px 6px 0 0; background: transparent; border-color: transparent; }
+nav.tabs button[aria-current="page"] { border-color: var(--rule); border-bottom: 2px solid var(--focus); }
+button.primary { background: #3a5f9e; border-color: #3a5f9e; color: #f1f4f9; } button.primary:hover:not(:disabled) { background: #4673b8; }
+.badge { color: #1a0f0e; }
+.panel { border-radius: 8px; }

@@ -1,0 +1,5 @@
+/* Ops console: dark, phosphor monospace, dense. Reads like a range-control terminal. */
+:root { --desk: #070b09; --paper: #0d1511; --paper-2: #142019; --raised: #101b15; --hover: #1b2d23; --ink: #cfe9d6; --ink-soft: #7fa38b; --paper-ink: #07110b;
+  --rule: #2c4a38; --stamp: #ff7a59; --ok: #6fe39a; --warn: #f2c14e; --focus: #7cc4ff; --serif: "Courier New", Courier, monospace; --type: "Courier New", Courier, monospace; }
+body { font-size: 15px; line-height: 1.4; } .case { box-shadow: 0 0 0 1px var(--rule), 0 0 24px #1d4a2f55; border-radius: 0; }
+header.bar h1::before { content: "▌"; color: var(--ok); } .stamp { border-radius: 0; transform: none; } button { border-radius: 0; } nav.tabs button { border-radius: 0; }

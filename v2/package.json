@@ -1,0 +1,10 @@
+{
+  "name": "per-aspera-v1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "balance": "node tools/balance.mjs",
+    "acceptance": "node tools/acceptance.mjs"
+  }
+}
