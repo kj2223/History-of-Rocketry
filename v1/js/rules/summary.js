@@ -7,6 +7,7 @@ import { readiness } from './belief.js';
 import { claimStatus } from './evidence.js';
 import { VEHICLE_QUANTITIES } from '../data/vehicles.js';
 import { FLIGHT_CONDITIONS } from '../data/engineering.js';
+import { openRestrictions } from './assurance.js';
 
 // What NASA inherits (§8.8, 6th section), read from existing records only: no new state, no hidden truth.
 export const openQuestions = state => {
@@ -15,7 +16,9 @@ export const openQuestions = state => {
   const UNTESTED = ['unknown', 'unmeasured', 'lost'];
   return {
     readinessRestrictions: live.map(p => ({ programmeId: p.id,
-      restrictions: readiness(state, 'routine-use', config(p)).blockers.filter(b => /adverse|unresolved/.test(b)) })).filter(r => r.restrictions.length),
+      restrictions: readiness(state, 'routine-use', config(p)).blockers.filter(b => /adverse|unresolved/.test(b)),
+      assurance: openRestrictions(state).filter(r => r.programmeId === p.id).map(r => ({ id: r.id, quantity: r.quantity, placed: r.placed })) }))
+      .filter(r => r.restrictions.length || r.assurance.length),
     unsettledObligations: [
       ...state.fiscal.ledger.filter(e => e.status === 'open' || e.status === 'overdue')
         .map(e => ({ id: e.id, kind: e.kind, amount: e.amount, due: e.due, owner: e.dept, programmeId: e.programmeId, status: e.status })),
@@ -25,7 +28,11 @@ export const openQuestions = state => {
     ],
     disagreements: state.decisions.filter(d => d.status === 'open' && d.vetoable && Object.values(d.positions).some(x => x?.stance === 'veto'))
       .map(d => ({ decisionId: d.id, type: d.type, subject: d.subject, text: d.text,
-        vetoes: Object.entries(d.positions).filter(([, x]) => x?.stance === 'veto').map(([who, x]) => ({ who, reason: x.reason })) })),
+        vetoes: Object.entries(d.positions).filter(([, x]) => x?.stance === 'veto').map(([who, x]) => ({ who, reason: x.reason })) }))
+      // Assurance challenges the administrator overruled or left unanswered stay on the record as dissent.
+      .concat((state.assurance?.challenges ?? []).filter(c => c.status !== 'upheld').map(c => ({ decisionId: c.decisionId, type: 'assurance-challenge', subject: c.subject,
+        text: `Assurance challenged flying again after ${c.subject} without knowing the cause; ${c.status === 'overruled' ? 'the administrator stood by the decision' : 'the challenge was not answered'}.`,
+        vetoes: [{ who: 'assurance', reason: 'unexplained abnormal readings' }] }))),
     untestedClaims: live.flatMap(p => VEHICLE_QUANTITIES[p.vehicle].map(q => claimStatus(state, config(p), q, FLIGHT_CONDITIONS))
       .filter(c => UNTESTED.includes(c.status)).map(c => ({ programmeId: p.id, quantity: c.quantity, status: c.status }))),
   };

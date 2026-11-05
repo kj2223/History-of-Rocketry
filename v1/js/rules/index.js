@@ -24,6 +24,7 @@ import { initContinuation, conclude } from './summary.js';
 import { project as projectPublic } from './project.js';
 import { jobReport } from './reports.js';
 import { programmeName, money, unitName } from './reports.js';
+import { initAssurance, assuranceDay, challengeRiskAcceptance, answerChallenge } from './assurance.js';
 import { initStaff, staffDay, approveProposal, declineProposal, quarterReport, openingBriefing } from './staff.js';
 
 export { Rejection };
@@ -34,7 +35,7 @@ export const newGame = (seed = 19451958) => {
     physical: initPhysical(), evidence: initEvidence(), beliefs: initBeliefs(),
     hardware: initHardware(), production: initProduction(), facilities: initFacilities(),
     fiscal: initFiscal(0), stock: initStock(), programmes: programme.initProgrammes(), delegation: initDelegation(),
-    ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(),
+    ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(), assurance: initAssurance(),
   };
   startQuarter(state);
   programme.arrivals(state);
@@ -100,6 +101,8 @@ const COMMANDS = {
   decide: { roles: ['administrator'], run: (s, { decisionId, choice, consequence }, actor) => {
     const d = decide(s, decisionId, choice, actor, consequence);
     if (d.choice === d.options[0] && d.effect) EFFECTS[d.effect.kind](s, d.effect.payload);
+    if (d.type === 'failure-review' && d.choice === 'accept-known-risk') challengeRiskAcceptance(s, d, d.effect.payload.observations);
+    if (d.type === 'assurance-challenge') answerChallenge(s, d);
     return d.id;
   } },
   'create-programme': { roles: ['administrator', 'department-head'], run: (s, p, actor) =>
@@ -253,6 +256,7 @@ const oneDay = s => {
   for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
   payDue(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
+  assuranceDay(s);
   if (!s.concluded) staffDay(s, staffCommand);
   for (const a of ANCHORS.filter(x => x.day === s.day)) {
     memo(s, { from: 'administrator-office', text: a.text, refs: { anchor: a.id } });

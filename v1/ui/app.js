@@ -131,6 +131,7 @@ const OPTIONS = {
   displace: 'Displace the other programme', decline: 'Decline', reallocate: 'Reallocate the stock', 'buy-more': 'Buy more',
   reschedule: 'Reschedule payments', 'accept-risk': 'Accept the timing risk', stop: 'Stop the programme', 'further-attempt': 'Allow a further bounded attempt',
   'go-ahead': 'Go ahead', 'not-now': 'Not now',
+  'stand-by-decision': 'Stand by the decision', 'ground-configuration': 'Ground the configuration',
 };
 const optionLabel = o => OPTIONS[o] ?? cap(o);
 // A report that cites a test links to its readings in Records.
@@ -586,7 +587,7 @@ const listOr = (items, empty, line) => items.length ? h('ul', {}, items.map(x =>
 const openQuestionsView = q => [
   h('p', { class: 'muted' }, 'What NASA inherits from our records.'),
   h('h4', {}, 'Readiness restrictions still open'),
-  listOr(q.readinessRestrictions, 'None.', r => `${programmeName(r.programmeId)}: ${r.restrictions.join('; ')}`),
+  listOr(q.readinessRestrictions, 'None.', r => `${programmeName(r.programmeId)}: ${[...r.restrictions, ...(r.assurance ?? []).map(a => `assurance restriction on ${(quantityNames().get(a.quantity) ?? words(a.quantity)).toLowerCase()} since ${day(a.placed)}`)].join('; ')}`),
   h('h4', {}, 'Obligations not yet settled'),
   listOr(q.unsettledObligations, 'None.', o => `${cap(o.kind)}${o.amount != null ? ` of ${money(o.amount)}` : ''}${o.due != null ? ` due ${day(o.due)}` : ''}${o.programmeId ? ` for ${programmeName(o.programmeId)}` : ''}, owner ${o.owner ? words(o.owner) : 'not named'} (${words(o.status)})`),
   h('h4', {}, 'Disagreements left on the record'),
