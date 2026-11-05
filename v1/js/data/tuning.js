@@ -1,0 +1,23 @@
+// Every number the freeze calls tuning (§13). Rules read these; changing them is not a design change.
+
+export const TUNING = {
+  samplesPerDay: 1,
+  lossChance: { ground: 0.02, flight: 0.12 },
+  observationNoise: 0.01,
+  routineDistinctTests: 3,
+  recurringFindingThreshold: 2,
+  greenlightWindowDays: 182,
+  delegationSuccessfulFlights: 2,
+  reversalFailures: 2,
+  reversalWindowDays: 365,
+  workloadWarningJobs: 4,
+  consequentialCommitment: 250000,
+  preservationCostPerDay: 400,
+  recycleYield: 0.5,
+  recordsPerArchiveUnit: 200,
+  retentionShareOfSavings: 0.5,
+  operatingCostPerQuarter: 60000,
+  awards: { 1945: 400000, 1946: 900000, 1947: 1200000, 1948: 1500000, 1949: 1600000, 1950: 1800000, 1951: 2200000, 1952: 2500000,
+    1953: 2600000, 1954: 2800000, 1955: 3500000, 1956: 4500000, 1957: 5000000, 1958: 9000000, 1959: 12000000 },
+  jobDays: { 'integration-assessment': 10, recycle: 14, repair: 7, upgrade: 60, commissioning: 30 },
+};
