@@ -11,10 +11,11 @@ import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
+import { APOLLO_PLACES } from './data/apollo.js';
 import { ASTRONAUTS } from './data/crew.js';
 import { LUNAR_BEATS, tickLunar, lunarRoom } from './lunar.js';
 import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview } from './mercury.js';
-import { raceNews, RACE_FROM } from './world/race.js';
+import { raceNews, RACE_FROM, apolloFire } from './world/race.js';
 import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer, pendingOffer, SEATS } from './career/record.js';
 
@@ -97,7 +98,7 @@ function resetRound() {
 function setVehicle() {
   g.vehicle = SEASON[g.roundIndex].vehicle;
   g.people.hoyt.hidden = !['v2', 'bumper'].includes(g.vehicle);
-  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger', 'redstone', 'atlas', 'titan'].includes(g.vehicle);
+  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger', 'redstone', 'atlas', 'titan', 'saturn5'].includes(g.vehicle);
   g.site = SEASON[g.roundIndex].site || 'white-sands';
   // A Mercury round: Mercury Control's people are on site, Ellis is back at JPL, and the others have Mercury jobs.
   g.crewed = !!SEASON[g.roundIndex].crewed;
@@ -118,14 +119,27 @@ function setVehicle() {
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
 }
 // What a building is called now: the Cape's Mercury buildings stand where the old ones did.
-export const placeName = id => (g.crewed && g.program !== 'mercury' && GEMINI_PLACES[id]) || (g.crewed && MERCURY_PLACES[id]) || PLACES[id]?.name;
+export const placeName = id => (g.crewed && g.program === 'apollo' && APOLLO_PLACES[id]) || (g.crewed && g.program !== 'mercury' && GEMINI_PLACES[id]) || (g.crewed && MERCURY_PLACES[id]) || PLACES[id]?.name;
+
+// When round i starts: its date, later by any slip the Apollo programme has taken on.
+export const roundStartOf = i => SEASON[i].start + (SEASON[i].crewed === 'apollo' ? g.programme.apolloSlip || 0 : 0);
+// January 1967: the plugs-out test on the first crewed Apollo, in pure oxygen at full pressure. Whether the wiring
+// sparks is the hidden layer's; nothing is scripted. Either way the next round hears how it went.
+function apolloFireLines() {
+  const fire = apolloFire(g.seed, g.programme);
+  if (!fire) return ['On 27 January 1967 the first Apollo crew ran the plugs-out test on Pad 34 in pure oxygen at full pressure. It went clean. Apollo 1 flew in February: two weeks in Earth orbit with a cabin that hummed and smelled of hot wiring, and came home.', 'The programme office wants that wiring looked at before anyone goes to the Moon.'];
+  const names = ['whitcomb', 'castellano', 'harlan'].map(id => ASTRONAUTS[id].name).join(', ');
+  (g.record.losses = g.record.losses || []).push({ name: names, day: dayOf(1967, 1, 27), round: 'apollo-1' });
+  const fix = adopt(g.programme, 'cabin');
+  return [`On 27 January 1967, in the plugs-out test on Pad 34, a spark in the wiring under the couches lit the pure-oxygen cabin. ${names} died in seconds behind a hatch that opened inward. Nobody on the pad could reach them.`, 'Apollo stopped for twenty months while the spacecraft was rebuilt.', fix || ''].filter(Boolean);
+}
 
 // Round i: a fresh round built the way the team now builds them.
 function startRound(i) {
   resetRound();
   g.roundIndex = i;
   setVehicle();
-  g.roundStart = g.day = SEASON[i].start;
+  g.roundStart = g.day = roundStartOf(i);
   g.clock = g.day * 1440 + START_MINUTE;
   // Fixes made between flights whatever the reviews said (Marshall's after MR-1 and Ham's flight).
   for (const cause of SEASON[i].adopt || []) adopt(g.programme, cause);
@@ -698,8 +712,9 @@ export function nextRound() {
   if (next.vehicle !== SEASON[g.roundIndex].vehicle && g.programme.adopted.length) lines.push(`Everything the reviews decided so far goes into the build: ${fixesInForce(g.programme).join(' ')}`);
   if (!next.crewed) lines.push(`The crew built ${next.name} in the hangar.`);
   // The other side, from 1966, as Houston heard of it.
-  if (next.crewed && next.crewed !== 'mercury') lines.push(...raceNews(g.seed, Math.max(from, RACE_FROM), next.start));
-  g.away = { from: dateText(from), to: dateText(next.start), lines };
+  if (next.crewed && next.crewed !== 'mercury') lines.push(...raceNews(g.seed, Math.max(from, RACE_FROM), roundStartOf(i)));
+  if (next.id === 'apollo-6') lines.push(...apolloFireLines());
+  g.away = { from: dateText(from), to: dateText(roundStartOf(i)), lines };
   startRound(i);
   g.room = 'away';
 }

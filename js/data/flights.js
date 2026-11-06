@@ -103,6 +103,24 @@ export const FLIGHTS = {
       { at: 94, retro: true },
     ],
   },
+  // Apollo 6, the second Saturn V, flown without a crew: the last test before men ride it.
+  'apollo-6': {
+    program: 'apollo', craft: 'Apollo 6', entry: 'lunar', completes: 'lunarentry', phases: 3, objective: 'the Saturn V\'s second flight, with no crew: a restart of the third stage and an entry at the speed of a return from the Moon',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'If the third stage will not restart, the service module\'s engine may fly the high-speed entry test instead.',
+      'No crew rides a Saturn V until every failure on this flight is understood.',
+    ],
+    steps: [
+      { at: 0.05, phase: 'Launch', where: [0.02, 'Climbing'], if: 'pogo', say: [['albrecht', 'Flight, Booster: the first stage is shaking. Pogo, plus or minus ten g at the top of the stack. Something came off the adapter.', 'bad']], note: 'Two minutes into the climb the first stage set the stack shaking end to end, pogo, at about five cycles a second. Panels came off the lander adapter.', show: { POGO: ['severe', true] } },
+      { at: 0.06, if: 'j2', say: [['albrecht', 'Flight, Booster: two J-2s out on the second stage. The other three are burning long to make it up.', 'bad']], note: 'Two of the second stage\'s five engines shut down early. The rest burned longer and the third stage made up the difference.', show: { 'SECOND STAGE': ['two engines out', true] } },
+      { at: 3.0, phase: 'Earth orbit', where: [0.04, 'Earth orbit'], if: 'relight', say: [['albrecht', 'Flight, Booster: no restart. The third stage will not relight.', 'bad']], show: { 'S-IVB RESTART': ['failed', true] } },
+      { at: 3.1, if: 'relight', decide: 'sps6' },
+      { at: 3.0, unless: 'relight', say: [['albrecht', 'Flight, Booster: good restart on the third stage. She\'s climbing to twenty-two thousand kilometres.', 'go']], show: { 'S-IVB RESTART': ['good'] } },
+      { at: 9.5, phase: 'Entry', where: [0.03, 'Falling back'], decide: 'pogo' },
+      { at: 9.8, retro: true },
+    ],
+  },
 };
 
 // The questions, the options for each, who owns the call (the flight director unless said otherwise) and what the
@@ -123,6 +141,10 @@ export const DECISIONS = {
     options: { secondary: 'Bring them down in the Pacific tonight, on the rule.', primary: 'Hold them up a day for the primary area and the carrier.' } },
   evaplan: { q: 'The spacewalk. After Gemini 9A\'s exhausted spacewalker, the plan can be paced: handholds, foot restraints and a rest after every task. Or fly the full task list, as Gemini 9A tried.', auto: 'rest', rule: 1,
     options: { rest: 'Pace it: the restraints and a rest after every task.', full: 'Fly the full task list.', standup: 'A stand-up spacewalk only, from the hatch.' } },
+  sps6: { q: 'The third stage will not restart. The service module\'s engine could push her up for the high-speed entry test, though it was never meant to do the job.', auto: 'sps',
+    options: { sps: 'Burn the service module\'s engine for the entry test.', stay: 'Bring her home from Earth orbit. No high-speed test.' } },
+  pogo: { q: 'The programme\'s call, before the spacecraft is even home: is the Saturn V ready for a crew on the next flight, or do we fly a third one empty?', auto: 'crew', owner: 'programme', rule: 2,
+    options: { crew: 'Fix what this flight found, and put a crew on the next one.', third: 'Fly a third Saturn V without a crew. Two months.' } },
   navcheck: { q: 'Retrofire is next. Retro has the landing-point numbers ready for the spacecraft\'s computer. An independent check costs a revolution: retrofire one orbit later, into the secondary area with one destroyer.', auto: 'send', owner: 'retro',
     options: { send: 'Send the numbers now.', check: 'Have the back room check them first.' } },
 };
@@ -136,5 +158,6 @@ export const CAPABILITIES = {
   rendezvous: 'A rendezvous in orbit, Gemini 6A with Gemini 7, closing to a foot',
   docking: 'A docking in orbit, Gemini 8 with an Agena target',
   threedays: 'Three days of docked work with an Agena',
+  lunarentry: 'An entry at the speed of a return from the Moon, Apollo command module heat shield',
   evawork: 'Two hours of useful work outside, paced, with handholds and foot restraints',
 };

@@ -47,12 +47,15 @@ export const SEASON = [
   { id: 'gem-6', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['szabo', 'kowalczyk'], risk: { shutdownRisk: 0.7, computerRisk: 0.3 }, path: 'nasa', pressure: true, start: dayOf(1965, 12, 11), name: 'Gemini 6A, the rendezvous with Gemini 7' }, // 12 December 1965, flown 15 December
   { id: 'gem-8', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['fairbanks', 'nakamura'], risk: { thrusterRisk: 0.7 }, path: 'nasa', start: dayOf(1966, 3, 15), name: 'Gemini 8, the first docking' }, // 16 March 1966
   { id: 'gem-12', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['kowalczyk', 'boateng'], turningPoint: 'programme', path: 'nasa', start: dayOf(1966, 11, 10), name: 'Gemini 12, the last Gemini' }, // 11 November 1966
+  // Apollo, on the Saturn V. The first is flown without a crew: the last proving flight before men ride it.
+  { id: 'apollo-6', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: [], risk: { pogoRisk: 0.75, j2Risk: 0.6, relightRisk: 0.5 }, path: 'nasa', start: dayOf(1968, 4, 2), name: 'Apollo 6, the second Saturn V, without a crew' }, // 4 April 1968
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
 // The last word on the season-end page: what came after the last round you worked, and where this build stops.
 export const LAST_WORD = {
   'ranger-7': 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.',
+  'apollo-6': 'In August 1968 Houston began to talk about sending the next Saturn V round the Moon. That is as far as Apollo goes in this build.',
   'gem-12': 'Gemini was over: ten crewed flights in twenty months. Its rendezvous, its dockings, its long flights and its spacewalks went to Apollo as evidence. That is as far as Gemini goes in this build.',
 };
 
@@ -197,6 +200,12 @@ export const BETWEEN = {
     'Gemini 9A, in June 1966: its spacewalker fought his suit for two hours, his visor fogged and his heart rate passed 180. He got back in, exhausted, with most of the work undone.',
     'Gemini 10 in July and Gemini 11 in September docked with their Agenas and fired the Agena engines to climb, Gemini 11 to 1,370 km. Their spacewalks went better, and still wore men out.',
     'Gemini 12 is the last. The spacewalk has been rehearsed underwater in a pool, with handholds and foot restraints fitted outside.',
+  ],
+  'apollo-6': [
+    'Gemini is over, and Houston\'s whole attention is on Apollo: a command and service module from North American, a lunar module from Grumman, and the Saturn V from Marshall, the biggest rocket ever built.',
+    'Saturn IB flights in 1966 tested the command and service module without a crew: AS-201, AS-202, and AS-203 for the third stage.',
+    'On 9 November 1967 Apollo 4, the first Saturn V, flew without a crew and flawlessly. In January 1968 Apollo 5 tested the lunar module\'s engines in Earth orbit, also without a crew.',
+    'Apollo 6 is the second Saturn V. If it flies clean, the next one carries men.',
   ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',

@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', plug: 'a tail plug that came out in the wrong order', control: 'a control failure', lox: 'a propellant valve leak', thrust: 'a booster that burned too hot', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', miss: 'a midcourse that left her off the Moon', guidance: 'an Atlas guidance failure', shortburn: 'an Atlas sustainer cutting off early', shield: 'a loose heat shield', scanner: 'a bad horizon scanner', titanctl: 'a Titan guidance failure', stage2: 'a Titan second stage cutting off early', fuelcell: 'a failing fuel-cell oxygen supply', hatch: 'a bad hatch latch', computer: 'a failed guidance computer', navdata: 'a wrong number from the ground', shutdown: 'a tail plug that dropped out on the pad', thruster: 'a thruster stuck open', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', plug: 'a tail plug that came out in the wrong order', control: 'a control failure', lox: 'a propellant valve leak', thrust: 'a booster that burned too hot', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', miss: 'a midcourse that left her off the Moon', guidance: 'an Atlas guidance failure', shortburn: 'an Atlas sustainer cutting off early', shield: 'a loose heat shield', scanner: 'a bad horizon scanner', titanctl: 'a Titan guidance failure', stage2: 'a Titan second stage cutting off early', fuelcell: 'a failing fuel-cell oxygen supply', hatch: 'a bad hatch latch', computer: 'a failed guidance computer', navdata: 'a wrong number from the ground', shutdown: 'a tail plug that dropped out on the pad', thruster: 'a thruster stuck open', saturnctl: 'a Saturn guidance failure', j2: 'J-2 engines shutting down early', s2cutoff: 'a second stage cutting off early', pogo: 'pogo in the first stage', relight: 'an S-IVB that would not restart', sps: 'a faulty service propulsion engine', tank: 'an oxygen tank failure', cabin: 'a cabin wiring short in oxygen', alarm: 'an overloaded lander computer', ascent: 'a weak ascent engine', chute: 'a failed main parachute', lightning: 'a lightning strike', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -392,6 +392,41 @@ export const KITS = {
     },
   },
 
+  // Apollo on the Saturn V, from 1967: Boeing's first stage, North American's second and the command and service module,
+  // Douglas's third, IBM's instrument unit, and Grumman's lunar module.
+  saturn5: {
+    name: 'Apollo-Saturn V', range: 'APOLLO-SATURN V', crew: ['kowalski', 'delgado'], crewed: true, maker: 'The stages are Boeing\'s, North American\'s and Douglas\'s, the lander Grumman\'s. Your job is to know what they will do.',
+    brief: 'The Saturn V is on Pad 39A. Work the sims, then we fly.',
+    spots: {
+      'f1-engines': { name: 'First-stage F-1 engines and propellant lines', fault: 'pogo', sound: 'The lines and the prevalves are as drawn.', cue: 'The stage\'s ground vibration test shows a resonance near five cycles a second.' },
+      's2-engines': { name: 'Second-stage J-2 engines and igniter lines', fault: 'j2', sound: 'Every igniter line holds pressure on the leak check.', cue: 'One igniter line\'s braided cover is scuffed where it flexes.' },
+      iu: { name: 'Instrument unit: the Saturn\'s guidance', fault: 'saturnctl', sound: 'The platform and computer run the profile clean.', cue: 'The platform gimbal draws a little more current than its twin.' },
+      's4b': { name: 'Third-stage S-IVB restart system', fault: 'relight', sound: 'The restart bottles hold pressure and the chilldown valves cycle.', cue: 'The helium bottle pressure creeps down overnight.' },
+      sps: { name: 'Service propulsion engine', fault: 'sps', sound: 'The engine\'s valves and the propellant gauging check out.', cue: 'A ball valve actuator is slow to close on the bench.' },
+      'o2-tanks': { name: 'Service module oxygen tanks', fault: 'tank', sound: 'Both tanks fill and empty as they should.', cue: 'Tank two would not empty normally after the countdown test; it was boiled dry with its heaters.' },
+      'cabin-wiring': { name: 'Command module wiring and cabin materials', fault: 'cabin', sound: 'The wiring is dressed and the cabin clear of loose material.', cue: 'Chafed insulation on a wire bundle under the couches, and a lot of Velcro.' },
+      'lm-computer': { name: 'Lunar module guidance computer and rendezvous radar', fault: 'alarm', sound: 'The computer runs a full descent on the bench without a hiccup.', cue: 'With the rendezvous radar switched on during the descent run, the computer\'s load climbs near its limit.' },
+      'lm-ascent': { name: 'Lunar module ascent engine', fault: 'ascent', sound: 'The ascent engine\'s injector and valves pass their checks.', cue: 'An injector orifice shows a burr under the lens.' },
+      chutes: { name: 'Command module parachutes and their reaction control dump', fault: 'chute', sound: 'The risers and reefing cutters are as drawn.', cue: 'A riser runs close to a reaction control vent.' },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      saturnctl: 'The Saturn\'s guidance failed and she went off her line.',
+      j2: 'J-2 engines shut down early: the igniter lines.',
+      s2cutoff: 'The second stage cut off early, short of orbit.',
+      pogo: 'Pogo: the first stage shook the stack. Damp the propellant lines.',
+      relight: 'The S-IVB would not restart. Fix its restart system.',
+      sps: 'The service propulsion engine was faulty.',
+      tank: 'An oxygen tank failed in the service module.',
+      cabin: 'The cabin wiring shorted in pure oxygen. Rewire, and change the cabin atmosphere.',
+      alarm: 'The lander\'s computer was overloaded by the rendezvous radar.',
+      ascent: 'The lander\'s ascent engine underperformed.',
+      chute: 'A main parachute failed.',
+      lightning: 'Lightning struck the vehicle and knocked the spacecraft\'s power off the line.',
+      unknown: 'Not enough evidence to call it. Ask for a full teardown.',
+    },
+  },
+
   bumper: {
     name: 'Bumper', range: 'BUMPER (V-2 + WAC)', crew: ['kowalski', 'delgado'],
     inspect: { title: 'Hangar: the Bumper stack', objective: 'Go to the assembly hangar and look over the whole Bumper stack, the V-2 and the WAC on its nose, before tomorrow\'s static fire.',
@@ -448,8 +483,8 @@ export const FAILED_BECAUSE = {
   liner: 'the chamber liner came away and the wall burned through',
   cutoff: 'the turbine leaked steam and the engine cut off early', fin: 'a fin fitting cracked and a fin came off', holddown: 'the hold-down fittings let go on the stand',
   plug: 'the tail plug came out in the wrong order and shut the engine down', control: 'the control system failed and she went off her line', lox: 'the oxygen valve leaked and the burn stopped early', thrust: 'the thrust controller let her burn too hot',
-  guidance: 'the Atlas autopilot drifted and took her off her line', shortburn: 'the Atlas sustainer cut off early', shield: 'the heat shield was loose', scanner: 'a horizon scanner was bad and the automatic system held the wrong attitude', titanctl: 'the Titan autopilot drifted and took her off her line', stage2: 'the Titan second stage cut off early', fuelcell: 'the fuel cells\' oxygen supply failed', hatch: 'the hatch latch was bad', computer: 'the guidance computer failed', navdata: 'the ground sent a wrong number to the spacecraft', shutdown: 'a tail plug dropped out and shut the Titan down on the pad', thruster: 'a thruster stuck open and set her tumbling',
+  guidance: 'the Atlas autopilot drifted and took her off her line', shortburn: 'the Atlas sustainer cut off early', shield: 'the heat shield was loose', scanner: 'a horizon scanner was bad and the automatic system held the wrong attitude', titanctl: 'the Titan autopilot drifted and took her off her line', stage2: 'the Titan second stage cut off early', fuelcell: 'the fuel cells\' oxygen supply failed', hatch: 'the hatch latch was bad', computer: 'the guidance computer failed', navdata: 'the ground sent a wrong number to the spacecraft', shutdown: 'a tail plug dropped out and shut the Titan down on the pad', thruster: 'a thruster stuck open and set her tumbling', saturnctl: 'the Saturn\'s guidance failed', j2: 'J-2 engines shut down early', s2cutoff: 'the second stage cut off early', pogo: 'the first stage shook the stack in pogo', relight: 'the S-IVB would not restart', sps: 'the service propulsion engine failed', tank: 'an oxygen tank failed', cabin: 'the cabin wiring shorted in oxygen', alarm: 'the lander\'s computer overloaded', ascent: 'the ascent engine underperformed', chute: 'a main parachute failed', lightning: 'lightning struck her',
   injector: 'the first-stage injector burned through and she fell back on the pad',
   depletion: 'the Jupiter ran out of propellant early', agena: 'the Agena would not restart in orbit', camera: 'the camera high-voltage supply failed', miss: 'the midcourse burn left too much aiming error and she missed the Moon',
 };
-export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum', plug: 'Tail plug cables cut to different lengths', control: 'A drifting autopilot gyro', lox: 'A leaking oxygen valve', guidance: 'A programmer relay that sticks', shortburn: 'A sustainer feed line that chafes', shield: 'A landing-bag latch that does not seat', scanner: 'A horizon scanner out of calibration', titanctl: 'A lagging gimbal actuator', stage2: 'Debris at the second-stage injector', fuelcell: 'A failing fuel-cell oxygen heater', hatch: 'A hatch latch that binds', computer: 'A guidance computer that drops off the line', shutdown: 'A tail plug that pulls out too easily', thruster: 'A thruster wired so it can stick open' };
+export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum', plug: 'Tail plug cables cut to different lengths', control: 'A drifting autopilot gyro', lox: 'A leaking oxygen valve', guidance: 'A programmer relay that sticks', shortburn: 'A sustainer feed line that chafes', shield: 'A landing-bag latch that does not seat', scanner: 'A horizon scanner out of calibration', titanctl: 'A lagging gimbal actuator', stage2: 'Debris at the second-stage injector', fuelcell: 'A failing fuel-cell oxygen heater', hatch: 'A hatch latch that binds', computer: 'A guidance computer that drops off the line', shutdown: 'A tail plug that pulls out too easily', thruster: 'A thruster wired so it can stick open', saturnctl: 'A guidance platform gimbal running hot', j2: 'An igniter line that can crack in vacuum', pogo: 'Propellant lines tuned to the stage\'s own resonance', relight: 'A restart bottle that leaks down', sps: 'A sticky service engine valve', tank: 'An oxygen tank with heater switches burned shut', cabin: 'Chafed wiring in a pure-oxygen cabin', alarm: 'A rendezvous radar switch that loads the lander\'s computer', ascent: 'A burred ascent-engine injector', chute: 'A parachute riser exposed to the thruster dump' };

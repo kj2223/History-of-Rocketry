@@ -23,18 +23,20 @@ import { startFlight, tickFlight, answer, flightOf, recordCapabilities, flightJu
 import { flightPredictions, flightRecoveryHours } from './truth/flights.js';
 import { GEMINI_TAPES, GEMINI_SIMS, GEMINI_SPOTS, GEMINI_QUALS } from './data/gemini.js';
 import { FAULT_AT_SPOT } from './data/kits.js';
+import { APOLLO_TAPES, APOLLO_SIMS, APOLLO_SPOTS, APOLLO_QUALS } from './data/apollo.js';
 
 export { ABORT_LIMIT, PLAN, UNITS, SEA_LIMIT, PAD_OPTIONS, SIMS, SIM_MINUTES, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_PLAN, CAPSULE_SPOTS, QUAL_TESTS };
 export const plannedAngle = plannedGamma;
 // The programme this round belongs to: 'mercury', 'gemini' or 'apollo'.
 export const programOf = () => (g.crewed && SEASON[g.roundIndex].crewed) || null;
 // The spacecraft's spots and qualification tests for the checkout seats, by programme.
-export const capsuleSpots = () => (programOf() === 'gemini' ? GEMINI_SPOTS : CAPSULE_SPOTS);
-export const qualTests = () => (programOf() === 'gemini' ? GEMINI_QUALS : QUAL_TESTS);
+export const capsuleSpots = () => ({ gemini: GEMINI_SPOTS, apollo: APOLLO_SPOTS })[programOf()] || CAPSULE_SPOTS;
+export const qualTests = () => ({ gemini: GEMINI_QUALS, apollo: APOLLO_QUALS })[programOf()] || QUAL_TESTS;
 // The booster's own names for its control failure and its early cutoff, and the tapes and sims that go with it.
 const BOOSTERS = {
   atlas: { names: { guidance: 'guidance', shortburn: 'shortburn', booster: 'Atlas' }, tapes: ORBIT_TAPES, sims: ORBIT_SIMS },
   titan: { names: { guidance: 'titanctl', shortburn: 'stage2', booster: 'Titan II' }, tapes: GEMINI_TAPES, sims: GEMINI_SIMS },
+  saturn5: { names: { guidance: 'saturnctl', shortburn: 's2cutoff', booster: 'Saturn V' }, tapes: APOLLO_TAPES, sims: APOLLO_SIMS },
 };
 const boosterOf = c => BOOSTERS[c.round.vehicle] || BOOSTERS.atlas;
 // The planned flight-path angle at second t, for this console's booster.
@@ -109,17 +111,20 @@ export const pilotId = () => (g.crewed && SEASON[g.roundIndex].crew?.[0]) || nul
 const pilotName = () => ASTRONAUTS[pilotId()].name;
 const first = () => pilotName().split(' ')[0];
 // Whether you are the project engineer: Tate has the Retrofire console, and you answer for the hardware.
-export const engineer = () => g.crewed && g.record.seat === 'engineer';
+// The programme office checks the hardware out too, and watches flight day from the viewing room.
+export const engineer = () => g.crewed && ['engineer', 'programme'].includes(g.record.seat);
+export const programmeOffice = () => g.crewed && g.record.seat === 'programme';
 // The flight director: in Houston, every call on the shift is yours.
 export const flightDirector = () => g.crewed && g.record.seat === 'flight' && programOf() !== 'mercury';
 const retroWho = c => (c.auto ? 'tate' : 'you');
-const callsign = c => (c.auto ? 'Engineering' : flightDirector() ? 'Flight' : 'Retro');
+const callsign = c => (c.auto ? (programmeOffice() ? 'Programme' : 'Engineering') : flightDirector() ? 'Flight' : 'Retro');
 
 // The day before a flight from Houston: the team in the simulator, the crew on the Cape.
 function houstonBrief(launch) {
   const plan = flightOf(), crew = crewNames();
-  const line = flightDirector() ? `${plan.craft} flies ${crew} on ${launch}: ${plan.objective}. It's your room on launch day, Flight. Today your team is in the sims, and the mission rules are on your console. Know them.`
-    : `${plan.craft} flies ${crew} on ${launch}: ${plan.objective}. Today you're in the sims with the team.`;
+  const flies = crew ? `flies ${crew}` : 'flies with no crew';
+  const line = flightDirector() ? `${plan.craft} ${flies} on ${launch}: ${plan.objective}. It's your room on launch day, Flight. Today your team is in the sims, and the mission rules are on your console. Know them.`
+    : `${plan.craft} ${flies} on ${launch}: ${plan.objective}. Today you're in the sims with the team.`;
   say('hollis', line, '', 8);
   note(`${cap(SEASON[g.roundIndex].name)}. Hollis: ${line}`);
   g.objective = 'Train in the simulator. When you have had enough, end the day.';
@@ -627,7 +632,7 @@ export function evidence() {
 }
 
 function orbitEvidence(a, end) {
-  if (g.round.flightTruth || BOOSTERS[g.vehicle]?.tapes === GEMINI_TAPES) return flightEvidence(a, end);
+  if (g.round.flightTruth || ['titan', 'saturn5'].includes(g.vehicle)) return flightEvidence(a, end);
   const lines = [...(ORBIT_TAPES[a.failure || 'nominal'] || [])], o = g.round.orbit, back = end.capsule !== 'lost' && !g.mission.sank;
   if (a.controlFrom && a.failure === 'guidance') lines[0] = `${lines[0]} It starts at about ${a.controlFrom} seconds.`;
   if (o && o.signal) lines.push(back ? (o.loose ? 'In Hangar S the heat shield is found free of its latches, held on only by the landing bag\'s straps.' : 'In Hangar S the shield is latched tight. The Segment 51 switch is found faulty.') : 'Segment 51 showed in orbit. With the capsule gone, nobody can say whether the shield was loose.');
@@ -645,11 +650,21 @@ const FLIGHT_EVIDENCE = {
   computer: ['The guidance computer dropped off the line in flight and would not come back.', 'On the bench, a power-supply transient trips it.'],
   shutdown: ['At ignition the Titan lit and shut down: the malfunction detection saw a tail plug drop out early.', 'The plug\'s pull-out force is found well under the specification.'],
   thruster: ['Out of contact over China the docked stack began to roll; undocked, Gemini 8 rolled faster.', 'On the bench, thruster 8\'s wiring shows a short that can hold its valve open.'],
+  pogo: ['Two minutes into the climb the stack shook end to end at about five cycles a second.', 'The ground vibration tests find the first stage\'s propellant lines tuned to the stage\'s own resonance.'],
+  j2: ['Two of the second stage\'s engines shut down early, one after another.', 'In a vacuum chamber an igniter line cracks after a few hundred flexes.'],
+  relight: ['The third stage would not restart in orbit.', 'The restart system\'s helium bottle is found leaking.'],
+  sps: ['The service engine\'s chamber pressure fell away on the long burn.', 'A ball valve actuator is found slow to close.'],
+  tank: ['Oxygen tank two\'s pressure went off the scale, then to nothing, and the spacecraft lost two fuel cells.', 'The tank\'s heater switches are found welded shut: they were rated for 28 volts and the ground supply was 65.'],
+  cabin: ['A main bus dropped out and the crew smelled burning insulation.', 'Under the couches a wire bundle is found chafed through to the copper.'],
+  alarm: ['The lander\'s computer threw program alarms all through the descent: executive overflow.', 'With the rendezvous radar switch where the checklist put it, the computer runs out of time.'],
+  ascent: ['The ascent engine\'s thrust sagged a few percent and the lander reached a low orbit.', 'The injector is found burred.'],
+  chute: ['One of the three main parachutes collapsed on the way down.', 'The thruster fuel dumped under the chutes is found to have burned through a riser.'],
+  lightning: ['Thirty-six seconds after liftoff every alarm in the spacecraft lit at once, and again at fifty-two seconds.', 'The vehicle and its exhaust plume had made a path for lightning through the cloud.'],
   navdata: ['She came down well short of the planned point, though the computer steered her all the way.', 'Retro\'s people find the number for the Earth\'s rotation in the ground program was wrong.'],
 };
 function flightEvidence(a, end) {
   const lines = [...((BOOSTERS[g.vehicle] || BOOSTERS.titan).tapes[a.failure || 'nominal'] || [])];
-  if (a.controlFrom && a.failure === 'titanctl') lines[0] = `${lines[0]} It starts at about ${a.controlFrom} seconds.`;
+  if (a.controlFrom && ['titanctl', 'saturnctl'].includes(a.failure)) lines[0] = `${lines[0]} It starts at about ${a.controlFrom} seconds.`;
   const t = g.round.flightTruth;
   if (t) {
     for (const [k, l] of Object.entries(FLIGHT_EVIDENCE)) if (k === flightCause(g.round) || (k !== 'navdata' && t.flags[k] && (flightOf(t.id)?.steps || []).some(s => s.if === k))) lines.push(...l);
@@ -881,7 +896,7 @@ function afterEntry(c) {
     return roomChanged();
   }
   c.ip = c.flightId ? flightPredictions(c.round) : orbitPredictions(c.round);
-  speak(c, 'pilot', 'Out of the blackout. Drogue is out… main chute is out and good!', 'go', 6);
+  speak(c, pilotId() ? 'pilot' : 'reyes', pilotId() ? 'Out of the blackout. Drogue is out… main chute is out and good!' : 'Recovery has her beacon. Mains are out.', 'go', 6);
   speak(c, 'morgan', c.flightId ? `Splashdown predictions, from the planned point: the spacecraft's computer says ${km(c.ip.retro)}. The tracking ship's radar can give a fix if Recovery waits for it.` : `Splashdown predictions, from the planned point: retrofire telemetry says ${km(c.ip.retro)}. Grand Turk's radar can give a fix if Recovery waits for it.`, '', 7);
   c.phase = 'ip';
   roomChanged();
@@ -954,7 +969,7 @@ export function routeDone() {
 function engineerBrief() {
   g.mission.checkout = g.mission.checkout || {}; g.mission.flags = g.mission.flags || {}; g.mission.quals = g.mission.quals || {};
   const launch = dateText(g.roundStart + LAUNCH_DAY);
-  const line = flightOf() ? `${flightOf().craft} flies ${crewNames()} on ${launch}. The spacecraft's yours today, Engineering: the checkout at Complex 19, and whatever tests you want run. Flag anything you don't like. A flag means a day's rework and a day's slip, so make it count.` : `We fly ${pilotName()} on ${launch}. The capsule's yours today, Engineering: Hangar S, and whatever tests you want run. Flag anything you don't like. A flag means a day's rework and a day's slip, so make it count.`;
+  const line = flightOf() ? `${flightOf().craft} flies${crewNames() ? ` ${crewNames()}` : ', with no crew,'} on ${launch}. ${programmeOffice() ? 'The stack\'s yours today' : 'The spacecraft\'s yours today, Engineering'}: the checkout in the ${placeName('hangar')}, and whatever tests you want run. Flag anything you don't like. A flag means a day's rework and a day's slip, so make it count.` : `We fly ${pilotName()} on ${launch}. The capsule's yours today, Engineering: Hangar S, and whatever tests you want run. Flag anything you don't like. A flag means a day's rework and a day's slip, so make it count.`;
   say('hollis', line, '', 8);
   note(`${cap(SEASON[g.roundIndex].name)}. Hollis: ${line}`);
   if (pilotId()) { place('pilot', 1180); g.people.pilot.hidden = false; }

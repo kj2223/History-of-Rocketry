@@ -38,6 +38,13 @@ export function raceOf(seed) {
   return out.sort((x, y) => x.at - y.at);
 }
 
+// Apollo 1's plugs-out test, January 1967: whether the chafed wiring sparks in the pure-oxygen cabin. Seeded from the
+// game, like the Soviet attempts: the programme's cabin hazard at that time, never a script.
+export function apolloFire(seed, programme) {
+  const s = newStreams((seed ^ 0x2a7f4c19) >>> 0).forecast;
+  return draw(s) < Math.min(0.9, (programme.cabinRisk ?? 0.15) * 3.5);
+}
+
 // What reached Houston between two days: the lines for the "while you were away" notes.
 export function raceNews(seed, from, to) {
   return raceOf(seed).filter(e => e.at > from && e.at <= to).map(e => (e.rumour ? `A rumour from the intelligence reports, never confirmed: a Soviet flight has done something big. ${e.text.split('.')[0]}? Nobody in Houston can say.` : e.text));
