@@ -3,7 +3,7 @@
 import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
-import { blockhouseState } from '../data/campaign.js';
+import { blockhouseState, SITES } from '../data/campaign.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -21,15 +21,26 @@ export function drawSite(ctx, g, view) {
   const grad = ctx.createLinearGradient(0, 0, 0, GROUND);
   grad.addColorStop(0, sky[0]); grad.addColorStop(0.7, sky[1]); grad.addColorStop(1, sky[2]);
   ctx.fillStyle = grad; ctx.fillRect(0, 0, vw, GROUND);
-  // The Organ Mountains, far off, moving slowly behind the site.
-  mountains(ctx, camX * 0.15, vw, '#8d86a0', 380, [0, 60, 30, 120, 70, 150, 40, 90, 20]);
-  mountains(ctx, camX * 0.3, vw, '#a99a8c', 440, [10, 40, 25, 60, 15, 50, 35, 20, 45]);
-  ctx.fillStyle = '#d9c39a'; ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
-  ctx.fillStyle = '#cdb489'; ctx.fillRect(0, GROUND, vw, 5);
+  const cape = g.site === 'cape';
+  if (cape) {
+    // The Atlantic on the horizon, flat as a table, and a line of palmettos and scrub behind the pads.
+    ctx.fillStyle = '#3f6f8f'; ctx.fillRect(0, 440, vw, GROUND - 440);
+    ctx.fillStyle = 'rgba(255,255,255,.25)'; for (let x = (-camX * 0.2) % 70; x < vw; x += 70) ctx.fillRect(x, 452 + ((x * 3) % 20), 26, 2);
+    ctx.fillStyle = '#5b7a3c'; ctx.fillRect(0, 488, vw, GROUND - 488);
+    for (let x = (-camX * 0.4) % 140; x < vw + 140; x += 140) palm(ctx, x, 492);
+    ctx.fillStyle = '#e4d8b4'; ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
+    ctx.fillStyle = '#d3c597'; ctx.fillRect(0, GROUND, vw, 5);
+  } else {
+    // The Organ Mountains, far off, moving slowly behind the site.
+    mountains(ctx, camX * 0.15, vw, '#8d86a0', 380, [0, 60, 30, 120, 70, 150, 40, 90, 20]);
+    mountains(ctx, camX * 0.3, vw, '#a99a8c', 440, [10, 40, 25, 60, 15, 50, 35, 20, 45]);
+    ctx.fillStyle = '#d9c39a'; ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
+    ctx.fillStyle = '#cdb489'; ctx.fillRect(0, GROUND, vw, 5);
+  }
 
   ctx.translate(-camX, 0);
-  // Scrub along the desert floor.
-  ctx.fillStyle = '#9c9c62';
+  // Scrub along the desert floor, or sea grass on the Cape's sand.
+  ctx.fillStyle = cape ? '#7f9a52' : '#9c9c62';
   for (let x = 40; x < WORLD_W + 400; x += 97) { const y = GROUND + 12 + ((x * 7) % 50); ctx.fillRect(x, y, 6, 3); ctx.fillRect(x + 2, y - 3, 2, 3); }
   // The road out to the range.
   ctx.fillStyle = '#c3a87c'; ctx.fillRect(0, GROUND + 30, WORLD_W + 400, 8);
@@ -47,10 +58,17 @@ export function drawSite(ctx, g, view) {
   for (const p of Object.values(g.people)) if (!p.hidden && p.bubble) bubble(ctx, p.x, GROUND - 44, p.bubble.text, p.bubble.tone);
   if (g.marker != null) { ctx.fillStyle = 'rgba(255,240,180,.8)'; ctx.fillRect(g.marker - 3, GROUND + 2, 6, 3); }
   // Building names on hover.
-  if (g.hover) label(ctx, g.hover);
+  if (g.hover) label(ctx, g.hover.room === 'truck' ? { ...g.hover, name: SITES[g.site || 'white-sands'].truck } : g.hover);
   ctx.restore();
   // Night falls as a fade.
   if (g.fade > 0) { ctx.fillStyle = `rgba(5,8,14,${g.fade})`; ctx.fillRect(0, 0, w, h); }
+}
+
+// A cabbage palmetto, far off: a thin trunk and a burst of fronds.
+function palm(ctx, x, y) {
+  ctx.strokeStyle = '#5a4a32'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 4, y - 20, x + 2, y - 38); ctx.stroke();
+  ctx.strokeStyle = '#3f6a35'; ctx.lineWidth = 3;
+  for (const a of [-2.6, -2.1, -1.6, -1.1, -0.6]) { ctx.beginPath(); ctx.moveTo(x + 2, y - 38); ctx.lineTo(x + 2 + Math.cos(a) * 16, y - 38 + Math.sin(a) * 9 + 8); ctx.stroke(); }
 }
 
 function mountains(ctx, offset, vw, color, base, peaks) {
@@ -179,7 +197,7 @@ function truck(ctx, x, g) {
   ctx.fillStyle = '#4d5b3a'; ctx.fillRect(x, y - 30, 64, 22); ctx.fillRect(x + 64, y - 40, 26, 32);
   ctx.fillStyle = '#9fc0d0'; ctx.fillRect(x + 72, y - 36, 12, 10);
   ctx.fillStyle = '#1e1e1e'; for (const wx of [x + 14, x + 44, x + 76]) { ctx.beginPath(); ctx.arc(wx, y - 6, 7, 0, 7); ctx.fill(); }
-  ctx.fillStyle = '#e8e0c8'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'left'; ctx.fillText('U.S. ARMY', x + 8, y - 16);
+  ctx.fillStyle = '#e8e0c8'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(g.site === 'cape' ? 'U.S. NAVY' : 'U.S. ARMY', x + 8, y - 16);
   if (g.truck.dust) { ctx.fillStyle = 'rgba(210,190,150,.5)'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(x - 8 - i * 12, y - 8 - i * 3, 6 + i * 3, 0, 7); ctx.fill(); } }
 }
 
@@ -187,7 +205,7 @@ function truck(ctx, x, g) {
 function rocketOnSite(ctx, g) {
   const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
-  const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
+  const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
   if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
   else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
   else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
@@ -213,6 +231,17 @@ export function vikingShape(ctx, x, y, angle) {
   ctx.fillStyle = '#f1efe8'; ctx.beginPath(); ctx.moveTo(-5, -100); ctx.quadraticCurveTo(-4, -112, 0, -118); ctx.quadraticCurveTo(4, -112, 5, -100); ctx.fill();
   ctx.fillStyle = '#2b3f6b'; ctx.fillRect(-5, -60, 10, 3); ctx.fillRect(-5, -30, 10, 3);
   ctx.fillStyle = '#9aa0a8'; ctx.beginPath(); ctx.moveTo(-5, -14); ctx.lineTo(-13, 0); ctx.lineTo(-5, 0); ctx.fill(); ctx.beginPath(); ctx.moveTo(5, -14); ctx.lineTo(13, 0); ctx.lineTo(5, 0); ctx.fill();
+  ctx.restore();
+}
+
+// Vanguard: slim and tall, white with a black band, three stages stacked, the small third stage under a pointed fairing.
+export function vanguardShape(ctx, x, y, angle) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.fillStyle = '#f3f1ea'; ctx.fillRect(-6, -128, 12, 128); // first stage
+  ctx.fillStyle = '#e7e4da'; ctx.fillRect(-5, -178, 10, 50); // second stage
+  ctx.fillStyle = '#26272b'; ctx.fillRect(-6, -132, 12, 5); ctx.fillRect(-6, -60, 12, 4);
+  ctx.fillStyle = '#c8c4b8'; ctx.beginPath(); ctx.moveTo(-5, -178); ctx.lineTo(-4, -196); ctx.lineTo(0, -210); ctx.lineTo(4, -196); ctx.lineTo(5, -178); ctx.fill();
+  ctx.fillStyle = '#2b3f6b'; ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('NAVY', 90, 2); ctx.restore();
   ctx.restore();
 }
 
@@ -309,8 +338,8 @@ export function drawTracking(ctx, g, view) {
   const { w, h } = view, f = g.flight, path = f.result.path, upto = Math.min(path.length - 1, Math.floor(f.t));
   ctx.fillStyle = '#0d1a14'; ctx.fillRect(0, 0, w, h);
   // The plot's scale grows with the round: a WAC peaks near 70 km, a V-2 over 150, a Bumper several hundred.
-  const top = Math.max(80, g.round.estimate.high * 1.15, f.result.apogee * 1.1), hStep = top <= 100 ? 10 : top <= 250 ? 25 : 50;
-  const maxH = Math.ceil(top / hStep) * hStep, xStep = f.result.range <= 40 ? 5 : f.result.range <= 120 ? 10 : 25;
+  const top = Math.max(80, g.round.estimate.high * 1.15, f.result.apogee * 1.1), hStep = top <= 100 ? 10 : top <= 250 ? 25 : top <= 500 ? 50 : 100;
+  const range = f.result.range, maxH = Math.ceil(top / hStep) * hStep, xStep = range <= 40 ? 5 : range <= 120 ? 10 : range <= 300 ? 25 : range <= 1000 ? 100 : 400;
   const pad = 70, maxX = Math.max(30, Math.ceil(f.result.range / xStep) * xStep + xStep);
   const px = x => pad + (x / maxX) * (w - pad * 2), py = km => h - pad - (km / maxH) * (h - pad * 2);
   ctx.strokeStyle = '#1f3b2d'; ctx.lineWidth = 1; ctx.font = '12px monospace'; ctx.fillStyle = '#5fae7f'; ctx.textAlign = 'right';
@@ -319,7 +348,7 @@ export function drawTracking(ctx, g, view) {
   for (let k = 0; k <= maxX; k += xStep) { ctx.beginPath(); ctx.moveTo(px(k), py(0)); ctx.lineTo(px(k), py(maxH)); ctx.stroke(); ctx.fillText(`${k}`, px(k), h - pad + 18); }
   ctx.fillText('km downrange', w / 2, h - pad + 36);
   ctx.textAlign = 'left'; ctx.fillStyle = '#8fd6a8'; ctx.font = '14px monospace';
-  ctx.fillText(`WHITE SANDS PROVING GROUND · RANGE PLOT · ${KITS[g.vehicle].range}`, pad, 32);
+  ctx.fillText(`${SITES[g.site || 'white-sands'].plot} · RANGE PLOT · ${KITS[g.vehicle].range}`, pad, 32);
   // The drawing office's estimate, faint.
   ctx.strokeStyle = 'rgba(232,198,106,.35)'; ctx.setLineDash([6, 6]);
   ctx.beginPath(); ctx.moveTo(px(0), py(g.round.estimate.low)); ctx.lineTo(w - pad, py(g.round.estimate.low)); ctx.moveTo(px(0), py(g.round.estimate.high)); ctx.lineTo(w - pad, py(g.round.estimate.high)); ctx.stroke();

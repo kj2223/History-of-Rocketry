@@ -1,10 +1,10 @@
-// THE GAME STATE: the player's years on the range, round after round (WAC Corporal, V-2, Bumper), each from the hangar to
-// the review, and the turning point where the first promotion offer comes. No DOM, no drawing.
+// THE GAME STATE: the player's years on the range, round after round (WAC Corporal, V-2, Bumper, Aerobee, Viking, Vanguard),
+// each from the hangar to the review, and the turning point where the first promotion offer comes. No DOM, no drawing.
 // The player is one junior engineer on the site. Everyone else gets on with their own work, and the player can watch them.
 // The story runs in beats; each beat says what the player is asked to do and where the others go.
 import { PLACES, WORLD_W } from './data/white-sands.js';
 import { dayOf, dateLabel, weekday } from './core/calendar.js';
-import { flyLoose, newRound, flagSpots, staticFire, standRework, leakCheck, tankGauge, fly, wreckage, hasIgniterFault, hasPumpFault, hasLinerFault, causesPresent, ellisReading, crewInspect, stationCall } from './truth/round.js';
+import { flyLoose, newRound, flagSpots, staticFire, standRework, leakCheck, tankGauge, fly, wreckage, hasIgniterFault, hasPumpFault, hasLinerFault, hasInjectorFault, causesPresent, ellisReading, crewInspect, stationCall } from './truth/round.js';
 import { TRAITS } from './world/people.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
 import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
@@ -31,9 +31,11 @@ const PEOPLE = {
 };
 
 // Whether you run this round as its test conductor: you plan it, run the count and chair the review.
-export const conducting = () => g.record.seat === 'test-conductor' && ['aerobee', 'viking'].includes(g.vehicle);
-// Whether this round is paid from your own budget line: the Viking firings you conduct.
-export const onBudget = () => conducting() && g.vehicle === 'viking';
+export const conducting = () => g.record.seat === 'test-conductor' && ['aerobee', 'viking', 'vanguard'].includes(g.vehicle);
+// Whether this round is paid from your own budget line: the Viking and Vanguard firings you conduct.
+export const onBudget = () => conducting() && ['viking', 'vanguard'].includes(g.vehicle);
+// Whether the round flies from the Cape, where what falls lands in the Atlantic and the range reads it from telemetry.
+export const atSea = () => g.site === 'cape';
 export const budgetLine = () => lineFor(g.record, g.day);
 // Hours each crew member takes to look a round over in your place. Visible: you can see how long they take.
 export const INSPECTORS = { you: { name: 'You', hours: 0 }, kowalski: { name: 'Sgt. Kowalski', hours: 5 }, delgado: { name: 'Pvt. Delgado', hours: 2 } };
@@ -79,7 +81,8 @@ function resetRound() {
 function setVehicle() {
   g.vehicle = SEASON[g.roundIndex].vehicle;
   g.people.hoyt.hidden = !['v2', 'bumper'].includes(g.vehicle);
-  g.people.brandt.hidden = !['aerobee', 'viking'].includes(g.vehicle);
+  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard'].includes(g.vehicle);
+  g.site = SEASON[g.roundIndex].site || 'white-sands';
   g.people.you.role = SEATS[g.record.seat];
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
 }
@@ -92,7 +95,7 @@ function startRound(i) {
   g.roundStart = g.day = SEASON[i].start;
   g.clock = g.day * 1440 + START_MINUTE;
   const round = newRound(g.seed + i * 7919, g.programme, g.vehicle);
-  round.initial = { faults: { ...round.faults }, igniter: hasIgniterFault(round), pump: hasPumpFault(round), liner: hasLinerFault(round) };
+  round.initial = { faults: { ...round.faults }, igniter: hasIgniterFault(round), pump: hasPumpFault(round), liner: hasLinerFault(round), injector: hasInjectorFault(round) };
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
   morning('brief');
@@ -202,7 +205,7 @@ const BEATS = {
   },
   static() {
     const burn = g.plan?.burn || 'short';
-    g.objective = burn === 'long' ? 'The sustainer is on the stand for a full-duration firing. Go into the dugout and run it.' : 'The stage is on the stand. Go into the dugout and run the static fire.';
+    g.objective = burn === 'long' ? `The ${kit().stand.thing} is on the stand for a full-duration firing. Go into the dugout and run it.` : 'The stage is on the stand. Go into the dugout and run the static fire.';
     g.stand = { phase: 'ready', clock: 10, trace: null, shown: 0, held: false, burn };
   },
   afterStatic() { g.objective = 'The firing is done. Watch the crew, or end the day.'; g.dayDone = true; },
@@ -214,7 +217,7 @@ const BEATS = {
     // A leak check you planned as conductor is done first thing, before the booster goes on.
     let extra = 0;
     if (g.plan?.leak) { const r = leakCheck(g.round); extra = r.hours * 60; note(r.found ? `Planned leak check before rollout: leak at the ${r.found.toLowerCase()}, fixed.` : 'Planned leak check before rollout: nothing found.'); }
-    addJob({ label: { wac: 'Mating the booster', v2: 'Readying the V-2', bumper: 'Mating the WAC to the V-2', aerobee: extra ? 'Leak check, then mating the booster' : 'Mating the booster' }[g.vehicle], at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: 60 + extra, then: () => {
+    addJob({ label: { wac: 'Mating the booster', v2: 'Readying the V-2', bumper: 'Mating the WAC to the V-2', aerobee: extra ? 'Leak check, then mating the booster' : 'Mating the booster' }[g.vehicle] || (extra ? `Leak check, then readying the ${kit().name}` : `Readying the ${kit().name}`), at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: 60 + extra, then: () => {
       g.rocket.mated = true;
       g.truck.target = PLACES.hangar.x + 130;
       g.truck.then = () => {
@@ -237,9 +240,9 @@ const BEATS = {
   },
   countReady() { g.objective = 'The round is in the tower. Go into the blockhouse for the count.'; },
   recovery() {
-    g.objective = 'Ride out with the recovery party: go to the truck.';
+    g.objective = atSea() ? 'Go over to the telemetry building with Morgan: take the range car.' : 'Ride out with the recovery party: go to the truck.';
     walk('morgan', PLACES.truck.door + 30); walk('kowalski', PLACES.truck.door - 20);
-    say('morgan', 'Truck\'s leaving for the impact area. Coming?');
+    say('morgan', atSea() ? 'Whatever came down is in the Atlantic. The telemetry records are being pulled now. Coming?' : 'Truck\'s leaving for the impact area. Coming?');
   },
   review() {
     g.objective = conducting() ? 'You chair the review. Go to the technical office: the team will give you their readings, and the call is yours.' : 'Ellis wants your findings. Go to the technical office.';
@@ -278,7 +281,7 @@ export function finishPlan(plan) {
   const who = g.plan.inspector, crew = g.people[who];
   say(who, 'Right, I\'ll go over her now.');
   g.people.kowalski.working = g.people.delgado.working = false;
-  addJob({ label: 'Inspecting the sustainer', at: PLACES.hangar.x + 190, who: [who], minutes: INSPECTORS[who].hours * 60, then: () => {
+  addJob({ label: `Inspecting the ${kit().name}`, at: PLACES.hangar.x + 190, who: [who], minutes: INSPECTORS[who].hours * 60, then: () => {
     const ids = crewInspect(g.round, TRAITS[who]);
     const hours = flagSpots(g.round, ids);
     g.flagged = Object.fromEntries(ids.map(id => [id, true]));
@@ -288,7 +291,7 @@ export function finishPlan(plan) {
     if (hours) addJob({ label: 'Working the flags', at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: hours * 60, then: () => say('kowalski', reportOnFlags(ids), '', 6) });
     setBeat('board');
   } });
-  g.objective = `${crew.name} is looking the sustainer over in the hangar. You can watch, or wait.`;
+  g.objective = `${crew.name} is looking the ${kit().name} over in the hangar. You can watch, or wait.`;
   roomChanged();
 }
 
@@ -494,8 +497,10 @@ function flightCalls(r) {
     lines.forEach((c, i) => calls.push({ t: c.t, who: 'morgan', text: c.text, tone: i === lines.length - 1 ? 'bad' : c.tone || '' }));
   } else {
     for (const c of k.steady) calls.push({ t: c.t, who: 'morgan', text: c.text, tone: c.tone || '' });
-    calls.push({ t: r.burn, who: 'morgan', text: k.burnout(r.burn), tone: 'go' });
+    calls.push({ t: r.orbit ? end - 40 : r.burn, who: 'morgan', text: k.burnout(r.burn), tone: 'go' });
   }
+  // A satellite never comes down: Minitrack's call that she is in orbit ends the plot.
+  if (r.orbit) { calls.push({ t: end, who: 'morgan', text: k.orbit(r.orbit.perigee, r.orbit.apogee), tone: 'go' }); return calls.sort((a, b) => a.t - b.t); }
   // Higher than the range has ever tracked: the radar's peak against every good flight before it.
   const best = Math.max(60, rangeRecord(g.programme)), high = r.radar > best;
   calls.push({ t: peakAt, who: 'morgan', text: `Radar has the peak at about ${r.radar.toFixed(0)} kilometres${high ? '. Higher than anything we\'ve flown!' : '.'}`, tone: high ? 'go' : '' });
@@ -530,8 +535,8 @@ export function rideOut() {
   g.truck.then = () => {
     g.truck.dust = false;
     g.clock += 60;
-    g.recovery = wreckage(g.round);
-    for (const line of g.recovery) note(`At the impact point: ${line}`);
+    g.recovery = wreckage(g.round, atSea());
+    for (const line of g.recovery) note(`${atSea() ? 'From the telemetry and radar records' : 'At the impact point'}: ${line}`);
     g.room = 'recovery'; roomChanged();
   };
 }
@@ -594,8 +599,14 @@ function finishReview(entry) {
     note(`Your budget line, fiscal ${b.fy}: ${dollars(b.spent)} spent of ${dollars(b.line)}.${b.spent > b.line ? ' Over the line.' : ''}`);
   }
   recordFlight(g.programme, { vehicle: g.vehicle, load: g.round.propellantLoad, apogee: seen, failure: f.failure });
+  // After Sputnik every day lost is reported to Washington, and it goes on your record.
+  if (SEASON[g.roundIndex].pressure && g.slipDays) {
+    shiftTrust(g.record, -1);
+    entry.pressured = true;
+    note(`Washington wanted this round on the day. ${g.slipDays === 1 ? 'A day' : `${g.slipDays} days`} lost goes on your record.`);
+  }
   addRound(g.record, { id: SEASON[g.roundIndex].id, vehicle: g.vehicle, name: SEASON[g.roundIndex].name, day: g.launchDay ?? g.day,
-    flight: f.failure ? `Lost at ${f.failAt} seconds.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad, ...entry });
+    flight: f.failure ? `Lost at ${f.failAt} seconds.` : f.orbit ? `In orbit: perigee about ${f.orbit.perigee.toFixed(0)} km, apogee about ${f.orbit.apogee.toFixed(0)} km.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad, ...entry });
   g.room = null;
   if (SEASON[g.roundIndex].turningPoint && g.record.seat !== FIRST_OFFER.seat) {
     const again = g.record.offers.length > 0;
@@ -634,6 +645,7 @@ export function debrief() {
   if (initial.igniter) faults.push('A WAC igniter prone to hang-fire (on a WAC, the rough start on the stand)');
   if (initial.pump) faults.push('A worn V-2 turbopump and steam generator (the low, rough start on the stand)');
   if (initial.liner) faults.push('A sustainer chamber liner coming unbonded (the hot wall on a full-duration firing)');
+  if (initial.injector) faults.push('A Vanguard first-stage injector prone to burn through (the rough start on the stand)');
   return {
     outcome: f.failure ? `Failed: ${FAILED_BECAUSE[f.failure]}.` : `Flew to ${f.apogee.toFixed(0)} km.`,
     dates: flown === planned ? `Flown on ${flown}, on schedule.` : `Flown on ${flown}; the plan was ${planned}.`,

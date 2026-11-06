@@ -1,4 +1,4 @@
-// The White Sands site in 1945, side-on: where each building stands along the ground, in world units.
+// The site side-on (White Sands from 1945; the Cape keeps the same layout): where each building stands along the ground, in world units.
 // Shared by the game state (where people walk) and the drawing. Content, not hidden truth.
 export const VIEW_H = 600, GROUND = 520, WORLD_W = 3000;
 
