@@ -25,7 +25,10 @@
       "v1/ui/**",
       "v2/index.html",
       "v2/js/**",
-      "v2/ui/**"
+      "v2/ui/**",
+      "site/index.html",
+      "site/style.css",
+      "site/js/**"
     ],
     "win": {
       "target": [
