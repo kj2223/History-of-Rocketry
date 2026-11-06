@@ -39,7 +39,7 @@ export const SEASON = [
   // Into orbit on the Atlas. orbital: the flight is worked through orbit, retrofire and entry. risk: what is likelier on this
   // flight than the programme's usual odds (the hidden layer still decides).
   { id: 'ma-6', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['okafor'], risk: { seg51Risk: 0.6 }, path: 'nasa', pressure: true, start: dayOf(1962, 2, 19), name: 'Mercury-Atlas 6, the first American in orbit' }, // 20 February 1962
-  { id: 'ma-7', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['lindqvist'], risk: { scannerRisk: 0.7 }, path: 'nasa', start: dayOf(1962, 5, 23), name: 'Mercury-Atlas 7' }, // 24 May 1962
+  { id: 'ma-7', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['lindqvist'], risk: { scannerRisk: 0.7 }, after: 'route', path: 'nasa', start: dayOf(1962, 5, 23), name: 'Mercury-Atlas 7' }, // 24 May 1962
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 

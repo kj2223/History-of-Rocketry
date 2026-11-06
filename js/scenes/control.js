@@ -3,8 +3,9 @@
 // Mercury Control could see: g.console and g.mission, which the game fills from the telemetry and the radars.
 import { g, dateText, clockText } from '../game.js';
 import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, evidence, simStart, simClose, simOpen, toReview, board,
-  consoleInsertion, consolePack, consoleRetro, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
+  consoleInsertion, consolePack, consoleRetro, routeArgue, routeDone, orbitMisses, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
 import { KITS } from '../data/kits.js';
+import { ROUTE_MODES } from '../data/route.js';
 import { SEASON } from '../data/campaign.js';
 
 const panel = () => document.getElementById('room');
@@ -44,6 +45,16 @@ export const CONTROL_ROOMS = {
       <ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
       <p class="muted">All of this is in your notebook.</p>
       <button class="primary" data-act="to-review">On to the review</button>`;
+  },
+  route() {
+    const done = g.mission && g.mission.route, misses = orbitMisses();
+    return `<h2>The route to the Moon, ${dateText()}</h2>
+      <p>Headquarters, Langley, Marshall and Houston round one table in Mercury Control's conference room. The question is how Apollo goes to the Moon,
+      and they want the Mercury controllers' view: none of the modes works unless Mission Control can find a ship and bring a crew down where it means to.</p>
+      <ul>${Object.values(ROUTE_MODES).map(m => `<li><strong>${esc(m.name)}.</strong> ${esc(m.plan)} ${esc(m.case)} <span class="muted">${esc(m.who)}</span></li>`).join('')}</ul>
+      <p><strong>What your flights showed:</strong> ${misses.length ? misses.map(x => `${Math.round(Math.abs(x))} km ${x >= 0 ? 'long' : 'short'}`).join(', ') + ' from the planned point.' : 'no orbital flight of yours came home on a computed point.'} Nobody has yet tried a rendezvous anywhere.</p>
+      ${done ? `<p>${esc(done.reply)}</p><p class="muted">The decision is NASA's. It is in your notebook.</p><button class="primary" data-act="route-done">Leave the meeting</button>`
+        : `<div class="choices">${Object.entries(ROUTE_MODES).map(([k, m]) => `<button data-act="route" data-id="${k}">Argue for ${esc(m.name.toLowerCase())}</button>`).join('')}</div>`}`;
   },
   mreview() {
     const k = KITS[g.vehicle] || KITS.redstone;
@@ -150,6 +161,6 @@ function plot(canvas, c) {
 export const CONTROL_ACTS = {
   'm-go': () => consolePoll(true), 'm-nogo': () => consolePoll(false), 'm-abort': consoleAbort,
   'm-aim': id => consoleAim(id), 'm-insert': id => consoleInsertion(id === 'go'), 'm-pack': id => consolePack(id), 'm-retro': id => consoleRetro(id), pad: id => padChoose(id), 'm-present': id => missionPresent(id),
-  'sim-start': simStart, 'sim-close': simClose, 'to-review': toReview,
+  'sim-start': simStart, route: id => routeArgue(id), 'route-done': routeDone, 'sim-close': simClose, 'to-review': toReview,
 };
 export const openConsole = () => consoleStart();

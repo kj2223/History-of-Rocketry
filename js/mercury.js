@@ -6,7 +6,7 @@
 // The console shows only what Mercury Control could see: the flight-path angle, velocity and acceleration on telemetry,
 // the radar's and the computers' impact points, and the recovery board. The truth behind them is in truth/capsule.js.
 // What the rooms read is g.console and g.mission, never the round itself.
-import { g, say, note, walk, place, roomChanged, morning, setBeat, finishReview, dateText } from './game.js';
+import { g, say, note, walk, place, roomChanged, morning, setBeat, finishReview, dateText, nextIndex as nextIndexFn } from './game.js';
 import { ascent, outcome, stepAt, impactPredictions, recoveryHours, sinks, padCrewNow, conditions, plannedGamma, crewFate, PLAN, ABORT_LIMIT } from './truth/capsule.js';
 import { atlasAscent, atlasOutcome, goddard, insertion, inOrbit, fuelAfter, retrofire, orbitPredictions, orbitRecoveryHours, orbitGamma, ORBIT_PLAN, FUEL_LOW } from './truth/orbit.js';
 import { CREW_TRAITS, consents, ownAbortAt, impatient } from './world/crew.js';
@@ -17,6 +17,7 @@ import { KITS, SHORT } from './data/kits.js';
 import { SEASON } from './data/campaign.js';
 import { MERCURY_COUNT, UNITS, SEA_LIMIT, TAPES, PAD_OPTIONS, SIMS, SIM_MINUTES, ORBIT_UNITS, STATIONS, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_TAPES, ORBIT_SIMS } from './data/mercury.js';
 import { addSim, shiftTrust, TRUST } from './career/record.js';
+import { ROUTE_DAY, ROUTE_MODES, ROUTE_ANNOUNCED } from './data/route.js';
 import { adopt } from './world/programme.js';
 
 export { ABORT_LIMIT, PLAN, UNITS, SEA_LIMIT, PAD_OPTIONS, SIMS, SIM_MINUTES, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_PLAN };
@@ -68,6 +69,12 @@ export const MERCURY_BEATS = {
     note('Next morning the pad crew safed the capsule and drained the booster. The capsule and the booster can both fly again.');
     setBeat('mReview');
   },
+  // The route-to-the-Moon meeting, a scene after the round whose SEASON entry names it in `after`.
+  sRoute() {
+    seatPeople();
+    g.objective = 'The centres are arguing how Apollo goes to the Moon. Hollis wants you in the meeting in Mercury Control.';
+    say('hollis', 'Retro, you\'re in the meeting this morning. Headquarters wants to know what the flights have taught us about hitting a point from orbit.', '', 8);
+  },
   mRecovery() { g.objective = 'Recovery is reporting. Read the board, then go to the review.'; g.room = 'splash'; if (pilotId()) g.people.pilot.hidden = true; },
   mReview() {
     seatPeople();
@@ -98,6 +105,7 @@ export function startMission() {
 // ---- Which room each building opens in a Mercury round ----
 export function missionRoomFor(id) {
   const flying = g.console && g.console.kind === 'flight';
+  if (id === 'office' && g.beat === 'sRoute') return 'route';
   if (id === 'office') return ['mLaunch', 'mFlight'].includes(g.beat) ? 'console' : g.beat === 'mReview' ? 'mreview' : ['roundEnd', 'seasonEnd'].includes(g.beat) ? g.beat : 'watch';
   if (id === 'dugout' || id === 'stand') return flying || g.beat === 'mFlight' ? 'watch' : 'sim';
   if (id === 'truck') return g.beat === 'mRecovery' ? 'splash' : 'watch';
@@ -574,6 +582,7 @@ export function toReview() {
   if (g.beat !== 'mRecovery') return;
   const c = g.console;
   if (c) { g.mission.calls = { ...c.calls, aim: c.aim, hours: c.hours }; g.mission.sank = !!c.sank; g.mission.lines = c.lines; g.mission.fate = c.fate || null; }
+  if (c && c.orbital && c.round.end?.outcome === 'entry' && c.round.end.capsule !== 'lost') (g.record.orbitMisses = g.record.orbitMisses || []).push(c.round.end.miss);
   if (g.mission.fate === 'killed') { (g.record.losses = g.record.losses || []).push({ name: pilotName(), day: g.day, round: SEASON[g.roundIndex].id }); }
   g.console = null; g.room = null;
   setBeat('mReview');
@@ -742,3 +751,43 @@ function splashOrbit(c, end, trained, lines) {
 }
 
 const orbitSimFailure = scenario => (['guidance', 'shortburn'].includes(scenario) ? scenario : 'nominal');
+
+// ---- The route to the Moon, 1962 ----
+// After a round whose SEASON entry has `after: 'route'`: the calendar goes to the meeting, once.
+export function sceneAfterReview() {
+  const after = SEASON[g.roundIndex].after;
+  if (after !== 'route' || g.record.scenes?.route) return null;
+  g.day = Math.max(g.day, ROUTE_DAY);
+  g.clock = g.day * 1440 + 7 * 60 + 30;
+  return 'sRoute';
+}
+// What the meeting can see of your record: how close your orbital flights came down to the planned point.
+export function orbitMisses() { return (g.record.orbitMisses || []).slice(); }
+// Your case in the meeting. The decision is NASA's, and it went to lunar-orbit rendezvous; your view goes on your record,
+// and earns trust where your flights back it.
+export function routeArgue(mode) {
+  if (g.beat !== 'sRoute' || !ROUTE_MODES[mode] || g.record.scenes?.route) return null;
+  const misses = orbitMisses(), best = misses.length ? Math.min(...misses.map(Math.abs)) : null;
+  const evidence = best == null ? 'none of your flights reached orbit and came home on a computed point' : `your best orbital splashdown was ${Math.round(best)} km from the planned point`;
+  let lines, tone = '';
+  if (mode === 'lor') {
+    const backed = best != null && best <= 60;
+    if (backed) { shiftTrust(g.record, 1); tone = 'go'; }
+    lines = [['hollis', backed ? `Retro's numbers are why I believe we can find the mother ship from the Moon: ${evidence}.` : 'It\'s the light way, and I\'ll back it. I\'d like better navigation numbers than we have, Retro.']];
+  } else if (mode === 'eor') lines = [['albrecht', 'Huntsville thanks you.'], ['hollis', 'Close to home is safer, I grant you. It is also four Saturns and a fuel transfer nobody has tried.']];
+  else lines = [['hollis', 'Nobody has a Nova, Retro, and nobody wants to land a ten-storey ship backwards on ground we haven\'t seen.']];
+  (g.record.scenes = g.record.scenes || {}).route = { view: mode, day: g.day, evidence };
+  for (const [who, text] of lines) say(who, text, tone, 9);
+  const reply = lines.map(([who, text]) => `${g.people[who].name.split(' ').pop()}: "${text}"`).join(' ');
+  note(`The route to the Moon: you argued for ${ROUTE_MODES[mode].name.toLowerCase()}, citing that ${evidence}. ${reply}`);
+  note(`Albrecht came back from Huntsville: Marshall has come round to lunar-orbit rendezvous. NASA announced it on ${ROUTE_ANNOUNCED}. Apollo will fly a command ship and a lunar lander.`);
+  g.mission.route = { mode, reply };
+  roomChanged();
+  return reply;
+}
+// Leave the meeting: on to the next round, or the end of the years in this build.
+export function routeDone() {
+  if (g.beat !== 'sRoute' || !g.record.scenes?.route) return;
+  g.room = null;
+  morning(nextIndexFn() != null ? 'roundEnd' : 'seasonEnd');
+}
