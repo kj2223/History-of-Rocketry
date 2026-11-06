@@ -2,6 +2,7 @@
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel looks along the site.
 import { drawSite, drawTracking, PLACES, VIEW_H, GROUND } from './draw.js';
 import { g, newGame, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint } from '../game.js';
+import { talk } from '../data/talk.js';
 import { writeSave, readSave, clearSave } from '../core/save.js';
 import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom } from '../scenes/rooms.js';
 
@@ -29,18 +30,6 @@ const placeAt = ({ x, y }) => Object.entries(PLACES).find(([id, p]) => {
 const flying = () => g.flight && (g.flight.view === 'site' || g.flight.view === 'board');
 const locked = () => flying() || g.truck.follow || g.fading || g.count || g.room === 'recovery';
 
-// What each person says when you go up to them, by beat.
-function talk(p) {
-  const lines = {
-    ellis: { brief: 'Welds first. Then give me a propellant figure for the range.', board: 'The drawing board is in here. I need that propellant figure.', evening1: 'Go home, get some sleep. Big day tomorrow.', static: 'It\'s your firing. Watch that tank gauge before you fire.', review: 'In here when you\'re ready.' },
-    kowalski: { brief: 'She\'s all yours, sir. Torch is on the bench.', staticPrep: 'Mind your feet, this thing\'s heavier than it looks.', rollout: 'Booster first, then the truck, then the tower. Same as always.', recovery: 'Truck\'s ready when you are.' },
-    delgado: { brief: 'First time on a WAC? Look at the welds. Sarge says they always look at the welds.' },
-    vega: { countReady: 'She\'s up. Get in the blockhouse, we count from ten minutes.', rollout: 'Waiting on the round. The tower\'s ready.' },
-    morgan: { rollout: 'Radar\'s warmed up. Balloon goes up at T minus ten.', recovery: 'Climb in. Bumpy ride.', board: 'Get me that figure and I\'ll clear the range.' },
-  };
-  return lines[p.id]?.[g.beat] || { ellis: 'Busy, busy.', vega: 'Morning.', morgan: 'Clear skies today.', kowalski: 'Sir.', delgado: 'Morning, sir.' }[p.id];
-}
-
 function goTo(x, then) {
   if (locked()) return;
   g.room = null;
@@ -53,7 +42,7 @@ function goTo(x, then) {
 canvas.addEventListener('click', e => {
   if (locked()) return;
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
-  if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p)); });
+  if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p.id, g.beat)); });
   if (pl) {
     const [id, place] = pl;
     if (id === 'truck') return goTo(g.truck.x + 45, () => { g.beat === 'recovery' ? rideOut() : say('you', 'The recovery truck. Not needed yet.'); });

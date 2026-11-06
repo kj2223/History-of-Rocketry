@@ -26,8 +26,8 @@ const PEOPLE = {
   delgado: { name: 'Pvt. Delgado', role: 'Ordnance crew', color: '#5d6a43', hat: '#3e4a2c', x: 780 },
   // On the V-2 and Bumper rounds only.
   hoyt: { name: 'Walt Hoyt', role: 'V-2 crew chief, General Electric', color: '#6b4f6f', hat: '#2f3540', x: 840 },
-  // On the Aerobee rounds only.
-  brandt: { name: 'Lt. Cmdr. Paul Brandt', role: 'Navy project officer', color: '#2f3f66', hat: '#e9e9e4', x: 270 },
+  // On the Aerobee and Viking rounds. He stands clear of the office door, so a click on the door goes in.
+  brandt: { name: 'Lt. Cmdr. Paul Brandt', role: 'Navy project officer', color: '#2f3f66', hat: '#e9e9e4', x: 405 },
 };
 
 // Whether you run this round as its test conductor: you plan it, run the count and chair the review.
@@ -132,6 +132,7 @@ export function closeAway() { g.away = null; if (g.room === 'away') g.room = nul
 export const you = () => g.people.you;
 export function say(id, text, tone = '', seconds = 4.5) {
   const p = g.people[id];
+  if (!p || typeof text !== 'string' || !text) return; // nothing to say: never put an empty bubble on the site
   p.bubble = { text, tone, until: g.time + seconds };
   g.loop.push({ who: p.name, text, tone, at: clockText() });
   if (g.loop.length > 40) g.loop.shift();

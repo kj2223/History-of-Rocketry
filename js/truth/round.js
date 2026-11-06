@@ -201,7 +201,14 @@ export function reworkTurbine(round) {
 export const standRework = round => { const st = standStage(round); return st === 'v2' ? refurbishPump(round) : st === 'aerobee-sustainer' ? rebondLiner(round) : st === 'viking' ? reworkTurbine(round) : reworkIgniter(round); };
 
 // The tank pressure the blockhouse gauge shows at count second s: steady, or bleeding off if the round leaks.
-export const tankGauge = (round, s) => 23 - (hasLeak(round) ? Math.min(6, s * 0.012) : 0) + 0.12 * normal(round.rng.observation);
+// The needle's flutter depends only on the round and the moment (it changes every few seconds), so the gauge holds still
+// when time does, and reading it every frame takes nothing from the round's streams.
+export const tankGauge = (round, s) => 23 - (hasLeak(round) ? Math.min(6, s * 0.012) : 0) + flutter((round.seed ?? 1) | 0, Math.floor(s / 4));
+function flutter(seed, step) {
+  let h = Math.imul(seed ^ Math.imul(step + 1, 2654435761), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16;
+  return ((h >>> 0) / 4294967296 - 0.5) * 0.3;
+}
 
 // THE FLIGHT. Decided in full at liftoff: { apogee km, range km, failure: null | cause, failAt s, path, radar }.
 // path: [{ t, x, h }] in km, one point a second, for the tracking board.
