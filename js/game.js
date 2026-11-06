@@ -14,6 +14,7 @@ import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
 import { ASTRONAUTS } from './data/crew.js';
 import { LUNAR_BEATS, tickLunar, lunarRoom } from './lunar.js';
 import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview } from './mercury.js';
+import { raceNews, RACE_FROM } from './world/race.js';
 import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer, pendingOffer, SEATS } from './career/record.js';
 
@@ -696,6 +697,8 @@ export function nextRound() {
   // The first Bumper's WAC is built to the standard the WAC rounds left behind, and the V-2s to what the V-2 round taught.
   if (next.vehicle !== SEASON[g.roundIndex].vehicle && g.programme.adopted.length) lines.push(`Everything the reviews decided so far goes into the build: ${fixesInForce(g.programme).join(' ')}`);
   if (!next.crewed) lines.push(`The crew built ${next.name} in the hangar.`);
+  // The other side, from 1966, as Houston heard of it.
+  if (next.crewed && next.crewed !== 'mercury') lines.push(...raceNews(g.seed, Math.max(from, RACE_FROM), next.start));
   g.away = { from: dateText(from), to: dateText(next.start), lines };
   startRound(i);
   g.room = 'away';
