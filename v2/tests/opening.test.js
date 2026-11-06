@@ -87,9 +87,11 @@ test('V2-01 import: a V1 save that has not reached NASA formation, or at another
 test('V2-01 import: V1 heads get hidden traits inferred from what the administrator did, and they never show', () => {
   const { state: v1, text } = v1Concluded();
   const s = continueFromV1(text);
-  const accepted = v1.decisions.filter(d => d.type === 'failure-review' && d.choice === 'accept-known-risk').length;
-  assert.ok(accepted > 0, 'the fixture accepted known risks');
-  assert.ok(s.people['head-td'].traits.risk > 0.5, 'accepting known risks makes the heads more risk-tolerant');
+  // Teams now carry known fixes between programmes, so the fixture may meet no failures; its experimental flights still count.
+  assert.ok(v1.launches.some(l => l.experimental && l.status === 'flown'), 'the fixture flew experimental flights');
+  assert.ok(s.people['head-td'].traits.risk > 0.5, 'a record of experimental flying makes the technical director more risk-tolerant');
+  const review = choice => ({ decisions: [{ type: 'failure-review', status: 'closed', choice }], launches: [], assurance: { challenges: [] }, staff: { proposals: [] }, delegation: { programmes: {} } });
+  assert.ok(inferTraits(review('accept-known-risk'))['financial-officer'].risk > inferTraits(review('ground'))['financial-officer'].risk, 'accepting known risks makes the heads more risk-tolerant');
   // A V1 record with nothing in it leaves the heads neutral.
   const blank = inferTraits({ decisions: [], launches: [], assurance: { challenges: [] }, staff: { proposals: [] }, delegation: { programmes: {} } });
   for (const t of Object.values(blank)) assert.deepEqual(t, { risk: 0.5, candour: 0.5, independence: 0.5 });

@@ -137,6 +137,14 @@ const facilityWork = (s, { jobId, kind, unit, cost, what }) => {
 
 const financeOnCost = (s, cost) => (cost > s.fiscal.award && !s.fiscal.multiYearAuthority ? ['cost exceeds the annual award'] : []);
 
+// Fixes for other stages that will fly with a revision (§5.3): its trial and adoption are judged with them
+// fitted, so a fault another fix already cures does not block it. Each companion must be a defined revision.
+const companions = (s, also) => {
+  for (const [stage, rev] of Object.entries(also)) if (REVISIONS[rev]?.stage !== stage || s.hardware.revisions[rev]?.status !== 'defined') throw new Rejection(`${rev} is not a defined revision of ${stage}`);
+  return also;
+};
+const alongside = also => (Object.keys(also).length ? `, flown with the ${Object.values(also).map(r => REVISIONS[r].label).join(' and ')} fitted` : '');
+
 // Each command: who may issue it, whether delegated teams may, and what it does.
 const TEAM = ['department-head', 'project-manager'];
 const COMMANDS = {
@@ -171,19 +179,19 @@ const COMMANDS = {
     if (!r.ready) throw new Rejection(`Not ready to prototype: ${r.blockers.join('; ')}`);
     defineRevision(s, revId);
   } },
-  'request-trial': { roles: ['department-head'], run: (s, { programmeId, revId }) => {
-    const r = readiness(s, 'experimental-flight', configOf(s, programmeId, { [REVISIONS[revId].stage]: revId }), revId);
+  'request-trial': { roles: ['department-head'], run: (s, { programmeId, revId, with: also = {} }) => {
+    const r = readiness(s, 'experimental-flight', configOf(s, programmeId, { ...companions(s, also), [REVISIONS[revId].stage]: revId }), revId);
     return openDecision(s, { type: 'trial', subject: revId, raisedBy: 'department-head', vetoable: true,
-      text: `Authorise an experimental flight of ${REVISIONS[revId].label}? Approving a trial does not adopt the revision.`,
+      text: `Authorise an experimental flight of ${REVISIONS[revId].label}${alongside(also)}? Approving a trial does not adopt the revision.`,
       finance: position([]), technical: position(r.blockers, r.gaps.length ? `known gaps: ${r.gaps.join('; ')}` : 'supported'),
       effect: { kind: 'approve-trial', payload: { revId } } }).id;
   } },
-  'adopt-revision': { roles: ['administrator'], run: (s, { revId, programmeIds }) => {
+  'adopt-revision': { roles: ['administrator'], run: (s, { revId, programmeIds, with: also = {} }) => {
     const flown = s.launches.some(l => l.outcome === 'success' && Object.values(l.stages).includes(revId));
-    const config = configOf(s, programmeIds[0], { [REVISIONS[revId].stage]: revId });
+    const config = configOf(s, programmeIds[0], { ...companions(s, also), [REVISIONS[revId].stage]: revId });
     const blockers = [...readiness(s, 'experimental-flight', config, revId).blockers, ...(flown ? [] : ['no authorised flight has demonstrated it'])];
     return openDecision(s, { type: 'deployment', subject: revId, raisedBy: 'administrator', vetoable: true,
-      text: `Adopt ${REVISIONS[revId].label} for ${programmeIds.map(id => programmeName(s, id)).join(', ')}? Articles already built keep their revisions.`,
+      text: `Adopt ${REVISIONS[revId].label} for ${programmeIds.map(id => programmeName(s, id)).join(', ')}${alongside(also)}? Articles already built keep their revisions.`,
       finance: position([]), technical: position(blockers), effect: { kind: 'adopt', payload: { revId, programmeIds } } }).id;
   } },
   'build-article': { roles: ['administrator', 'production'], delegated: TEAM, run: (s, a) => buildArticle(s, a).id },

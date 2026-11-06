@@ -14,9 +14,9 @@ export const ACTS = [
 // objectives itself; the `client` is the project office that would run the work and `terms` are its planning
 // figures (illustrative, tuning), heard at the stage 3 meeting like a client's.
 export const PROGRAMMES = [
-  { id: 'mercury-redstone', name: 'Mercury suborbital (Redstone)', vehicle: null, design: 'mercury-redstone', source: 'objective', client: 'the Space Task Group', arrives: dayOf(1958, 10, 7),
+  { id: 'mercury-redstone', name: 'Mercury suborbital (Redstone)', vehicle: null, design: 'mercury-redstone', source: 'objective', client: 'the Space Task Group', arrives: dayOf(1958, 10, 7), supersededBy: ['mercury-atlas'],
     terms: { cost: 2500000, contribution: 'Redstone boosters and the Army launch team at the Cape', timeline: '30 months', requirements: 'a crewed suborbital flight and safe recovery' } },
-  { id: 'mercury-atlas', name: 'Mercury orbital (Atlas)', vehicle: null, design: 'mercury-atlas', source: 'objective', client: 'the Space Task Group', arrives: dayOf(1958, 10, 7),
+  { id: 'mercury-atlas', name: 'Mercury orbital (Atlas)', vehicle: null, design: 'mercury-atlas', source: 'objective', client: 'the Space Task Group', arrives: dayOf(1958, 10, 7), supersededBy: ['gemini'],
     terms: { cost: 6000000, contribution: 'Atlas boosters bought from the Air Force', timeline: '40 months', requirements: 'a crewed orbital flight and safe recovery' } },
   { id: 'gemini', name: 'Gemini', vehicle: null, design: 'gemini-titan', source: 'objective', client: 'the Manned Spacecraft Center', arrives: dayOf(1961, 12, 7),
     terms: { cost: 18000000, contribution: 'Titan II launch vehicles through the Air Force', timeline: '48 months', requirements: 'two-person flights of up to two weeks, spacewalks, rendezvous and docking' } },

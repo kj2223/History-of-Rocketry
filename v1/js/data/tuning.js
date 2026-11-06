@@ -28,6 +28,11 @@ export const TUNING = {
   staffLaunchBookingDays: 5,
   staffFlightCost: 20000,
   staffFlightSpacingDays: 60,
+  // Closure (§8.6–8.7): when a newer programme has overtaken an older one, how long to wait after
+  // "keep it" before recommending closure again, and how long each closure step takes.
+  supersededAfterFlights: 3,
+  stopReviewDays: 365,
+  staffClosureStepDays: 7,
   // Facility work (freeze §6.4): building a unit costs this per unit of capacity; an upgrade costs a share of it
   // per capacity step (at least one step). A deposit is paid when work starts and the balance on completion.
   facilityBuildCost: { range: 120000, 'static-stand': 90000, 'environmental-chamber': 150000, 'structural-rig': 100000,

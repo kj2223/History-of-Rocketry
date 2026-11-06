@@ -90,3 +90,54 @@ test('a team does not ask for the pad while an unaccepted finding would make the
   g.state.beliefs.assessed = ['x-dev'];
   assert.equal(nextStep(g.state, wac).kind, 'fly', 'once you accept the known risk the team may ask again');
 });
+
+test('§8.6–8.7: once Aerobee flies regularly the technical director recommends closing WAC Corporal, and the owners wind it down', async () => {
+  const { runItsCourse } = await import('../js/rules/staff.js');
+  const g = game();
+  const flown = (pid, n) => { for (let i = 0; i < n; i++) g.state.launches.push({ id: `x-${pid}-${i}`, programmeId: pid, status: 'flown', outcome: 'success', day: g.state.day, stages: {} }); };
+  flown('wac', 5);
+  assert.equal(runItsCourse(g.state, g.state.programmes.wac), null, 'nothing has overtaken it yet');
+  g.until(1946, 5, 17);
+  g.state.programmes.aerobee.stage = 'greenlit';
+  flown('aerobee', 3);
+  g.days(1);
+  const d = g.state.decisions.find(x => x.type === 'stop' && x.subject === 'wac');
+  assert.ok(d && d.raisedBy === 'technical-director' && /Aerobee now does the same work/.test(d.text));
+  assert.equal(proposals(g).filter(p => p.refs.programme === 'wac').length, 0, 'the team stops asking for flights while you decide');
+  g.approve(d.id, 'stop');
+  g.days(60);
+  const wac = g.state.programmes.wac;
+  assert.ok(wac.closure.steps.every(s => s.done), 'each owner did their step');
+  assert.ok(g.state.memos.some(m => /Closure report for WAC Corporal/.test(m.text)));
+});
+
+test('§8.6: "keep it" is respected for a year', () => {
+  const g = game();
+  g.until(1946, 5, 17);
+  g.state.programmes.aerobee.stage = 'greenlit';
+  for (let i = 0; i < 3; i++) g.state.launches.push({ id: `x${i}`, programmeId: 'aerobee', status: 'flown', outcome: 'success', day: g.state.day, stages: {} });
+  g.days(1);
+  g.approve(g.state.decisions.find(x => x.type === 'stop').id, 'further-attempt');
+  g.days(200);
+  assert.equal(g.state.decisions.filter(x => x.type === 'stop').length, 1);
+  assert.equal(g.state.programmes.wac.stage, 'greenlit');
+});
+
+test('a fix proven on WAC is carried to Bumper before Bumper flies a trial, and its trial is judged with the fixes it will fly with', async () => {
+  const { knownFixes, nextStep } = await import('../js/rules/staff.js');
+  const g = game();
+  for (let d = 0; d < 90; d++) {
+    for (const x of proposals(g)) g.cmd('approve-proposal', 'administrator', { proposalId: x.id });
+    for (const x of g.state.decisions.filter(d => d.status === 'open')) g.approve(x.id);
+    g.days(1);
+  }
+  assert.equal(g.state.programmes.wac.baseline['wac-upper'], 'wac-upper/r3');
+  g.until(1946, 6, 1);
+  const bumper = g.state.programmes.bumper;
+  bumper.stage = 'greenlit';
+  assert.deepEqual(knownFixes(g.state, bumper).map(f => f.rev), ['wac-upper/r3'], 'the WAC igniter fix applies to the Bumper upper stage');
+  const step = nextStep(g.state, bumper);
+  assert.ok(step.kind !== 'fly' || step.revs?.['wac-upper'] === 'wac-upper/r3', 'Bumper does not fly with the old igniter');
+  // A trial request can name the other fixes it will fly with; an undefined companion is refused.
+  assert.match(g.try('request-trial', 'department-head', { programmeId: 'bumper', revId: 'wac-upper/r3', with: { v2: 'v2/r2' } }).rejection.reason, /not a defined revision/);
+});

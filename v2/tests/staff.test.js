@@ -39,3 +39,11 @@ test('teams move from uncrewed flights to a readiness decision, crew training an
   assert.ok(uncrewedBefore.length >= 3, 'after uncrewed flights built the evidence');
   assert.ok(first.crew.every(id => s.people[id].record.consents.some(c => c.launchId === first.id && c.consent)));
 });
+
+test('§8.6: Mercury-Redstone is recommended for closure once orbital Mercury flies regularly', async () => {
+  const { runItsCourse } = await import('../js/rules/staff.js');
+  const state = { programmes: { 'mercury-redstone': { id: 'mercury-redstone', name: 'Mercury suborbital (Redstone)', stage: 'greenlit' }, 'mercury-atlas': { id: 'mercury-atlas', name: 'Mercury orbital (Atlas)', stage: 'greenlit' } }, launches: [] };
+  assert.equal(runItsCourse(state, state.programmes['mercury-redstone']), null);
+  for (let i = 0; i < 3; i++) state.launches.push({ programmeId: 'mercury-atlas', status: 'flown', outcome: 'success' });
+  assert.match(runItsCourse(state, state.programmes['mercury-redstone']), /Mercury orbital \(Atlas\) now does the same work/);
+});
