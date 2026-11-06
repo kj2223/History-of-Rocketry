@@ -4,7 +4,7 @@
 
 import { VEHICLES, REVISIONS, TRACKING_CHANNELS } from '../data/vehicles.js';
 import { FLIGHT_CONDITIONS } from '../data/engineering.js';
-import { Rejection, openDecision, position } from './authority.js';
+import { Rejection, openDecision, position, memo } from './authority.js';
 import { readiness } from './belief.js';
 import { article } from './hardware.js';
 import { assessFlight, recordExposure, resolveExposure, commit } from './fiscal.js';
@@ -55,7 +55,34 @@ export const requestLaunch = (state, { id, articleId, pad, tracking, cost, repla
   const d = openDecision(state, { type: 'launch', subject: id, raisedBy: 'flight-control', vetoable: true,
     text: `Launch ${VEHICLES[a.vehicle].name} ${articleId}${programmeName(state, a.programmeId) === VEHICLES[a.vehicle].name ? '' : ` for ${programmeName(state, a.programmeId)}`} (${experimental ? 'experimental' : 'routine'} flight, costing ${dollars(cost)}). ${money.text}`,
     finance: launch.tiers['ground-executive'], technical: launch.tiers['ground-technical'], effect: { kind: 'launch', payload: { id } } });
+  // A vetoed launch can never be approved, so Flight Control scrubs it now rather than holding the pad.
+  const vetoes = Object.entries({ technical: launch.tiers['ground-technical'], finance: launch.tiers['ground-executive'] }).filter(([, p]) => p.stance === 'veto');
+  if (vetoes.length) {
+    Object.assign(d, { status: 'closed', choice: 'reject', decidedBy: 'flight-control', decidedDay: state.day,
+      consequence: `Scrubbed: vetoed by ${vetoes.map(([who, p]) => `${who} (${p.reason})`).join(', ')}` });
+    scrub(state, launch, d.consequence);
+  }
   return { decision: d.id };
+};
+
+// Stand a launch down: the article stays built and the pad and tracking bookings are released.
+export const scrub = (state, l, reason) => {
+  Object.assign(l, { status: 'scrubbed', scrubbed: { day: state.day, reason } });
+  for (const id of l.reservations) { const r = state.facilities.reservations.find(x => x.id === id); if (r?.status === 'held') r.status = 'released'; }
+  memo(state, { from: 'flight-control', text: `Launch of ${VEHICLES[l.vehicle].name} ${l.articleId} scrubbed. ${reason}. The pad is free.`, refs: { launch: l.id } });
+};
+
+// A launch still waiting whose decision was refused, or whose pad was given to another programme, is
+// scrubbed so it does not sit on the pad.
+// shortcut: a booking that merely runs out keeps the launch waiting; approving it late does not re-check the pad.
+export const standDown = state => {
+  for (const l of state.launches.filter(x => x.status === 'awaiting-decision')) {
+    const d = state.decisions.find(x => x.type === 'launch' && x.subject === l.id);
+    if (d && d.status !== 'open') { scrub(state, l, `Not approved (${d.choice})`); continue; }
+    if (state.facilities.reservations.find(r => r.id === l.reservations[0])?.status !== 'displaced') continue;
+    if (d) Object.assign(d, { status: 'closed', choice: 'reject', decidedBy: 'flight-control', decidedDay: state.day, consequence: 'Scrubbed: the pad was given to another programme' });
+    scrub(state, l, 'The pad was given to another programme');
+  }
 };
 
 export const launchRecord = (state, id) => state.launches.find(l => l.id === id);

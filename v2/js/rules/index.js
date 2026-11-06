@@ -18,7 +18,7 @@ import { initFiscal, startQuarter, payDue, closeYear, commit, cancelCommitment, 
 import { initStock, reserveStock, consumeStock } from './stock.js';
 import * as programme from './programme.js';
 import { initDelegation, appoint, checkDelegation, isDelegated, recordFailure } from './delegation.js';
-import { initLaunches, requestLaunch, executeLaunch, completeFlight, answerInvitation } from './launch.js';
+import { initLaunches, requestLaunch, executeLaunch, completeFlight, standDown, answerInvitation } from './launch.js';
 import { startJob, advanceWork, pauseJob, resumeJob, cancelJob, job } from './work.js';
 import { initContinuation, conclude } from './summary.js';
 import { project as projectPublic } from './project.js';
@@ -136,6 +136,7 @@ const COMMANDS = {
     if (d.choice === d.options[0] && d.effect) EFFECTS[d.effect.kind](s, d.effect.payload);
     if (d.type === 'failure-review' && d.choice === 'accept-known-risk') challengeRiskAcceptance(s, d, d.effect.payload.observations);
     if (d.type === 'assurance-challenge') answerChallenge(s, d);
+    if (d.type === 'launch') standDown(s);
     return d.id;
   } },
   'create-programme': { roles: ['administrator', 'department-head'], run: (s, p, actor) =>
@@ -289,6 +290,7 @@ const oneDay = s => {
   programme.lapseWindows(s);
   for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
   payDue(s);
+  standDown(s);
   militaryDay(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
   assuranceDay(s);

@@ -94,3 +94,26 @@ test('FRZ-06: Flight Control holds a launch without a pad, before any decision i
   assert.match(r.rejection.reason, /Flight Control holds/);
   assert.equal(g.state.decisions.length, decisions);
 });
+
+// Ported from V1 (d704e27): a launch that will not go clears the pad.
+test('a launch that is refused, or whose pad is given away, clears the pad', () => {
+  const g = mercuryRedstone(3);
+  g.cmd('create-programme', 'administrator', { id: 'mr-2', name: 'Second Redstone series', vehicle: 'mercury-redstone' });
+  for (const id of ['m1', 'm2']) g.cmd('build-article', 'production', { id, programmeId: 'mercury-redstone' });
+  const ask = (id, articleId) => {
+    const pad = book(g, 'pad-1', 'mercury-redstone', 5), tracking = book(g, 'tracking-1', 'mercury-redstone', 5);
+    return g.cmd('request-launch', 'administrator', { id, articleId, pad, tracking, cost: 1, replacementCost: 1 }).decision;
+  };
+  const padFree = () => !g.state.facilities.reservations.some(r => r.unitId === 'pad-1' && r.status === 'held');
+  g.approve(ask('refused', 'm1'), 'reject');
+  assert.equal(g.state.launches.find(l => l.id === 'refused').status, 'scrubbed');
+  assert.ok(padFree(), 'refusing releases the pad at once');
+  assert.equal(g.state.hardware.articles.m1.status, 'built', 'the article can fly another day');
+  const waiting = ask('bumped', 'm2');
+  const clash = g.cmd('reserve-facility', 'administrator', { id: 'next', unitId: 'pad-1', programmeId: 'mr-2', from: g.state.day, to: g.state.day + 2, purpose: 'launch' });
+  g.approve(clash.decision, 'displace');
+  g.days(1);
+  assert.equal(g.state.launches.find(l => l.id === 'bumped').status, 'scrubbed');
+  assert.equal(g.state.decisions.find(d => d.id === waiting).decidedBy, 'flight-control');
+  assert.equal(g.state.facilities.reservations.find(r => r.id === 'next').status, 'held');
+});
