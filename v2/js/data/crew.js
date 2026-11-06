@@ -36,12 +36,13 @@ export const CANDIDATES = [
 ];
 
 // Mission-specific training (V2 freeze §7). Every crew member needs these for a vehicle before flying it.
+// Gemini crews train for spacewalks and rendezvous whatever their first mission, so a crew can be reassigned.
 // Two-person spacecraft also need teamwork training with the same partner, so a late substitution means
 // the new pair trains together again.
 export const TRAINING = {
   'mercury-redstone': { crew: 1, items: ['systems', 'emergencies', 'flight-profile'] },
   'mercury-atlas': { crew: 1, items: ['systems', 'emergencies', 'flight-profile'] },
-  'gemini-titan': { crew: 2, items: ['systems', 'emergencies', 'flight-profile', 'teamwork'] },
+  'gemini-titan': { crew: 2, items: ['systems', 'emergencies', 'flight-profile', 'eva', 'rendezvous', 'teamwork'] },
 };
 
 // How a crew member gets out of the vehicle in each phase (V2 freeze §4). The first part of the flight is

@@ -85,6 +85,15 @@ export const HYPOTHESES = {
       { quantity: 'mercury-capsule.cabin-pressure', when: { burn: 'short' }, normal: true },
     ],
   },
+  // Gemini objectives. Only flights read these, so each anomaly has a single explanation to test by flying the fix.
+  'fuel-cell-heater': {
+    name: 'Fuel cell oxygen supply heater failing on long flights',
+    predicts: [{ quantity: 'gemini.fuel-cell-output', when: {}, normal: false }],
+  },
+  'eva-restraints': {
+    name: 'Nothing to hold or brace against outside the spacecraft',
+    predicts: [{ quantity: 'gemini.eva-workload', when: {}, normal: false }],
+  },
   'capsule-valve-leak': {
     name: 'Mercury cabin relief valve leaking',
     predicts: [{ quantity: 'mercury-capsule.cabin-pressure', when: {}, normal: false }],
@@ -106,6 +115,8 @@ export const ANOMALIES = {
   'redstone-loss': { name: 'Redstone start or cutoff fault', stage: 'redstone', vehicles: ['mercury-redstone'], trigger: ['vehicle.deviation', 'redstone.chamber-pressure'], hypotheses: ['redstone-cutoff-sequence', 'redstone-thrust-regulator'] },
   'atlas-loss': { name: 'Atlas engine fault', stage: 'atlas', vehicles: ['mercury-atlas', 'atlas-icbm'], trigger: ['vehicle.deviation', 'atlas.chamber-pressure'], hypotheses: ['atlas-combustion-instability', 'atlas-turbopump-cavitation'] },
   'titan-loss': { name: 'Titan II first-stage fault', stage: 'titan-ii', vehicles: ['gemini-titan', 'titan-icbm'], trigger: ['vehicle.deviation', 'titan-ii.chamber-pressure'], hypotheses: ['titan-pogo', 'titan-combustion-instability'] },
+  'fuel-cell-sag': { name: 'Gemini fuel cell losing power', stage: 'gemini', vehicles: ['gemini-titan'], trigger: 'gemini.fuel-cell-output', hypotheses: ['fuel-cell-heater'] },
+  'eva-overexertion': { name: 'Spacewalkers working past their limit', stage: 'gemini', vehicles: ['gemini-titan'], trigger: 'gemini.eva-workload', hypotheses: ['eva-restraints'] },
   'capsule-leak': { name: 'Mercury cabin losing pressure', stage: 'mercury-capsule', vehicles: ['mercury-redstone', 'mercury-atlas'], trigger: 'mercury-capsule.cabin-pressure', hypotheses: ['capsule-hatch-seal', 'capsule-valve-leak'] },
 };
 

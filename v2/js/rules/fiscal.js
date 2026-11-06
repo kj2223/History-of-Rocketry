@@ -158,7 +158,7 @@ export const closeYear = state => {
   f.cash -= unspent - granted;
   const condition = AWARD_CONDITIONS[f.fy];
   if (condition) {
-    const flown = state.launches.filter(l => l.outcome === 'success' && fiscalQuarter(l.day).fy === f.fy).length;
+    const flown = state.launches.filter(l => l.outcome === 'success' && fiscalQuarter(l.day).fy === f.fy && (!condition.crewed || l.crew?.length)).length;
     f.conditions.push({ fy: f.fy, text: condition.text, honoured: flown >= condition.successfulFlights });
   }
   memo(state, { from: 'financial-officer', kind: 'report', text: `Fiscal ${f.fy} is closed. We had ${money(unspent)} unspent and negotiated to keep ${money(granted)} of it${continuing ? `, ${money(continuing)} of that for commitments already made` : ''}.`, refs: { fy: f.fy } });

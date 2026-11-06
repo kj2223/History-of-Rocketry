@@ -94,3 +94,19 @@ export const SPACECRAFT_TRUTH = {
 };
 // Burn-through is impossible below this share of capacity, certain at `certainAt` of it, and rises as a square between.
 export const BURN_THROUGH = { safeBelow: 0.8, certainAt: 1.2 };
+
+// ---- V2: Gemini mission objectives (V2 freeze §5) ----
+// True values for each objective reading on the first Gemini spacecraft. Fuel cell output falls by `sagPerDay`
+// over the flight. A spacewalk with nothing to brace against costs far more effort than the planners think.
+// Objective readings vary much more from flight to flight than engine readings.
+export const OBJECTIVE_TRUTH = {
+  'gemini.fuel-cell-output': { base: 1, sagPerDay: 0.045 },
+  'gemini.eva-workload': { base: 1.35 },
+  'gemini.rendezvous-error': { base: 1.6 },
+  'gemini.docking-misalignment': { base: 3 },
+};
+export const OBJECTIVE_REVISION_EFFECTS = {
+  'gemini/r2': { 'gemini.fuel-cell-output': { sagPerDay: 0.008 } },
+  'gemini/r3': { 'gemini.eva-workload': { base: 0.6 } },
+};
+export const OBJECTIVE_SCATTER = 0.12;

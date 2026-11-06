@@ -10,7 +10,9 @@ import { dateLabel, dateOf, fiscalQuarter } from '../core/calendar.js';
 import { FLIGHT_CONDITIONS, ANOMALIES, HYPOTHESES } from '../data/engineering.js';
 import { PROGRAMMES } from '../data/scenario.js';
 import { TUNING } from '../data/tuning.js';
-import { QUANTITIES, REVISIONS, STAGES, VEHICLES, VEHICLE_QUANTITIES, testFacility } from '../data/vehicles.js';
+import { QUANTITIES, REVISIONS, STAGES, VEHICLES, VEHICLE_QUANTITIES, testFacility, lineage } from '../data/vehicles.js';
+import { MISSIONS, MISSION_LADDER } from '../data/flight.js';
+import { nextMission } from './mission.js';
 import { FACILITY_KINDS } from '../data/facilities.js';
 import { Rejection, memo } from './authority.js';
 import { claimStatus } from './evidence.js';
@@ -82,6 +84,18 @@ export const nextStep = (state, p) => {
     if (qs.every(q => claimStatus(state, config, q, FLIGHT_CONDITIONS).status === 'measured-normal')) continue;
     const started = qs.some(q => claimStatus(state, config, q).status === 'measured-normal');
     return { kind: 'ground-test', stage, burn: started ? 'long' : 'short', channels: qs, why: started ? 'flight-conditions' : 'first' };
+  }
+  // A capability finding (a reading only flights take, such as a spacewalk's workload) sends the team after
+  // its fix too, but does not stop the flights that build the rest of the record.
+  for (const stage of VEHICLES[p.vehicle].stages) {
+    for (const a of Object.values(state.beliefs.anomalies).filter(x => ANOMALIES[x.id].stage === stage && QUANTITIES[[ANOMALIES[x.id].trigger].flat()[0]].flightOnly
+      && (!ANOMALIES[x.id].vehicles || ANOMALIES[x.id].vehicles.includes(p.vehicle)) && x.status === 'leading')) {
+      const leading = openHypotheses(a)[0], rev = remedyFor(stage, leading);
+      if (rev && !lineage(p.baseline[stage]).includes(rev)) {
+        const step = fixStep(state, p, stage, rev, leading);
+        if (step.kind !== 'adverse' && !(step.kind === 'adopt' && blockedElsewhere(state, p, stage, rev))) return step;
+      }
+    }
   }
   return flyIfReady(state, p, config);
 };
@@ -229,7 +243,9 @@ const execute = (state, run, p, step, actor) => {
   if (pad.decision) return pad;
   const tracking = book('tracking', TUNING.staffLaunchBookingDays, 'tracking');
   if (tracking.decision) return tracking;
-  return run(state, 'request-launch', as('department-head'), { id: id(), articleId, pad: pad.reservation, tracking: tracking.reservation, cost: TUNING.staffFlightCost, replacementCost: TUNING.staffFlightCost, crew: step.crew ?? [] });
+  return run(state, 'request-launch', as('department-head'), { id: id(), articleId, pad: pad.reservation, tracking: tracking.reservation, cost: TUNING.staffFlightCost, replacementCost: TUNING.staffFlightCost, crew: step.crew ?? [],
+    // Crewed flights work up the planners' ladder of missions; an uncrewed one flies the first rung.
+    ...(MISSIONS[p.vehicle] ? { mission: step.crew?.length ? nextMission(state, p.vehicle) : MISSION_LADDER[p.vehicle][0] } : {}) });
 };
 
 // ---- proposals the administrator answers ----

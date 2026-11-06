@@ -2,7 +2,7 @@
 // hypotheses use their own vocabulary and never see physical mechanism IDs.
 
 import { ANOMALIES, HYPOTHESES, CANDIDATE_TESTS, FLIGHT_CONDITIONS } from '../data/engineering.js';
-import { REVISIONS, STAGES, VEHICLE_QUANTITIES, lineage } from '../data/vehicles.js';
+import { QUANTITIES, REVISIONS, STAGES, VEHICLE_QUANTITIES, lineage } from '../data/vehicles.js';
 import { TUNING } from '../data/tuning.js';
 import { ENTRY_DESIGN, ENTRY_CLAIMS } from '../data/flight.js';
 import { claimStatus, envelope } from './evidence.js';
@@ -80,7 +80,8 @@ export const readiness = (state, decision, config, revId = null) => {
       return { ready: !blockers.length, blockers, gaps };
     }
     case 'experimental-flight': {
-      const changed = revId ? REVISIONS[revId].affects.filter(q => q.startsWith(`${REVISIONS[revId].stage}.`)) : [];
+      // A reading only flights take (V2: entry and mission objectives) cannot have ground evidence first.
+      const changed = revId ? REVISIONS[revId].affects.filter(q => q.startsWith(`${REVISIONS[revId].stage}.`) && !QUANTITIES[q].flightOnly) : [];
       const untested = changed.filter(q => claimStatus(state, config, q, FLIGHT_CONDITIONS).status !== 'measured-normal').map(q => `${q} has no ground evidence for flight conditions`);
       // §4.4: an experimental flight needs failure consequences assessed, not eliminated. Routine use still
       // treats every adverse finding as blocking (§4.5).

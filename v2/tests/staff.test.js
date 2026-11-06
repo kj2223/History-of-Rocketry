@@ -38,4 +38,8 @@ test('teams move from uncrewed flights to a readiness decision, crew training an
   const first = crewed[0], uncrewedBefore = s.launches.filter(l => l.programmeId === first.programmeId && !l.crew.length && l.day < first.day);
   assert.ok(uncrewedBefore.length >= 3, 'after uncrewed flights built the evidence');
   assert.ok(first.crew.every(id => s.people[id].record.consents.some(c => c.launchId === first.id && c.consent)));
+  // The teams' status reads the astronaut office; the projection still shows no traits.
+  const { project } = await import('../js/rules/index.js');
+  assert.ok(project(s).programmes.every(p => typeof p.team === 'object' || typeof p.team === 'string' || p.team === null));
+  assert.doesNotMatch(JSON.stringify(project(s)), /"traits"|candour/);
 });

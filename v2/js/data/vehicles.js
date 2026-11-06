@@ -62,6 +62,11 @@ export const QUANTITIES = {
   'gemini.heat-load': { name: 'Gemini heat shield heat load', unit: 'MJ/m²', normal: [0, 140], flightOnly: true },
   'gemini.entry-g': { name: 'Gemini peak entry deceleration', unit: 'g', normal: [0, 9], flightOnly: true },
   'gemini.water-ingress': { name: 'Water in the Gemini spacecraft at pickup', unit: 'L', normal: [0, 40], flightOnly: true },
+  // Gemini mission objectives (V2 freeze §5): capability evidence, read only on flights that attempt them.
+  'gemini.fuel-cell-output': { name: 'Gemini fuel cell output', unit: 'of rated power', normal: [0.8, 1.2], flightOnly: true },
+  'gemini.eva-workload': { name: 'Spacewalk workload', unit: 'of the safe limit', normal: [0, 1], flightOnly: true },
+  'gemini.rendezvous-error': { name: 'Rendezvous closing-rate error at braking', unit: 'm/s', normal: [0, 3], flightOnly: true },
+  'gemini.docking-misalignment': { name: 'Docking misalignment at contact', unit: 'cm', normal: [0, 6], flightOnly: true },
   // Records of the flight, not claims: where recovery sighted the spacecraft, and how long tracking lost it.
   'vehicle.landing-miss': { name: 'Landing point from the predicted point', unit: 'km', normal: [-100, 100] },
   'vehicle.blackout': { name: 'Communications blackout', unit: 's', normal: [0, 400] },
@@ -89,6 +94,8 @@ export const VEHICLE_QUANTITIES = {
 
 // Flight channels: tracking always sees the integrated trajectory; telemetry depends on the revisions flown.
 export const TRACKING_CHANNELS = ['vehicle.apogee', 'vehicle.deviation'];
+
+const GEMINI_TELEMETRY = ['gemini.cabin-pressure', 'vehicle.abort-sensing', 'gemini.fuel-cell-output', 'gemini.eva-workload', 'gemini.rendezvous-error', 'gemini.docking-misalignment'];
 
 // Revisions. `affects` lists the claims a revision changes (§4.2): evidence for every other claim carries over.
 // `remedies` names the engineering hypothesis a corrective change addresses (§5.4).
@@ -164,7 +171,15 @@ export const REVISIONS = {
     affects: ['mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation'],
     remedies: ['capsule-hatch-seal'], telemetry: ['mercury-capsule.cabin-pressure', 'vehicle.abort-sensing'],
   },
-  'gemini/r1': { stage: 'gemini', parent: null, label: 'Gemini spacecraft', affects: [], telemetry: ['gemini.cabin-pressure', 'vehicle.abort-sensing'] },
+  'gemini/r1': { stage: 'gemini', parent: null, label: 'Gemini spacecraft', affects: [], telemetry: GEMINI_TELEMETRY },
+  'gemini/r2': {
+    stage: 'gemini', parent: 'gemini/r1', label: 'Gemini fuel cell with a reworked oxygen supply heater',
+    affects: ['gemini.fuel-cell-output'], remedies: ['fuel-cell-heater'], telemetry: GEMINI_TELEMETRY,
+  },
+  'gemini/r3': {
+    stage: 'gemini', parent: 'gemini/r2', label: 'Spacewalk handholds, foot restraints and waist tethers',
+    affects: ['gemini.eva-workload'], remedies: ['eva-restraints'], telemetry: GEMINI_TELEMETRY,
+  },
 };
 
 export const BASELINE = {

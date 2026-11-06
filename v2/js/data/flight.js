@@ -49,3 +49,26 @@ export const pickupHours = (missKm, force) => {
   return sp.hookup + travel;
 };
 export const crewCondition = hours => CREW_CONDITION.find(([h]) => hours <= h)[1];
+
+// ---- missions (V2 freeze §4, §5) ----
+// What each vehicle can be asked to do. A mission is { days, eva, rendezvous, docking }; docking needs a
+// rendezvous. A suborbital flight has no duration to plan.
+export const MISSIONS = {
+  'mercury-redstone': { maxDays: 0, objectives: [] },
+  'mercury-atlas': { maxDays: 1.5, objectives: [] },
+  'gemini-titan': { maxDays: 14, objectives: ['eva', 'rendezvous', 'docking'] },
+};
+// The reading each objective produces, and the fuel cells' reading on any Gemini flight of two days or more.
+export const OBJECTIVE_READINGS = { eva: 'gemini.eva-workload', rendezvous: 'gemini.rendezvous-error', docking: 'gemini.docking-misalignment' };
+export const FUEL_CELL = { reading: 'gemini.fuel-cell-output', fromDays: 2 };
+// The order in which the agency's planners build up a vehicle's capabilities, and so the missions teams
+// propose. The administrator can always ask for something else.
+export const MISSION_LADDER = {
+  'mercury-redstone': [{ days: 0 }],
+  'mercury-atlas': [{ days: 0.2 }, { days: 0.4 }, { days: 1.4 }],
+  'gemini-titan': [{ days: 0.2 }, { days: 4, eva: true }, { days: 8 }, { days: 1, rendezvous: true, docking: true }, { days: 14 }, { days: 3, rendezvous: true, docking: true, eva: true }],
+};
+// Mission scope in flight (V2 freeze §4). Below `onlyCutShort` of rated power Flight Control's teams cannot
+// support continuing, so Flight Control decides alone; between that and the normal limit there is time and
+// two supportable options, so the administrator decides. A spacewalk in trouble leaves no time.
+export const SCOPE = { onlyCutShort: 0.6 };
