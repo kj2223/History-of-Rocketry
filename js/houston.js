@@ -84,6 +84,7 @@ function runStep(c, s, speak) {
   const f = c.flight;
   if (s.phase && s.phase !== f.phase) { f.phase = s.phase; f.phaseNo += 1; }
   if (s.where) f.where = { x: s.where[0], label: s.where[1] };
+  if (s.set) Object.assign(f.state, s.set);
   if (s.measure && c.kind === 'flight') Object.assign(f.status, measure(c.round, s.measure));
   if (s.show) for (const [k, v] of Object.entries(s.show)) f.status[k] = v;
   for (const [who, text, tone] of s.say || []) speak(c, who, text, tone || '', 6);
@@ -138,8 +139,15 @@ const againstRule = (id, choice) => AGAINST[id] === choice;
 // blackout and the recovery as for Mercury.
 function retrofire(c, speak) {
   const f = c.flight, plan = FLIGHTS[f.id];
-  if (!f.state.short && plan.completes) f.capabilities.push(plan.completes);
+  if (!f.state.short && !f.state.stranded && plan.completes) f.capabilities.push(plan.completes);
   if (c.kind !== 'flight') return roomChanged();
+  if (f.state.fire) {
+    c.round.end = { ...(c.round.end || {}), outcome: 'entry', capsule: 'lost', fire: true, miss: 0, entryG: 0 };
+    speak(c, 'hollis', 'Keep the loop quiet. Bring her down on the automatics and get the ships to her.', 'bad', 8);
+    note(`${plan.craft} came down on her automatic sequence in the Pacific. Nobody aboard had survived the fire.`);
+    c.aim = null; c.phase = 'coast'; c.coastLeft = 2;
+    return roomChanged();
+  }
   if (f.state.stranded) {
     c.round.end = { ...(c.round.end || {}), outcome: 'entry', capsule: 'lost', stranded: true, miss: 0, entryG: 0 };
     speak(c, 'hollis', 'There is nothing more we can do for them. Keep the line open as long as they want to talk.', 'bad', 8);
@@ -181,7 +189,7 @@ export function flightJudgement(decisions) {
   }
   return out;
 }
-export const DECISION_NAMES = { sps6: 'the service engine burn', pogo: 'putting a crew on the next Saturn V', evaplan: 'the spacewalk plan', rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers', tli: 'translunar injection', loi: 'lunar orbit insertion', mcc: 'the last midcourse correction', tank: 'the oxygen tank', lowpass: 'the low pass' };
+export const DECISION_NAMES = { sps6: 'the service engine burn', pogo: 'putting a crew on the next Saturn V', evaplan: 'the spacewalk plan', rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers', lightning: 'going on after the lightning', smoke: 'the burning smell', alarm: 'the program alarms', lowfuel: 'the low-fuel landing', landpoint: 'the landing point', rescue: 'getting the lander back', tli: 'translunar injection', loi: 'lunar orbit insertion', mcc: 'the last midcourse correction', tank: 'the oxygen tank', lowpass: 'the low pass' };
 // What the flight's own troubles were, in flight-plan order, for the review: the first one that showed.
 export function flightCause(round) {
   const t = round.flightTruth;

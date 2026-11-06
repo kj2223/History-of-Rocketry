@@ -51,6 +51,8 @@ export const SEASON = [
   { id: 'apollo-6', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: [], risk: { pogoRisk: 0.75, j2Risk: 0.6, relightRisk: 0.5 }, after: 'apollo8', path: 'nasa', start: dayOf(1968, 4, 2), name: 'Apollo 6, the second Saturn V, without a crew' }, // 4 April 1968
   { id: 'apollo-8', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['boateng', 'beckett', 'oyelaran'], path: 'nasa', pressure: true, start: dayOf(1968, 12, 20), name: 'Apollo 8' }, // 21 December 1968
   { id: 'apollo-10', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['szabo', 'reiss', 'kowalczyk'], path: 'nasa', start: dayOf(1969, 5, 17), name: 'Apollo 10, the dress rehearsal' }, // 18 May 1969
+  { id: 'apollo-11', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['fairbanks', 'oyelaran', 'beckett'], risk: { alarmRisk: 0.75 }, path: 'nasa', pressure: true, start: dayOf(1969, 7, 14), name: 'Apollo 11, the landing' }, // 16 July 1969
+  { id: 'apollo-12', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['nakamura', 'reiss', 'dumont'], risk: { lightningRisk: 0.7 }, path: 'nasa', start: dayOf(1969, 11, 12), name: 'Apollo 12, the pinpoint landing' }, // 14 November 1969
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
@@ -58,6 +60,8 @@ export const SEASON = [
 export const LAST_WORD = {
   'ranger-7': 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.',
   'apollo-10': 'Apollo 11 was set for July 1969. That is as far as Apollo goes in this build.',
+  'apollo-11': 'Apollo 12 was set for November 1969, to land beside an old robot on the Ocean of Storms. That is as far as Apollo goes in this build.',
+  'apollo-12': 'Apollo 13 was set for April 1970. That is as far as Apollo goes in this build.',
   'apollo-6': 'In August 1968 Houston began to talk about sending the next Saturn V round the Moon. That is as far as Apollo goes in this build.',
   'gem-12': 'Gemini was over: ten crewed flights in twenty months. Its rendezvous, its dockings, its long flights and its spacewalks went to Apollo as evidence. That is as far as Gemini goes in this build.',
 };
@@ -217,6 +221,15 @@ export const BETWEEN = {
   'apollo-10': [
     'In March 1969 Apollo 9 flew the lander for the first time with a crew, in Earth orbit: undocked, flew it a hundred miles away and brought it back.',
     'Apollo 10 does everything but land: the lander goes down to fifteen kilometres over the landing site and climbs back.',
+  ],
+  'apollo-11': [
+    'Apollo 10 came home. Everything but the landing has now been done.',
+    'Apollo 11 lands. The lander\'s computer has never flown a landing, and nobody has ever flown the last hundred feet over the Moon except in the simulator and on the training vehicle that nearly killed its pilot in 1968.',
+    'Kennedy\'s decade has five months to run. Every slip is reported to Washington.',
+  ],
+  'apollo-12': [
+    'Apollo 11 came home in July. The landing has been done: the next ones are for the science, and for landing where you mean to.',
+    'Apollo 12 is to land beside Surveyor 3, a robot lander that came down in the Ocean of Storms in April 1967, and bring pieces of it home.',
   ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',

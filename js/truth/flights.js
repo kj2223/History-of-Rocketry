@@ -13,7 +13,10 @@ const DEG = Math.PI / 180;
 export const FLIGHT_DRAWS = 16;
 // How often each trouble comes out as it really did: the fuel cells settling, a hatch that will not seal, a stuck
 // computer coming back.
-export const ODDS = { fuelcellRecovers: 0.75, hatchJams: 0.3, hatchFreedByRest: 0.85, computerBack: 0.2, batteriesShort: 0.3 };
+export const ODDS = { fuelcellRecovers: 0.75, hatchJams: 0.3, hatchFreedByRest: 0.85, computerBack: 0.2, batteriesShort: 0.3,
+  // Apollo: lightning that killed the parachute pyros, a burning smell that becomes a fire, a computer that gives up under
+  // the alarms, a landing with the fuel gone.
+  pyrosDead: 0.15, cabinFire: 0.3, computerQuits: 0.1, hardLanding: 0.06 };
 // The navigation error Gemini 5 really had: the ground sent a wrong number for the Earth's rotation, and she came down
 // about 80 miles short.
 export const NAV_ERROR_KM = -129;
@@ -279,6 +282,106 @@ const RESOLVE = {
     out.verdict = 'good'; out.judge = 'The full rehearsal, down to fifteen kilometres.';
     return out;
   },
+  lightning(choice, { d, out }) {
+    const pyros = d[7] < ODDS.pyrosDead;
+    if (choice === 'stay') {
+      out.set.earthOnly = true; out.set.short = true; out.set.earthEntry = true; out.endAt = 10;
+      out.lines.push(['dorsey', 'We bring her home from Earth orbit. Recovery, the Pacific.', 'warn']);
+      out.verdict = 'fair'; out.judge = pyros ? 'The pyros were damaged. She\'d have come down hard from anywhere; coming home early didn\'t change that.' : 'The pyros were fine. We gave away the Moon to a strike that had done nothing.';
+      if (pyros) out.hurt = 0.3;
+      return out;
+    }
+    out.lines.push(['dorsey', 'If the pyros are gone, they are gone whatever we do. Go on.', '']);
+    if (pyros) { out.hurt = 0.3; out.verdict = 'fair'; out.judge = 'The strike had damaged the pyros, and nothing we did in orbit would have fixed them. Going on was still right.'; out.note = 'The lightning had damaged a parachute pyrotechnic circuit. Nobody could know it until the parachutes came out.'; }
+    else { out.verdict = 'good'; out.judge = 'A strike that did no lasting harm, and you didn\'t let it cost the flight.'; }
+    return out;
+  },
+  smoke(choice, { d, out }) {
+    if (choice === 'home') {
+      out.set.earthOnly = true; out.set.short = true; out.set.earthEntry = true; out.endAt = 6;
+      out.lines.push(['dorsey', 'Home at the next good area. Recovery, tell the ships.', 'warn']);
+      out.verdict = 'good'; out.judge = 'A burning smell in an oxygen cabin, after what Apollo 1 nearly did on the pad. Home was right.';
+      out.note = 'On the ground the wiring under the couches was found chafed through, scorched along a hand\'s length.';
+      return out;
+    }
+    if (d[3] < ODDS.cabinFire) {
+      out.set.fire = true; out.set.earthOnly = true; out.set.short = true; out.endAt = 2;
+      out.lines.push(['pilot', 'Fire! We\'ve got a fire in the cabin!', 'bad']);
+      out.lines.push(['kessler', 'Flight… we\'ve lost their telemetry.', 'bad']);
+      out.verdict = 'bad'; out.judge = 'There was a short in an oxygen cabin, and we pressed on with it.';
+      out.note = 'The chafed wiring under the couches arced again in the oxygen. The fire took the cabin in seconds.';
+      return out;
+    }
+    out.lines.push(['pilot', 'Bus is off. The smell\'s fading.', '']);
+    out.verdict = 'fair'; out.judge = 'We pressed on with a burning smell in an oxygen cabin. It was the bus, and taking it off line held. It might not have.';
+    return out;
+  },
+  alarm(choice, { d, out }) {
+    if (choice === 'abort') {
+      out.set.noLanding = true; out.set.short = true;
+      out.lines.push(['pilot', 'Abort stage. We\'re climbing.', 'warn']);
+      out.verdict = 'bad'; out.judge = 'The alarms were the computer throwing away work it didn\'t need. It was still flying her. It would have landed them.';
+      return out;
+    }
+    out.lines.push(['kessler', 'Flight, Guidance says: we\'re go on that alarm. The computer\'s dropping the radar\'s work and keeping the landing.', 'go']);
+    if (d[4] < ODDS.computerQuits) {
+      out.set.noLanding = true; out.set.short = true;
+      out.lines.push(['pilot', 'She\'s restarting again and again. We\'ve lost the display. Abort stage!', 'bad']);
+      out.verdict = 'fair'; out.judge = 'Go on the alarms was right by every test we had. This time the computer gave up anyway, and the crew aborted clean.';
+      return out;
+    }
+    out.verdict = 'good'; out.judge = 'Go on the program alarms. The computer kept flying the landing, the way Guidance said it would.';
+    return out;
+  },
+  lowfuel(choice, { d, out }) {
+    if (choice === 'abort') {
+      out.set.noLanding = true; out.set.short = true;
+      out.lines.push(['pilot', 'Abort. We had it, Houston. We had a place.', 'warn']);
+      out.verdict = 'bad'; out.judge = 'He had a place picked out with thirty seconds to spare. We called it off a hundred feet up.';
+      return out;
+    }
+    out.set.landed = true;
+    out.lines.push(['kessler', 'Sixty seconds.', 'warn']);
+    out.lines.push(['kessler', 'Thirty seconds.', 'bad']);
+    if (d[5] < ODDS.hardLanding) {
+      out.hurt = 0.25;
+      out.lines.push(['pilot', 'Contact… we dropped the last ten feet. A leg\'s bent. We\'re down, and level enough.', 'warn']);
+      out.verdict = 'fair'; out.judge = 'The fuel ran out ten feet up. They walked away from it. The rule was there for that.';
+      out.note = 'The descent engine ran dry ten feet up and the lander fell the rest. One landing leg was bent.';
+      return out;
+    }
+    out.lines.push(['pilot', 'Contact light. Engine stop. Houston, we\'re down.', 'go']);
+    out.verdict = 'good'; out.judge = 'You let him fly it out, and he landed with seconds left. That was the call.';
+    return out;
+  },
+  landpoint(choice, { d, out }) {
+    out.set.landed = true;
+    if (choice === 'update') {
+      out.capability = 'pinpoint';
+      out.lines.push(['pilot', 'Houston, we\'re down. And there\'s the Surveyor, right on the edge of the crater. You put us right on it.', 'go']);
+      out.verdict = 'good'; out.judge = 'A correction from the ground into the lander\'s computer, and they landed next to the Surveyor.';
+      return out;
+    }
+    out.lines.push(['pilot', 'Houston, we\'re down. The Surveyor\'s a long way over there, past two craters.', '']);
+    out.verdict = 'fair'; out.judge = 'We had the correction and didn\'t send it. A long walk to the Surveyor, and Apollo still doesn\'t know if it can land on a point.';
+    if (d[5] < ODDS.hardLanding) { out.hurt = 0.2; out.note = 'Flying the last of it by eye, the commander ran low on fuel and landed hard.'; }
+    return out;
+  },
+  rescue(choice, { d, out }) {
+    const odds = { csm: 0.85, lmburn: 0.55, wait: 0.35 }[choice];
+    if (d[6] < odds) {
+      out.lines.push(choice === 'csm' ? ['crew2', 'I\'ve got her in the sextant. Coming down to her… contact. Capture. I\'ve got them, Houston.', 'go'] : ['pilot', choice === 'lmburn' ? 'The thrusters are dry, and we\'re up with him. He\'s got us.' : 'One more orbit and the phase is right. Here he comes.', 'go']);
+      out.verdict = choice === 'csm' ? 'good' : 'fair';
+      out.judge = choice === 'csm' ? 'The command module went down for them, the way the rescue was planned. It worked.' : choice === 'lmburn' ? 'The lander spent everything she had climbing. It came off, with nothing to spare.' : 'We waited an orbit with a sick lander. It came off.';
+      return out;
+    }
+    out.set.lmLost = true;
+    out.lines.push(choice === 'csm' ? ['crew2', 'Houston, I can\'t close. I\'m out of margin. I can\'t reach them.', 'bad'] : ['pilot', choice === 'lmburn' ? 'Thrusters are dry. We\'re short, Houston. We can\'t reach him.' : 'Houston, the orbit\'s lower than you said. We\'re running out of oxygen before he can get here.', 'bad']);
+    out.verdict = 'bad';
+    out.judge = choice === 'csm' ? 'The rescue was the right plan and it didn\'t work. I don\'t know what else we had.' : 'We had a rescue planned and practised, and we didn\'t fly it.';
+    out.note = 'The command module could not reach the lander. Her crew died in lunar orbit.';
+    return out;
+  },
   navcheck(choice, { f, out }) {
     if (choice === 'check') {
       out.set.secondary = true;
@@ -327,7 +430,7 @@ export function lunarEntry(round, state) {
   let capsule = 'safe';
   if (e.skip || e.peakG > 18 || state.lost || state.stranded) capsule = 'lost';
   else if (e.peakG > 13 || (state.hurt && d[8] < state.hurt)) capsule = 'damaged';
-  round.end = { ...(round.end || {}), outcome: 'entry', miss: e.skip ? 0 : e.miss / 1000, entryG: e.peakG, heat: e.heatLoad, blackout: e.blackout, capsule, skip: !!e.skip, lunar: true };
+  round.end = { ...(round.end || {}), outcome: 'entry', miss: e.skip ? 0 : e.miss / 1000, entryG: e.peakG, heat: e.heatLoad, blackout: e.blackout, capsule, skip: !!e.skip, lunar: true, lmLost: !!state.lmLost };
   return round.end;
 }
 
