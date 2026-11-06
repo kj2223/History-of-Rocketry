@@ -467,3 +467,35 @@ test('the uplinked landing point puts Apollo 12 beside the Surveyor', () => {
   assert.equal(up.capability, 'pinpoint'); assert.ok(up.set.landed);
   assert.ok(!resolve(r, 'landpoint', 'eye', {}).capability);
 });
+
+// ---- A5: Apollo 15, and the end of Apollo ----
+test('Apollo 15 flies three days at Hadley, and the end of Apollo brings the Center director\'s offer', async () => {
+  await toApollo11(8);
+  playMission({ sims: 0 }); advance(true); g.room = null; // Apollo 11
+  playMission({ sims: 0 }); advance(true); g.room = null; // Apollo 12
+  assert.equal(SEASON[g.roundIndex].id, 'apollo-15');
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  const e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'apollo-15');
+  if (!/^Lost/.test(e.flight) && asked.includes('loi')) assert.ok(asked.includes('spsbank') && asked.includes('traverse'), asked.join());
+  const o = g.record.offers.at(-1);
+  assert.equal(o.seat, 'director');
+});
+
+test('past the walkback limit the rover can quit; a failed main parachute brings her down on two', async () => {
+  const { lunarEntry } = await import('../js/truth/flights.js');
+  let quit = 0, chute = 0;
+  for (let s = 1; s <= 40; s++) {
+    const r = newRound(s, initProgramme(), 'saturn5');
+    r.faults = { chutes: 'chute' };
+    flightTruth(r, 'apollo-15');
+    if (resolve(r, 'traverse', 'stay', {}).hurt) quit++;
+    assert.equal(resolve(r, 'traverse', 'turn', {}).verdict, 'good');
+    const e = lunarEntry(r, resolve(r, 'mcc', 'burn', {}).set);
+    if (e.chute) chute++;
+    assert.notEqual(e.capsule, 'lost');
+  }
+  assert.ok(quit > 3 && quit < 25, `${quit}`);
+  assert.equal(chute, 40);
+});

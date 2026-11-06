@@ -16,7 +16,9 @@ export const FLIGHT_DRAWS = 16;
 export const ODDS = { fuelcellRecovers: 0.75, hatchJams: 0.3, hatchFreedByRest: 0.85, computerBack: 0.2, batteriesShort: 0.3,
   // Apollo: lightning that killed the parachute pyros, a burning smell that becomes a fire, a computer that gives up under
   // the alarms, a landing with the fuel gone.
-  pyrosDead: 0.15, cabinFire: 0.3, computerQuits: 0.1, hardLanding: 0.06 };
+  pyrosDead: 0.15, cabinFire: 0.3, computerQuits: 0.1, hardLanding: 0.06,
+  // A rover that quits past the walkback limit; a landing on two parachutes that hurts.
+  roverBreaks: 0.25, twoChutesHard: 0.3 };
 // The navigation error Gemini 5 really had: the ground sent a wrong number for the Earth's rotation, and she came down
 // about 80 miles short.
 export const NAV_ERROR_KM = -129;
@@ -382,6 +384,35 @@ const RESOLVE = {
     out.note = 'The command module could not reach the lander. Her crew died in lunar orbit.';
     return out;
   },
+  spsbank(choice, { f, out }) {
+    if (choice === 'home') {
+      out.set.home = true; out.set.short = true;
+      out.lines.push(['dorsey', 'Bring them home round the Moon. We\'ll fly the next one.', 'warn']);
+      out.verdict = 'bad'; out.judge = 'Bank B was a good engine and the hand switch was a good fix. We came home from the best-planned flight of the programme for a switch.';
+      return out;
+    }
+    out.lines.push(['kessler', 'Flight, EECOM: test burn on bank B. Good. Bank A on by hand after ignition. She\'s fine.', 'go']);
+    out.verdict = 'good'; out.judge = f.sps ? 'The switch plan was right. The engine had its own trouble too, and that was the next call.' : 'You flew on EECOM\'s switch plan. It worked every burn.';
+    return out;
+  },
+  traverse(choice, { d, out }) {
+    if (choice === 'turn') {
+      out.lines.push(['dorsey', 'Turn back now. Bag what you can reach.', '']);
+      out.verdict = 'good'; out.judge = 'Turning back at the walkback limit is the rule, and the rule held.';
+      return out;
+    }
+    out.lines.push(['pilot', 'Twenty minutes. Here\'s the white rock. It\'s anorthosite, Houston. Old as the Moon.', 'go']);
+    if (d[12] < ODDS.roverBreaks) {
+      out.lines.push(['pilot', 'Houston, the rover\'s front steering is dead and the rear\'s going. We\'re walking.', 'bad']);
+      out.lines.push(['kessler', 'Flight, Surgeon: their suits will be close to empty at the hatch.', 'bad']);
+      out.hurt = 0.1; out.verdict = 'bad'; out.judge = 'Twenty minutes past the walkback limit, and the rover quit. They walked home on the dregs of their suits. That rule is written for exactly that.';
+      out.note = 'The rover broke down at the Apennine Front. The crew walked back five kilometres and reached the lander with their suits almost empty.';
+      return out;
+    }
+    out.verdict = 'fair'; out.judge = 'Twenty minutes past the limit for the oldest rock anyone has found. The rover held. I don\'t want to see it twice.';
+    out.note = 'At the Apennine Front the crew found a white rock four and a half billion years old, a piece of the Moon\'s first crust.';
+    return out;
+  },
   navcheck(choice, { f, out }) {
     if (choice === 'check') {
       out.set.secondary = true;
@@ -430,7 +461,10 @@ export function lunarEntry(round, state) {
   let capsule = 'safe';
   if (e.skip || e.peakG > 18 || state.lost || state.stranded) capsule = 'lost';
   else if (e.peakG > 13 || (state.hurt && d[8] < state.hurt)) capsule = 'damaged';
-  round.end = { ...(round.end || {}), outcome: 'entry', miss: e.skip ? 0 : e.miss / 1000, entryG: e.peakG, heat: e.heatLoad, blackout: e.blackout, capsule, skip: !!e.skip, lunar: true, lmLost: !!state.lmLost };
+  // A main parachute that fails: she comes down on two, as she was built to, and harder.
+  const chute = !!t.flags.chute && capsule !== 'lost' && !e.skip;
+  if (chute && capsule === 'safe' && d[15] < ODDS.twoChutesHard) capsule = 'damaged';
+  round.end = { ...(round.end || {}), outcome: 'entry', miss: e.skip ? 0 : e.miss / 1000, entryG: e.peakG, heat: e.heatLoad, blackout: e.blackout, capsule, skip: !!e.skip, lunar: true, lmLost: !!state.lmLost, chute };
   return round.end;
 }
 

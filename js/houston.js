@@ -189,7 +189,7 @@ export function flightJudgement(decisions) {
   }
   return out;
 }
-export const DECISION_NAMES = { sps6: 'the service engine burn', pogo: 'putting a crew on the next Saturn V', evaplan: 'the spacewalk plan', rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers', lightning: 'going on after the lightning', smoke: 'the burning smell', alarm: 'the program alarms', lowfuel: 'the low-fuel landing', landpoint: 'the landing point', rescue: 'getting the lander back', tli: 'translunar injection', loi: 'lunar orbit insertion', mcc: 'the last midcourse correction', tank: 'the oxygen tank', lowpass: 'the low pass' };
+export const DECISION_NAMES = { sps6: 'the service engine burn', pogo: 'putting a crew on the next Saturn V', evaplan: 'the spacewalk plan', rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers', lightning: 'going on after the lightning', smoke: 'the burning smell', alarm: 'the program alarms', lowfuel: 'the low-fuel landing', landpoint: 'the landing point', rescue: 'getting the lander back', spsbank: 'the service engine switch', traverse: 'the walkback limit', tli: 'translunar injection', loi: 'lunar orbit insertion', mcc: 'the last midcourse correction', tank: 'the oxygen tank', lowpass: 'the low pass' };
 // What the flight's own troubles were, in flight-plan order, for the review: the first one that showed.
 export function flightCause(round) {
   const t = round.flightTruth;
@@ -197,6 +197,7 @@ export function flightCause(round) {
   if (!t) return null;
   const plan = FLIGHTS[t.id], shown = new Set(plan.steps.filter(s => s.if).map(s => s.if));
   for (const k of plan.steps.filter(s => s.if).map(s => s.if)) if (shown.has(k) && t.flags[k]) return k;
+  if (t.flags.chute && round.end?.chute) return 'chute';
   if (t.flags.navdata && round.end && round.end.nav) return 'navdata';
   return null;
 }

@@ -53,6 +53,7 @@ export const SEASON = [
   { id: 'apollo-10', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['szabo', 'reiss', 'kowalczyk'], path: 'nasa', start: dayOf(1969, 5, 17), name: 'Apollo 10, the dress rehearsal' }, // 18 May 1969
   { id: 'apollo-11', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['fairbanks', 'oyelaran', 'beckett'], risk: { alarmRisk: 0.75 }, path: 'nasa', pressure: true, start: dayOf(1969, 7, 14), name: 'Apollo 11, the landing' }, // 16 July 1969
   { id: 'apollo-12', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['nakamura', 'reiss', 'dumont'], risk: { lightningRisk: 0.7 }, path: 'nasa', start: dayOf(1969, 11, 12), name: 'Apollo 12, the pinpoint landing' }, // 14 November 1969
+  { id: 'apollo-15', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['moreau', 'price', 'tanaka'], risk: { chuteRisk: 0.6 }, turningPoint: 'director', path: 'nasa', start: dayOf(1971, 7, 24), name: 'Apollo 15, Hadley Rille and the rover' }, // 26 July 1971
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
@@ -62,6 +63,7 @@ export const LAST_WORD = {
   'apollo-10': 'Apollo 11 was set for July 1969. That is as far as Apollo goes in this build.',
   'apollo-11': 'Apollo 12 was set for November 1969, to land beside an old robot on the Ocean of Storms. That is as far as Apollo goes in this build.',
   'apollo-12': 'Apollo 13 was set for April 1970. That is as far as Apollo goes in this build.',
+  'apollo-15': 'Apollo 16 went to the Descartes highlands in April 1972, and in December Apollo 17 took a geologist to the valley of Taurus-Littrow. Apollo 18, 19 and 20 were cancelled, their Saturn Vs left to lie on their sides as museum pieces. When Apollo 17 left the Moon, nobody went back. This is where the build ends.',
   'apollo-6': 'In August 1968 Houston began to talk about sending the next Saturn V round the Moon. That is as far as Apollo goes in this build.',
   'gem-12': 'Gemini was over: ten crewed flights in twenty months. Its rendezvous, its dockings, its long flights and its spacewalks went to Apollo as evidence. That is as far as Gemini goes in this build.',
 };
@@ -231,6 +233,11 @@ export const BETWEEN = {
     'Apollo 11 came home in July. The landing has been done: the next ones are for the science, and for landing where you mean to.',
     'Apollo 12 is to land beside Surveyor 3, a robot lander that came down in the Ocean of Storms in April 1967, and bring pieces of it home.',
   ],
+  'apollo-15': [
+    'Apollo 13, in April 1970: an oxygen tank in the service module failed on the way out, and the crew came home round the Moon in the lander, cold and short of water. The tank\'s heater switches had been welded shut when it was boiled dry on the pad.',
+    'Apollo 14, in February 1971, landed at Fra Mauro, where Apollo 13 had been going.',
+    'Apollo 15 is the first of the long expeditions: three days on the Moon, a lander stretched to carry more, and an electric car folded on its side. Apollo 18, 19 and 20 have already been cancelled.',
+  ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',
     'In April 1961 Yuri Gagarin orbited the Earth, and in May Alan Shepard flew from the Cape. On 25 May President Kennedy asked Congress to land a man on the Moon before the decade was out. Apollo needs to know what the Moon\'s surface is like.',
@@ -301,8 +308,20 @@ export const PROGRAMME_OFFER = {
   declineNote: 'You keep your seat and fly Apollo from the console.',
 };
 
+// The last, at the end of Apollo: the Manned Spacecraft Center needs a director for what comes after.
+export const DIRECTOR_OFFER = {
+  seat: 'director',
+  title: 'Director, Manned Spacecraft Center',
+  from: 'hollis',
+  text: 'Apollo has two flights left, and then Houston has a space station made from a spare third stage and a shuttle nobody has built. The Center needs a director who has sat in every chair. They asked me who. I said you.',
+  sidelined: 'Houston named a new Center director. It wasn\'t you this time.',
+  again: 'Houston is asking again.',
+  takeNote: 'From now on you run the Manned Spacecraft Center: the people, the money, and what comes after the Moon.',
+  declineNote: 'You keep your seat for the last of Apollo.',
+};
+
 // Which offer a turning point brings: turningPoint true is the test conductor's, 'nasa' is Mercury Control's, 'engineer'
 // the Mercury project office's.
-export const offerFor = turningPoint => ({ nasa: NASA_OFFER, engineer: ENGINEER_OFFER, flight: FD_OFFER, programme: PROGRAMME_OFFER })[turningPoint] || FIRST_OFFER;
+export const offerFor = turningPoint => ({ nasa: NASA_OFFER, engineer: ENGINEER_OFFER, flight: FD_OFFER, programme: PROGRAMME_OFFER, director: DIRECTOR_OFFER })[turningPoint] || FIRST_OFFER;
 // The offer behind an entry in your record, by the seat it offered.
-export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, PROGRAMME_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;
+export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, PROGRAMME_OFFER, DIRECTOR_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;
