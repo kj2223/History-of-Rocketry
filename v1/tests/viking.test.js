@@ -16,6 +16,24 @@ const vikingReady = () => {
   return g;
 };
 
+test('while Viking is being designed the team says so and when the vehicles are due', () => {
+  const g = game();
+  g.until(1946, 8, 1);
+  greenlightProgramme(g, 'viking');
+  assert.match(project(g.state).programmes.find(p => p.id === 'viking').team, /Design and contractor work under way; the first vehicles are due/);
+});
+
+test('a save greenlit before design work existed starts it instead of stalling', () => {
+  const g = game();
+  g.until(1946, 8, 1);
+  greenlightProgramme(g, 'viking');
+  delete g.state.programmes.viking.designReady;
+  g.days(1);
+  assert.ok(g.state.programmes.viking.designReady > g.state.day);
+  g.days(TUNING.designDays.viking);
+  assert.equal(g.state.programmes.viking.vehicle, 'viking');
+});
+
 test('Viking gets its vehicle when the design work after greenlight is done', () => {
   const g = vikingReady();
   const p = g.state.programmes.viking;

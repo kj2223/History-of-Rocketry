@@ -386,6 +386,7 @@ export const teamStatus = (state, p) => {
     return missing.length ? `Working on ${list(missing)}.` : 'Dossier ready.';
   }
   if (p.stage === 'preliminary') return `Preparing the greenlight request; the window closes ${dateLabel(p.window.closes)}.`;
+  if (p.stage === 'greenlit' && !p.vehicle && p.designReady != null) return `Design and contractor work under way; the first vehicles are due ${dateLabel(p.designReady)}.`;
   if (!eligible(p)) return null;
   const waiting = busy(state, p);
   if (waiting) return `${waiting[0].toUpperCase()}${waiting.slice(1)}.`;
