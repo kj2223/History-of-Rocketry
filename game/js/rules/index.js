@@ -3,8 +3,8 @@
 
 import { newStreams } from '../core/rng.js';
 import { fiscalQuarter } from '../core/calendar.js';
-import { exportSave, parseSave, parseV1Save, writeSave, readSave, importSave, resetSave, SaveError } from '../core/save.js';
-import { ACTS, ANCHORS, CLOSING_ANCHOR } from '../data/scenario.js';
+import { exportSave, parseSave, writeSave, readSave, importSave, resetSave, legacySave } from '../core/save.js';
+import { ACTS, ANCHORS, MILESTONE_ANCHOR, CLOSING_ANCHOR } from '../data/scenario.js';
 import { TUNING } from '../data/tuning.js';
 import { REVISIONS, testFacility } from '../data/vehicles.js';
 import { ROLES, Rejection, initAuthority, decide, memo, openDecision, position } from './authority.js';
@@ -21,18 +21,18 @@ import { initDelegation, appoint, checkDelegation, isDelegated, recordFailure } 
 import { initLaunches, requestLaunch, executeLaunch, completeFlight, standDown, answerInvitation, abortFlight, launchRecord } from './launch.js';
 import { crewDay, selectCrew, checkTraining, startTraining, finishTraining, trainingDays, requestCrewReadiness, declareReady, escapeMode, abortCall } from './crew.js';
 import { startJob, advanceWork, pauseJob, resumeJob, cancelJob, job } from './work.js';
-import { initContinuation, conclude } from './summary.js';
+import { initContinuation, conclude, buildSummary } from './summary.js';
 import { project as projectPublic } from './project.js';
 import { jobReport } from './reports.js';
 import { programmeName, money, unitName } from './reports.js';
 import { initAssurance, assuranceDay, challengeRiskAcceptance, answerChallenge } from './assurance.js';
-import { initStaff, staffDay, approveProposal, declineProposal, quarterReport } from './staff.js';
-import { openFresh, openFromV1, inheritedStatus } from './opening.js';
+import { initStaff, staffDay, approveProposal, declineProposal, quarterReport, openingBriefing } from './staff.js';
+import { openFresh, initNasaShapes, passNasaFormation, inheritedStatus } from './opening.js';
 import { militaryDay } from './military.js';
 import { setChecking, positionRecovery } from './operations.js';
 import { scopeInFlight, cutShort } from './mission.js';
 import { raceDay, projectRace } from './race.js';
-import { STREAMS } from '../core/rng.js';
+import { STREAMS, withStreams } from '../core/rng.js';
 import { RECOVERY_FORCES, ENTRY_DESIGN, RETROFIRE, MISSIONS } from '../data/flight.js';
 import { publicPerson } from './people.js';
 import { dateLabel } from '../core/calendar.js';
@@ -41,7 +41,7 @@ import { CANDIDATES, SELECTIONS } from '../data/crew.js';
 
 export { Rejection };
 
-const v1Shape = seed => ({
+const earlyShape = seed => ({
   day: 0, seed, act: ACTS[0].id, concluded: false, rng: newStreams(seed),
   physical: initPhysical(), evidence: initEvidence(), beliefs: initBeliefs(),
   hardware: initHardware(), production: initProduction(), facilities: initFacilities(),
@@ -49,42 +49,47 @@ const v1Shape = seed => ({
   ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(), assurance: initAssurance(),
 });
 
-// What the administrator hears on the first day, whichever way V2 opens.
-const briefing = state => {
+// What the administrator hears on the day NASA begins, whichever way the campaign got there.
+const nasaBriefing = state => {
   const items = inheritedStatus(state).filter(i => i.status === 'open');
   const heads = Object.values(state.people).filter(p => p.kind === 'head').map(p => p.name);
   memo(state, { from: 'technical-director', refs: { opening: state.opening.kind },
     text: `${dateLabel(state.day)}. The National Aeronautics and Space Administration begins operations, and you are its administrator. `
-      + `${state.opening.kind === 'v1-import' ? 'We carry forward everything the agency built, flew and owes since 1945.' : 'We take over the people, sites and obligations of the agencies NASA absorbs.'} `
+      + `${state.opening.kind === 'continued' ? 'We carry forward everything the agency built, flew and owes since 1945.' : 'We take over the people, sites and obligations of the agencies NASA absorbs.'} `
       + `Your heads are ${heads.join(', ')}. NACA's laboratories come to us today. `
       + `${items.length ? `We inherit ${items.length} open question${items.length > 1 ? 's' : ''}: unsettled obligations, disagreements and claims nobody has tested. They are in Records, and they stay open until someone settles them.` : 'We inherit no open questions.'} `
       + 'A crewed spaceflight programme is coming to you for decision within the week.' });
 };
 
-const begin = state => {
+// A new campaign at White Sands on 1 January 1945 (GAME-DESIGN §3.1). It runs on through NASA formation.
+export const newGame = (seed = 19451958) => {
+  const state = earlyShape(seed);
+  initNasaShapes(state);
+  startQuarter(state);
   programme.arrivals(state);
-  briefing(state);
-  // A V1 save has already had today's quarter report; a fresh start has not.
-  if (state.opening.kind === 'fresh') quarterReport(state);
+  openingBriefing(state);
+  quarterReport(state);
   staffDay(state, staffCommand);
   return state;
 };
 
-// A fresh start (V2 freeze §3): the standard, authored 1958 agency.
-export const newGame = (seed = 19581966) => {
-  const state = openFresh(v1Shape(seed), seed);
-  state.act = ACTS[0].id;
+// A campaign opened at NASA formation, 1 October 1958, with the standard, authored 1958 agency.
+export const newGameAt1958 = (seed = 19581966) => {
+  const state = openFresh(earlyShape(seed), seed);
+  state.act = [...ACTS].reverse().find(a => state.day >= a.from).id;
   startQuarter(state);
-  return begin(state);
+  programme.arrivals(state);
+  nasaBriefing(state);
+  quarterReport(state);
+  staffDay(state, staffCommand);
+  return state;
 };
 
-// Continue from a V1 save that reached NASA formation. Reads the text; never writes V1 storage.
-export const continueFromV1 = (v1Text, seed = 19581966) => {
-  const state = openFromV1(parseV1Save(v1Text), seed);
-  state.act = ACTS[0].id;
-  const opened = begin(state);
-  try { validateState(opened); } catch (e) { throw new SaveError(`The V1 save is damaged: ${e.message}`); }
-  return opened;
+// A campaign played from 1945 reaches NASA formation: the six-section summary is kept as a milestone and the
+// agency carries on in place (GAME-DESIGN §17.0b).
+const reachNasa = s => {
+  passNasaFormation(s, buildSummary(s));
+  nasaBriefing(s);
 };
 
 const clone = s => structuredClone(s);
@@ -353,6 +358,7 @@ const oneDay = s => {
   for (const a of ANCHORS.filter(x => x.day === s.day)) {
     memo(s, { from: 'administrator-office', text: a.text, refs: { anchor: a.id } });
     if (a.supplementary) supplementary(s, a.supplementary, a.id);
+    if (a.id === MILESTONE_ANCHOR && s.opening.kind === '1945') reachNasa(s);
     if (a.id === CLOSING_ANCHOR) conclude(s);
   }
 };
@@ -371,7 +377,7 @@ export const project = state => {
   // Teams' status reads the astronaut office to say what they would do next; the projection itself never copies people.
   return { ...projectPublic(clone({ ...rest, people })),
     people: Object.values(people).map(publicPerson),
-    opening: state.opening ? { kind: state.opening.kind, day: state.opening.day, v1Summary: state.opening.v1Summary ?? null } : null,
+    opening: { kind: state.opening.kind, day: state.opening.day, summary: state.opening.summary ?? null },
     inherited: inheritedStatus(state),
     operations: state.operations ? { retrofireChecking: state.operations.retrofireChecking,
       recoveryForces: Object.entries(RECOVERY_FORCES).map(([id, f]) => ({ id, name: f.name, cost: f.cost })), comesHome: Object.keys(ENTRY_DESIGN),
@@ -403,9 +409,32 @@ export const validateState = s => {
   try { project(s); } catch { throw new Error('its records cannot be shown'); }
 };
 
+// Saves from the two earlier builds carry on here (GAME-DESIGN §17.0b). A 1945–1958 save gains the shapes NASA
+// brings; if it had reached NASA formation, its summary becomes the milestone and the campaign carries on in place.
+// A Mercury and Gemini save already has everything; only the opening's names changed.
+const migrate = (format, s) => {
+  if (format === 'per-aspera-v2') {
+    const summary = s.opening?.v1Summary ?? null;
+    s.opening = { kind: s.opening?.kind === 'v1-import' ? 'continued' : 'fresh', day: s.opening?.day ?? s.day, summary };
+    return s;
+  }
+  s.rng = withStreams(s.rng, s.seed);
+  s.physical.entries ??= {};
+  initNasaShapes(s);
+  if (s.concluded && s.continuation?.hook?.from === 'nasa-formation') {
+    const summary = s.continuation.summary;
+    s.continuation = initContinuation();
+    passNasaFormation(s, summary);
+    nasaBriefing(s);
+  }
+  return s;
+};
+
 export const saveGame = (state, storage) => writeSave(storage, state);
-export const loadGame = storage => readSave(storage, validateState);
+export const loadGame = storage => readSave(storage, validateState, migrate);
 export const exportGame = state => exportSave(state);
-export const importGame = (storage, text) => importSave(storage, text, validateState);
+export const importGame = (storage, text) => importSave(storage, text, validateState, migrate);
 export const resetGame = storage => resetSave(storage);
-export const checkSave = text => parseSave(text, validateState);
+export const checkSave = text => parseSave(text, validateState, migrate);
+// A save an earlier build left in this storage, if any, as { label, text }. Never written.
+export const earlierSave = storage => legacySave(storage);

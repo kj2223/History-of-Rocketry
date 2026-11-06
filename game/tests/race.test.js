@@ -2,7 +2,7 @@
 // firsts with imperfect intelligence. Acceptance V2-03 (scope), V2-09 and V2-10.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newGame, dispatch, project } from '../js/rules/index.js';
+import { newGameAt1958 as newGame, dispatch, project } from '../js/rules/index.js';
 import { raceDay } from '../js/rules/race.js';
 import { planMission, scopeInFlight, recordCapabilities, cite, nextMission } from '../js/rules/mission.js';
 import { runTest } from '../js/rules/physics.js';

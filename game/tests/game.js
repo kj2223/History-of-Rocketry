@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { VEHICLE_QUANTITIES } from '../js/data/vehicles.js';
 import { FLIGHT_CONDITIONS } from '../js/data/engineering.js';
-import { newGame, dispatch, advance, project } from '../js/rules/index.js';
+import { newGameAt1958 as newGame, dispatch, advance, project } from '../js/rules/index.js';
 import { MECHANISMS } from '../js/data/physical.js';
 import { TUNING } from '../js/data/tuning.js';
 import { dayOf } from '../js/core/calendar.js';

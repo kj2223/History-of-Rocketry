@@ -9,7 +9,7 @@ import { readiness } from '../js/rules/belief.js';
 import { envelope } from '../js/rules/evidence.js';
 import { pickupHours, RECOVERY_FORCES, CONTINGENCY_AREAS } from '../js/data/flight.js';
 import { ENTRY_VEHICLES, SPACECRAFT_TRUTH } from '../js/data/physical.js';
-import { newGame, project } from '../js/rules/index.js';
+import { newGameAt1958 as newGame, project } from '../js/rules/index.js';
 import { BASELINE } from '../js/data/vehicles.js';
 import { crewedReady, askLaunch, cleanRecord, assertNoLeak } from './game.js';
 

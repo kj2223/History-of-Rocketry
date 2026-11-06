@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { dispatch, project, saveGame, loadGame, exportGame, checkSave, newGame } from '../js/rules/index.js';
+import { dispatch, project, saveGame, loadGame, exportGame, checkSave, newGameAt1958 as newGame } from '../js/rules/index.js';
 import { memoryStorage } from '../js/core/save.js';
 import { LAUNCH_TIERS } from '../js/rules/authority.js';
 import { game, groundTest, fly, book, assertNoLeak, mercuryRedstone } from './game.js';
@@ -124,6 +124,6 @@ test('a save whose sections are present but whose contents cannot be shown is re
   const text = JSON.stringify(env);
   assert.throws(() => checkSave(text), /damaged/);
   const storage = memoryStorage();
-  storage.setItem('pa-v2', text);
+  storage.setItem('pa-game', text);
   assert.throws(() => loadGame(storage), /damaged/);
 });

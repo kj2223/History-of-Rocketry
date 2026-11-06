@@ -1,10 +1,10 @@
-// The two openings (V2 freeze §3). Both end in the same shape: the V1 sections, NASA's transferred
-// laboratories, V2's people and the inherited open questions as live items.
-//   fresh:  the standard, authored 1958 agency (data/opening.js).
-//   import: a V1 save that reached NASA formation. Reads the V1 state and never changes it.
+// NASA formation, reached either way (GAME-DESIGN §3.2, §8.9). Both end in the same shape: the 1945–1958
+// sections, NASA's transferred laboratories, the heads as people and the inherited open questions as live items.
+//   fresh:     a campaign opened at NASA formation with the standard, authored 1958 agency (data/opening.js).
+//   continued: a campaign played from 1945 passes NASA formation and carries everything forward in place.
 
 import { START_DAY } from '../core/calendar.js';
-import { newStreams, withStreams } from '../core/rng.js';
+import { newStreams } from '../core/rng.js';
 import { HEADS_1958, OBLIGATIONS_1958, DISAGREEMENTS_1958 } from '../data/opening.js';
 import { NACA_TRANSFER, STARTING_UNITS_1958 } from '../data/facilities.js';
 import { BASELINE } from '../data/vehicles.js';
@@ -43,9 +43,21 @@ export const inheritedStatus = state => {
   return (state.inherited ?? []).map(i => ({ ...i, status: live.has(i.key) ? 'open' : 'closed' }));
 };
 
-// ---- the shared V2 additions ----
+// ---- what arrives with NASA ----
 
-const v2Sections = state => {
+// The empty shapes a campaign carries from 1945, so every system can run before NASA exists.
+export const initNasaShapes = state => {
+  state.people = initPeople();
+  state.military = { flights: [] };
+  state.crew = initCrew();
+  state.operations = { retrofireChecking: 'single' };
+  state.capabilities = initCapabilities();
+  state.race = initRace();
+  state.inherited = [];
+  state.opening = { kind: '1945', day: state.day };
+};
+
+const nasaSections = state => {
   for (const u of NACA_TRANSFER) state.facilities.units[u.id] ??= { ...u, status: 'operational' };
   addV2Mechanisms(state);
   // Revisions that are a V2 vehicle's baseline exist from the start, even where they descend from a military one.
@@ -69,16 +81,16 @@ export const openFresh = (state, seed) => {
   for (const h of HEADS_1958) addPerson(state, { ...h, kind: 'head' });
   for (const o of OBLIGATIONS_1958) state.fiscal.ledger.push({ id: `ledger-${state.fiscal.ledger.length + 1}`, status: 'open', paidDay: null, commitmentId: null, ...o });
   for (const d of DISAGREEMENTS_1958) openDecision(state, { ...d, vetoable: true, effect: { kind: 'none' } });
-  v2Sections(state);
-  state.opening = { kind: 'fresh', day: state.day };
+  nasaSections(state);
+  state.opening = { kind: 'fresh', day: state.day, summary: null };
   inherit(state, openQuestions(state), 'standard-1958');
   return state;
 };
 
-// ---- continue from V1 ----
+// ---- a campaign played from 1945 reaches NASA formation ----
 
-// Hidden traits for V1 heads, inferred from what the administrator rewarded in V1 (Provisional mechanics,
-// V2 freeze §3), using the culture-transmission rule from a neutral start. Each kind of act counts at most
+// Hidden traits for the heads, inferred from what the administrator rewarded since 1945 (Provisional mechanics),
+// using the culture-transmission rule from a neutral start. Each kind of act counts at most
 // TUNING.importSignalCap times.
 const v1Signals = v1 => {
   const capped = (n, sign) => Math.min(n, TUNING.importSignalCap) * sign;
@@ -111,16 +123,14 @@ export const inferTraits = v1 => {
   return out;
 };
 
-export const openFromV1 = (v1, seed) => {
-  const state = structuredClone(v1);
-  state.rng = withStreams(v1.rng, seed);
-  state.people = initPeople();
-  const traits = inferTraits(v1);
-  const named = role => v1.delegation.appointments.find(a => a.status === 'active' && a.role === role)?.person;
+// In place, on the day of NASA formation: the heads get their traits, NASA's laboratories and people arrive,
+// and the milestone summary's open questions become live items. Nothing already recorded changes.
+export const passNasaFormation = (state, summary) => {
+  const traits = inferTraits(state);
+  const named = role => state.delegation.appointments.find(a => a.status === 'active' && a.role === role)?.person;
   for (const h of HEADS_1958) addPerson(state, { ...h, name: named(h.role) ?? h.name, kind: 'head', traits: traits[h.role] });
-  v2Sections(state);
-  state.opening = { kind: 'v1-import', day: state.day, v1Summary: v1.continuation.summary };
-  state.continuation = { summary: null, hook: null };
-  inherit(state, v1.continuation.summary.sections.find(s => s.id === 'open-questions').items, 'v1');
+  nasaSections(state);
+  state.opening = { kind: 'continued', day: state.day, summary };
+  inherit(state, summary.sections.find(s => s.id === 'open-questions').items, 'nasa-formation');
   return state;
 };

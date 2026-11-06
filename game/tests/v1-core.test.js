@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { dayOf, dateOf, dateLabel, START_DAY, END_DAY, fiscalQuarter } from '../js/core/calendar.js';
-import { newStreams, withStreams, draw, STREAMS } from '../js/core/rng.js';
+import { dayOf, dateOf, dateLabel, END_DAY, fiscalQuarter } from '../js/core/calendar.js';
+import { newStreams, draw } from '../js/core/rng.js';
 import { exportSave, parseSave, writeSave, readSave, importSave, resetSave, memoryStorage, KEYS, SaveError } from '../js/core/save.js';
 
-test('calendar: day 0 is still 1 Jan 1945; V2 runs from NASA formation to the end of 1966', () => {
+test('calendar: day 0 is 1 Jan 1945 and the campaign ends at NASA formation', () => {
   assert.deepEqual(dateOf(0), { year: 1945, month: 1, date: 1 });
-  assert.equal(dateLabel(START_DAY), '1 October 1958');
-  assert.equal(dateLabel(END_DAY), '31 December 1966');
+  assert.equal(dateLabel(END_DAY), '1 October 1958');
+  assert.equal(dayOf(1957, 10, 4) < END_DAY, true);
 });
 
 test('calendar: fiscal quarters run July to June', () => {
@@ -27,15 +27,6 @@ test('rng: streams are independent and resume from saved state', () => {
   assert.equal(draw(a.forecast), draw(saved));
 });
 
-test('rng: V2 adds intelligence, crew and operations streams and keeps the streams a V1 save already has', () => {
-  assert.deepEqual(STREAMS, ['physical', 'observation', 'forecast', 'intelligence', 'crew', 'operations']);
-  const v1 = { physical: { algorithm: 'mulberry32-v1', state: 42 }, observation: { algorithm: 'mulberry32-v1', state: 43 }, forecast: { algorithm: 'mulberry32-v1', state: 44 } };
-  const merged = withStreams(v1, 9);
-  assert.equal(merged.physical.state, 42);
-  assert.deepEqual(merged.crew, newStreams(9).crew);
-  assert.notEqual(merged.physical, v1.physical, 'copied, not shared');
-});
-
 const ok = () => {};
 const state = { day: 3, hello: 'world' };
 
@@ -49,13 +40,13 @@ test('save: round trip, last-good fallback and unreadable stash', () => {
   assert.equal(s.getItem(KEYS.unreadable), '{broken');
 });
 
-test('save: V2 has its own format and keys and starts at content version 1; unknown versions are rejected', () => {
+test('save: version policy accepts cv 4 only, rejects future and fork versions', () => {
   const env = JSON.parse(exportSave(state));
-  assert.deepEqual([env.format, env.scenario, env.contentVersion], ['per-aspera-v2', 'v2-1958-1966', 1]);
-  assert.deepEqual(KEYS, { current: 'pa-v2', lastGood: 'pa-v2-last-good', unreadable: 'pa-v2-unreadable' });
-  for (const cv of [0, 2, 4]) assert.throws(() => parseSave(JSON.stringify({ ...env, contentVersion: cv }), ok), SaveError);
-  assert.throws(() => parseSave(JSON.stringify({ ...env, contentVersion: 2 }), ok), /newer version/);
-  assert.throws(() => parseSave(JSON.stringify({ ...env, format: 'per-aspera-v1' }), ok), /This is a V1 save/);
+  assert.equal(env.contentVersion, 4);
+  for (const cv of [1, 3, 5]) {
+    assert.throws(() => parseSave(JSON.stringify({ ...env, contentVersion: cv }), ok), SaveError);
+  }
+  assert.throws(() => parseSave(JSON.stringify({ ...env, contentVersion: 5 }), ok), /newer version/);
 });
 
 test('save: import rejects another scenario before touching active state', () => {
