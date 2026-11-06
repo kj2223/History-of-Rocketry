@@ -389,3 +389,81 @@ test('Apollo 10 flies the rehearsal down to fifteen kilometres', async () => {
   playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
   if (!/^Lost/.test(g.record.rounds.at(-1).flight) && !asked.includes('tank')) assert.ok(asked.includes('lowpass'), asked.join());
 });
+
+// ---- A4: Apollo 11 and 12, the landing, and getting the lander back ----
+const toApollo11 = seed => {
+  toApollo8(seed);
+  return import('../js/mercury.js').then(({ apollo8Decide, apollo8Done }) => {
+    apollo8Decide('moon'); apollo8Done(); advance(true); g.room = null;
+    playMission({ sims: 0 }); advance(true); g.room = null; // Apollo 8
+    playMission({ sims: 0 }); advance(true); g.room = null; // Apollo 10
+    assert.equal(SEASON[g.roundIndex].id, 'apollo-11');
+  });
+};
+
+test('Apollo 11 and 12 play from the count to the landing and home, in phases', async () => {
+  await toApollo11(8);
+  for (const id of ['apollo-11', 'apollo-12']) {
+    assert.equal(SEASON[g.roundIndex].id, id);
+    const asked = [];
+    let phases = 0;
+    playMission({ sims: 0, decide: (d, c) => { asked.push(d.id); phases = Math.max(phases, c.flight.phaseNo); return Object.keys(d.options)[0]; } });
+    const e = g.record.rounds.at(-1);
+    assert.equal(e.id, id);
+    if (!/^Lost/.test(e.flight) && !asked.includes('tank') && asked.includes('loi')) {
+      assert.ok(asked.includes(id === 'apollo-11' ? 'lowfuel' : 'landpoint'), asked.join());
+      assert.ok(phases >= 7, `${phases}`);
+    }
+    if (id === 'apollo-11') { advance(true); g.room = null; }
+  }
+});
+
+test('every new flight plan step asks a question that exists; the landing flights end on entry interface', () => {
+  for (const id of ['apollo-11', 'apollo-12']) {
+    const steps = FLIGHTS[id].steps;
+    for (const s of steps) if (s.decide) assert.ok(DECISIONS[s.decide], `${id} ${s.decide}`);
+    assert.ok(steps.at(-1).retro);
+    for (const s of steps) if (s.decide && DECISIONS[s.decide].rule != null) assert.ok(FLIGHTS[id].rules[DECISIONS[s.decide].rule], `${id} ${s.decide} rule`);
+  }
+});
+
+test('go on the program alarms usually lands; abort on them never does', () => {
+  let landed = 0;
+  for (let s = 1; s <= 40; s++) {
+    const r = newRound(s, initProgramme(), 'saturn5');
+    r.faults = { 'lm-computer': 'alarm' };
+    flightTruth(r, 'apollo-11');
+    if (!resolve(r, 'alarm', 'go', {}).set.noLanding) landed++;
+    const ab = resolve(r, 'alarm', 'abort', {});
+    assert.ok(ab.set.noLanding); assert.equal(ab.verdict, 'bad');
+  }
+  assert.ok(landed > 30, `${landed}`);
+});
+
+test('a weak ascent engine leaves the lander low: the command module going down for her is the best chance, and crews can be lost', () => {
+  const won = { csm: 0, lmburn: 0, wait: 0 };
+  for (let s = 1; s <= 60; s++) {
+    const r = newRound(s, initProgramme(), 'saturn5');
+    r.faults = { 'lm-ascent': 'ascent' };
+    flightTruth(r, 'apollo-11');
+    for (const k of Object.keys(won)) if (!resolve(r, 'rescue', k, {}).set.lmLost) won[k]++;
+  }
+  assert.ok(won.csm > won.lmburn && won.lmburn > won.wait, JSON.stringify(won));
+  assert.ok(won.csm < 60, JSON.stringify(won));
+});
+
+test('a lander lost in lunar orbit: the command module pilot comes home alone, and two names go on the record', async () => {
+  const { lunarEntry } = await import('../js/truth/flights.js');
+  const r = newRound(3, initProgramme(), 'saturn5');
+  flightTruth(r, 'apollo-11');
+  const e = lunarEntry(r, { lmLost: true });
+  assert.ok(e.lmLost);
+});
+
+test('the uplinked landing point puts Apollo 12 beside the Surveyor', () => {
+  const r = newRound(5, initProgramme(), 'saturn5');
+  flightTruth(r, 'apollo-12');
+  const up = resolve(r, 'landpoint', 'update', {});
+  assert.equal(up.capability, 'pinpoint'); assert.ok(up.set.landed);
+  assert.ok(!resolve(r, 'landpoint', 'eye', {}).capability);
+});

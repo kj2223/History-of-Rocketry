@@ -10,7 +10,29 @@
 //   phase:   the name of the mission phase that starts here (lunar flights are played in phases)
 //   show:    lamps on the board, { LABEL: [value, warn] }
 //   offShift: what the handover note says happened while your team was off
+//   set:     flight state this step sets (the lander undocking, say)
 // The last step of each flight is { at, retro: true }: retrofire (or, coming home from the Moon, entry interface).
+// Steps every Saturn V flight with a crew carries: a lightning strike on the climb, and a cabin that smells of hot wiring
+// (when Apollo 1's fire never happened, the wiring was never rebuilt).
+const EARLY = [
+  { at: 0.25, if: 'lightning', say: [['kessler', 'Flight, EECOM: the buses are back since SCE to AUX, all three fuel cells on line. But the platform tumbled and we can\'t see the parachute pyros from here. They took the strike too.', 'warn']], note: 'Lightning struck the Saturn V twice on the climb. The spacecraft\'s fuel cells dropped off line until EECOM had the crew switch the signal conditioning to its auxiliary supply. Nobody could tell from the ground whether the parachutes\' pyrotechnics survived.', show: { 'PYRO BUSES': ['not known', true] } },
+  { at: 0.3, if: 'lightning', decide: 'lightning' },
+  { at: 1.5, if: 'cabin', say: [['pilot', 'Houston, we\'ve got a smell of burning insulation down in the lower equipment bay. No smoke we can see.', 'warn']], show: { 'CABIN': ['burning smell', true] } },
+  { at: 1.6, if: 'cabin', decide: 'smoke' },
+];
+// The oxygen tank, on the way out, on any flight that carries a lander.
+const TANK = [
+  { lunar: true, at: 55.9, if: 'tank', where: [0.85, '320,000 km out'], say: [['crew2', 'Houston, we\'ve had a problem. Main B bus undervolt, and we\'re venting something.', 'bad']], note: 'At about 56 hours oxygen tank two in the service module failed. The spacecraft lost two of its three fuel cells and was venting its oxygen into space.', show: { 'O2 TANK 2': ['zero', true], 'FUEL CELLS': ['one of three', true] } },
+  { lunar: true, at: 56.2, if: 'tank', decide: 'tank' },
+];
+// The lander's climb back to the command module, from the surface or from an abort in the descent. A weak ascent engine
+// leaves her low, and somebody has to close the gap.
+const ASCENT = at => [
+  { at, phase: 'Ascent and rendezvous', moon: true, when: 'lmFlown', say: [['pilot', 'Houston, the ascent engine\'s lit. We\'re climbing.', 'go']], show: { 'ASCENT ENGINE': ['burning'] } },
+  { at: at + 0.15, moon: true, when: 'lmFlown', if: 'ascent', say: [['kessler', 'Flight, the ascent engine\'s chamber pressure came up low all the way. She\'s in orbit, but low: fifteen by forty kilometres, well under the command module.', 'bad']], show: { 'ASCENT ENGINE': ['chamber pressure low', true], 'LM ORBIT': ['15 by 40 km', true] } },
+  { at: at + 0.2, moon: true, when: 'lmFlown', if: 'ascent', decide: 'rescue' },
+  { at: at + 3.5, moon: true, when: 'lmFlown', not: 'lmLost', say: [['crew2', 'Houston, we\'re docked. Two tired men coming through the tunnel.', 'go']], show: { LM: ['docked'] } },
+];
 export const FLIGHTS = {
   'gem-4': {
     program: 'gemini', craft: 'Gemini 4', entry: 'gemini', completes: 'fourdays', objective: 'four days in orbit and the first American spacewalk',
@@ -198,6 +220,81 @@ export const FLIGHTS = {
       { at: 191.9, retro: true },
     ],
   },
+  // Apollo 11: the landing.
+  'apollo-11': {
+    program: 'apollo', craft: 'Apollo 11', entry: 'lunar', completes: 'landing', phases: 9, objective: 'land two men on the Moon and bring all three home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Go for translunar injection only with a good third stage and a good spacecraft after one and a half Earth orbits.',
+      'No lunar orbit insertion without a service engine that has passed its checks: without it there is no way home.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+      'In the descent, abort on any computer alarm that stops the computer flying the lander.',
+      'Bingo fuel: land within twenty seconds of the bingo call, or abort.',
+    ],
+    steps: [
+      { at: 0.2, phase: 'Launch and Earth orbit', where: [0.02, 'Earth orbit'], say: [['kessler', 'Flight, EECOM: spacecraft is good. Platform good.', 'go']], show: { 'S-IVB': ['safed for restart'], SPS: ['not yet fired'], LM: ['in the adapter'] } },
+      ...EARLY,
+      { at: 2.4, if: 'relight', say: [['albrecht', 'Flight, Booster: the S-IVB\'s restart bottle pressure is low. She may not light.', 'warn']], show: { 'S-IVB': ['bottle pressure low', true] } },
+      { at: 2.6, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      { at: 11, lunar: true, phase: 'Translunar coast', where: [0.3, '120,000 km out'], say: [['crew2', 'Houston, the lander\'s out of the third stage and on our nose.', 'go']], show: { LM: ['docked'] } },
+      { lunar: true, at: 30, where: [0.6, '240,000 km out'], offShift: 'A midcourse correction, a television broadcast and a quiet night. Nothing for your team.' },
+      ...TANK,
+      { lunar: true, at: 60, if: 'sps', show: { SPS: ['chamber pressure low on the check', true] }, say: [['kessler', 'Flight, EECOM: the service engine\'s test firing came up a little short on chamber pressure.', 'warn']] },
+      { lunar: true, at: 60, unless: 'sps', show: { SPS: ['good on the check'] } },
+      { at: 75.8, phase: 'Lunar orbit insertion', where: [0.97, 'Approaching the Moon'], moon: true, decide: 'loi' },
+      { at: 100.2, moon: true, where: [1, 'Lunar orbit'], set: { lmFlown: true }, say: [['pilot', 'Houston, the lander has undocked. She\'s flying.', 'go']], show: { LM: ['undocked'] } },
+      { at: 102.5, phase: 'Powered descent', moon: true, say: [['kessler', 'Flight, the descent engine has lit. She\'s coming down.', 'go']], show: { 'LM COMPUTER': ['flying the descent'] } },
+      { at: 102.55, moon: true, if: 'alarm', say: [['pilot', 'Houston, program alarm. It\'s a 1202. Give us a reading on the 1202.', 'bad']], show: { 'LM COMPUTER': ['1202 alarms', true] } },
+      { at: 102.6, moon: true, if: 'alarm', decide: 'alarm' },
+      { at: 102.7, moon: true, not: 'noLanding', say: [['pilot', 'The computer\'s taking us into a crater full of boulders. I\'m taking over. Flying her long.', 'warn']], show: { 'DESCENT FUEL': ['bingo in 60 s', true] } },
+      { at: 102.72, moon: true, not: 'noLanding', decide: 'lowfuel' },
+      { at: 103, phase: 'On the surface', moon: true, when: 'landed', where: [1, 'On the Moon'], offShift: 'The first walk on the Moon: the flag, the experiments, rocks in the boxes, and a phone call from the President. Nothing for your team.' },
+      ...ASCENT(124.4),
+      { at: 135.4, phase: 'Trans-Earth injection', where: [0.97, 'Behind the Moon'], moon: true, say: [['morgan', 'Flight, Network: she\'s behind the Moon. Trans-Earth injection is out of our sight. Waiting for acquisition.', 'warn']] },
+      { at: 135.7, moon: true, when: 'stranded', say: [['morgan', 'Flight, Network: we have her, and she\'s still in lunar orbit. The engine did not burn.', 'bad']] },
+      { at: 135.8, moon: true, not: 'stranded', say: [['crew2', 'Houston, the engine burned on time. We\'re coming home.', 'go']] },
+      { at: 160, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 190, lunar: true, decide: 'mcc' },
+      { at: 195.2, retro: true },
+    ],
+  },
+  // Apollo 12: a pinpoint landing beside Surveyor 3, and the Saturn V that was struck by lightning.
+  'apollo-12': {
+    program: 'apollo', craft: 'Apollo 12', entry: 'lunar', completes: 'landing', phases: 9, objective: 'land beside Surveyor 3 in the Ocean of Storms, close enough to walk to it, and bring all three home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Go for translunar injection only with a good third stage and a good spacecraft after one and a half Earth orbits.',
+      'No lunar orbit insertion without a service engine that has passed its checks: without it there is no way home.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+      'In the descent, abort on any computer alarm that stops the computer flying the lander.',
+    ],
+    steps: [
+      { at: 0.2, phase: 'Launch and Earth orbit', where: [0.02, 'Earth orbit'], say: [['kessler', 'Flight, EECOM: spacecraft is in orbit. We\'re checking her over.', 'go']], show: { 'S-IVB': ['safed for restart'], SPS: ['not yet fired'], LM: ['in the adapter'] } },
+      ...EARLY,
+      { at: 2.4, if: 'relight', say: [['albrecht', 'Flight, Booster: the S-IVB\'s restart bottle pressure is low. She may not light.', 'warn']], show: { 'S-IVB': ['bottle pressure low', true] } },
+      { at: 2.7, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      { at: 11, lunar: true, phase: 'Translunar coast', where: [0.3, '120,000 km out'], say: [['crew2', 'Houston, the lander\'s out and on our nose. The third stage is heading off past the Moon.', 'go']], show: { LM: ['docked'] } },
+      { lunar: true, at: 30, where: [0.6, '240,000 km out'], offShift: 'A midcourse correction to a hybrid trajectory, off the free return. Nothing for your team.' },
+      ...TANK,
+      { lunar: true, at: 60, if: 'sps', show: { SPS: ['chamber pressure low on the check', true] }, say: [['kessler', 'Flight, EECOM: the service engine\'s test firing came up a little short on chamber pressure.', 'warn']] },
+      { lunar: true, at: 60, unless: 'sps', show: { SPS: ['good on the check'] } },
+      { at: 83.4, phase: 'Lunar orbit insertion', where: [0.97, 'Approaching the Moon'], moon: true, decide: 'loi' },
+      { at: 107.9, moon: true, where: [1, 'Lunar orbit'], set: { lmFlown: true }, say: [['pilot', 'Houston, the lander has undocked. She\'s flying.', 'go']], show: { LM: ['undocked'] } },
+      { at: 110.3, phase: 'Powered descent', moon: true, say: [['kessler', 'Flight, the descent engine has lit. She\'s coming down.', 'go']], show: { 'LM COMPUTER': ['flying the descent'] } },
+      { at: 110.33, moon: true, if: 'alarm', say: [['pilot', 'Houston, program alarm. 1202.', 'bad']], show: { 'LM COMPUTER': ['1202 alarms', true] } },
+      { at: 110.35, moon: true, if: 'alarm', decide: 'alarm' },
+      { at: 110.4, moon: true, not: 'noLanding', say: [['tate', 'Flight, Retro: the tracking has her landing point four thousand two hundred feet downrange of the target.', 'warn']], show: { 'LANDING POINT': ['4,200 ft long', true] } },
+      { at: 110.42, moon: true, not: 'noLanding', decide: 'landpoint' },
+      { at: 111, phase: 'On the surface', moon: true, when: 'landed', where: [1, 'On the Moon'], offShift: 'Two moonwalks, the second to Surveyor 3 to cut off its camera and bring it home. Nothing for your team.' },
+      ...ASCENT(142),
+      { at: 172.5, phase: 'Trans-Earth injection', where: [0.97, 'Behind the Moon'], moon: true, say: [['morgan', 'Flight, Network: she\'s behind the Moon. Trans-Earth injection is out of our sight. Waiting for acquisition.', 'warn']] },
+      { at: 172.8, moon: true, when: 'stranded', say: [['morgan', 'Flight, Network: we have her, and she\'s still in lunar orbit. The engine did not burn.', 'bad']] },
+      { at: 172.9, moon: true, not: 'stranded', say: [['crew2', 'Houston, the engine burned on time. We\'re coming home.', 'go']] },
+      { at: 200, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 238, lunar: true, decide: 'mcc' },
+      { at: 244.3, retro: true },
+    ],
+  },
 };
 
 // The questions, the options for each, who owns the call (the flight director unless said otherwise) and what the
@@ -232,6 +329,18 @@ export const DECISIONS = {
     options: { freereturn: 'Power down the command module. The lander is the lifeboat: round the Moon and home.', direct: 'Burn the service engine now for a direct abort, before the Moon.' } },
   lowpass: { q: 'The low pass. The lander undocks and goes down to fifteen kilometres over the landing site, then climbs back. Go?', auto: 'go', rule: 4,
     options: { go: 'Go for the low pass.', skip: 'Keep the lander docked. No low pass.' } },
+  lightning: { q: 'Lightning struck her on the way up. The spacecraft is running, but nobody can tell whether the parachute pyros survived, and there is no way to check them from orbit. Go on to the Moon, or bring her home from Earth orbit?', auto: 'go',
+    options: { go: 'Go on. If the pyros are dead, they are dead in Earth orbit too.', stay: 'Stay in Earth orbit and bring her home.' } },
+  smoke: { q: 'A smell of burning insulation in the cabin, and no smoke. The cabin is pure oxygen at five psi. Press on, with the suspect bus off line, or come home from Earth orbit?', auto: 'press',
+    options: { press: 'Take the bus off line and press on.', home: 'Bring her home from Earth orbit, now.' } },
+  alarm: { q: 'Program alarms in the descent: the lander\'s computer is overloaded and restarting. Guidance has a second to say go or abort.', auto: 'go', owner: 'flight', rule: 4,
+    options: { go: 'Go. If the computer is still flying her, we are go on that alarm.', abort: 'Abort. Stage and climb back to the command module.' } },
+  lowfuel: { q: 'The commander is flying her long over boulders, looking for a place. Bingo fuel is coming. Let him fly, or call the abort?', auto: 'land', rule: 5,
+    options: { land: 'Let him fly. Call out the seconds.', abort: 'Call the abort at bingo.' } },
+  landpoint: { q: 'The tracking says the lander will come down four thousand two hundred feet long of the target. Retro can uplink the correction to the lander\'s computer now, or the commander can fly it out by eye at the end.', auto: 'update',
+    options: { update: 'Uplink the correction.', eye: 'Leave it. He flies it by eye at the end.' } },
+  rescue: { q: 'The lander is in a low orbit with her ascent engine spent. The command module can come down and get her, using most of its own margin. Or the lander can climb on her small thrusters, all she has left. Or wait an orbit for a better phase.', auto: 'csm',
+    options: { csm: 'The command module goes down and gets her.', lmburn: 'The lander climbs on her own thrusters.', wait: 'Wait an orbit and plan it properly.' } },
   navcheck: { q: 'Retrofire is next. Retro has the landing-point numbers ready for the spacecraft\'s computer. An independent check costs a revolution: retrofire one orbit later, into the secondary area with one destroyer.', auto: 'send', owner: 'retro',
     options: { send: 'Send the numbers now.', check: 'Have the back room check them first.' } },
 };
@@ -249,5 +358,7 @@ export const CAPABILITIES = {
   csmorbit: 'Ten days in Earth orbit in the Apollo command and service module',
   lunarorbit: 'Ten orbits of the Moon and home: navigation to the Moon and back',
   rehearsal: 'A lander down to fifteen kilometres over the landing site and back to the command module',
+  landing: 'Two men landed on the Moon, walked on it, and flew back to the command module',
+  pinpoint: 'A landing within walking distance of a chosen point on the Moon',
   evawork: 'Two hours of useful work outside, paced, with handholds and foot restraints',
 };

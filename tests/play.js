@@ -122,7 +122,7 @@ export function playMission(opts = {}) {
   closeAway();
   for (let n = 0; n < o.sims; n++) runSim(o);
   nextDay();
-  for (let tries = 0; tries < 6 && ['mLaunch', 'mScrub'].includes(g.beat); tries++) {
+  for (let tries = 0; tries < 12 && ['mLaunch', 'mScrub'].includes(g.beat); tries++) {
     if (g.beat === 'mScrub') { nextDay(); continue; }
     consoleStart();
     for (let n = 0; n < 60 && g.beat === 'mFlight'; n++) { until(waiting); if (g.console && g.beat === 'mFlight') work(g.console, o); }

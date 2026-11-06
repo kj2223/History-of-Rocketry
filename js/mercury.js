@@ -139,6 +139,8 @@ function houstonBrief(launch) {
   g.dayDone = true;
 }
 // Everyone flying this round, by name.
+// An Apollo crew: the commander and the lunar module pilot fly the lander (crew 0 and 2); the command module pilot (1) stays up.
+export const lmCrew = () => { const n = (SEASON[g.roundIndex].crew || []).map(id => ASTRONAUTS[id].name); return { lm: `${n[0]} and ${n[2]}`, cm: n[1] }; };
 export const crewNames = () => (SEASON[g.roundIndex].crew || []).map(id => ASTRONAUTS[id].name).join(' and ');
 
 // Who is where in a Mercury round.
@@ -331,6 +333,11 @@ export function tickConsole(dt) {
       const s = stepAt(a, t);
       c.trace.push({ t, gamma: s.gamma + flutter(c.round.seed, t), off: s.off, v: s.v, acc: s.acc });
       if (c.kind === 'flight' && pilotId() && c.abortAt == null && Math.abs(s.off) > ownAbortAt(CREW_TRAITS[pilotId()])) return pilotAbort(c, t);
+      if (t === 36 && c.kind === 'flight' && c.round.lightning) {
+        speak(c, 'pilot', 'What the hell was that? Everything in the world just dropped out. We\'ve got a whole bunch of lights here.', 'bad', 6);
+        speak(c, 'kessler', 'Flight, EECOM: the fuel cells are off the line and I have garbage on the telemetry. Have them try SCE to AUX.', 'bad', 6);
+        speak(c, 'pilot', 'SCE to AUX… there it is. We have power. The platform\'s gone, but the Saturn\'s flying.', 'warn', 6);
+      }
       if (t === 60) speak(c, 'albrecht', 'Booster: one minute, steady.', 'go');
       if (c.orbital && t === 130) speak(c, 'albrecht', 'Booster engines cutoff. Staging. The sustainer is carrying her.', 'go');
       if (c.orbital && t === 155) speak(c, 'morgan', 'Escape tower jettisoned.', 'go');
@@ -433,6 +440,7 @@ function splash(c) {
     if (c.sank) lines.push(fate === 'killed' ? (many ? `${n} got out as she went down, but they were in the water too long. The swimmers could not reach them in time.` : `${n} got out of the hatch as she went down, but he was in the water too long. The swimmers could not reach him in time. He drowned.`) : `${n} got out of the hatch as she went down and ${many ? 'were' : 'was'} pulled from the water, exhausted.`);
     else if (fate === 'killed') lines.push(`${n} ${many ? 'were' : 'was'} killed.`);
     else if (fate === 'hurt') lines.push(`${n} ${many ? 'are' : 'is'} alive but hurt: the flight surgeons have ${many ? 'them' : 'him'} on the ${end.secondary ? 'destroyer' : 'carrier'}.`);
+    else if (end.lmLost) lines.push(`${lmCrew().cm} is safe aboard the carrier, alone. ${lmCrew().lm} did not come back from the Moon.`);
     else lines.push(`${n} ${many ? 'are' : 'is'} safe aboard the ${end.secondary ? 'destroyer' : 'carrier'}, grinning.`);
   }
   c.lines = lines;
@@ -604,7 +612,8 @@ function flightRecord() {
   }[end.outcome];
   let out = m.sank ? `${text} The capsule sank before it was reached.` : text;
   const many = (SEASON[g.roundIndex].crew || []).length > 1, who = many ? `The crew, ${crewNames()},` : pilotId() ? pilotName() : '';
-  if (pilotId() && m.fate) out += { killed: ` ${who} ${many ? 'were' : 'was'} killed.`, hurt: ` ${who} ${many ? 'were' : 'was'} hurt.`, safe: ` ${who} came home safe.` }[m.fate];
+  if (pilotId() && m.fate && end.lmLost && m.fate !== 'killed') out = `Lost: ${out} ${lmCrew().lm} died in lunar orbit; ${lmCrew().cm} came home alone.`;
+  else if (pilotId() && m.fate) out += { killed: ` ${who} ${many ? 'were' : 'was'} killed.`, hurt: ` ${who} ${many ? 'were' : 'was'} hurt.`, safe: ` ${who} came home safe.` }[m.fate];
   if (m.fate === 'killed' && !/^Lost/.test(out)) out = `Lost: ${out}`;
   return { failure: a.failure || (g.round.flightTruth ? flightCause(g.round) : orbitCause()), failAt: a.failure ? (a.breakupAt ?? a.burn) : null, radar: end.apogee || null, text: out };
 }
@@ -751,6 +760,7 @@ export function toReview() {
   if (c && c.flight) { g.mission.decisions = c.flight.decisions; g.mission.capabilities = recordCapabilities(c); g.mission.craft = c.flight.craft; g.mission.flightHours = Math.round(c.flight.at); }
   if (c) { g.mission.calls = { ...c.calls, aim: c.aim, hours: c.hours, auto: !!c.auto }; g.mission.sank = !!c.sank; g.mission.lines = c.lines; g.mission.fate = c.fate || null; }
   if (c && c.orbital && c.round.end?.outcome === 'entry' && c.round.end.capsule !== 'lost') (g.record.orbitMisses = g.record.orbitMisses || []).push(c.round.end.miss);
+  if (c && c.round.end?.lmLost && g.mission.fate !== 'killed') (g.record.losses = g.record.losses || []).push({ name: lmCrew().lm, day: g.day, round: SEASON[g.roundIndex].id });
   if (g.mission.fate === 'killed') { (g.record.losses = g.record.losses || []).push({ name: (SEASON[g.roundIndex].crew || []).length > 1 ? crewNames() : pilotName(), day: g.day, round: SEASON[g.roundIndex].id }); }
   g.console = null; g.room = null;
   setBeat('mReview');
@@ -915,7 +925,7 @@ function afterEntry(c) {
 function splashOrbit(c, end, trained, lines) {
   if (end.capsule === 'lost' && end.outcome === 'entry') {
     c.hours = null;
-    lines.push(end.stranded ? 'There was nothing to recover. The spacecraft is still in lunar orbit.' : end.skip ? 'She came in too shallow and skipped back out of the atmosphere. Nothing was heard from her again.' : 'There was nothing to recover. The search aircraft found a slick and some charred pieces of the heat shield.');
+    lines.push(end.stranded ? 'There was nothing to recover. The spacecraft is still in lunar orbit.' : end.fire ? 'The ships reached her in the Pacific. The cabin was burnt out.' : end.skip ? 'She came in too shallow and skipped back out of the atmosphere. Nothing was heard from her again.' : 'There was nothing to recover. The search aircraft found a slick and some charred pieces of the heat shield.');
     return;
   }
   const aim = c.aim ? c.ip[c.aim] : 0, waited = c.aim === 'radar';
