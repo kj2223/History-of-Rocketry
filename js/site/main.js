@@ -27,7 +27,7 @@ const placeAt = ({ x, y }) => Object.entries(PLACES).find(([id, p]) => {
   return x >= left && x <= left + p.w && y >= GROUND - p.h - 20 && y <= GROUND + 34;
 });
 const flying = () => g.flight && (g.flight.view === 'site' || g.flight.view === 'board');
-const locked = () => flying() || g.truck.follow || g.fading || g.count || g.room === 'recovery' || g.room === 'debrief';
+const locked = () => flying() || g.truck.follow || g.fading || g.count || g.room === 'recovery';
 
 // What each person says when you go up to them, by beat.
 function talk(p) {
@@ -121,10 +121,9 @@ function hud() {
 
 bindRoom({ again: () => { clearSave(localStorage); newGame(); $('notebook').hidden = true; } });
 
-// Save each work day's checkpoint as it is made; a finished round leaves nothing to resume.
+// Save each checkpoint as it is made: every work morning, and each round's outcome.
 let savedVersion = -1;
 function autosave() {
-  if (g.beat === 'done') { if (savedVersion !== 'done') { clearSave(localStorage); savedVersion = 'done'; } return; }
   if (g.savedVersion === savedVersion) return;
   savedVersion = g.savedVersion;
   try { writeSave(localStorage, checkpoint()); } catch { /* storage full or blocked: play on unsaved */ }

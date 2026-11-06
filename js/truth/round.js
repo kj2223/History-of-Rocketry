@@ -13,14 +13,16 @@ export const FIX_HOURS = 2, FALSE_ALARM_HOURS = 3;
 // A tank weld that is never found lets go under load in flight this often; a leak that is flown has this chance of stopping the burn.
 export const WELD_FAILURE = 0.45, LEAK_FAILURE = 0.6;
 
-// A new round. seed: a whole number; the same seed always makes the same round.
-export function newRound(seed) {
+// A new round. seed: a whole number; the same seed always makes the same round. programme: how the team builds rounds
+// now (world/programme.js): the chance of a bad weld or a leak, and which igniter is standard.
+export function newRound(seed, programme = { igniter: 'wac-upper/r1', weldRisk: 0.55, leakRisk: 0.45 }) {
   const rng = newStreams(seed);
-  const phys = draw(rng.physical);
   // Each round has at most one bad weld and at most one leak, and about half of rounds have the ignition fault.
+  // The draws are taken whatever the risks, so a fix never shifts the rest of the round.
   const faults = {};
-  if (phys < 0.55) faults[['weld-fwd', 'weld-mid', 'weld-aft'][Math.floor(draw(rng.physical) * 3)]] = 'weld';
-  if (draw(rng.physical) < 0.45) faults[['fitting', 'pressure'][Math.floor(draw(rng.physical) * 2)]] = 'leak';
+  const weld = draw(rng.physical), weldAt = draw(rng.physical), leak = draw(rng.physical), leakAt = draw(rng.physical);
+  if (weld < programme.weldRisk) faults[['weld-fwd', 'weld-mid', 'weld-aft'][Math.floor(weldAt * 3)]] = 'weld';
+  if (leak < programme.leakRisk) faults[['fitting', 'pressure'][Math.floor(leakAt * 2)]] = 'leak';
   const igniterFault = draw(rng.physical) < 0.5;
   const physical = { ...initPhysical(), latentMechanisms: igniterFault ? ['pm-11'] : [] };
   // V1's worked-case defect belongs to the Aerobee and never touches a WAC round.
@@ -28,7 +30,7 @@ export function newRound(seed) {
   const cues = Object.fromEntries(Object.keys(SPOTS).map(id => [id, draw(rng.observation) < (faults[id] ? CUE_IF_FAULT : CUE_IF_SOUND)]));
   return {
     seed, rng, physical, faults, cues,
-    igniter: 'wac-upper/r1', // becomes r3 (reworked igniter) if the player asks for it
+    igniter: programme.igniter, // r3 (reworked igniter) if it is standard or the player asks for it
     propellantLoad: 1,
     events: [], // what happened, for the debrief
   };
@@ -50,9 +52,8 @@ export function flagSpots(round, ids) {
   return hours;
 }
 
-// The player's drawing-board choice: the share of a full propellant load (0.85 to 1). More propellant, higher flight.
-// The estimate the player sees is the drawing office's figure with its honest spread, not the truth.
-export const apogeeEstimate = load => { const mid = 70 * (0.55 + 0.45 * load) ** 2; return { low: Math.round(mid * 0.8), high: Math.round(mid * 1.15) }; };
+// The player's drawing-board choice is the share of a full propellant load (0.85 to 1): more propellant, higher flight.
+// The estimate they see comes from the drawing office and the flights so far (world/programme.js), never from here.
 
 const stages = round => ({ 'tiny-tim': 'tiny-tim/r1', 'wac-upper': round.igniter });
 
@@ -119,6 +120,8 @@ export function fly(round) {
   }
   const result = { apogee: Math.max(...path.map(p => p.h)), range: path[path.length - 1].x, failure, failAt, burn, path };
   round.flight = result;
+  // The radar plot is what anyone on the range actually knows of the peak: the call on the net and the write-up both use it.
+  result.radar = radarApogee(round);
   return result;
 }
 
@@ -129,6 +132,20 @@ export function wreckage(round) {
   if (f === 'weld') return ['Pieces are spread over a long strip of the range.', 'The propellant tank is torn open along a weld seam, the edges peeled outward.', 'The motor itself looks undamaged.'];
   if (f === 'leak') return ['The round came down short of the planned impact.', 'Green acid staining runs back from the feed fitting along the skin.', 'The motor shows a clean burn that simply stopped.'];
   return ['The round dug itself a crater well downrange.', 'The motor nozzle shows an even burn all the way round.', 'Nothing unusual on what is left of the tank.'];
+}
+
+// What the range's radar reports for a good flight's peak: the true apogee with a little tracking error.
+export const radarApogee = round => round.flight.apogee * (1 + 0.03 * normal(round.rng.observation));
+
+// How Ellis reads the evidence at the review. The wreck is clear most of the time; when it is not, she settles on
+// another cause. Two draws whatever happens, so the round's later draws do not depend on her reading.
+const CAUSES = ['nominal', 'ignition', 'weld', 'leak'];
+export function ellisReading(round) {
+  const truth = round.flight.failure || 'nominal';
+  const clear = draw(round.rng.observation), pick = draw(round.rng.observation);
+  if (clear < 0.8) return truth;
+  const others = CAUSES.filter(c => c !== truth);
+  return others[Math.floor(pick * others.length)];
 }
 
 export const explanationIsRight = (round, key) => key === (round.flight.failure || 'nominal');
