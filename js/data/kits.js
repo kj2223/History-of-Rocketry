@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', plug: 'a tail plug that came out in the wrong order', control: 'a control failure', lox: 'a propellant valve leak', thrust: 'a booster that burned too hot', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', guidance: 'an Atlas guidance failure', shortburn: 'an Atlas sustainer cutting off early', shield: 'a loose heat shield', scanner: 'a bad horizon scanner', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', plug: 'a tail plug that came out in the wrong order', control: 'a control failure', lox: 'a propellant valve leak', thrust: 'a booster that burned too hot', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', miss: 'a midcourse that left her off the Moon', guidance: 'an Atlas guidance failure', shortburn: 'an Atlas sustainer cutting off early', shield: 'a loose heat shield', scanner: 'a bad horizon scanner', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -259,6 +259,7 @@ export const KITS = {
       steady: [{ t: 30, text: 'Jupiter steady. Pitching over.', tone: 'go' }, { t: 180, text: 'Jupiter cutoff. The cluster has fired, all three stages!', tone: 'go' }],
       burnout: () => 'Fourth stage burnout. The probe is away.',
       final: f => (f.failure ? f.deep.say : `Goldstone has her. ${f.deep.say}`),
+      away: f => (f.failure ? 'She\'s away, but she\'s slow. JPL will have the tracking by morning.' : 'Mayaguez has her climbing clean. JPL takes her from here.'),
       fail: {
         leak: [{ t: 30, text: 'Jupiter steady.' }, { t: 60, text: 'Chamber pressure falling! Early cutoff!' }],
         depletion: [{ t: 30, text: 'Jupiter steady. Pitching over.' }, { t: 176, text: 'Jupiter cutoff, four seconds early!' }, { t: 600, text: 'She\'s climbing, but slower than she should be.' }],
@@ -294,6 +295,7 @@ export const KITS = {
       nominal: 'She hit the Moon and the pictures came back. Nothing to fix.',
       agena: 'The Agena never restarted in orbit. Rework the restart system.',
       camera: 'The camera supply failed: no pictures. Every supply goes through the vacuum chamber.',
+      miss: 'The midcourse burn left her too far off, and she missed the Moon. Wait for the best tracking fix before the burn.',
       leak: 'A leak cost the Atlas its pressure and it cut off early.',
       holddown: 'She broke loose from the stand: the hold-down fittings failed.',
       unknown: 'Not enough evidence. I want a full-duration firing on the stand.',
@@ -303,10 +305,10 @@ export const KITS = {
       steady: [{ t: 130, text: 'Booster engines off and away. Sustainer steady.', tone: 'go' }, { t: 300, text: 'Atlas cutoff. Agena has separated and lit.', tone: 'go' }, { t: 600, text: 'Agena restart! She\'s burning for the Moon!', tone: 'go' }],
       burnout: () => 'Agena cutoff. Ranger has separated, panels out.',
       final: f => (f.failure ? f.deep.say : `Goldstone has her. ${f.deep.say}`),
+      away: () => 'Ranger is on her way to the Moon. JPL takes her from here.',
       fail: {
         leak: [{ t: 30, text: 'Atlas steady.' }, { t: 80, text: 'Sustainer pressure falling! She\'s lost thrust!' }],
         agena: [{ t: 130, text: 'Booster engines off and away.' }, { t: 300, text: 'Agena has lit. Parking orbit.' }, { t: 600, text: 'No Agena restart! She\'s stuck in the parking orbit!' }],
-        camera: [{ t: 300, text: 'Agena has lit. Parking orbit.' }, { t: 600, text: 'Agena restart! She\'s on her way.' }, { t: 880, text: 'Sixty-five hours on. Cameras commanded on... nothing. No video.' }],
         holddown: [{ t: 2, text: 'She\'s off the stand! She\'s loose!' }, { t: 55, text: 'Range safety has cut her engine. She\'s coming down offshore.' }],
       },
     },
@@ -315,7 +317,8 @@ export const KITS = {
       agena: ['The Atlas and the Agena\'s first burn were clean.', 'At the restart, the Agena\'s chamber pressure never rose. She stayed in the parking orbit and came down within days.'],
       camera: ['Every stage worked, and the Ranger flew true all the way.', 'The cameras\' high-voltage supply shows a flicker early in the flight, then nothing. When the cameras were commanded on, there was no video at all.'],
       holddown: ['The round came down offshore, a few miles out.', 'At the stand, two hold-down fittings are sheared, their pins pulled through.'],
-      nominal: ['Every stage worked, and the Ranger flew true all the way.', 'The cameras came on seventeen minutes out and sent pictures until the moment she hit.'],
+      miss: ['Every stage worked, and the Ranger\'s systems ran clean all the way.', 'The tracking after the midcourse burn put her off the Moon\'s edge. The aiming error was never taken out.'],
+      nominal: ['Every stage worked, and the Ranger flew true all the way.', 'The cameras came on as planned and sent pictures until the moment she hit.'],
     },
   },
 
@@ -420,6 +423,6 @@ export const FAILED_BECAUSE = {
   plug: 'the tail plug came out in the wrong order and shut the engine down', control: 'the control system failed and she went off her line', lox: 'the oxygen valve leaked and the burn stopped early', thrust: 'the thrust controller let her burn too hot',
   guidance: 'the Atlas autopilot drifted and took her off her line', shortburn: 'the Atlas sustainer cut off early', shield: 'the heat shield was loose', scanner: 'a horizon scanner was bad and the automatic system held the wrong attitude',
   injector: 'the first-stage injector burned through and she fell back on the pad',
-  depletion: 'the Jupiter ran out of propellant early', agena: 'the Agena would not restart in orbit', camera: 'the camera high-voltage supply failed',
+  depletion: 'the Jupiter ran out of propellant early', agena: 'the Agena would not restart in orbit', camera: 'the camera high-voltage supply failed', miss: 'the midcourse burn left too much aiming error and she missed the Moon',
 };
 export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum', plug: 'Tail plug cables cut to different lengths', control: 'A drifting autopilot gyro', lox: 'A leaking oxygen valve', guidance: 'A programmer relay that sticks', shortburn: 'A sustainer feed line that chafes', shield: 'A landing-bag latch that does not seat', scanner: 'A horizon scanner out of calibration' };

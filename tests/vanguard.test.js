@@ -43,7 +43,8 @@ test('however carefully a round is looked over, some are lost to faults nobody c
     for (let s = 1; s <= n; s++) {
       const r = newRound(s * 13, initProgramme(), vehicle);
       r.faults = {}; r.physical.latentMechanisms = [];
-      if (fly(r).failure) lost++;
+      const f = fly(r);
+      if (f.failure || f.deep?.hiddenCamera) lost++; // a Ranger's hidden camera fault shows only at the Moon
     }
     assert.ok(Math.abs(lost / n - rate) < 0.06, `${vehicle}: ${lost / n} against ${rate}`);
   }

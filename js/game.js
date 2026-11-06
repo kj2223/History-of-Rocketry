@@ -11,6 +11,7 @@ import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { ASTRONAUTS } from './data/crew.js';
+import { LUNAR_BEATS, tickLunar, lunarRoom } from './lunar.js';
 import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview } from './mercury.js';
 import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer, pendingOffer, SEATS } from './career/record.js';
@@ -80,7 +81,7 @@ function resetRound() {
     console: null,
     jobs: [], pending: null, marker: null, rocket: { where: 'hangar', mated: false, x: 0, rise: 0 },
     truck: { x: PLACES.truck.x, target: PLACES.truck.x, dust: false, follow: false, then: null },
-    stand: null, count: null, flight: null, review: null, recovery: null, slipDays: 0, launchDay: null, offDays: {},
+    stand: null, count: null, flight: null, lunar: null, review: null, recovery: null, slipDays: 0, launchDay: null, offDays: {},
     looked: {}, flagged: {}, decided: {}, standFlame: 0, plan: null, readings: null,
   });
   for (const [id, p] of Object.entries(PEOPLE)) Object.assign(g.people[id], { x: p.x, target: p.x, bubble: null, working: false, hidden: false });
@@ -129,7 +130,7 @@ function startRound(i) {
 // Each morning with work for the player is saved as a checkpoint before the day begins: plain JSON, no running jobs.
 // Days with nothing for the player's seat are skipped; what happened on them is told on arrival ("while you were away").
 // A finished round is saved too ('roundEnd'), so quitting there resumes at the review's outcome, not before the count.
-const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe', 'sRoute'];
+const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe', 'sRoute', 'lCruise', 'lEncounter'];
 export function morning(beat) {
   g.saved = structuredClone({ seed: g.seed, roundIndex: g.roundIndex, programme: g.programme, record: g.record, day: g.day, clock: g.clock, beat,
     round: g.round, notes: g.notes, slipDays: g.slipDays, offDays: g.offDays, looked: g.looked, flagged: g.flagged, decided: g.decided, away: g.away, review: g.review, launchDay: g.launchDay, plan: g.plan, mission: g.mission ?? null });
@@ -199,7 +200,7 @@ export function clockText(minute = g.clock) {
 export function setBeat(name, objective) {
   g.beat = name;
   g.dayDone = false;
-  (BEATS[name] || MERCURY_BEATS[name])?.();
+  (BEATS[name] || MERCURY_BEATS[name] || LUNAR_BEATS[name])?.();
   if (objective) g.objective = objective;
   roomChanged();
 }
@@ -297,6 +298,7 @@ const BEATS = {
 export function roomFor(id) {
   if (g.crewed) return missionRoomFor(id);
   if (id === 'hangar') return g.beat === 'brief' && (!conducting() || g.plan?.inspector === 'you') ? 'inspect' : 'watch';
+  if (id === 'office' && lunarRoom()) return lunarRoom();
   if (id === 'office') return g.beat === 'brief' && conducting() && !g.plan ? 'plan' : g.beat === 'board' ? 'board' : g.beat === 'review' ? (conducting() ? 'chair' : 'review') : ['roundEnd', 'seasonEnd'].includes(g.beat) ? g.beat : 'watch';
   if (id === 'dugout') return g.beat === 'static' ? 'static' : 'watch';
   if (id === 'blockhouse') return g.beat === 'countReady' || g.count ? 'count' : 'watch';
@@ -538,6 +540,8 @@ function flightCalls(r) {
     calls.push({ t: r.orbit || r.deep ? end - 40 : r.burn, who: 'morgan', text: k.burnout(r.burn), tone: 'go' });
   }
   // A lunar shot leaves the range plot: the tracking stations' word on her ends it.
+  // One on her way to the Moon: JPL takes her from the Cape, and the next mornings follow her out (js/lunar.js).
+  if (r.deep?.phase === 'cruise') { calls.push({ t: end, who: 'morgan', text: k.away(r), tone: r.failure ? 'warn' : 'go' }); return calls.sort((a, b) => a.t - b.t); }
   if (r.deep) { calls.push({ t: end, who: 'morgan', text: k.final(r), tone: r.failure ? 'bad' : 'go' }); return calls.sort((a, b) => a.t - b.t); }
   // A satellite never comes down: Minitrack's call that she is in orbit ends the plot.
   if (r.orbit) { calls.push({ t: end, who: 'morgan', text: k.orbit(r.orbit.perigee, r.orbit.apogee), tone: 'go' }); return calls.sort((a, b) => a.t - b.t); }
@@ -564,7 +568,7 @@ function tickFlight(dt) {
     f.calls.push({ who: g.people[c.who].name, text: c.text, tone: c.tone });
     note(`T+${Math.round(c.t)} s, ${g.people[c.who].name}: ${c.text}`);
   }
-  if (f.next >= f.schedule.length) { f.endWait = (f.endWait || 0) + dt; if (f.endWait > 3) { f.view = 'done'; g.clock += 10; setBeat('recovery'); } }
+  if (f.next >= f.schedule.length) { f.endWait = (f.endWait || 0) + dt; if (f.endWait > 3) { f.view = 'done'; g.clock += 10; setBeat(f.result.deep?.phase === 'cruise' ? 'lLaunched' : 'recovery'); } }
 }
 
 // ---- Recovery ----
@@ -744,7 +748,7 @@ function nextMorning() {
   g.clock = g.day * 1440 + START_MINUTE;
   g.away = lines.length ? { from: dateText(left), to: dateText(g.day), lines } : null;
   if (g.away) g.room = 'away';
-  const next = { evening1: 'staticPrep', afterStatic: 'rollout', mBrief: 'mLaunch', mScrub: 'mLaunch', mPadNight: 'mPadSafe' }[g.beat] || null;
+  const next = { evening1: 'staticPrep', afterStatic: 'rollout', mBrief: 'mLaunch', mScrub: 'mLaunch', mPadNight: 'mPadSafe', lLaunched: 'lCruise', lCruised: 'lEncounter' }[g.beat] || null;
   if (next) morning(next);
 }
 
@@ -780,6 +784,7 @@ export function tick(dt) {
   if (g.count) tickCount(dt);
   if (g.flight && (g.flight.view === 'site' || g.flight.view === 'board')) tickFlight(dt);
   if (g.console) tickConsole(dt);
+  if (g.lunar) tickLunar(dt);
   if (g.rocket.where === 'flying' && g.crewed) g.rocket.rise += dt * (30 + g.rocket.rise * 1.6);
   if (g.pending && Math.abs(you().x - you().target) < 1) { const p = g.pending; g.pending = null; p(); }
 }
