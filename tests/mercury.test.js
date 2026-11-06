@@ -9,6 +9,9 @@ import { ascent, outcome, arc, PLAN, recoveryHours, ABORT_LIMIT } from '../js/tr
 import { initProgramme, adopt } from '../js/world/programme.js';
 import { standing } from '../js/career/record.js';
 import { toRoundId, playMission, runSim, playRound, advance } from './play.js';
+import { routeArgue, routeDone } from '../js/mercury.js';
+import { dateText } from '../js/game.js';
+import { dayOf } from '../js/core/calendar.js';
 
 const redstone = (s, p = initProgramme()) => newRound(s, p, 'redstone');
 
@@ -248,8 +251,27 @@ test('after MR-3 come the orbital flights: MA-6 and MA-7 play from the count thr
   playMission({ sims: 1 });
   e = g.record.rounds.at(-1);
   assert.equal(e.id, 'ma-7');
+  assert.equal(g.beat, 'sRoute');
+  assert.doesNotThrow(() => checkCheckpoint(checkpoint()));
+  routeArgue('lor'); routeDone();
   assert.equal(g.beat, 'seasonEnd');
   assert.equal(nextIndex(), null);
+});
+
+test('the route to the Moon, June 1962: you argue a mode once, NASA chooses lunar-orbit rendezvous, and your flights count', () => {
+  toMA6(8);
+  playMission(); advance(true); g.room = null; playMission();
+  assert.equal(g.beat, 'sRoute');
+  assert.equal(dateText(), dateText(dayOf(1962, 6, 7)));
+  g.record.orbitMisses = [12, -40];
+  const before = g.record.trust;
+  routeArgue('lor');
+  assert.equal(g.record.scenes.route.view, 'lor');
+  assert.equal(g.record.trust, before + 1, 'a close splashdown backs the case');
+  assert.ok(g.notes.some(n => /announced it on 11 July 1962/.test(n.text)));
+  assert.equal(routeArgue('eor'), null, 'one say only');
+  routeDone();
+  assert.equal(g.beat, 'seasonEnd');
 });
 
 test('an orbital flight reaches every call: insertion, the orbits, retrofire and the splashdown point', () => {

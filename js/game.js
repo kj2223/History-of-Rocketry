@@ -11,7 +11,7 @@ import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { ASTRONAUTS } from './data/crew.js';
-import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive } from './mercury.js';
+import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview } from './mercury.js';
 import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer, pendingOffer, SEATS } from './career/record.js';
 
@@ -128,7 +128,7 @@ function startRound(i) {
 // Each morning with work for the player is saved as a checkpoint before the day begins: plain JSON, no running jobs.
 // Days with nothing for the player's seat are skipped; what happened on them is told on arrival ("while you were away").
 // A finished round is saved too ('roundEnd'), so quitting there resumes at the review's outcome, not before the count.
-const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe'];
+const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe', 'sRoute'];
 export function morning(beat) {
   g.saved = structuredClone({ seed: g.seed, roundIndex: g.roundIndex, programme: g.programme, record: g.record, day: g.day, clock: g.clock, beat,
     round: g.round, notes: g.notes, slipDays: g.slipDays, offDays: g.offDays, looked: g.looked, flagged: g.flagged, decided: g.decided, away: g.away, review: g.review, launchDay: g.launchDay, plan: g.plan, mission: g.mission ?? null });
@@ -654,7 +654,8 @@ export function finishReview(entry) {
     o.again = again;
     note(o.made ? `Ellis put your name forward: ${offer.title.toLowerCase()}.` : `${offer.title} was on offer. Ellis did not put your name forward.`);
   }
-  morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');
+  const scene = g.crewed ? sceneAfterReview() : null;
+  morning(scene || (nextIndex() != null ? 'roundEnd' : 'seasonEnd'));
 }
 // The next round on your path, or null when your years in this build are done.
 export function nextIndex(from = g.roundIndex) {
