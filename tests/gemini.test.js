@@ -148,11 +148,71 @@ test('a project engineer who stays in the back room answers for the spacecraft\'
   const { lookSpot, runQual, capsuleSpots } = await import('../js/mercury.js');
   toGemini(8, false, { engineer: true });
   assert.equal(g.record.seat, 'engineer');
-  assert.deepEqual(capsuleSpots(), ['fuel-cells', 'hatch', 'computer']);
+  assert.deepEqual(capsuleSpots(), ['fuel-cells', 'hatch', 'computer', 'thrusters']);
   lookSpot('hatch'); runQual('computer');
   assert.ok(g.mission.checkout.hatch && g.mission.quals.computer);
   const asked = [];
   playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
   assert.ok(asked.every(id => ['computer', 'fuelcell1'].includes(id)), asked.join());
   assert.equal(g.record.rounds.at(-1).id, 'gem-4');
+});
+
+// ---- G2: rendezvous and docking ----
+const toGem6 = seed => { toGemini(seed); playMission(); advance(true); g.room = null; playMission(); advance(true); g.room = null; assert.equal(SEASON[g.roundIndex].id, 'gem-6'); };
+
+test('Gemini 6A and Gemini 8 play end to end from the flight director\'s console', () => {
+  toGem6(8);
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  let e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'gem-6');
+  if (!/^Lost/.test(e.flight)) assert.ok(asked.includes('rdvplan'), asked.join());
+  advance(true); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'gem-8');
+  playMission({ sims: 0 });
+  e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'gem-8');
+  assert.equal(g.beat, 'seasonEnd');
+});
+
+test('the Titan lights and shuts down on the pad: the commander sits tight, and a quick fix misses a second cause', async () => {
+  const { consoleStart, consolePoll, shutdownChoose } = await import('../js/mercury.js');
+  const { nextDay, until } = await import('./play.js');
+  toGem6(8);
+  g.round.faults = { 'tail-plug': 'shutdown' }; g.round.dustcap = true;
+  nextDay();
+  const count = () => { consoleStart(); until(() => g.console?.poll || g.console?.phase === 'shutdown'); while (g.console?.poll) { consolePoll(true); until(() => g.console?.poll || g.console?.phase === 'shutdown'); } };
+  count();
+  assert.equal(g.console.phase, 'shutdown');
+  shutdownChoose('plug');
+  assert.equal(g.beat, 'mScrub');
+  nextDay(); count();
+  assert.equal(g.console.phase, 'shutdown', 'the dust cap shuts her down again');
+  shutdownChoose('teardown');
+  assert.ok(!Object.values(g.round.faults).includes('shutdown'));
+  assert.ok(g.mission.shutdown.missedCap);
+  assert.ok(g.slipDays >= 4);
+});
+
+test('a stuck thruster: the rule says come home at the next area, and holding them up a day is against it', () => {
+  const r = titan(4);
+  r.faults = { thrusters: 'thruster' };
+  flightTruth(r, 'gem-8');
+  const home = resolve(r, 'tumble', 'secondary', {});
+  assert.equal(home.verdict, 'good'); assert.ok(home.set.secondary); assert.ok(home.endAt < 12);
+  assert.equal(resolve(r, 'tumble', 'primary', {}).verdict, 'bad');
+  const state = { secondary: true };
+  assert.ok(geminiEntry(r, state).secondary);
+});
+
+test('a rendezvous flown on a computer that keeps resetting can miss; on the ground\'s solution it does not', () => {
+  let missed = 0;
+  for (let s = 1; s <= 40; s++) {
+    const r = titan(s);
+    r.faults = { computer: 'computer' };
+    flightTruth(r, 'gem-6');
+    if (!resolve(r, 'rdvplan', 'onboard', {}).capability) missed++;
+    assert.equal(resolve(r, 'rdvplan', 'ground', {}).capability, 'rendezvous');
+  }
+  assert.ok(missed > 5 && missed < 35, `${missed}`);
 });

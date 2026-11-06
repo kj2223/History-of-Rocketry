@@ -75,6 +75,7 @@ function runStep(c, s, speak) {
   if (s.show) for (const [k, v] of Object.entries(s.show)) f.status[k] = v;
   for (const [who, text, tone] of s.say || []) speak(c, who, text, tone || '', 6);
   if (s.note && c.kind === 'flight') note(s.note);
+  if (s.capability) f.capabilities.push(s.capability);
   if (s.offShift && !s.say) speak(c, 'morgan', `Handover. ${s.offShift}`, '', 5);
   if (s.decide) return ask(c, s.decide, speak);
   if (s.retro) return retrofire(c, speak);
@@ -150,10 +151,11 @@ export function flightJudgement(decisions) {
   }
   return out;
 }
-export const DECISION_NAMES = { eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers' };
+export const DECISION_NAMES = { rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers' };
 // What the flight's own troubles were, in flight-plan order, for the review: the first one that showed.
 export function flightCause(round) {
   const t = round.flightTruth;
+  if (round.shutdownSeen) return 'shutdown';
   if (!t) return null;
   const plan = FLIGHTS[t.id], shown = new Set(plan.steps.filter(s => s.if).map(s => s.if));
   for (const k of plan.steps.filter(s => s.if).map(s => s.if)) if (shown.has(k) && t.flags[k]) return k;

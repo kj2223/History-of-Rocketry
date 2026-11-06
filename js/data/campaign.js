@@ -44,13 +44,15 @@ export const SEASON = [
   // commander first.
   { id: 'gem-4', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['boateng', 'nakamura'], risk: { hatchRisk: 0.6, computerRisk: 0.6 }, path: 'nasa', pressure: true, start: dayOf(1965, 6, 2), name: 'Gemini 4, the first flight from Houston' }, // 3 June 1965
   { id: 'gem-5', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['whitcomb', 'castellano'], risk: { fuelcellRisk: 0.75, navRisk: 0.7 }, path: 'nasa', start: dayOf(1965, 8, 20), name: 'Gemini 5, eight days' }, // 21 August 1965
+  { id: 'gem-6', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['szabo', 'kowalczyk'], risk: { shutdownRisk: 0.7, computerRisk: 0.3 }, path: 'nasa', pressure: true, start: dayOf(1965, 12, 11), name: 'Gemini 6A, the rendezvous with Gemini 7' }, // 12 December 1965, flown 15 December
+  { id: 'gem-8', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['fairbanks', 'nakamura'], risk: { thrusterRisk: 0.7 }, path: 'nasa', start: dayOf(1966, 3, 15), name: 'Gemini 8, the first docking' }, // 16 March 1966
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
 // The last word on the season-end page: what came after the last round you worked, and where this build stops.
 export const LAST_WORD = {
   'ranger-7': 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.',
-  'gem-5': 'In December 1965 Gemini 6A and Gemini 7 met in orbit, a foot apart. That is as far as Gemini goes in this build.',
+  'gem-8': 'Gemini 9A\'s spacewalker came back exhausted and blinded by fog in his visor. Gemini 10 and 11 docked and flew high on their Agenas. That is as far as Gemini goes in this build.',
 };
 
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
@@ -180,6 +182,15 @@ export const BETWEEN = {
   'gem-5': [
     'Gemini 4 is home. Gemini 5 is meant to stay up eight days, as long as a trip to the Moon and back. It is the first to fly fuel cells instead of batteries.',
     'Nobody knows yet what eight days of weightlessness does to a man. The flight surgeons want to find out before anyone goes to the Moon.',
+  ],
+  'gem-6': [
+    'Gemini 6 was meant to chase an Agena target in October. The Agena blew up on its way to orbit, and the flight was scrubbed with the crew already strapped in.',
+    'So Houston changed the plan: Gemini 7 went up on 4 December for fourteen days, and Gemini 6, now 6A, goes up to meet it. Two spacecraft, two crews, both yours.',
+    'Gemini 7 has been up a week. The press counts the days. Every slip is reported to Washington.',
+  ],
+  'gem-8': [
+    'Gemini 7 came home after fourteen days. Two Gemini crews have now flown longer than a lunar mission, and Gemini 6A showed that one spacecraft can find another.',
+    'Gemini 8 is to dock with an Agena target, the first time two spacecraft have joined in orbit. Then three days of work with the Agena\'s engine.',
   ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',

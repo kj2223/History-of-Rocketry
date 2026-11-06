@@ -31,10 +31,11 @@ export const GEMINI_SIMS = {
 
 // ---- The project engineer's day at Complex 19 ----
 // The spacecraft's spots the project engineer checks out: the Titan is Martin's.
-export const GEMINI_SPOTS = ['fuel-cells', 'hatch', 'computer'];
+export const GEMINI_SPOTS = ['fuel-cells', 'hatch', 'computer', 'thrusters'];
 export const GEMINI_QUALS = {
   fuelcell: { name: 'Fuel-cell soak in the chamber', fault: 'fuelcell', minutes: 240, what: 'A section runs for hours in a vacuum chamber, and its oxygen supply pressure is traced.', good: 'The supply pressure holds flat for the whole soak.', bad: 'The supply pressure sags an hour in and the heater cycles hard to catch it.' },
   hatch: { name: 'Hatch cycling in the altitude chamber', fault: 'hatch', minutes: 150, what: 'The hatch is opened and latched again at vacuum, twenty times, with the latch forces traced.', good: 'Every cycle latches with one hand\'s force.', bad: 'On the twelfth cycle the latch force doubles and stays high.' },
   computer: { name: 'Computer power-transient test', fault: 'computer', minutes: 120, what: 'The spacecraft bus is switched through its worst transients while the computer runs.', good: 'The computer rides every transient.', bad: 'On one transient the computer drops off the line and does not come back by itself.' },
+  thruster: { name: 'Thruster firing under vibration', fault: 'thruster', minutes: 180, what: 'The attitude thrusters are fired on the shaker table, and every valve\'s current traced.', good: 'Every valve opens on command and shuts clean.', bad: 'Under vibration, one valve draws current with no command.' },
   chutes: { name: 'Parachute drop', fault: null, minutes: 180, what: 'A boilerplate spacecraft is dropped and the drogue and main traced.', good: 'Drogue and main open on time and the loads stay in their bands.', bad: '' },
 };

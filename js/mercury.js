@@ -342,6 +342,7 @@ function flutter(seed, t) {
 }
 
 function liftoff(c) {
+  if (c.kind === 'flight' && c.round.vehicle === 'titan' && Object.values(c.round.faults).includes('shutdown')) return titanShutdown(c);
   const a = c.orbital ? atlasAscent(c.round, c.kind === 'sim' ? orbitSimFailure(c) : null, boosterOf(c).names) : ascent(c.round, c.kind === 'sim' ? simFailure(c.scenario) : null);
   if (c.kind === 'flight') { g.launchDay = g.day; g.rocket.where = 'flying'; g.rocket.rise = 0; }
   if (a.padAbort) {
@@ -428,6 +429,68 @@ function splash(c) {
   setBeat('mRecovery');
 }
 
+// ---- Gemini on the pad: the Titan lights and shuts down ----
+// The commander has the D-ring between his knees. Whether he ejects is his call, not the ground's; he has a second and a
+// half to make it. If he sits tight, the flight director decides how hard to look for the cause.
+export const SHUTDOWN_OPTIONS = { plug: 'The tail plug fell out early: re-seat it and recycle the count. A day.', teardown: 'Stop and find every cause: borescope the engines, check everything. Three days.' };
+function titanShutdown(c) {
+  const t = CREW_TRAITS[pilotId()], eject = t.risk < 0.4;
+  g.launchDay = g.day; c.round.shutdownSeen = true;
+  speak(c, 'vega', 'Ignition… shutdown! The engines lit and shut down. She\'s still on the pad!', 'bad', 6);
+  speak(c, 'albrecht', 'Liftoff clock started, but she never moved. Malfunction detection shut her down.', 'bad', 6);
+  if (eject) {
+    speak(c, 'pilot', 'Ejecting!', 'bad', 4);
+    speak(c, 'morgan', 'Both seats have fired. Chutes… they\'re down by the pad, both of them, alive.', 'warn', 7);
+    note(`At ignition the Titan's engines lit and shut down. ${pilotName()} pulled the D-ring: both seats fired through the oxygen-soaked cabin and the crew came down beside the pad, burned and bruised. The spacecraft is wrecked.`);
+    g.mission.pad = 'ejected'; g.mission.fate = 'hurt';
+    c.round.end = { outcome: 'pad', landing: 0, apogee: 0, entryG: 0, capsule: 'damaged', abortedAt: null };
+    c.round.ascent = { steps: [], burn: 0, failure: 'shutdown' };
+    c.phase = 'done'; c.live = false; g.console = null;
+    return setBeat('mReview');
+  }
+  speak(c, 'pilot', 'We\'re all right, Houston. Sitting tight. Get her safed.', 'warn', 6);
+  note(`At ignition the Titan's engines lit and shut down. ${pilotName()} kept his hand off the D-ring: the clock had started, but the spacecraft never moved, and he trusted his own instruments over the clock.`);
+  c.calls.shutdown = { sat: true };
+  c.phase = 'shutdown'; c.live = false;
+  if (!flightDirector()) return shutdownChoose('teardown');
+  roomChanged();
+}
+export function shutdownChoose(choice) {
+  const c = g.console;
+  if (!c || c.phase !== 'shutdown' || !SHUTDOWN_OPTIONS[choice]) return;
+  const r = c.round, again = choice === 'plug' && r.dustcap && !r.plugTried;
+  c.calls.shutdown.choice = choice;
+  if (flightDirector()) speak(c, 'you', SHUTDOWN_OPTIONS[choice], '', 5);
+  if (choice === 'plug' && !again) delete r.faults[Object.keys(r.faults).find(k => r.faults[k] === 'shutdown')];
+  if (choice === 'plug') r.plugTried = true;
+  if (choice === 'teardown') {
+    delete r.faults[Object.keys(r.faults).find(k => r.faults[k] === 'shutdown')];
+    note(`The pad crew found the tail plug had dropped out early.${r.dustcap ? ' Borescoping the engines, they found a plastic dust cap left in a gas generator: she would not have lit properly on the next try either.' : ' Nothing else was wrong.'} Three days' slip.`);
+    g.slipDays += 3; g.day += 2; g.clock += 2 * 1440;
+    if (r.dustcap) c.calls.shutdown.foundCap = true;
+  } else {
+    note('The tail plug was re-seated and the count recycled for tomorrow.');
+    g.slipDays += 1;
+    if (again) c.calls.shutdown.missedCap = true;
+  }
+  g.mission.scrubs += 1;
+  g.mission.shutdown = { ...(g.mission.shutdown || {}), ...c.calls.shutdown };
+  g.console = null;
+  setBeat('mScrub');
+  roomChanged();
+}
+
+// Hollis on the pad shutdown: how hard you looked before the next try.
+function shutdownJudgement(s) {
+  if (!s.choice || !flightDirector()) return;
+  let line;
+  if (s.missedCap) { shiftTrust(g.record, -1); line = 'We re-seated the plug and she shut down again on the next try: a dust cap left in a gas generator. A proper look would have found it the first time.'; }
+  else if (s.foundCap) { shiftTrust(g.record, 1); line = 'The teardown found a dust cap in a gas generator. She\'d never have lit right. That look was worth three days.'; }
+  else if (s.choice === 'teardown') line = 'Three days to find the plug and nothing else. Careful, and Gemini 7 waited.';
+  else line = 'The plug was the whole story. Back on the pad in a day.';
+  g.mission.shutdownText = `Hollis on the pad shutdown: "${line}"`;
+}
+
 // ---- The pad after a shutdown ----
 export function padChoose(choice) {
   const c = g.console;
@@ -479,15 +542,17 @@ export function missionPresent(key) {
 // What the plot showed about your abort call, as Hollis sees it on the tape. The trust it earns or costs.
 function judgeCalls() {
   const end = g.round.end || {}, a = g.round.ascent || {}, calls = g.mission.calls || {};
+  if (g.mission.shutdown) shutdownJudgement(g.mission.shutdown);
   if (calls.auto) { const j = engineerJudgement(calls); j.text = [j.text, ...flightJudgement(g.mission.decisions)].filter(Boolean).join(' '); return j; }
   if (calls.pilotAbort && !calls.abort) return { text: `${pilotName()} pulled the handle himself at ${calls.pilotAbort.at} seconds, before anyone on the ground called it.`, calls: { abort: 'pilot abort', aim: calls.aim || null, hours: calls.hours ?? null } };
+  const sd = g.mission.shutdownText || '';
   const abort = calls.abort, overLine = (a.steps || []).find(s => Math.abs(s.off) > ABORT_LIMIT);
   let text = '', verdict = null;
   if (abort && overLine && abort.at >= overLine.t) { verdict = 'good abort'; shiftTrust(g.record, 1); text = 'Hollis on your abort: "She was over the line and you called it. That\'s the job."'; }
   else if (abort && overLine) { verdict = 'early abort'; text = 'Hollis on your abort: "You called it a little before the line. I\'d have done the same."'; }
   else if (abort) { verdict = 'false abort'; shiftTrust(g.record, -1); text = 'Hollis on your abort: "The tape never crossed the line. We threw away a good flight."'; }
   else if (end.outcome === 'breakup') { verdict = 'missed abort'; shiftTrust(g.record, -1); text = `Hollis: "She was over the line from ${overLine ? overLine.t : '?'} seconds and nobody called it."`; }
-  if (g.round.orbit || calls.insertion) text = [text, ...orbitJudgement(calls), ...flightJudgement(g.mission.decisions)].filter(Boolean).join(' ');
+  if (g.round.orbit || calls.insertion) text = [sd, text, ...orbitJudgement(calls), ...flightJudgement(g.mission.decisions)].filter(Boolean).join(' ');
   return { text, calls: { abort: verdict, aim: calls.aim || null, hours: calls.hours ?? null, insertion: calls.insertion ? (calls.insertion.right ? 'right' : 'wrong') : undefined, pack: calls.pack, retro: calls.retro } };
 }
 // Hollis on the orbital calls, from what the tapes and the capsule showed afterwards.
@@ -515,7 +580,7 @@ function flightRecord() {
   const end = g.round.end || { outcome: 'pad' }, a = g.round.ascent || {}, m = g.mission;
   const hrs = m.calls.hours != null ? `, picked up after ${Math.round(m.calls.hours * 60)} minutes` : '';
   const text = g.round.flightTruth && end.outcome === 'entry' ? flightText(end, hrs) : end.outcome in ORBIT_RECORD ? ORBIT_RECORD[end.outcome](end, a, hrs) : {
-    pad: `Lost: the engine shut down at liftoff and the booster settled back on the pad.${m.pad === 'toppled' ? ' The booster toppled and burned.' : ' Capsule and booster saved.'}`,
+    pad: m.pad === 'ejected' ? 'Lost: the Titan shut down at ignition and the crew ejected beside the pad.' : `Lost: the engine shut down at liftoff and the booster settled back on the pad.${m.pad === 'toppled' ? ' The booster toppled and burned.' : ' Capsule and booster saved.'}`,
     aborted: `Lost: aborted at ${end.abortedAt} seconds; the capsule came down about ${Math.round(end.landing / 10) * 10} km out${hrs}.`,
     breakup: end.capsule === 'lost' ? `Lost: the booster broke up at ${end.breakup} seconds and took the capsule with it.` : `Lost: the booster broke up at ${end.breakup} seconds; the escape tower pulled the capsule clear${hrs}.`,
     asis: `Lost: the booster ran dry early and the abort sensing fired the escape tower; splashdown about ${Math.round(end.landing / 10) * 10} km downrange${hrs}.`,
@@ -578,6 +643,8 @@ const FLIGHT_EVIDENCE = {
   fuelcell: ['In flight the fuel cells\' oxygen supply pressure fell from about 850 psi to 70 in the first hours.', 'On the ground, the supply\'s heater is found open-circuit.'],
   hatch: ['The crew reported the hatch latch stiff in orbit and hard to close after the spacewalk.', 'On the bench the latch\'s spring guide is found bent.'],
   computer: ['The guidance computer dropped off the line in flight and would not come back.', 'On the bench, a power-supply transient trips it.'],
+  shutdown: ['At ignition the Titan lit and shut down: the malfunction detection saw a tail plug drop out early.', 'The plug\'s pull-out force is found well under the specification.'],
+  thruster: ['Out of contact over China the docked stack began to roll; undocked, Gemini 8 rolled faster.', 'On the bench, thruster 8\'s wiring shows a short that can hold its valve open.'],
   navdata: ['She came down well short of the planned point, though the computer steered her all the way.', 'Retro\'s people find the number for the Earth\'s rotation in the ground program was wrong.'],
 };
 function flightEvidence(a, end) {

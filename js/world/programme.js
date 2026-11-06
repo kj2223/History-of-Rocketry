@@ -4,7 +4,7 @@
 // likely as before.
 
 // How likely each fault is on a new round before any fix (hidden from the player, but the team's fixes move them).
-export const initProgramme = () => ({ igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, finRisk: 0.35, holddownRisk: 0.3, weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35, flights: [], adopted: [] });
+export const initProgramme = () => ({ igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, shutdownRisk: 0.05, thrusterRisk: 0.08, finRisk: 0.35, holddownRisk: 0.3, weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35, flights: [], adopted: [] });
 
 // What the review decided, turned into a standing change to how rounds are built. Returns the line Ellis gives, or null.
 const FIXES = {
@@ -34,6 +34,8 @@ const FIXES = {
   hatch: { text: 'The hatch latches are reworked, and every hatch is cycled in the altitude chamber before flight.', apply: p => { p.hatchRisk *= 0.3; } },
   computer: { text: 'The guidance computer\'s power supply is filtered against transients and soak-tested.', apply: p => { p.computerRisk *= 0.3; } },
   navdata: { text: 'Every number sent up to a spacecraft is now checked independently in the back room before it goes.', apply: p => { p.navRisk *= 0.2; } },
+  shutdown: { text: 'The Titan\'s tail plugs are now safety-wired and pull-tested, and every gas generator is borescoped before stacking.', apply: p => { p.shutdownRisk *= 0.3; } },
+  thruster: { text: 'Every thruster\'s wiring is now checked for shorts under vibration, and each thruster gets its own circuit breaker.', apply: p => { p.thrusterRisk *= 0.3; } },
   fin: { text: 'Every Viking fin fitting is now magnafluxed for cracks before the fins go on.', apply: p => { p.finRisk *= 0.4; } },
   holddown: { text: 'The stand\'s hold-down fittings are now proof-loaded before every full-duration firing.', apply: p => { p.holddownRisk *= 0.3; } },
   separation: { text: 'Every separation bolt and firing lead is now tested on the bench before it goes on the stack.', apply: p => { p.sepRisk *= 0.4; } },
