@@ -8,7 +8,9 @@ import { flyLoose, newRound, flagSpots, staticFire, standRework, leakCheck, tank
 import { TRAITS } from './world/people.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
 import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
-import { SEASON, BETWEEN, FIRST_OFFER } from './data/campaign.js';
+import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath } from './data/campaign.js';
+import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
+import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive } from './mercury.js';
 import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer, pendingOffer, SEATS } from './career/record.js';
 
@@ -28,7 +30,10 @@ const PEOPLE = {
   hoyt: { name: 'Walt Hoyt', role: 'V-2 crew chief, General Electric', color: '#6b4f6f', hat: '#2f3540', x: 840 },
   // On the Aerobee and Viking rounds. He stands clear of the office door, so a click on the door goes in.
   brandt: { name: 'Lt. Cmdr. Paul Brandt', role: 'Navy project officer', color: '#2f3f66', hat: '#e9e9e4', x: 405 },
+  // In Mercury Control, from 1960.
+  ...MERCURY_PEOPLE,
 };
+const ROLES = Object.fromEntries(Object.entries(PEOPLE).map(([id, p]) => [id, p.role]));
 
 // Whether you run this round as its test conductor: you plan it, run the count and chair the review.
 export const conducting = () => g.record.seat === 'test-conductor' && ['aerobee', 'viking', 'vanguard', 'juno', 'ranger'].includes(g.vehicle);
@@ -59,7 +64,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
   resetRound();
   Object.assign(g, structuredClone({ seed: from.seed, roundIndex: from.roundIndex, roundStart: SEASON[from.roundIndex].start, programme: from.programme, record: from.record,
     round: from.round, day: from.day, clock: from.clock, notes: from.notes, slipDays: from.slipDays, offDays: from.offDays,
-    looked: from.looked, flagged: from.flagged, decided: from.decided, away: from.away, review: from.review, launchDay: from.launchDay ?? null, plan: from.plan ?? null }));
+    looked: from.looked, flagged: from.flagged, decided: from.decided, away: from.away, review: from.review, launchDay: from.launchDay ?? null, plan: from.plan ?? null, mission: from.mission ?? null }));
   setVehicle();
   if (g.away) g.room = 'away';
   morning(from.beat);
@@ -69,6 +74,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
 // The parts of the game that belong to one round, cleared before each.
 function resetRound() {
   Object.assign(g, {
+    console: null,
     jobs: [], pending: null, marker: null, rocket: { where: 'hangar', mated: false, x: 0, rise: 0 },
     truck: { x: PLACES.truck.x, target: PLACES.truck.x, dust: false, follow: false, then: null },
     stand: null, count: null, flight: null, review: null, recovery: null, slipDays: 0, launchDay: null, offDays: {},
@@ -81,11 +87,18 @@ function resetRound() {
 function setVehicle() {
   g.vehicle = SEASON[g.roundIndex].vehicle;
   g.people.hoyt.hidden = !['v2', 'bumper'].includes(g.vehicle);
-  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger'].includes(g.vehicle);
+  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger', 'redstone'].includes(g.vehicle);
   g.site = SEASON[g.roundIndex].site || 'white-sands';
+  // A Mercury round: Mercury Control's people are on site, Ellis is back at JPL, and the others have Mercury jobs.
+  g.crewed = !!SEASON[g.roundIndex].crewed;
+  for (const id of Object.keys(MERCURY_PEOPLE)) g.people[id].hidden = !g.crewed;
+  g.people.ellis.hidden = g.crewed;
+  for (const [id, role] of Object.entries(ROLES)) g.people[id].role = g.crewed && MERCURY_ROLES[id] ? MERCURY_ROLES[id] : role;
   g.people.you.role = SEATS[g.record.seat];
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
 }
+// What a building is called now: the Cape's Mercury buildings stand where the old ones did.
+export const placeName = id => (g.crewed && MERCURY_PLACES[id]) || PLACES[id]?.name;
 
 // Round i: a fresh round built the way the team now builds them.
 function startRound(i) {
@@ -98,6 +111,7 @@ function startRound(i) {
   round.initial = { faults: { ...round.faults }, igniter: hasIgniterFault(round), pump: hasPumpFault(round), liner: hasLinerFault(round), injector: hasInjectorFault(round) };
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
+  if (g.crewed) return startMission();
   morning('brief');
 }
 
@@ -105,10 +119,10 @@ function startRound(i) {
 // Each morning with work for the player is saved as a checkpoint before the day begins: plain JSON, no running jobs.
 // Days with nothing for the player's seat are skipped; what happened on them is told on arrival ("while you were away").
 // A finished round is saved too ('roundEnd'), so quitting there resumes at the review's outcome, not before the count.
-const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd'];
-function morning(beat) {
+const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe'];
+export function morning(beat) {
   g.saved = structuredClone({ seed: g.seed, roundIndex: g.roundIndex, programme: g.programme, record: g.record, day: g.day, clock: g.clock, beat,
-    round: g.round, notes: g.notes, slipDays: g.slipDays, offDays: g.offDays, looked: g.looked, flagged: g.flagged, decided: g.decided, away: g.away, review: g.review, launchDay: g.launchDay, plan: g.plan });
+    round: g.round, notes: g.notes, slipDays: g.slipDays, offDays: g.offDays, looked: g.looked, flagged: g.flagged, decided: g.decided, away: g.away, review: g.review, launchDay: g.launchDay, plan: g.plan, mission: g.mission ?? null });
   g.savedVersion++;
   setBeat(beat);
 }
@@ -172,10 +186,10 @@ export function clockText(minute = g.clock) {
 }
 
 // ---- The beats ----
-function setBeat(name, objective) {
+export function setBeat(name, objective) {
   g.beat = name;
   g.dayDone = false;
-  BEATS[name]?.();
+  (BEATS[name] || MERCURY_BEATS[name])?.();
   if (objective) g.objective = objective;
   roomChanged();
 }
@@ -271,6 +285,7 @@ const BEATS = {
 
 // ---- Rooms: what each building offers right now ----
 export function roomFor(id) {
+  if (g.crewed) return missionRoomFor(id);
   if (id === 'hangar') return g.beat === 'brief' && (!conducting() || g.plan?.inspector === 'you') ? 'inspect' : 'watch';
   if (id === 'office') return g.beat === 'brief' && conducting() && !g.plan ? 'plan' : g.beat === 'board' ? 'board' : g.beat === 'review' ? (conducting() ? 'chair' : 'review') : ['roundEnd', 'seasonEnd'].includes(g.beat) ? g.beat : 'watch';
   if (id === 'dugout') return g.beat === 'static' ? 'static' : 'watch';
@@ -605,7 +620,7 @@ export function chair(key) {
 
 // What every review ends with: the flight on the programme's books, the round in your record, and a turning point if
 // this round is one.
-function finishReview(entry) {
+export function finishReview(entry) {
   const f = g.round.flight, seen = f.failure ? null : f.radar;
   if (onBudget()) {
     if (g.slipDays) spend(g.record, g.day, g.slipDays * COSTS.slipDay, `${g.slipDays} day${g.slipDays > 1 ? 's' : ''} of range time lost`);
@@ -621,15 +636,21 @@ function finishReview(entry) {
     note(`Washington wanted this round on the day. ${g.slipDays === 1 ? 'A day' : `${g.slipDays} days`} lost goes on your record.`);
   }
   addRound(g.record, { id: SEASON[g.roundIndex].id, vehicle: g.vehicle, name: SEASON[g.roundIndex].name, day: g.launchDay ?? g.day,
-    flight: f.deep ? f.deep.text : f.failure ? `Lost at ${f.failAt} seconds.` : f.orbit ? `In orbit: perigee about ${f.orbit.perigee.toFixed(0)} km, apogee about ${f.orbit.apogee.toFixed(0)} km.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad, ...entry });
+    flight: f.text ? f.text : f.deep ? f.deep.text : f.failure ? `Lost at ${f.failAt} seconds.` : f.orbit ? `In orbit: perigee about ${f.orbit.perigee.toFixed(0)} km, apogee about ${f.orbit.apogee.toFixed(0)} km.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad, ...entry });
   g.room = null;
-  if (SEASON[g.roundIndex].turningPoint && g.record.seat !== FIRST_OFFER.seat) {
-    const again = g.record.offers.length > 0;
-    const o = turningPoint(g.record, FIRST_OFFER, g.day);
+  const tp = SEASON[g.roundIndex].turningPoint, offer = tp && offerFor(tp);
+  if (offer && g.record.seat !== offer.seat) {
+    const again = g.record.offers.some(o => o.seat === offer.seat);
+    const o = turningPoint(g.record, offer, g.day);
     o.again = again;
-    note(o.made ? `Ellis put your name forward: ${FIRST_OFFER.title.toLowerCase()}.` : 'Aerojet wanted a test conductor for the Aerobee firings. Ellis did not put your name forward.');
+    note(o.made ? `Ellis put your name forward: ${offer.title.toLowerCase()}.` : `${offer.title} was on offer. Ellis did not put your name forward.`);
   }
-  morning(g.roundIndex + 1 < SEASON.length ? 'roundEnd' : 'seasonEnd');
+  morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');
+}
+// The next round on your path, or null when your years in this build are done.
+export function nextIndex(from = g.roundIndex) {
+  for (let i = from + 1; i < SEASON.length; i++) if (onPath(SEASON[i], g.record.path)) return i;
+  return null;
 }
 
 // Ellis's opening line for a round: what the team changed since the last one, then the job.
@@ -641,14 +662,15 @@ function briefLine() {
 
 // Carry on to the next round of the season: the calendar jumps to its first day and tells you what happened meanwhile.
 export function nextRound() {
-  if (g.beat !== 'roundEnd' || g.roundIndex + 1 >= SEASON.length || pendingOffer(g.record)) return;
-  const from = g.day, next = SEASON[g.roundIndex + 1];
+  const i = nextIndex();
+  if (g.beat !== 'roundEnd' || i == null || pendingOffer(g.record)) return;
+  const from = g.day, next = SEASON[i];
   const lines = [...(BETWEEN[next.id] || [])];
   // The first Bumper's WAC is built to the standard the WAC rounds left behind, and the V-2s to what the V-2 round taught.
   if (next.vehicle !== SEASON[g.roundIndex].vehicle && g.programme.adopted.length) lines.push(`Everything the reviews decided so far goes into the build: ${fixesInForce(g.programme).join(' ')}`);
-  lines.push(`The crew built ${next.name} in the hangar.`);
+  if (!next.crewed) lines.push(`The crew built ${next.name} in the hangar.`);
   g.away = { from: dateText(from), to: dateText(next.start), lines };
-  startRound(g.roundIndex + 1);
+  startRound(i);
   g.room = 'away';
 }
 
@@ -676,9 +698,10 @@ export function answerFirstOffer(take) {
   const o = answerOffer(g.record, take);
   if (!o) return;
   const line = take ? 'Good. They\'ll be glad of you. Come and see me when you need a second opinion.' : 'Your seat here is yours as long as you want it. They may ask again.';
-  say('ellis', line, take ? 'go' : '', 8);
-  note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay a junior engineer.`);
-  morning(g.roundIndex + 1 < SEASON.length ? 'roundEnd' : 'seasonEnd');
+  if (!g.people.ellis.hidden) say('ellis', line, take ? 'go' : '', 8);
+  g.people.you.role = SEATS[g.record.seat];
+  note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay ${/^[aeiou]/i.test(SEATS[g.record.seat]) ? 'an' : 'a'} ${SEATS[g.record.seat].toLowerCase()}.`);
+  morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');
 }
 
 // ---- Ending the day ----
@@ -708,7 +731,7 @@ function nextMorning() {
   g.clock = g.day * 1440 + START_MINUTE;
   g.away = lines.length ? { from: dateText(left), to: dateText(g.day), lines } : null;
   if (g.away) g.room = 'away';
-  const next = g.beat === 'evening1' ? 'staticPrep' : g.beat === 'afterStatic' ? 'rollout' : null;
+  const next = { evening1: 'staticPrep', afterStatic: 'rollout', mBrief: 'mLaunch', mScrub: 'mLaunch', mPadNight: 'mPadSafe' }[g.beat] || null;
   if (next) morning(next);
 }
 
@@ -725,7 +748,7 @@ export function tick(dt) {
   const k = g.speed;
   // Firings, counts and flights run in real seconds; otherwise the day runs fast, and stops at evening until the day is ended.
   const realTime = g.stand && ['count', 'firing'].includes(g.stand.phase);
-  if (!g.count && !g.flight?.view?.match(/site|board/)) g.clock = Math.min(g.day * 1440 + EVENING, g.clock + (realTime ? dt / 60 : MINUTES_PER_SECOND * k * dt));
+  if (!g.count && !consoleLive() && !g.flight?.view?.match(/site|board/)) g.clock = Math.min(g.day * 1440 + EVENING, g.clock + (realTime ? dt / 60 : MINUTES_PER_SECOND * k * dt));
   for (const p of Object.values(g.people)) {
     const d = p.target - p.x, step = WALK * k * dt;
     if (Math.abs(d) > 0.5) { p.face = Math.sign(d); p.x += Math.sign(d) * Math.min(Math.abs(d), step); }
@@ -743,6 +766,8 @@ export function tick(dt) {
   if (g.stand) tickStand(dt);
   if (g.count) tickCount(dt);
   if (g.flight && (g.flight.view === 'site' || g.flight.view === 'board')) tickFlight(dt);
+  if (g.console) tickConsole(dt);
+  if (g.rocket.where === 'flying' && g.crewed) g.rocket.rise += dt * (30 + g.rocket.rise * 1.6);
   if (g.pending && Math.abs(you().x - you().target) < 1) { const p = g.pending; g.pending = null; p(); }
 }
 

@@ -29,8 +29,11 @@ export const SEASON = [
   // NASA, from 1 October 1958. JPL's lunar probes: two Juno II Pioneers aimed past the Moon, and Ranger 7, after six Rangers
   // had failed, aimed to hit it with its cameras running.
   { id: 'pioneer-3', vehicle: 'juno', site: 'cape', start: dayOf(1958, 12, 4), name: 'Pioneer 3, a Juno II for the Moon' }, // flew 6 December 1958
-  { id: 'pioneer-4', vehicle: 'juno', site: 'cape', start: dayOf(1959, 3, 1), name: 'Pioneer 4' }, // flew 3 March 1959
-  { id: 'ranger-7', vehicle: 'ranger', site: 'cape', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
+  { id: 'pioneer-4', vehicle: 'juno', site: 'cape', start: dayOf(1959, 3, 1), name: 'Pioneer 4', turningPoint: 'nasa' }, // flew 3 March 1959
+  // From here the years split. Take the Space Task Group's offer and you go to Mercury Control (path 'nasa'); stay with
+  // JPL and you work Ranger (path 'jpl'). crewed: the round is a Mercury flight, worked from a console (mercury.js).
+  { id: 'mr-1', vehicle: 'redstone', site: 'cape', crewed: 'mercury', path: 'nasa', start: dayOf(1960, 11, 20), name: 'Mercury-Redstone 1, the first Mercury capsule on a Redstone' }, // 21 November 1960: a sim day, then launch day
+  { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
@@ -39,6 +42,8 @@ export const SITES = {
   cape: { name: 'Cape Canaveral', plot: 'ATLANTIC MISSILE RANGE · CAPE CANAVERAL', truck: 'Range car', recovery: 'The telemetry building' },
 };
 export const siteOf = round => SITES[round.site || 'white-sands'];
+// Whether a round is on the player's path: rounds without a path are on every path; the rest only on their own.
+export const onPath = (round, path = 'jpl') => !round.path || round.path === path;
 
 // The site changes over the years. The new blockhouse goes up beside the old one over the winter of 1950-51 (Provisional
 // dates); from the spring the count is run from there.
@@ -120,12 +125,33 @@ export const BETWEEN = {
     'On 2 January 1959 the Soviet Luna 1 passed the Moon at about 6,000 km and went on into orbit round the Sun, the first craft to escape the Earth.',
     'In February Vanguard 2 went into orbit with the first weather instruments.',
   ],
+  'mr-1': [
+    'You left JPL in the spring of 1959 for the Space Task Group, NASA\'s new Mercury team at Langley in Virginia. Ellis shook your hand and told you to bring them back alive.',
+    'In April 1959 NASA chose seven military test pilots to fly Mercury. They have been training ever since: centrifuge runs, the procedures trainer, survival courses in the desert and at sea.',
+    'Mercury Control is a new building at the Cape: rows of consoles facing a big map of the world, with the flight director in the middle and you at the Retrofire officer\'s desk. Your job is when the capsule comes down, and where.',
+    'In September 1959 the Big Joe capsule came back from space on an Atlas with its heat shield charred but whole. On 29 July 1960 Mercury-Atlas 1 broke up a minute after launch with its capsule aboard.',
+    'Brandt went to NASA with you. He keeps the Cape\'s schedule now, and Vega\'s crew has the Redstone pad at Launch Complex 5.',
+    'This first Mercury-Redstone carries no one. If the booster, the capsule and Mercury Control all work, a man rides the next ones.',
+  ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',
     'In April 1961 Yuri Gagarin orbited the Earth, and in May Alan Shepard flew from the Cape. On 25 May President Kennedy asked Congress to land a man on the Moon before the decade was out. Apollo needs to know what the Moon\'s surface is like.',
     'JPL\'s Ranger was meant to find out, and six Rangers failed. Rangers 1 and 2, in 1961, were left in low orbit when the Agena did not restart. Ranger 3 missed the Moon. Ranger 4 hit the far side, dead. Ranger 5 lost its power and missed. In February 1964 Ranger 6 hit the Sea of Tranquility on time, and its cameras never came on.',
     'Congress has held hearings. The papers call Ranger a shoot-and-hope programme. Every day this round slips is reported to Washington.',
   ],
+};
+
+// The second offer, after Pioneer 4: NASA's Space Task Group is staffing Mercury Control for the manned flights.
+export const NASA_OFFER = {
+  seat: 'retro',
+  path: 'nasa',
+  title: 'Retrofire officer, Mercury Control',
+  from: 'ellis',
+  text: 'The Space Task Group is staffing Mercury Control for the manned flights, and they asked JPL for people who have run a count. I gave them your name. You\'d be the Retrofire officer: when the capsule comes down, and where. I\'d hate to lose you, and you should go.',
+  sidelined: 'NASA\'s Space Task Group asked for people to staff Mercury Control. I couldn\'t put your name forward this time. There will be other chances.',
+  again: 'NASA are asking again for Mercury Control.',
+  takeNote: 'From now on you sit at a console in Mercury Control: the go/no-go polls, the trajectory plot, and where the capsule comes down.',
+  declineNote: 'You stay at JPL, on the lunar probes.',
 };
 
 // The test conductor's offer, made at a turning point (Bumper 5, and again after the Aerobee rounds if you are still a
@@ -138,4 +164,8 @@ export const FIRST_OFFER = {
   text: 'Aerojet and the Navy are short of a test conductor for their Aerobee firings here. You\'d plan the tests, run the whole count and chair the reviews. I told them you were ready.',
   sidelined: 'Aerojet wanted a test conductor for their Aerobee firings. They asked me about you, and I couldn\'t say you were ready. Keep at it and they\'ll ask again.',
   again: 'Aerojet are asking again. They still need a test conductor for the Aerobee firings, and after this year I can tell them you\'re ready.',
+  takeNote: 'Take it and you plan the rounds, run the count and chair the reviews from now on.',
+  declineNote: 'Turn it down and you keep your seat; they may ask again.',
 };
+// Which offer a turning point brings: turningPoint true is the test conductor's, 'nasa' is Mercury Control's.
+export const offerFor = turningPoint => (turningPoint === 'nasa' ? NASA_OFFER : FIRST_OFFER);

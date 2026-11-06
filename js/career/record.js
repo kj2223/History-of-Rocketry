@@ -6,7 +6,9 @@
 
 export const initRecord = () => ({ rounds: [], trust: 0, seat: 'junior', offers: [] });
 export const TRUST = { min: -3, max: 3, defer: 2 };
-export const SEATS = { junior: 'Junior engineer', 'test-conductor': 'Test conductor' };
+export const SEATS = { junior: 'Junior engineer', 'test-conductor': 'Test conductor', retro: 'Retrofire officer' };
+// The seat in a sentence: "You are now …".
+export const SEAT_PHRASE = { junior: 'a junior engineer', 'test-conductor': 'a test conductor', retro: 'the Retrofire officer in Mercury Control' };
 
 export function addRound(record, entry) { record.rounds.push(entry); }
 export const shiftTrust = (record, by) => { record.trust = Math.max(TRUST.min, Math.min(TRUST.max, record.trust + by)); };
@@ -15,14 +17,20 @@ export const shiftTrust = (record, by) => { record.trust = Math.max(TRUST.min, M
 export function standing(record) {
   const recent = record.rounds.slice(-3), good = recent.filter(r => !/^Lost/.test(r.flight)).length;
   // Each fiscal year you ran over your budget line counts against you.
-  return record.trust + (good >= 2 ? 1 : 0) - (record.overspent || 0);
+  return record.trust + (good >= 2 ? 1 : 0) - (record.overspent || 0) + simStanding(record);
 }
+// Training sims count too, once you have run a few: the last three, mostly called right, are worth a point.
+export function simStanding(record) {
+  const last = (record.sims || []).slice(-3);
+  return last.length === 3 && last.reduce((a, s) => a + s.right, 0) >= 0.66 * last.reduce((a, s) => a + s.of, 0) ? 1 : 0;
+}
+export function addSim(record, sim) { (record.sims = record.sims || []).push(sim); }
 export const OFFER_STANDING = 1;
 
 // A turning point: an offer if your standing is good enough, otherwise you are passed over this time.
 export function turningPoint(record, offer, day) {
   const made = standing(record) >= OFFER_STANDING;
-  const entry = { seat: offer.seat, title: offer.title, day, made, answer: null };
+  const entry = { seat: offer.seat, title: offer.title, day, made, answer: null, ...(offer.path ? { path: offer.path } : {}) };
   record.offers.push(entry);
   if (!made) record.sidelined = true;
   return entry;
@@ -33,6 +41,6 @@ export function answerOffer(record, take) {
   const o = record.offers[record.offers.length - 1];
   if (!o || !o.made || o.answer) return null;
   o.answer = take ? 'taken' : 'declined';
-  if (take) { record.seat = o.seat; record.sidelined = false; }
+  if (take) { record.seat = o.seat; record.sidelined = false; if (o.path) record.path = o.path; }
   return o;
 }

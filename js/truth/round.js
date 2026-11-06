@@ -53,7 +53,7 @@ const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'l
 export const HIDDEN_FAILURE = { wac: 0.12, v2: 0.3, bumper: 0.3, aerobee: 0.15, viking: 0.15, vanguard: 0.3, juno: 0.3, ranger: 0.35 };
 const usesWac = vehicle => vehicle === 'wac' || vehicle === 'bumper';
 const usesV2 = vehicle => vehicle === 'v2' || vehicle === 'bumper';
-export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
+export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
 
 // A new round. seed: a whole number; the same seed always makes the same round. programme: how the team builds rounds now
 // (world/programme.js): the chance of each fault, and which igniter and pump standard is in use. vehicle: 'wac', 'v2' or 'bumper'.
@@ -84,6 +84,14 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   const depletionFault = vehicle === 'juno' && draw(rng.physical) < 0.5;
   const agenaFault = vehicle === 'ranger' && draw(rng.physical) < 0.5;
   if (vehicle === 'ranger') { const cam = draw(rng.physical), camAt = draw(rng.physical); put('camera', p.cameraRisk, cam, camAt); }
+  // The Mercury-Redstone's own draws, taken only on its rounds: the tail plug, the autopilot, the oxygen valve, and the
+  // thrust controller (no spot: nothing on the pad shows it).
+  let thrust = false;
+  if (vehicle === 'redstone') {
+    const d = [...Array(7)].map(() => draw(rng.physical));
+    put('plug', p.plugRisk, d[0], d[1]); put('control', p.controlRisk, d[2], d[3]); put('lox', p.loxRisk, d[4], d[5]);
+    thrust = d[6] < p.thrustRisk;
+  }
   const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07', turbineFault && vehicle === 'viking' && 'pm-19', injectorFault && 'pm-23', depletionFault && 'pm-29', agenaFault && 'pm-31'].filter(Boolean);
   // V1's worked-case defect, the Aerobee's debonding liner (pm-07), is a latent fault like the others: some sustainers have it.
   const physical = { ...initPhysical(), latentMechanisms: latent, trueDefectMechanism: null };
@@ -98,6 +106,7 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     juno: p.juno, // Juno II's Jupiter: r2 has the recalibrated propellant utilisation
     ranger: p.ranger, // Ranger's Agena: r2 has the reworked restart system
     propellantLoad: 1,
+    ...(vehicle === 'redstone' ? { thrust } : {}),
     events: [], // what happened, for the debrief
   };
 }
