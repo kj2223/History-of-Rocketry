@@ -36,6 +36,10 @@ export const SEASON = [
   // The first American in space. crew: who flies it. adopt: fixes Marshall made between flights whatever the reviews said
   // (after MR-1 the tail plug; after Ham's flight the thrust controller, proved on the MR-BD flight of 24 March 1961).
   { id: 'mr-3', vehicle: 'redstone', site: 'cape', crewed: 'mercury', crew: ['rourke'], adopt: ['plug', 'thrust'], path: 'nasa', pressure: true, start: dayOf(1961, 5, 4), name: 'Mercury-Redstone 3, the first American in space' }, // 5 May 1961
+  // Into orbit on the Atlas. orbital: the flight is worked through orbit, retrofire and entry. risk: what is likelier on this
+  // flight than the programme's usual odds (the hidden layer still decides).
+  { id: 'ma-6', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['okafor'], risk: { seg51Risk: 0.6 }, path: 'nasa', pressure: true, start: dayOf(1962, 2, 19), name: 'Mercury-Atlas 6, the first American in orbit' }, // 20 February 1962
+  { id: 'ma-7', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['lindqvist'], risk: { scannerRisk: 0.7 }, path: 'nasa', start: dayOf(1962, 5, 23), name: 'Mercury-Atlas 7' }, // 24 May 1962
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
@@ -143,6 +147,18 @@ export const BETWEEN = {
     'On 12 April 1961 Yuri Gagarin orbited the Earth once in Vostok 1 and landed in the Soviet Union alive. The papers ask why America is still flying monkeys.',
     'Thomas Rourke has been named for the first flight: fifteen minutes up and down the Atlantic Missile Range. He will be in the simulator with you, and on your loop on the day.',
     'Every day this flight slips is reported to Washington.',
+  ],
+  'ma-6': [
+    'On 21 July 1961 Mercury-Redstone 4 flew Samuel Price up the range. After splashdown the hatch blew, the capsule filled and sank, and he very nearly drowned before a helicopter got a horsecollar to him.',
+    'On 25 May 1961 President Kennedy asked Congress to land a man on the Moon before the decade was out. In August Gherman Titov flew seventeen orbits in Vostok 2.',
+    'The Redstone has done its work. Orbit needs the Atlas: Convair\'s missile, its tanks so thin they hold their shape only under pressure. On 29 November 1961 Mercury-Atlas 5 carried Enos, a chimpanzee, round twice and home.',
+    'Your console now has the Goddard computers\' go/no-go for orbit, the ground stations round the world, and the retrofire clock. The capsule comes home by firing three small retro rockets over California, and where she lands depends on how well they fire.',
+    'Daniel Okafor has been named for the first orbit, three times round. The flight has been scrubbed for weather and for the Atlas since January. Every slip is reported to Washington.',
+  ],
+  'ma-7': [
+    'Mercury-Atlas 6 brought the first American home from orbit. Ticker-tape parades in Washington and New York.',
+    'Henry Lindqvist has the next one, three orbits again, with experiments to do: a balloon to trail, flares to watch, the horizon to photograph. A busy man uses fuel.',
+    'Hangar S reports trouble with the horizon scanners on the bench. They have been changed, and the new ones checked as well as anyone can check them.',
   ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',

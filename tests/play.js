@@ -38,7 +38,7 @@ export function advance(take = false) {
 
 
 // ---- Mercury rounds, worked from the Retrofire officer's console ----
-import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, simStart, simClose, toReview } from '../js/mercury.js';
+import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, simStart, simClose, toReview, consoleInsertion, consolePack, consoleRetro } from '../js/mercury.js';
 import { SEASON } from '../js/data/campaign.js';
 
 // Play rounds, taking every offer and making sure it is made, until the round with this id.
@@ -53,20 +53,26 @@ export function toRoundId(id, call = () => 'nominal') {
 }
 
 // One console decision point at a time: a poll, the climb (abort or not), the impact points, the pad.
-const waiting = () => g.beat !== 'mFlight' || (g.console && (g.console.poll || g.console.phase === 'poll' || g.console.phase === 'ip' || g.console.phase === 'pad' || g.console.phase === 'ascent'));
+const waiting = () => g.beat !== 'mFlight' || (g.console && (g.console.poll || g.console.phase === 'poll' || g.console.phase === 'ip' || ['pad', 'ascent', 'insertion', 'pack', 'retro'].includes(g.console.phase)));
 function work(c, opts) {
   if (c.poll || c.phase === 'poll') return consolePoll(opts.poll(c));
   if (c.phase === 'ip') return consoleAim(opts.aim(c));
   if (c.phase === 'pad') return padChoose(opts.pad);
+  if (c.phase === 'insertion') return consoleInsertion(opts.insert(c));
+  if (c.phase === 'pack') return consolePack(opts.packCall(c));
+  if (c.phase === 'retro') return consoleRetro(opts.retro(c));
   if (c.phase === 'ascent') {
     if (c.abortAt == null && opts.abort(c)) return consoleAbort();
-    for (let i = 0; i < 400 && g.console && g.console.phase === 'ascent' && !(c.abortAt == null && opts.abort(c)); i++) { g.speed = 4; tick(0.05); }
+    for (let i = 0; i < 1000 && g.console && g.console.phase === 'ascent' && !(c.abortAt == null && opts.abort(c)); i++) { g.speed = 4; tick(0.05); }
   }
 }
 export const MERCURY_DEFAULTS = {
   poll: c => c.cond.seaState <= 4 && !c.cond.late,
   abort: c => c.trace.length > 0 && Math.abs(c.trace[c.trace.length - 1].off) > 6.5,
-  aim: c => (c.ip.intermittent ? 'telemetry' : 'radar'),
+  aim: c => (c.orbital ? 'radar' : c.ip.intermittent ? 'telemetry' : 'radar'),
+  insert: c => c.goddard.go,
+  packCall: () => 'keep',
+  retro: c => (c.status.window && /off|odd/.test(c.status.window) ? 'manual' : 'auto'),
   pad: 'wait',
   call: () => 'unknown',
   sims: 0,
@@ -77,8 +83,8 @@ export function runSim(opts = {}) {
   simStart();
   for (let n = 0; n < 50 && g.console && g.console.kind === 'sim' && g.console.phase !== 'debrief'; n++) {
     const c = g.console;
-    if (c.poll || ['poll', 'ip', 'pad', 'ascent'].includes(c.phase)) work(c, o);
-    else for (let i = 0; i < 400 && g.console && !(g.console.poll || ['poll', 'ip', 'pad', 'ascent', 'debrief'].includes(g.console.phase)); i++) { g.speed = 4; tick(0.05); }
+    if (c.poll || ['poll', 'ip', 'pad', 'ascent', 'insertion', 'pack', 'retro'].includes(c.phase)) work(c, o);
+    else for (let i = 0; i < 400 && g.console && !(g.console.poll || ['poll', 'ip', 'pad', 'ascent', 'insertion', 'pack', 'retro', 'debrief'].includes(g.console.phase)); i++) { g.speed = 4; tick(0.05); }
   }
   const d = g.console.debrief;
   simClose();

@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', plug: 'a tail plug that came out in the wrong order', control: 'a control failure', lox: 'a propellant valve leak', thrust: 'a booster that burned too hot', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', plug: 'a tail plug that came out in the wrong order', control: 'a control failure', lox: 'a propellant valve leak', thrust: 'a booster that burned too hot', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', guidance: 'an Atlas guidance failure', shortburn: 'an Atlas sustainer cutting off early', shield: 'a loose heat shield', scanner: 'a bad horizon scanner', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -341,6 +341,27 @@ export const KITS = {
     },
   },
 
+  // Mercury-Atlas at Launch Complex 14: Convair's Atlas D with a Mercury capsule. Convair checks out the Atlas and McDonnell
+  // the capsule, in Hangar S. The spots are what those crews' checkouts cover.
+  atlas: {
+    name: 'Mercury-Atlas', range: 'MERCURY-ATLAS', crew: ['kowalski', 'delgado'], crewed: true,
+    brief: 'The Atlas and the capsule are on the pad. Work the sims, then we fly.',
+    spots: {
+      programmer: { name: 'Atlas autopilot and programmer', fault: 'guidance', sound: 'Every relay steps through the profile on time.', cue: 'One relay chatters once before it closes.' },
+      'sustainer-feed': { name: 'Sustainer propellant feed', fault: 'shortburn', sound: 'The feed lines are tight and the bellows clean.', cue: 'A bright rub mark on one line where it crosses a bracket.' },
+      'heat-shield': { name: 'Heat shield and landing-bag latches', fault: 'shield', sound: 'All latches seated, the shield snug against the bag.', cue: 'One latch takes a second push to seat.' },
+      scanners: { name: 'Horizon scanners', fault: 'scanner', sound: 'Both scanners find the heated horizon and hold it.', cue: 'One scanner hunts a little before it settles.' },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      guidance: 'The Atlas guidance failed and she went off her line.',
+      shortburn: 'The Atlas sustainer cut off early.',
+      shield: 'The heat shield really was loose. Fix the latches and the landing bag.',
+      scanner: 'A horizon scanner was bad: the automatic system held the wrong attitude and burned the fuel.',
+      unknown: 'Not enough evidence to call it. Ask for a full teardown.',
+    },
+  },
+
   bumper: {
     name: 'Bumper', range: 'BUMPER (V-2 + WAC)', crew: ['kowalski', 'delgado'],
     inspect: { title: 'Hangar: the Bumper stack', objective: 'Go to the assembly hangar and look over the whole Bumper stack, the V-2 and the WAC on its nose, before tomorrow\'s static fire.',
@@ -397,7 +418,8 @@ export const FAILED_BECAUSE = {
   liner: 'the chamber liner came away and the wall burned through',
   cutoff: 'the turbine leaked steam and the engine cut off early', fin: 'a fin fitting cracked and a fin came off', holddown: 'the hold-down fittings let go on the stand',
   plug: 'the tail plug came out in the wrong order and shut the engine down', control: 'the control system failed and she went off her line', lox: 'the oxygen valve leaked and the burn stopped early', thrust: 'the thrust controller let her burn too hot',
+  guidance: 'the Atlas autopilot drifted and took her off her line', shortburn: 'the Atlas sustainer cut off early', shield: 'the heat shield was loose', scanner: 'a horizon scanner was bad and the automatic system held the wrong attitude',
   injector: 'the first-stage injector burned through and she fell back on the pad',
   depletion: 'the Jupiter ran out of propellant early', agena: 'the Agena would not restart in orbit', camera: 'the camera high-voltage supply failed',
 };
-export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum', plug: 'Tail plug cables cut to different lengths', control: 'A drifting autopilot gyro', lox: 'A leaking oxygen valve' };
+export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum', plug: 'Tail plug cables cut to different lengths', control: 'A drifting autopilot gyro', lox: 'A leaking oxygen valve', guidance: 'A programmer relay that sticks', shortburn: 'A sustainer feed line that chafes', shield: 'A landing-bag latch that does not seat', scanner: 'A horizon scanner out of calibration' };

@@ -66,3 +66,45 @@ export const SIMS = {
   offstation: 'One of the destroyers was not on station.',
 };
 export const SIM_MINUTES = 45;
+
+// ---- Orbital flights, on the Atlas (from 1962) ----
+// The recovery board for an orbital flight: the carrier on the planned point in the Atlantic, destroyers up and down the
+// track, and the ships in the abort areas under the climb.
+export const ORBIT_UNITS = {
+  carrier: 'The carrier, with its helicopters, on the planned splashdown point north of Grand Turk',
+  uprange: 'The destroyer 300 km uprange of the planned point',
+  downrange: 'The destroyer 300 km downrange of the planned point',
+};
+// The Mercury tracking network, in the order the capsule passes over it on each orbit, and the minute after liftoff on the
+// first orbit. One orbit is about 88 minutes.
+export const STATIONS = [
+  { at: 7, name: 'Bermuda' }, { at: 15, name: 'Canary Islands' }, { at: 22, name: 'Kano, Nigeria' }, { at: 30, name: 'Zanzibar' },
+  { at: 40, name: 'The Indian Ocean ship' }, { at: 50, name: 'Muchea, Australia' }, { at: 55, name: 'Woomera' }, { at: 65, name: 'Canton Island' },
+  { at: 75, name: 'Hawaii' }, { at: 82, name: 'California' }, { at: 85, name: 'Guaymas, Mexico' }, { at: 87, name: 'Texas' },
+];
+// Retrofire is over California on the last orbit.
+export const RETRO_STATION = 'California';
+export const PACK_OPTIONS = {
+  keep: 'Leave the retro pack on through entry. Its straps would hold a loose shield against the capsule until the air does.',
+  jettison: 'Jettison the retro pack as planned. A strapped-on pack burning off in entry could damage a good shield.',
+};
+export const RETRO_OPTIONS = {
+  auto: 'Retrofire on the automatic system, holding the attitude the scanners give it.',
+  manual: 'Have him fire by hand, lined up on the horizon through his window. Late by a second or two, and it costs fuel.',
+};
+// What the tapes and the capsule show afterwards, for an orbital flight. The review works from these.
+export const ORBIT_TAPES = {
+  guidance: ['On the tape the flight-path angle walks off the planned line, steadily, in one direction.', 'Convair\'s readout of the Atlas autopilot shows the programmer stepping late.'],
+  shortburn: ['The sustainer stopped early, its chamber pressure falling away over a second or two.', 'The velocity on the tape stops short of what orbit needs.'],
+  nominal: ['Every channel on the Atlas tape stays in its band from liftoff to cutoff.'],
+};
+// The sims the supervisor can run for an orbital flight.
+export const ORBIT_SIMS = {
+  nominal: 'A clean flight to orbit and home. Nothing was wrong.',
+  guidance: 'An Atlas guidance failure: she went off her line.',
+  shortburn: 'An Atlas sustainer that cut off early, short of orbit.',
+  seg51loose: 'Segment 51 lit, and the heat shield really was loose.',
+  seg51false: 'Segment 51 lit, but it was a bad switch: the shield was tight.',
+  scanner: 'A bad horizon scanner: the automatic system held the wrong attitude and burned fuel.',
+  seastate: 'The sea in the recovery area was above state 4.',
+};

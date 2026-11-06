@@ -38,6 +38,7 @@ label { display: block; margin: .3rem 0; }
 .gauge .lab { font-size: .8rem; color: #a9b0bb; }
 .lamp { padding: .6rem; border-radius: 4px; border: 1px solid #555; font: .75rem monospace; text-align: center; color: #555; }
 .lamp.on { color: #102010; background: #7fdc8a; box-shadow: 0 0 12px #7fdc8a; }
+.lamp.warn { color: #2a1a00; background: #f0b440; box-shadow: 0 0 12px #f0b440; }
 canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-top: .4rem; }
 #loop { position: fixed; left: 12px; top: 54px; width: 560px; z-index: 2; font-size: .85rem; pointer-events: none; }
 #loop div { background: rgba(11,15,20,.8); padding: .2rem .5rem; margin-top: 2px; border-left: 3px solid #4a5464; }

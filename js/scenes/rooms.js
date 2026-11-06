@@ -254,7 +254,7 @@ const ROOMS = {
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
       ${offer}
-      <p class="muted">${rec.path === 'nasa' ? 'On 21 July 1961 Mercury-Redstone 4 flew the second man up the range; his capsule\'s hatch blew in the water and it sank, and he very nearly drowned. Then the Redstone gave way to the Atlas, and orbit. That is as far as Mercury goes in this build.'
+      <p class="muted">${rec.path === 'nasa' ? 'Mercury-Atlas 8 flew six orbits that October, and in May 1963 Mercury-Atlas 9 flew twenty-two; its pilot flew the entry by hand when the automatic system failed. That is as far as Mercury goes in this build.'
         : 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.'}</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
       <button data-act="again">Start again from 1945</button>`;

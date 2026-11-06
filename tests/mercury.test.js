@@ -64,7 +64,7 @@ test('the helicopters find her fast at the right point, slowly at the wrong one,
 test('after Pioneer 4 the paths split: Mercury Control if you take the offer, Ranger 7 if you stay with JPL', () => {
   const p4 = SEASON.findIndex(r => r.id === 'pioneer-4');
   assert.equal(SEASON[p4].turningPoint, 'nasa');
-  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-3), ['pioneer-4', 'mr-1', 'mr-3']);
+  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-5), ['pioneer-4', 'mr-1', 'mr-3', 'ma-6', 'ma-7']);
   assert.deepEqual(SEASON.filter(r => onPath(r, 'jpl')).map(r => r.id).slice(-2), ['pioneer-4', 'ranger-7']);
   assert.ok(SEASON.find(r => r.id === 'mr-1').start > SEASON[p4].start);
 });
@@ -125,9 +125,8 @@ test('the simulator is a training tool: no risk to the real round, and a good si
 import { crewFate, DROWN_AFTER } from '../js/truth/capsule.js';
 import { CREW_TRAITS, consents, ownAbortAt } from '../js/world/crew.js';
 import { ASTRONAUTS, SEVEN } from '../js/data/crew.js';
-import { finishReview } from '../js/game.js';
 
-const toMR3 = seed => { newGame(seed); toRoundId('mr-1'); playMission(); finishReview(); advance(true); closeAwayIfAny(); };
+const toMR3 = seed => { newGame(seed); toRoundId('mr-1'); playMission(); advance(true); closeAwayIfAny(); };
 const closeAwayIfAny = () => { g.room = null; };
 
 test('seven astronauts, each with a hidden way of flying that only shows in what he does', () => {
@@ -159,9 +158,8 @@ test('after MR-1 comes Mercury-Redstone 3, with Rourke on top; the flight record
   const e = g.record.rounds.at(-1);
   assert.equal(e.id, 'mr-3');
   assert.match(e.flight, /Rourke (was killed|was hurt|came home safe)|Lost/);
-  finishReview();
-  assert.equal(g.beat, 'seasonEnd');
-  assert.equal(nextIndex(), null);
+  assert.equal(g.record.rounds.filter(r => r.id === 'mr-3').length, 1);
+  assert.equal(SEASON[nextIndex()].id, 'ma-6');
 });
 
 test('with a ship off station and Retro calling GO, a cautious pilot can refuse at the final poll, and his no holds the count', () => {
@@ -187,4 +185,91 @@ test('if the booster walks off her line and nobody calls it, the pilot pulls the
     seen = !!g.mission.calls?.pilotAbort;
   }
   assert.ok(seen, 'never saw a pilot abort');
+});
+
+// ---- M3: orbit on the Atlas ----
+import { flyEntry, MERCURY_ENTRY, KM_PER_MILE } from '../js/truth/entry.js';
+import { atlasAscent, atlasOutcome, insertion, inOrbit, retrofire, orbitRecoveryHours, ORBIT_PLAN } from '../js/truth/orbit.js';
+
+const DEG = Math.PI / 180;
+const atlas = (s, extra = {}) => newRound(s, { ...initProgramme(), ...extra }, 'atlas');
+const toOrbit = (r) => { atlasAscent(r, 'nominal'); const e = atlasOutcome(r); insertion(r, true); return e; };
+
+test('the entry physics: a clean retrofire lands on the point, and MA-7\'s yaw error and late burn put her about 250 miles long', () => {
+  assert.ok(Math.abs(flyEntry(MERCURY_ENTRY).miss) < 1000);
+  const ma7 = flyEntry(MERCURY_ENTRY, { yawError: 25 * DEG, late: 3, dvScale: -0.03 }).miss / 1000 / KM_PER_MILE;
+  assert.ok(ma7 > 200 && ma7 < 300, `${ma7.toFixed(0)} miles`);
+});
+
+test('a good Atlas reaches orbit; a sustainer that cuts off early leaves her short of it', () => {
+  const r = atlas(3); atlasAscent(r, 'nominal'); assert.equal(atlasOutcome(r).outcome, 'orbit'); assert.ok(r.end.margin > 0);
+  const q = atlas(3); atlasAscent(q, 'shortburn'); const e = atlasOutcome(q); assert.equal(e.outcome, 'orbit'); assert.ok(e.margin < 0);
+  insertion(q, true); assert.equal(q.end.outcome, 'decay');
+  assert.ok(orbitRecoveryHours(q.end, 0, { seaState: 2, late: null }, true) > 5, 'down far from any ship');
+});
+
+test('a loose heat shield: keeping the retro pack on usually brings him home; jettisoning it usually loses him', () => {
+  let keptLost = 0, dumpedLost = 0, n = 200;
+  for (let s = 1; s <= n; s++) {
+    for (const pack of ['keep', 'jettison']) {
+      const r = atlas(s); r.faults = { 'heat-shield': 'shield' }; toOrbit(r); inOrbit(r);
+      assert.ok(r.orbit.signal && r.orbit.loose);
+      const e = retrofire(r, 'auto', pack);
+      if (e.capsule === 'lost') pack === 'keep' ? keptLost++ : dumpedLost++;
+    }
+  }
+  assert.equal(keptLost, 0);
+  assert.ok(dumpedLost > n * 0.6, `${dumpedLost}`);
+});
+
+test('a bad horizon scanner: on the automatic system she lands hundreds of km off; fired by hand on the window she lands close', () => {
+  let auto = 0, hand = 0, n = 60;
+  for (let s = 1; s <= n; s++) {
+    const a = atlas(s); a.faults = { scanners: 'scanner' }; toOrbit(a); inOrbit(a); auto += Math.abs(retrofire(a, 'auto', 'jettison').miss);
+    const b = atlas(s); b.faults = { scanners: 'scanner' }; toOrbit(b); inOrbit(b); hand += Math.abs(retrofire(b, 'manual', 'jettison').miss);
+  }
+  assert.ok(auto / n > 150, `auto ${auto / n}`);
+  assert.ok(hand / n < auto / n / 2, `hand ${hand / n}`);
+});
+
+const toMA6 = seed => { toMR3(seed); playMission({ sims: 0 }); advance(true); g.room = null; };
+
+test('after MR-3 come the orbital flights: MA-6 and MA-7 play from the count through orbit, retrofire and recovery to the review', () => {
+  toMA6(8);
+  assert.equal(SEASON[g.roundIndex].id, 'ma-6');
+  assert.ok(g.crewed && g.people.pilot.name === 'Daniel Okafor');
+  assert.doesNotThrow(() => checkCheckpoint(checkpoint()));
+  playMission({ sims: 1 });
+  let e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'ma-6');
+  assert.equal(typeof e.flight, 'string');
+  advance(true); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'ma-7');
+  playMission({ sims: 1 });
+  e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'ma-7');
+  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(nextIndex(), null);
+});
+
+test('an orbital flight reaches every call: insertion, the orbits, retrofire and the splashdown point', () => {
+  let seen = { insertion: 0, retro: 0, pack: 0, aim: 0 };
+  for (let s = 1; s <= 6; s++) {
+    toMA6(s);
+    playMission({ sims: 0 });
+    const c = g.mission.calls;
+    if (c.insertion) seen.insertion++;
+    if (c.retro) seen.retro++;
+    if (c.pack) seen.pack++;
+    if (c.aim) seen.aim++;
+  }
+  assert.ok(seen.insertion >= 5 && seen.retro >= 4 && seen.aim >= 4, JSON.stringify(seen));
+  assert.ok(seen.pack >= 1, 'Segment 51 lit at least once on MA-6');
+});
+
+test('the simulator runs orbital sims on the Atlas flights, and grades them', () => {
+  toMA6(4);
+  const kinds = new Set();
+  for (let n = 0; n < 8; n++) { const d = runSim(); kinds.add(d.scenario); assert.ok(d.of >= 1 && d.right <= d.of, JSON.stringify(d)); }
+  assert.ok(kinds.size >= 3);
 });

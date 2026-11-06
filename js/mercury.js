@@ -8,22 +8,27 @@
 // What the rooms read is g.console and g.mission, never the round itself.
 import { g, say, note, walk, place, roomChanged, morning, setBeat, finishReview, dateText } from './game.js';
 import { ascent, outcome, stepAt, impactPredictions, recoveryHours, sinks, padCrewNow, conditions, plannedGamma, crewFate, PLAN, ABORT_LIMIT } from './truth/capsule.js';
+import { atlasAscent, atlasOutcome, goddard, insertion, inOrbit, fuelAfter, retrofire, orbitPredictions, orbitRecoveryHours, orbitGamma, ORBIT_PLAN, FUEL_LOW } from './truth/orbit.js';
 import { CREW_TRAITS, consents, ownAbortAt, impatient } from './world/crew.js';
 import { ASTRONAUTS } from './data/crew.js';
 import { newRound, ellisReading } from './truth/round.js';
 import { draw } from './core/rng.js';
 import { KITS, SHORT } from './data/kits.js';
 import { SEASON } from './data/campaign.js';
-import { MERCURY_COUNT, UNITS, SEA_LIMIT, TAPES, PAD_OPTIONS, SIMS, SIM_MINUTES } from './data/mercury.js';
+import { MERCURY_COUNT, UNITS, SEA_LIMIT, TAPES, PAD_OPTIONS, SIMS, SIM_MINUTES, ORBIT_UNITS, STATIONS, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_TAPES, ORBIT_SIMS } from './data/mercury.js';
 import { addSim, shiftTrust, TRUST } from './career/record.js';
 import { adopt } from './world/programme.js';
 
-export { ABORT_LIMIT, PLAN, UNITS, SEA_LIMIT, PAD_OPTIONS, SIMS, SIM_MINUTES };
+export { ABORT_LIMIT, PLAN, UNITS, SEA_LIMIT, PAD_OPTIONS, SIMS, SIM_MINUTES, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_PLAN };
 export const plannedAngle = plannedGamma;
+// The planned flight-path angle at second t, for this console's booster.
+export const plannedAngleFor = (c, t) => (c.orbital ? orbitGamma(t) : plannedGamma(t));
+// The plan the console's plot is drawn against: burn time, cutoff velocity and angle.
+export const planFor = c => (c.orbital ? ORBIT_PLAN : PLAN);
 // Launch is planned the day after the round starts: a sim day, then launch day.
 export const LAUNCH_DAY = 1;
 // Count seconds per real second in Mercury Control, and flight seconds per real second on the trajectory plot.
-const COUNT_RATE = 30, ASCENT_RATE = 2, COAST_SECONDS = 5;
+const COUNT_RATE = 30, ASCENT_RATE = 2, COAST_SECONDS = 5, ORBIT_RATE = 12;
 
 // ---- The days of a Mercury round ----
 export const MERCURY_BEATS = {
@@ -101,8 +106,8 @@ export function missionRoomFor(id) {
 
 // ---- The console: one model for the real count and flight and for a training sim ----
 // phase: count → poll → count → … → ascent → ip → coast → done (sim: debrief). The rooms read only these fields.
-function newConsole(kind, round, cond, scenario = null) {
-  return { kind, round, cond, scenario, phase: kind === 'sim' ? 'poll' : 'count', clock: kind === 'sim' ? 600 : 900, next: 0, poll: kind === 'sim' ? 'recovery' : null,
+function newConsole(kind, round, cond, scenario = null, orbital = false) {
+  return { kind, round, cond, scenario, orbital, phase: kind === 'sim' ? 'poll' : 'count', clock: kind === 'sim' ? 600 : 900, next: 0, poll: kind === 'sim' ? 'recovery' : null,
     t: 0, trace: [], abortAt: null, ip: null, aim: null, holds: 0, calls: { poll: [], abort: null, ip: null }, lines: [], chatter: [], live: true };
 }
 // Who says what on the loop. A sim's loop is the simulator's own: nobody on the real site hears it.
@@ -113,13 +118,14 @@ function speak(c, who, text, tone = '', seconds = 4.5) {
   roomChanged();
 }
 // What the recovery board shows: every unit, on station or not, and the sea state. Visible to everyone.
-export const board = c => ({ sea: c.cond.seaState, units: Object.entries(UNITS).map(([id, text]) => ({ id, text, on: c.cond.late !== id })) });
+const unitsOf = c => (c.orbital ? ORBIT_UNITS : UNITS);
+export const board = c => ({ sea: c.cond.seaState, units: Object.entries(unitsOf(c)).map(([id, text]) => ({ id, text, on: c.cond.late !== id })) });
 const boardGood = c => c.cond.seaState <= SEA_LIMIT && !c.cond.late;
 
 // Open the console on launch day: the count begins.
 export function consoleStart() {
   if (g.console || g.beat !== 'mLaunch') return;
-  g.console = newConsole('flight', g.round, g.mission.cond);
+  g.console = newConsole('flight', g.round, g.mission.cond, null, !!SEASON[g.roundIndex].orbital);
   place('you', 300);
   setBeat('mFlight', 'Work the count from your console. Give your status when Hollis polls you, and watch the plot once she flies.');
 }
@@ -131,7 +137,7 @@ export function consolePoll(go) {
   const b = board(c), ok = boardGood(c);
   c.calls.poll.push({ go, ok });
   const sim = c.kind === 'sim';
-  if (!sim) note(`T-${Math.ceil(c.clock)} s poll: the recovery board showed sea state ${b.sea}${c.cond.late ? `, and ${UNITS[c.cond.late].toLowerCase().replace(/^the /, 'the ')} not on station` : ', every unit on station'}. You called ${go ? 'GO' : 'NO-GO'}.`);
+  if (!sim) note(`T-${Math.ceil(c.clock)} s poll: the recovery board showed sea state ${b.sea}${c.cond.late ? `, and ${unitsOf(c)[c.cond.late].toLowerCase().replace(/^the /, 'the ')} not on station` : ', every unit on station'}. You called ${go ? 'GO' : 'NO-GO'}.`);
   const poll = c.poll;
   c.poll = null;
   // The man on top has his own say at the final poll, and his no is binding.
@@ -162,7 +168,7 @@ export function consolePoll(go) {
     return endCount('scrub');
   }
   if (c.cond.late) {
-    speak(c, 'you', `Retro is no-go until ${UNITS[c.cond.late].split(',')[0].toLowerCase()} is on station.`, 'bad');
+    speak(c, 'you', `Retro is no-go until ${unitsOf(c)[c.cond.late].split(',')[0].toLowerCase()} is on station.`, 'bad');
     speak(c, 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
     c.phase = 'hold'; c.holdLeft = 3; c.holdFor = 'ship'; c.holds++;
     roomChanged(); return;
@@ -190,10 +196,19 @@ export function consoleAim(which) {
   const c = g.console;
   if (!c || c.phase !== 'ip') return;
   c.aim = which; c.calls.ip = which;
-  const km = Math.round(c.ip[which]);
-  speak(c, 'you', `Recovery, Retro: best splashdown ${km} kilometres downrange.`, 'go');
-  speak(c, 'reyes', `Copy. Helicopters launching for ${km}.`, 'go');
-  if (c.kind === 'flight') note(`You sent the recovery forces to ${km} km downrange (the ${which === 'planned' ? 'planned point' : `${which} impact point`}).`);
+  if (c.orbital) {
+    const where = which === 'planned' ? 'the planned point' : km(c.ip[which]) + ' of the planned point';
+    speak(c, 'you', which === 'radar' ? 'Recovery, Retro: hold the helicopters for Grand Turk\'s fix.' : `Recovery, Retro: best splashdown ${where}.`, 'go');
+    if (which === 'radar') speak(c, 'reyes', `Grand Turk has her ${km(c.ip.radar)}. Helicopters launching.`, 'go');
+    else speak(c, 'reyes', 'Copy. Helicopters launching.', 'go');
+    if (c.kind === 'flight') note(`You sent the recovery forces to ${which === 'radar' ? `Grand Turk's radar fix, ${km(c.ip.radar)}` : where}${which === 'radar' ? ', after holding them for it' : ''}.`);
+    c.phase = 'coast'; c.coastLeft = COAST_SECONDS;
+    return roomChanged();
+  }
+  const kmDown = Math.round(c.ip[which]);
+  speak(c, 'you', `Recovery, Retro: best splashdown ${kmDown} kilometres downrange.`, 'go');
+  speak(c, 'reyes', `Copy. Helicopters launching for ${kmDown}.`, 'go');
+  if (c.kind === 'flight') note(`You sent the recovery forces to ${kmDown} km downrange (the ${which === 'planned' ? 'planned point' : `${which} impact point`}).`);
   c.phase = 'coast'; c.coastLeft = COAST_SECONDS;
   roomChanged();
 }
@@ -221,7 +236,7 @@ export function tickConsole(dt) {
     c.holdLeft -= dt;
     g.clock += dt * 15;
     if (c.holdLeft <= 0) {
-      if (c.holdFor === 'ship') { speak(c, 'reyes', `${UNITS[c.cond.late].split(',')[0]} is on station.`, 'go'); c.cond.late = null; }
+      if (c.holdFor === 'ship') { speak(c, 'reyes', `${unitsOf(c)[c.cond.late].split(',')[0]} is on station.`, 'go'); c.cond.late = null; }
       c.phase = c.kind === 'sim' && c.clock >= 600 ? 'poll' : 'count'; c.poll = c.clock <= 120 ? 'final' : 'recovery';
       speak(c, 'hollis', 'Retro, Recovery: status?');
       roomChanged();
@@ -244,18 +259,22 @@ export function tickConsole(dt) {
   }
   if (c.phase === 'ascent') {
     const a = c.round.ascent, before = c.t;
-    c.t = Math.min(a.burn, c.t + ASCENT_RATE * Math.min(4, g.speed) * dt);
+    c.t = Math.min(a.burn, c.t + ASCENT_RATE * (c.orbital ? 2 : 1) * Math.min(4, g.speed) * dt);
     g.clock += (c.t - before) / 60;
     for (let t = Math.floor(before) + 1; t <= Math.floor(c.t); t++) {
       const s = stepAt(a, t);
       c.trace.push({ t, gamma: s.gamma + flutter(c.round.seed, t), off: s.off, v: s.v, acc: s.acc });
       if (c.kind === 'flight' && pilotId() && c.abortAt == null && Math.abs(s.off) > ownAbortAt(CREW_TRAITS[pilotId()])) return pilotAbort(c, t);
       if (t === 60) speak(c, 'albrecht', 'Booster: one minute, steady.', 'go');
+      if (c.orbital && t === 130) speak(c, 'albrecht', 'Booster engines cutoff. Staging. The sustainer is carrying her.', 'go');
+      if (c.orbital && t === 155) speak(c, 'morgan', 'Escape tower jettisoned.', 'go');
       if (a.breakupAt != null && t >= a.breakupAt) return breakup(c);
     }
     if (c.t >= a.burn) finishAscent(c);
     return;
   }
+  if (c.phase === 'orbit') return tickOrbit(c, dt);
+  if (c.phase === 'entry') { c.coastLeft -= dt; g.clock += dt; if (c.coastLeft <= 0) afterEntry(c); return; }
   if (c.phase === 'coast') {
     c.coastLeft -= dt;
     g.clock += dt * 2;
@@ -270,7 +289,7 @@ function flutter(seed, t) {
 }
 
 function liftoff(c) {
-  const a = ascent(c.round, c.kind === 'sim' ? simFailure(c.scenario) : null);
+  const a = c.orbital ? atlasAscent(c.round, c.kind === 'sim' ? orbitSimFailure(c.scenario) : null) : ascent(c.round, c.kind === 'sim' ? simFailure(c.scenario) : null);
   if (c.kind === 'flight') { g.launchDay = g.day; g.rocket.where = 'flying'; g.rocket.rise = 0; }
   if (a.padAbort) {
     outcome(c.round);
@@ -305,6 +324,7 @@ function breakup(c) {
 }
 
 function finishAscent(c) {
+  if (c.orbital) return finishAtlas(c);
   const a = c.round.ascent, end = outcome(c.round, c.abortAt);
   if (c.kind === 'flight') g.rocket.where = 'gone';
   if (end.outcome === 'nominal' || end.outcome === 'short' || end.outcome === 'long') speak(c, 'albrecht', `Booster cutoff at ${a.burn} seconds. Capsule separation.`, 'go');
@@ -324,7 +344,8 @@ function finishAscent(c) {
 function splash(c) {
   const end = c.round.end, trained = g.mission ? g.mission.trained : true;
   const lines = [];
-  if (end.capsule === 'lost') {
+  if (c.orbital) splashOrbit(c, end, trained, lines);
+  else if (end.capsule === 'lost') {
     c.hours = null;
     lines.push('There was nothing to recover. The capsule went down with the booster.');
   } else {
@@ -398,7 +419,7 @@ export function missionPresent(key) {
   if (g.mission.fate === 'killed') reply = `We lost ${pilotName()}. Whatever we find, we find all of it. ${reply}`;
   say('hollis', reply, tone, 8);
   const judged = judgeCalls();
-  note(`Review: you said "${KITS.redstone.explanations[key]}" Hollis: ${reply}${fix ? ` ${fix}` : ''}${judged.text ? ` ${judged.text}` : ''}`);
+  note(`Review: you said "${KITS[g.vehicle].explanations[key]}" Hollis: ${reply}${fix ? ` ${fix}` : ''}${judged.text ? ` ${judged.text}` : ''}`);
   finishReview({ yourCall: key, ellis: decision ?? view, ellisView: view, agreed: agree, wentWithYou: !agree && decision === key, fix, boss: 'hollis', calls: judged.calls });
 }
 
@@ -412,14 +433,34 @@ function judgeCalls() {
   else if (abort && overLine) { verdict = 'early abort'; text = 'Hollis on your abort: "You called it a little before the line. I\'d have done the same."'; }
   else if (abort) { verdict = 'false abort'; shiftTrust(g.record, -1); text = 'Hollis on your abort: "The tape never crossed the line. We threw away a good flight."'; }
   else if (end.outcome === 'breakup') { verdict = 'missed abort'; shiftTrust(g.record, -1); text = `Hollis: "She was over the line from ${overLine ? overLine.t : '?'} seconds and nobody called it."`; }
-  return { text, calls: { abort: verdict, aim: calls.aim || null, hours: calls.hours ?? null } };
+  if (g.round.orbit || calls.insertion) text = [text, ...orbitJudgement(calls)].filter(Boolean).join(' ');
+  return { text, calls: { abort: verdict, aim: calls.aim || null, hours: calls.hours ?? null, insertion: calls.insertion ? (calls.insertion.right ? 'right' : 'wrong') : undefined, pack: calls.pack, retro: calls.retro } };
+}
+// Hollis on the orbital calls, from what the tapes and the capsule showed afterwards.
+function orbitJudgement(calls) {
+  const out = [], o = g.round.orbit, end = g.round.end;
+  if (calls.insertion) {
+    const i = calls.insertion;
+    if (i.right) { if (i.go !== i.goddard) { shiftTrust(g.record, 1); out.push('Hollis on insertion: "You called it against Goddard, and you were right."'); } }
+    else { shiftTrust(g.record, -1); out.push(i.go ? 'Hollis on insertion: "The orbit was never going to hold. We put him where no ship could reach him."' : 'Hollis on insertion: "She had a good orbit. We brought her down for nothing."'); }
+  }
+  if (o && o.signal && calls.pack) {
+    if (o.loose && calls.pack === 'keep') { shiftTrust(g.record, 1); out.push('Hollis on the retro pack: "The shield was loose. Those straps held it on. Good call."'); }
+    else if (o.loose) { shiftTrust(g.record, -1); out.push('Hollis on the retro pack: "The shield was loose, and we threw away the only thing holding it."'); }
+    else out.push(calls.pack === 'keep' ? 'Hollis on the retro pack: "It was a bad switch. Keeping the pack cost us nothing this time."' : 'Hollis on the retro pack: "It was a bad switch. You read it right."');
+  }
+  if (o && calls.retro) {
+    if (o.scanner && calls.retro === 'auto') out.push(`Hollis on retrofire: "The scanner had her ${Math.round(Math.abs(o.scannerYaw))} degrees off in yaw, and the automatic system fired her that way. ${Math.round(Math.abs(end.miss || 0))} km off the point."`);
+    else if (o.scanner) { shiftTrust(g.record, 1); out.push('Hollis on retrofire: "The scanner was bad. Firing on the window saved a long swim."'); }
+  }
+  return out;
 }
 
 // The flight as your record puts it: only what Mercury Control knew.
 function flightRecord() {
   const end = g.round.end || { outcome: 'pad' }, a = g.round.ascent || {}, m = g.mission;
   const hrs = m.calls.hours != null ? `, picked up after ${Math.round(m.calls.hours * 60)} minutes` : '';
-  const text = {
+  const text = end.outcome in ORBIT_RECORD ? ORBIT_RECORD[end.outcome](end, a, hrs) : {
     pad: `Lost: the engine shut down at liftoff and the booster settled back on the pad.${m.pad === 'toppled' ? ' The booster toppled and burned.' : ' Capsule and booster saved.'}`,
     aborted: `Lost: aborted at ${end.abortedAt} seconds; the capsule came down about ${Math.round(end.landing / 10) * 10} km out${hrs}.`,
     breakup: end.capsule === 'lost' ? `Lost: the booster broke up at ${end.breakup} seconds and took the capsule with it.` : `Lost: the booster broke up at ${end.breakup} seconds; the escape tower pulled the capsule clear${hrs}.`,
@@ -431,16 +472,42 @@ function flightRecord() {
   let out = m.sank ? `${text} The capsule sank before it was reached.` : text;
   if (pilotId() && m.fate) out += { killed: ` ${pilotName()} was killed.`, hurt: ` ${pilotName()} was hurt.`, safe: ` ${pilotName()} came home safe.` }[m.fate];
   if (m.fate === 'killed' && !/^Lost/.test(out)) out = `Lost: ${out}`;
-  return { failure: a.failure || null, failAt: a.failure ? (a.breakupAt ?? a.burn) : null, radar: end.apogee || null, text: out };
+  return { failure: a.failure || orbitCause(), failAt: a.failure ? (a.breakupAt ?? a.burn) : null, radar: end.apogee || null, text: out };
+}
+
+// How the record puts an orbital flight.
+const ORBIT_RECORD = {
+  orbit: (e, a, hrs) => `In orbit${hrs}.`,
+  nogo: (e, a, hrs) => `Lost: no-go at insertion; the capsule came down in the abort area${hrs}.`,
+  decay: (e, a, hrs) => `Lost: the orbit did not hold and she came down within the first orbit${hrs}.`,
+  entry: (e, a, hrs) => (e.capsule === 'lost' && !hrs ? 'Lost: the capsule did not survive the entry.' : `${ORBIT_PLAN.orbits} orbits; splashdown ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the planned point${hrs}.`),
+};
+// What went wrong on an orbital flight, if the booster did not: the shield, or the scanner.
+function orbitCause() {
+  const o = g.round.orbit;
+  if (!o) return null;
+  return o.loose ? 'shield' : o.scanner ? 'scanner' : null;
 }
 
 // What the review has to go on: the tapes, and what came back.
 export function evidence() {
   const a = g.round.ascent || {}, end = g.round.end || {};
+  if (a.orbital) return orbitEvidence(a, end);
   const lines = [...(TAPES[a.failure || 'nominal'] || [])];
   if (a.controlFrom && a.failure === 'control') lines[0] = `${lines[0]} It starts at about ${a.controlFrom} seconds.`;
   if (g.mission.sank) lines.push('The capsule is on the sea floor. All there is to go on is the telemetry.');
   if (end.capsule === 'damaged') lines.push('The capsule came back scorched and dented.');
+  return lines;
+}
+
+function orbitEvidence(a, end) {
+  const lines = [...(ORBIT_TAPES[a.failure || 'nominal'] || [])], o = g.round.orbit, back = end.capsule !== 'lost' && !g.mission.sank;
+  if (a.controlFrom && a.failure === 'guidance') lines[0] = `${lines[0]} It starts at about ${a.controlFrom} seconds.`;
+  if (o && o.signal) lines.push(back ? (o.loose ? 'In Hangar S the heat shield is found free of its latches, held on only by the landing bag\'s straps.' : 'In Hangar S the shield is latched tight. The Segment 51 switch is found faulty.') : 'Segment 51 showed in orbit. With the capsule gone, nobody can say whether the shield was loose.');
+  if (o) lines.push(o.scanner ? (back ? 'On the bench, one horizon scanner reads more than twenty degrees off.' : 'The attitude tapes and the fuel use point at the horizon scanners.') : 'The horizon scanners check out on the bench.');
+  if (end.miss != null && end.capsule !== 'lost') lines.push(`She came down ${Math.round(Math.abs(end.miss))} km ${end.miss >= 0 ? 'long' : 'short'} of the planned point.`);
+  if (g.mission.sank) lines.push('The capsule is on the sea floor. All there is to go on is the telemetry.');
+  if (end.capsule === 'damaged') lines.push('The capsule came back scorched and damaged.');
   return lines;
 }
 
@@ -450,11 +517,16 @@ export function evidence() {
 export const simOpen = () => g.crewed && !consoleLocked() && !['mFlight', 'mRecovery'].includes(g.beat) && !(g.console && g.console.kind === 'sim' && g.console.live);
 export function simStart() {
   if (!simOpen()) return;
-  const n = (g.record.sims || []).length;
-  const round = newRound((g.seed + 50000 + n * 7907) >>> 0, g.programme, 'redstone');
-  const keys = Object.keys(SIMS), scenario = keys[Math.floor(draw(round.rng.forecast) * keys.length)];
+  const n = (g.record.sims || []).length, orbital = !!SEASON[g.roundIndex].orbital;
+  const round = newRound((g.seed + 50000 + n * 7907) >>> 0, g.programme, orbital ? 'atlas' : 'redstone');
+  const list = orbital ? ORBIT_SIMS : SIMS, keys = Object.keys(list), scenario = keys[Math.floor(draw(round.rng.forecast) * keys.length)];
   if (scenario === 'radar') round.forceRadar = true;
-  const c = g.console = newConsole('sim', round, conditions(round, ['seastate', 'offstation'].includes(scenario) ? scenario : 'calm'), scenario);
+  if (orbital) {
+    // The sim supervisor sets the capsule's troubles himself.
+    round.faults = { ...(scenario === 'seg51loose' ? { 'heat-shield': 'shield' } : {}), ...(scenario === 'scanner' ? { scanners: 'scanner' } : {}) };
+    round.seg51Risk = scenario === 'seg51false' ? 1 : 0;
+  }
+  const c = g.console = newConsole('sim', round, conditions(round, ['seastate', 'offstation'].includes(scenario) ? scenario : 'calm'), scenario, orbital);
   speak(c, 'hollis', 'Sim supervisor has the board. We pick up at T minus ten. Retro, recovery status?');
   g.clock += SIM_MINUTES;
   roomChanged();
@@ -466,7 +538,8 @@ function finishSim(c, why = null) {
   const graded = [];
   const poll = c.calls.poll[0];
   graded.push({ what: 'Your recovery poll', right: poll ? poll.go === poll.ok : true });
-  if (why !== 'scrub') {
+  if (why !== 'scrub' && c.orbital) gradeOrbitSim(c, graded);
+  else if (why !== 'scrub') {
     const control = s === 'control';
     const abort = c.calls.abort;
     const rightAbort = control ? !!abort && (!c.round.ascent.breakupAt || abort.at < c.round.ascent.breakupAt) : !abort;
@@ -475,14 +548,25 @@ function finishSim(c, why = null) {
     if (end && end.capsule !== 'lost' && c.aim) graded.push({ what: 'Where you sent the helicopters', right: c.aim === (c.ip.intermittent ? 'telemetry' : 'radar') });
   }
   const right = graded.filter(x => x.right).length;
-  c.debrief = { scenario: SIMS[s], graded, right, of: graded.length, lines: c.lines };
+  c.debrief = { scenario: (c.orbital ? ORBIT_SIMS : SIMS)[s], graded, right, of: graded.length, lines: c.lines };
   addSim(g.record, { day: g.day, scenario: s, right, of: graded.length });
   if (g.mission) g.mission.trained = true;
-  note(`Training sim: ${SIMS[s]} You got ${right} of ${graded.length} calls right.`);
+  note(`Training sim: ${(c.orbital ? ORBIT_SIMS : SIMS)[s]} You got ${right} of ${graded.length} calls right.`);
   speak(c, 'hollis', right === graded.length ? 'Clean sim, Retro.' : 'Debrief, Retro. Look at what you missed.', right === graded.length ? 'go' : 'warn');
   c.phase = 'debrief'; c.live = false;
   roomChanged();
 }
+// The calls in an orbital sim, against what the supervisor really set up.
+function gradeOrbitSim(c, graded) {
+  const a = c.round.ascent, end = c.round.end || {}, o = c.round.orbit, calls = c.calls;
+  const off = s => s === 'guidance';
+  graded.push({ what: off(c.scenario) ? 'The abort' : 'Not aborting', right: off(c.scenario) ? !!calls.abort && (!a.breakupAt || calls.abort.at < a.breakupAt) : !calls.abort });
+  if (calls.insertion) graded.push({ what: 'Go or no-go for orbit', right: calls.insertion.right });
+  if (o && o.signal) graded.push({ what: 'The retro pack', right: o.loose ? calls.pack === 'keep' : true });
+  if (o && calls.retro) graded.push({ what: 'How to fire the retros', right: o.scanner ? calls.retro === 'manual' : true });
+  if (c.ip && c.aim && end.miss != null) graded.push({ what: 'Where you sent the helicopters', right: c.aim === 'radar' || Math.abs(c.ip[c.aim] - end.miss) <= 30 });
+}
+
 export function simClose() { if (g.console && g.console.kind === 'sim' && !g.console.live) { g.console = null; roomChanged(); } }
 
 // After splashdown: Recovery's board, then the review.
@@ -497,3 +581,164 @@ export function toReview() {
 
 // Hours of game time the coast takes, for the notebook; the plot jumps over it.
 export const coastMinutes = () => Math.round(((g.round.end && g.round.end.coast) || 300) / 60);
+
+// ---- Orbital flights: insertion, the orbits, retrofire and entry ----
+const km = x => `${Math.round(Math.abs(x))} km ${x >= 0 ? 'long' : 'short'}`;
+const pctFuel = f => `${Math.round(f * 100)} percent`;
+
+// Sustainer cutoff, or an abort on the way up.
+function finishAtlas(c) {
+  const a = c.round.ascent, end = atlasOutcome(c.round, c.abortAt);
+  if (c.kind === 'flight') g.rocket.where = 'gone';
+  if (end.outcome === 'orbit') {
+    c.goddard = goddard(c.round);
+    speak(c, 'albrecht', `Sustainer engine cutoff at ${a.burn} seconds. Capsule separation.`, 'go');
+    speak(c, 'morgan', `Goddard's computers: ${c.goddard.go ? 'GO for orbit' : 'NO-GO, the orbit will not hold'}.`, c.goddard.go ? 'go' : 'bad', 6);
+    if (c.kind === 'flight') note(`At cutoff the plot showed ${c.goddard.v.toFixed(3)} km/s, ${c.goddard.gammaOff.toFixed(1)} degrees off the planned angle (orbit needs about ${ORBIT_PLAN.need} km/s, level). Goddard said ${c.goddard.go ? 'GO' : 'NO-GO'}.`);
+    c.phase = 'insertion';
+    return roomChanged();
+  }
+  if (end.outcome === 'aborted' || end.outcome === 'breakup') {
+    if (end.outcome === 'aborted') speak(c, 'morgan', 'The escape system fired. The capsule is coming down in the Atlantic abort area.', 'warn');
+    else speak(c, 'morgan', 'She broke up! The abort sensing pulled the capsule clear. She is coming down in the Atlantic.', 'bad', 6);
+    if (c.kind === 'flight') note(`T+${end.abortedAt} s: the flight was aborted and the capsule came down about ${Math.round(end.landing / 10) * 10} km downrange, in the Atlantic abort area.`);
+  }
+  c.aim = null; c.phase = 'coast'; c.coastLeft = 3;
+  roomChanged();
+}
+
+// Retro's call at insertion: go for orbit, or bring her down now while the ships in the abort area can reach her.
+export function consoleInsertion(go) {
+  const c = g.console;
+  if (!c || c.phase !== 'insertion') return;
+  const end = c.round.end, good = end.margin >= 0;
+  c.calls.insertion = { go, right: go === good, goddard: c.goddard.go };
+  insertion(c.round, go);
+  if (c.kind === 'flight') note(`Insertion: you called ${go ? 'GO for orbit' : 'NO-GO'}${go === c.goddard.go ? ', with Goddard' : ', against Goddard'}.`);
+  if (!go) {
+    speak(c, 'you', 'Flight, Retro: no-go. Bring her down in the abort area.', 'bad');
+    speak(c, 'hollis', 'Fire the retros. Recovery, she\'s yours.', 'warn');
+    c.aim = null; c.phase = 'coast'; c.coastLeft = 3;
+    return roomChanged();
+  }
+  speak(c, 'you', 'Flight, Retro: we are go for orbit.', 'go');
+  if (end.outcome === 'decay') {
+    speak(c, 'hollis', 'We have a go!', 'go');
+    speak(c, 'morgan', 'Flight, Network: Bermuda\'s radar has her perigee too low. She will not make one orbit.', 'bad', 7);
+    if (c.kind === 'flight') note('Bermuda\'s radar showed the orbit too low to hold. The capsule came down within the first orbit, far from any ship.');
+    c.aim = null; c.phase = 'coast'; c.coastLeft = 3;
+    return roomChanged();
+  }
+  const o = inOrbit(c.round);
+  c.status = { orbit: 1, station: 'Bermuda', fuel: 1, seg51: 'off', attitude: 'normal', window: null };
+  c.orbitT = 5; c.pass = 0; c.retroAt = (ORBIT_PLAN.orbits - 1) * ORBIT_PLAN.period + STATIONS.find(s => s.name === 'California').at;
+  c.orbitInfo = { signal: o.signal, flicker: o.flicker };
+  c.phase = 'orbit';
+  speak(c, 'hollis', 'We have a go for at least seven orbits!', 'go');
+  roomChanged();
+}
+
+// The orbits go by as the stations report. The clock runs fast between them.
+function tickOrbit(c, dt) {
+  const o = c.round.orbit, P = ORBIT_PLAN, before = c.orbitT;
+  c.orbitT = Math.min(c.retroAt, c.orbitT + ORBIT_RATE * Math.min(4, g.speed) * dt);
+  g.clock += c.orbitT - before;
+  c.status.fuel = fuelAfter(o, c.orbitT / P.period);
+  c.status.orbit = Math.min(P.orbits, 1 + Math.floor(c.orbitT / P.period));
+  const passes = [];
+  for (let n = 0; n < P.orbits; n++) for (const st of STATIONS) passes.push({ n, st, at: n * P.period + st.at });
+  while (c.pass < passes.length && passes[c.pass].at <= c.orbitT) stationPass(c, passes[c.pass++]);
+  if (c.orbitT >= c.retroAt) {
+    c.phase = o.signal && !c.pack ? 'pack' : 'retro';
+    speak(c, 'hollis', c.phase === 'pack' ? 'Retro, we are coming up on retrofire. What about that retro pack?' : 'Retro, California has her. Give me retrofire.', 'warn', 6);
+    roomChanged();
+  }
+}
+
+// What a ground station reports as the capsule passes over. Only some passes have anything to say.
+function stationPass(c, { n, st }) {
+  const o = c.round.orbit, s = c.status, t = pilotId() ? CREW_TRAITS[pilotId()] : null;
+  s.station = st.name;
+  if (st.name === 'Bermuda' && n > 0) speak(c, 'morgan', `Bermuda has her on orbit ${n + 1}. Fuel ${pctFuel(s.fuel)}.`, s.fuel < 0.4 ? 'warn' : '');
+  // The window against the gauges: a bad scanner shows here, if the pilot says so plainly.
+  if (st.name === 'Muchea, Australia' && n === 0 && pilotId()) {
+    const plain = t.candour >= 0.5;
+    s.window = o.scanner ? (plain ? 'The horizon through the window is well off where the gauges have it: twenty degrees or more in yaw.' : 'The gauges look normal. The view out the window looks a little odd.') : 'The window and the gauges agree.';
+    speak(c, 'pilot', `Muchea, ${s.window[0].toLowerCase()}${s.window.slice(1)}`, o.scanner && plain ? 'warn' : '', 6);
+    if (c.kind === 'flight') note(`Over Muchea, ${pilotName()}: "${s.window}"`);
+  }
+  if (st.name === 'Hawaii' && o.scanner && n >= 1) speak(c, 'morgan', `Hawaii: fuel is going fast on the automatic system. ${pctFuel(s.fuel)} left.`, 'warn', 6);
+  // Segment 51: the landing-bag light, first seen as she comes over Texas at the end of the first orbit.
+  if (st.name === 'Texas' && n === 0 && o.signal) {
+    s.seg51 = o.flicker ? 'flickering' : 'steady';
+    speak(c, 'morgan', `Flight, Network: Segment 51 is showing on telemetry. Landing bag deployed. It is ${s.seg51}.`, 'bad', 7);
+    speak(c, 'hollis', 'If that bag is down, the heat shield is only held by the retro pack straps. Retro, think about it.', 'warn', 7);
+    if (c.kind === 'flight') note(`Over Texas at the end of the first orbit, Segment 51 showed: the landing bag deployed, which would mean the heat shield is loose. The signal was ${s.seg51}. ${pilotName()} has no light in the cabin and has heard nothing.`);
+  }
+  if (st.name === 'Muchea, Australia' && n === 1 && o.signal) speak(c, 'morgan', `Muchea: Segment 51 still ${s.seg51}.`, 'warn');
+}
+
+// Keep the retro pack on through entry, or jettison it as planned.
+export function consolePack(choice) {
+  const c = g.console;
+  if (!c || c.phase !== 'pack') return;
+  c.pack = choice; c.calls.pack = choice;
+  speak(c, 'you', choice === 'keep' ? 'Flight, Retro: leave the retro pack on through entry. The straps hold the shield until the air does.' : 'Flight, Retro: jettison the pack as planned. I read Segment 51 as a bad switch.', choice === 'keep' ? 'warn' : '');
+  speak(c, 'hollis', choice === 'keep' ? 'Pass it to him. Keep the pack on.' : 'Your call. Jettison as planned.', '');
+  if (c.kind === 'flight') note(`You advised ${choice === 'keep' ? 'keeping the retro pack on through entry' : 'jettisoning the retro pack as planned'}.`);
+  c.phase = 'retro';
+  roomChanged();
+}
+
+// Retrofire: on the automatic system, or by hand on the window.
+export function consoleRetro(how) {
+  const c = g.console;
+  if (!c || c.phase !== 'retro') return;
+  c.calls.retro = how;
+  const e = retrofire(c.round, how, c.pack || 'jettison');
+  speak(c, 'you', how === 'auto' ? 'Retrofire on the automatic sequence. Five, four, three, two, one, fire.' : `${first()}, fire them by hand on the window. Five, four, three, two, one, fire.`, 'go', 6);
+  speak(c, 'pilot', 'Retros firing. One… two… three. Retro pack jettison ' + (c.pack === 'keep' ? 'held.' : 'green.'), 'go', 6);
+  if (c.kind === 'flight') note(`Retrofire over California, ${how === 'auto' ? 'on the automatic system' : 'fired by hand'}${c.pack === 'keep' ? ', retro pack kept on' : ''}. Fuel at retrofire ${pctFuel(c.status.fuel)}.`);
+  if (e.oscillated) speak(c, 'pilot', 'Fuel\'s gone. She\'s swinging. I can\'t hold her.', 'bad', 6);
+  speak(c, 'morgan', 'Blackout. We have lost her signal.', 'warn');
+  c.phase = 'entry'; c.coastLeft = 3;
+  roomChanged();
+}
+
+// Out of the blackout, or not.
+function afterEntry(c) {
+  const e = c.round.end;
+  if (e.capsule === 'lost') {
+    speak(c, 'morgan', 'No signal. Nothing on the radars. She has not come out of blackout.', 'bad', 8);
+    if (c.kind === 'flight') note('The capsule never came out of the blackout.');
+    c.aim = null; c.phase = 'coast'; c.coastLeft = 2;
+    return roomChanged();
+  }
+  c.ip = orbitPredictions(c.round);
+  speak(c, 'pilot', 'Out of the blackout. Drogue is out… main chute is out and good!', 'go', 6);
+  speak(c, 'morgan', `Splashdown predictions, from the planned point: retrofire telemetry says ${km(c.ip.retro)}. Grand Turk's radar can give a fix if Recovery waits for it.`, '', 7);
+  c.phase = 'ip';
+  roomChanged();
+}
+
+// Recovery's board after an orbital flight.
+function splashOrbit(c, end, trained, lines) {
+  if (end.capsule === 'lost' && end.outcome === 'entry') {
+    c.hours = null;
+    lines.push('There was nothing to recover. The search aircraft found a slick and some charred pieces of the heat shield.');
+    return;
+  }
+  const aim = c.aim ? c.ip[c.aim] : 0, waited = c.aim === 'radar';
+  c.hours = orbitRecoveryHours(end, aim, c.cond, trained, waited);
+  c.sank = c.kind === 'flight' && sinks(c.round, c.hours);
+  const mins = Math.round(c.hours * 60);
+  if (end.outcome === 'entry') lines.push(`Splashdown ${km(end.miss)} of the planned point.`);
+  else if (end.outcome === 'decay') lines.push(`She came down within the first orbit, about ${Math.round(end.landing / 100) * 100} km downrange of the Cape, far from any recovery ship.`);
+  else lines.push(`She came down in the Atlantic abort area, about ${Math.round(end.landing / 10) * 10} km downrange of the Cape.`);
+  lines.push(c.hours > 3 ? `She was picked up ${(c.hours).toFixed(1)} hours after splashdown.` : `She was picked up ${mins} minutes after splashdown.`);
+  if (c.sank) lines.push('She took on water and sank before she was reached.');
+  else if (end.capsule === 'damaged') lines.push(end.oscillated ? 'She swung through the entry with no fuel to damp her, and came back scorched and battered.' : 'The capsule came back scorched and damaged: she took more than she was built for.');
+  else lines.push('The capsule came back whole.');
+}
+
+const orbitSimFailure = scenario => (['guidance', 'shortburn'].includes(scenario) ? scenario : 'nominal');

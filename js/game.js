@@ -90,7 +90,7 @@ function resetRound() {
 function setVehicle() {
   g.vehicle = SEASON[g.roundIndex].vehicle;
   g.people.hoyt.hidden = !['v2', 'bumper'].includes(g.vehicle);
-  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger', 'redstone'].includes(g.vehicle);
+  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger', 'redstone', 'atlas'].includes(g.vehicle);
   g.site = SEASON[g.roundIndex].site || 'white-sands';
   // A Mercury round: Mercury Control's people are on site, Ellis is back at JPL, and the others have Mercury jobs.
   g.crewed = !!SEASON[g.roundIndex].crewed;
@@ -115,7 +115,8 @@ function startRound(i) {
   g.clock = g.day * 1440 + START_MINUTE;
   // Fixes made between flights whatever the reviews said (Marshall's after MR-1 and Ham's flight).
   for (const cause of SEASON[i].adopt || []) adopt(g.programme, cause);
-  const round = newRound(g.seed + i * 7919, g.programme, g.vehicle);
+  const round = newRound(g.seed + i * 7919, { ...g.programme, ...SEASON[i].risk }, g.vehicle);
+  if (SEASON[i].risk?.seg51Risk != null) round.seg51Risk = SEASON[i].risk.seg51Risk;
   round.initial = { faults: { ...round.faults }, igniter: hasIgniterFault(round), pump: hasPumpFault(round), liner: hasLinerFault(round), injector: hasInjectorFault(round) };
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
