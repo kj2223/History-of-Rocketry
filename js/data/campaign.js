@@ -33,6 +33,9 @@ export const SEASON = [
   // From here the years split. Take the Space Task Group's offer and you go to Mercury Control (path 'nasa'); stay with
   // JPL and you work Ranger (path 'jpl'). crewed: the round is a Mercury flight, worked from a console (mercury.js).
   { id: 'mr-1', vehicle: 'redstone', site: 'cape', crewed: 'mercury', path: 'nasa', start: dayOf(1960, 11, 20), name: 'Mercury-Redstone 1, the first Mercury capsule on a Redstone' }, // 21 November 1960: a sim day, then launch day
+  // The first American in space. crew: who flies it. adopt: fixes Marshall made between flights whatever the reviews said
+  // (after MR-1 the tail plug; after Ham's flight the thrust controller, proved on the MR-BD flight of 24 March 1961).
+  { id: 'mr-3', vehicle: 'redstone', site: 'cape', crewed: 'mercury', crew: ['rourke'], adopt: ['plug', 'thrust'], path: 'nasa', pressure: true, start: dayOf(1961, 5, 4), name: 'Mercury-Redstone 3, the first American in space' }, // 5 May 1961
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
@@ -132,6 +135,14 @@ export const BETWEEN = {
     'In September 1959 the Big Joe capsule came back from space on an Atlas with its heat shield charred but whole. On 29 July 1960 Mercury-Atlas 1 broke up a minute after launch with its capsule aboard.',
     'Brandt went to NASA with you. He keeps the Cape\'s schedule now, and Vega\'s crew has the Redstone pad at Launch Complex 5.',
     'This first Mercury-Redstone carries no one. If the booster, the capsule and Mercury Control all work, a man rides the next ones.',
+  ],
+  'mr-3': [
+    'Mercury-Redstone 1A flew on 19 December 1960 with the tail plug tied down, and the capsule came home from the edge of space.',
+    'On 31 January 1961 Mercury-Redstone 2 carried Ham, a chimpanzee. The thrust controller let the Redstone burn too hot; she ran dry early, the abort sensing fired the escape tower, and the capsule came down 130 miles beyond the ships. Ham was picked up alive from a capsule taking on water.',
+    'Marshall reworked the thrust controller and flew a Redstone with a dummy capsule on 24 March to prove it. Some said a man should have been on it.',
+    'On 12 April 1961 Yuri Gagarin orbited the Earth once in Vostok 1 and landed in the Soviet Union alive. The papers ask why America is still flying monkeys.',
+    'Thomas Rourke has been named for the first flight: fifteen minutes up and down the Atlantic Missile Range. He will be in the simulator with you, and on your loop on the day.',
+    'Every day this flight slips is reported to Washington.',
   ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',

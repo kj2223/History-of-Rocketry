@@ -7,7 +7,9 @@
 // the radar's and the computers' impact points, and the recovery board. The truth behind them is in truth/capsule.js.
 // What the rooms read is g.console and g.mission, never the round itself.
 import { g, say, note, walk, place, roomChanged, morning, setBeat, finishReview, dateText } from './game.js';
-import { ascent, outcome, stepAt, impactPredictions, recoveryHours, sinks, padCrewNow, conditions, plannedGamma, PLAN, ABORT_LIMIT } from './truth/capsule.js';
+import { ascent, outcome, stepAt, impactPredictions, recoveryHours, sinks, padCrewNow, conditions, plannedGamma, crewFate, PLAN, ABORT_LIMIT } from './truth/capsule.js';
+import { CREW_TRAITS, consents, ownAbortAt, impatient } from './world/crew.js';
+import { ASTRONAUTS } from './data/crew.js';
 import { newRound, ellisReading } from './truth/round.js';
 import { draw } from './core/rng.js';
 import { KITS, SHORT } from './data/kits.js';
@@ -30,7 +32,9 @@ export const MERCURY_BEATS = {
     seatPeople();
     g.rocket.where = 'tower'; g.rocket.mated = true;
     const launch = dateText(g.roundStart + LAUNCH_DAY);
-    const line = `We fly on ${launch}. Today you're in the simulator: the sim supervisor will throw everything he has at you. Learn the plot, Retro.`;
+    const line = pilotId() ? `We fly ${pilotName()} on ${launch}. Today you're in the simulator, and so is he: the sim supervisor will throw everything he has at you both. If he has to trust your numbers, they had better be right.`
+      : `We fly on ${launch}. Today you're in the simulator: the sim supervisor will throw everything he has at you. Learn the plot, Retro.`;
+    if (pilotId()) { place('pilot', 1180); g.people.pilot.hidden = false; }
     say('hollis', line, '', 8);
     note(`${cap(SEASON[g.roundIndex].name)}. Hollis: ${line}`);
     g.objective = 'Train in the simulator in the training building. When you have had enough, end the day.';
@@ -42,6 +46,8 @@ export const MERCURY_BEATS = {
     g.rocket.where = 'tower'; g.rocket.mated = true;
     g.mission.cond = conditions(g.round);
     g.objective = 'Launch day. Go to your console in Mercury Control for the count.';
+    // Suited up in Hangar S, then out to the gantry and up into the capsule.
+    if (pilotId()) { g.people.pilot.hidden = false; place('pilot', 690); walk('pilot', 2050); say('pilot', 'Morning, Retro. Get me a good splashdown point.', '', 6); }
     say('hollis', 'Morning, Retro. Get on your console. We pick up the count at T minus fifteen.', '', 6);
   },
   mFlight() {},
@@ -57,15 +63,20 @@ export const MERCURY_BEATS = {
     note('Next morning the pad crew safed the capsule and drained the booster. The capsule and the booster can both fly again.');
     setBeat('mReview');
   },
-  mRecovery() { g.objective = 'Recovery is reporting. Read the board, then go to the review.'; g.room = 'splash'; },
+  mRecovery() { g.objective = 'Recovery is reporting. Read the board, then go to the review.'; g.room = 'splash'; if (pilotId()) g.people.pilot.hidden = true; },
   mReview() {
     seatPeople();
+    if (pilotId()) { const alive = g.mission.fate !== 'killed'; g.people.pilot.hidden = !alive; if (alive) place('pilot', 320); }
     g.objective = 'Hollis wants the review. Go into Mercury Control.';
     g.round.flight = flightRecord();
     g.mission.reading = ellisReading(g.round);
   },
 };
 const cap = t => t[0].toUpperCase() + t.slice(1);
+// Who flies this round, if anyone: his id, or null.
+export const pilotId = () => (g.crewed && SEASON[g.roundIndex].crew?.[0]) || null;
+const pilotName = () => ASTRONAUTS[pilotId()].name;
+const first = () => pilotName().split(' ')[0];
 
 // Who is where in a Mercury round.
 function seatPeople() {
@@ -121,7 +132,24 @@ export function consolePoll(go) {
   c.calls.poll.push({ go, ok });
   const sim = c.kind === 'sim';
   if (!sim) note(`T-${Math.ceil(c.clock)} s poll: the recovery board showed sea state ${b.sea}${c.cond.late ? `, and ${UNITS[c.cond.late].toLowerCase().replace(/^the /, 'the ')} not on station` : ', every unit on station'}. You called ${go ? 'GO' : 'NO-GO'}.`);
+  const poll = c.poll;
   c.poll = null;
+  // The man on top has his own say at the final poll, and his no is binding.
+  if (go && poll === 'final' && c.kind === 'flight' && pilotId()) {
+    speak(c, 'you', 'Retro is go.', 'go');
+    const t = CREW_TRAITS[pilotId()], ok = consents(t, { sea: b.sea, late: c.cond.late });
+    speak(c, 'hollis', `${first()}, are you go?`);
+    if (impatient(t, c.holds)) speak(c, 'pilot', 'Why don\'t you fix your little problem and light this candle?', 'warn', 6);
+    if (ok) { speak(c, 'pilot', 'I\'m go.', 'go'); roomChanged(); return; }
+    const why = b.sea > SEA_LIMIT ? `that sea out there` : `a ship off station`;
+    speak(c, 'pilot', `I'm not going with ${why}. Sorry, Flight.`, 'bad', 6);
+    note(`${pilotName()} would not consent to go with ${why}. The count holds.`);
+    c.calls.pilotRefused = true;
+    go = false;
+    if (c.cond.seaState > SEA_LIMIT) { speak(c, 'hollis', 'His call. We scrub.', 'warn'); return endCount('scrub'); }
+    c.phase = 'hold'; c.holdLeft = 3; c.holdFor = 'ship'; c.holds++; c.poll = null;
+    roomChanged(); return;
+  }
   if (go) {
     speak(c, 'you', 'Retro is go.', 'go');
     if (sim && c.phase === 'poll') { c.phase = 'count'; c.clock = 10; }
@@ -194,7 +222,7 @@ export function tickConsole(dt) {
     g.clock += dt * 15;
     if (c.holdLeft <= 0) {
       if (c.holdFor === 'ship') { speak(c, 'reyes', `${UNITS[c.cond.late].split(',')[0]} is on station.`, 'go'); c.cond.late = null; }
-      c.phase = c.kind === 'sim' && c.clock >= 600 ? 'poll' : 'count'; c.poll = 'recovery';
+      c.phase = c.kind === 'sim' && c.clock >= 600 ? 'poll' : 'count'; c.poll = c.clock <= 120 ? 'final' : 'recovery';
       speak(c, 'hollis', 'Retro, Recovery: status?');
       roomChanged();
     }
@@ -221,6 +249,7 @@ export function tickConsole(dt) {
     for (let t = Math.floor(before) + 1; t <= Math.floor(c.t); t++) {
       const s = stepAt(a, t);
       c.trace.push({ t, gamma: s.gamma + flutter(c.round.seed, t), off: s.off, v: s.v, acc: s.acc });
+      if (c.kind === 'flight' && pilotId() && c.abortAt == null && Math.abs(s.off) > ownAbortAt(CREW_TRAITS[pilotId()])) return pilotAbort(c, t);
       if (t === 60) speak(c, 'albrecht', 'Booster: one minute, steady.', 'go');
       if (a.breakupAt != null && t >= a.breakupAt) return breakup(c);
     }
@@ -256,6 +285,15 @@ function liftoff(c) {
   speak(c, 'vega', 'Liftoff!', 'go');
   speak(c, 'hollis', 'Liftoff, and the clock has started.', 'go');
   roomChanged();
+}
+
+// He pulls the abort handle himself: binding, whatever the ground says.
+function pilotAbort(c, t) {
+  c.abortAt = t; c.calls.pilotAbort = { at: t };
+  speak(c, 'pilot', 'She\'s going off! I\'m pulling the handle! Abort!', 'bad', 6);
+  speak(c, 'hollis', 'Abort! The pilot has aborted!', 'bad');
+  note(`T+${t} s: ${pilotName()} pulled the abort handle himself.`);
+  finishAscent(c);
 }
 
 function breakup(c) {
@@ -299,6 +337,14 @@ function splash(c) {
     if (c.sank) lines.push('She had been in the water too long. She took on water through the hatch seals and sank before the ship reached her.');
     else if (end.capsule === 'damaged') lines.push('The capsule came back scorched and dented: she took more than she was built for.');
     else lines.push('The capsule came back whole.');
+  }
+  if (c.kind === 'flight' && pilotId()) {
+    const fate = crewFate(c.round, end, c.hours ?? 0, c.sank), n = pilotName();
+    c.fate = fate;
+    if (c.sank) lines.push(fate === 'killed' ? `${n} got out of the hatch as she went down, but he was in the water too long. The swimmers could not reach him in time. He drowned.` : `${n} got out of the hatch as she went down and was pulled from the water, exhausted.`);
+    else if (fate === 'killed') lines.push(`${n} was killed.`);
+    else if (fate === 'hurt') lines.push(`${n} is alive but hurt: the flight surgeons have him on the carrier.`);
+    else lines.push(`${n} is safe aboard the carrier, grinning.`);
   }
   c.lines = lines;
   c.phase = 'done'; c.live = false;
@@ -349,6 +395,7 @@ export function missionPresent(key) {
   else { decision = view; agree = false; tone = 'warn'; shiftTrust(g.record, -1); reply = `I don't read it that way. The tapes say ${SHORT[view]} to me, and that's what goes to Marshall.`; }
   const fix = decision && decision !== 'nominal' ? adopt(g.programme, decision) : null;
   g.review = { key, view, agree, decision, fix };
+  if (g.mission.fate === 'killed') reply = `We lost ${pilotName()}. Whatever we find, we find all of it. ${reply}`;
   say('hollis', reply, tone, 8);
   const judged = judgeCalls();
   note(`Review: you said "${KITS.redstone.explanations[key]}" Hollis: ${reply}${fix ? ` ${fix}` : ''}${judged.text ? ` ${judged.text}` : ''}`);
@@ -358,6 +405,7 @@ export function missionPresent(key) {
 // What the plot showed about your abort call, as Hollis sees it on the tape. The trust it earns or costs.
 function judgeCalls() {
   const end = g.round.end || {}, a = g.round.ascent || {}, calls = g.mission.calls || {};
+  if (calls.pilotAbort && !calls.abort) return { text: `${pilotName()} pulled the handle himself at ${calls.pilotAbort.at} seconds, before anyone on the ground called it.`, calls: { abort: 'pilot abort', aim: calls.aim || null, hours: calls.hours ?? null } };
   const abort = calls.abort, overLine = (a.steps || []).find(s => Math.abs(s.off) > ABORT_LIMIT);
   let text = '', verdict = null;
   if (abort && overLine && abort.at >= overLine.t) { verdict = 'good abort'; shiftTrust(g.record, 1); text = 'Hollis on your abort: "She was over the line and you called it. That\'s the job."'; }
@@ -380,7 +428,10 @@ function flightRecord() {
     long: `Splashdown about ${Math.round(end.landing / 10) * 10} km downrange, long${hrs}.`,
     nominal: `Splashdown about ${Math.round(end.landing / 10) * 10} km downrange${hrs}.`,
   }[end.outcome];
-  return { failure: a.failure || null, failAt: a.failure ? (a.breakupAt ?? a.burn) : null, radar: end.apogee || null, text: m.sank ? `${text} The capsule sank before it was reached.` : text };
+  let out = m.sank ? `${text} The capsule sank before it was reached.` : text;
+  if (pilotId() && m.fate) out += { killed: ` ${pilotName()} was killed.`, hurt: ` ${pilotName()} was hurt.`, safe: ` ${pilotName()} came home safe.` }[m.fate];
+  if (m.fate === 'killed' && !/^Lost/.test(out)) out = `Lost: ${out}`;
+  return { failure: a.failure || null, failAt: a.failure ? (a.breakupAt ?? a.burn) : null, radar: end.apogee || null, text: out };
 }
 
 // What the review has to go on: the tapes, and what came back.
@@ -438,7 +489,8 @@ export function simClose() { if (g.console && g.console.kind === 'sim' && !g.con
 export function toReview() {
   if (g.beat !== 'mRecovery') return;
   const c = g.console;
-  if (c) { g.mission.calls = { ...c.calls, aim: c.aim, hours: c.hours }; g.mission.sank = !!c.sank; g.mission.lines = c.lines; }
+  if (c) { g.mission.calls = { ...c.calls, aim: c.aim, hours: c.hours }; g.mission.sank = !!c.sank; g.mission.lines = c.lines; g.mission.fate = c.fate || null; }
+  if (g.mission.fate === 'killed') { (g.record.losses = g.record.losses || []).push({ name: pilotName(), day: g.day, round: SEASON[g.roundIndex].id }); }
   g.console = null; g.room = null;
   setBeat('mReview');
 }

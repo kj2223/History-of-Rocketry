@@ -145,3 +145,15 @@ export function conditions(round, force = null) {
   if (force) return { seaState: 2 + Math.floor(sea * 2), late: null };
   return { seaState: rough < 0.18 ? 5 : 2 + Math.floor(sea * 2), late: late < 0.22 ? (which < 0.5 ? 'uprange' : 'downrange') : null };
 }
+
+// What happens to the man aboard. 'safe', 'hurt' or 'killed'. A capsule lost with the booster takes him with it; a late
+// abort or a steep entry hurts him; a capsule that sinks leaves him swimming, and a long wait in the water can drown him
+// (Mercury-Redstone 4, July 1961, nearly did). One physical draw, taken whatever happens.
+export const DROWN_AFTER = 2.5, DROWN_CHANCE = 0.3;
+export function crewFate(round, end, hours, sank) {
+  const d = draw(round.rng.physical);
+  if (end.capsule === 'lost') return 'killed';
+  if (sank && hours > DROWN_AFTER && d < DROWN_CHANCE) return 'killed';
+  if (end.capsule === 'damaged' || end.entryG > 15) return 'hurt';
+  return 'safe';
+}
