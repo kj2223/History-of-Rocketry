@@ -8,6 +8,9 @@ export const BASE = {
   viking: { 'viking.chamber-pressure': 21, 'vehicle.apogee': 170, 'vehicle.deviation': 1 },
   // Vanguard's apogee here is the perigee of the orbit a good round reaches (Vanguard 1: about 650 km).
   vanguard: { 'vanguard-1.chamber-pressure': 21, 'vehicle.apogee': 650, 'vehicle.deviation': 1 },
+  // The lunar shots' figure is the height a good round reaches before it leaves the range plot, in km.
+  juno: { 'jupiter.chamber-pressure': 21, 'vehicle.apogee': 120000, 'vehicle.deviation': 1 },
+  ranger: { 'agena.chamber-pressure': 20, 'vehicle.apogee': 120000, 'vehicle.deviation': 1 },
   // A V-2 from White Sands' rebuilt stock on a good day: nominal flights in 1946 reached about 170 km.
   v2: { 'v2.chamber-pressure': 15.5, 'vehicle.apogee': 165, 'vehicle.deviation': 2.5 },
   bumper: { 'v2.chamber-pressure': 15.5, 'wac-upper.chamber-pressure': 20, 'v2|wac-upper.separation': 0.2, 'vehicle.apogee': 390, 'vehicle.deviation': 2 },
@@ -44,6 +47,12 @@ export const MECHANISMS = {
   'pm-19': { stage: 'viking', absentFrom: ['viking/r2'], when: { burn: 'long' }, effects: { 'viking.chamber-pressure': -5 }, flightFailureChance: 0.25 },
   // Vanguard's first-stage injector could burn through at ignition (TV-3, December 1957). A short stand firing shows it
   // as a rough, low start.
+  // A Jupiter whose propellant utilisation is off runs out early (Pioneer 3, December 1958). Only a full-duration firing
+  // shows it, as chamber pressure falling away before the end.
+  'pm-29': { stage: 'jupiter', absentFrom: ['jupiter/r2'], when: { burn: 'long' }, effects: { 'jupiter.chamber-pressure': -5 }, flightFailureChance: 0.4 },
+  // An Agena whose restart system is marginal will not light a second time in orbit (Rangers 1 and 2, 1961). A short
+  // firing shows it as a rough start.
+  'pm-31': { stage: 'agena', absentFrom: ['agena/r2'], when: { burn: 'short' }, effects: { 'agena.chamber-pressure': -4.5 }, flightFailureChance: 0.4 },
   'pm-23': { stage: 'vanguard-1', absentFrom: ['vanguard-1/r2'], when: { burn: 'short' }, effects: { 'vanguard-1.chamber-pressure': -4.5 }, flightFailureChance: 0.4 },
 };
 

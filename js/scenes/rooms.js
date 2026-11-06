@@ -123,6 +123,11 @@ const ROOMS = {
   board() {
     const load = g.round.propellantLoad, e = g.round.estimate;
     const orbital = g.vehicle === 'vanguard';
+    if (kit().deep) return `<h2>Drawing board: propellant load</h2>
+      <p>A shot at the Moon needs every kilogram the stages will hold: anything short of full and she will not reach escape speed.
+      The range clears the Atlantic whatever you sign. The figure is 100%.</p>
+      <p>Propellant load: <strong>100%</strong></p>
+      <button class="primary" data-act="board-done">Sign the figure and send it to the range</button>`;
     return `<h2>Drawing board: propellant load</h2>
       <p>${orbital ? 'The range wants a figure for the flight. Every kilogram short of a full load comes off the orbit: too low a perigee and the sphere will not stay up long. The range clears the sea whatever you sign.'
         : 'The range wants a figure for the flight. A fuller tank flies higher, but lands further out, and the range has to clear more ground.'} ${e.flights ? `The drawing office's estimate is built on ${e.flights === 1 ? 'one good flight' : `${e.flights} good flights`} of this kind so far.` : `The drawing office's estimate has a wide spread: nobody has flown a ${esc(kit().name)} round here before.`}</p>
@@ -203,7 +208,8 @@ const ROOMS = {
       <div class="choices">${Object.entries(kit().explanations).map(([k, t]) => `<button data-act="chair" data-id="${k}">${esc(t)}</button>`).join('')}</div>`;
   },
   recovery() {
-    const where = atSea() ? `<h2>The telemetry building</h2><p>${dateText()}, ${clockText()}. Morgan spreads the telemetry records and the radar plots on the table. Kowalski reads over your shoulder.</p>`
+    const track = kit().track;
+    const where = track ? `<h2>${esc(track.title)}</h2><p>${dateText()}, ${clockText()}. ${esc(track.intro)}</p>` : atSea() ? `<h2>The telemetry building</h2><p>${dateText()}, ${clockText()}. Morgan spreads the telemetry records and the radar plots on the table. Kowalski reads over your shoulder.</p>`
       : `<h2>The impact area</h2><p>${dateText()}, ${clockText()}. The truck pulls up in the scrub. You walk over with Morgan and Kowalski.</p>`;
     return `${where}
       <ul>${g.recovery.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
@@ -244,7 +250,7 @@ const ROOMS = {
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
       ${offer}
-      <p class="muted">On 1 October 1958 the National Aeronautics and Space Administration opened its doors, and the Vanguard team went to it. Next: NASA's first probes, Pioneer and Ranger. That comes in the next build.</p>
+      <p class="muted">Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
       <button data-act="again">Start again from 1945</button>`;
   },
