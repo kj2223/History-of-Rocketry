@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Per Aspera — Site prototype: WAC Corporal, 1945</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <span id="date"></span>
+  <span id="objective"></span>
+  <span class="controls">
+    <button id="pause" title="Pause (Space)">❚❚</button>
+    <button data-speed="1" title="Normal speed (1)">1×</button>
+    <button data-speed="4" title="Faster (2)">4×</button>
+    <button data-speed="16" title="Fastest (3)">16×</button>
+    <button id="endday" hidden>End the day</button>
+    <button id="notes" title="Your notebook (N)">Notebook</button>
+  </span>
+</header>
+<canvas id="site" aria-label="The White Sands site, side-on. Click to walk, click a building to go in, click a person to talk."></canvas>
+<section id="room" hidden></section>
+<section id="notebook" hidden></section>
+<div id="loop" aria-live="polite"></div>
+<div id="help">Click to walk · click a building to go in · click a person to talk · wheel looks along the site · Space pauses · Ctrl+L back to the launcher</div>
+<noscript>This prototype needs JavaScript.</noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
