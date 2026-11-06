@@ -236,3 +236,28 @@ test('a rendezvous flown on a computer that keeps resetting can miss; on the gro
   }
   assert.ok(missed > 5 && missed < 35, `${missed}`);
 });
+
+// ---- A1: the Soviet programme ----
+import { raceOf, raceNews, ATTEMPTS } from '../js/world/race.js';
+
+test('the Soviet programme from 1966 goes differently from game to game, and waits on its own failures', () => {
+  const runs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(raceOf);
+  const soyuzWins = runs.filter(r => r.find(e => e.id === 'soyuz1').win).length;
+  assert.ok(soyuzWins > 0 && soyuzWins < 12, `${soyuzWins}`);
+  for (const r of runs) {
+    // A crewed Zond flies only after Soyuz has worked.
+    const z = r.find(e => e.id === 'zond-crewed');
+    if (z) assert.ok(r.find(e => e.id === 'soyuz1').win);
+    for (const e of r) assert.ok(ATTEMPTS.some(a => a.id === e.id));
+  }
+  assert.deepEqual(raceOf(5), raceOf(5));
+  assert.ok(raceNews(5, 0, 1e9).length >= 4);
+});
+
+test('between Gemini flights from 1966, the notes carry the Soviet news', () => {
+  toGem6(8);
+  playMission(); advance(true);
+  assert.equal(SEASON[g.roundIndex].id, 'gem-8');
+  const soviet = raceNews(g.seed, SEASON.find(r => r.id === 'gem-6').start, SEASON[g.roundIndex].start);
+  for (const l of soviet) assert.ok(g.away.lines.includes(l));
+});
