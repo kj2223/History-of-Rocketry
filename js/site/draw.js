@@ -205,7 +205,7 @@ function truck(ctx, x, g) {
 function rocketOnSite(ctx, g) {
   const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
-  const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
+  const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
   if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
   else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
   else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
@@ -231,6 +231,28 @@ export function vikingShape(ctx, x, y, angle) {
   ctx.fillStyle = '#f1efe8'; ctx.beginPath(); ctx.moveTo(-5, -100); ctx.quadraticCurveTo(-4, -112, 0, -118); ctx.quadraticCurveTo(4, -112, 5, -100); ctx.fill();
   ctx.fillStyle = '#2b3f6b'; ctx.fillRect(-5, -60, 10, 3); ctx.fillRect(-5, -30, 10, 3);
   ctx.fillStyle = '#9aa0a8'; ctx.beginPath(); ctx.moveTo(-5, -14); ctx.lineTo(-13, 0); ctx.lineTo(-5, 0); ctx.fill(); ctx.beginPath(); ctx.moveTo(5, -14); ctx.lineTo(13, 0); ctx.lineTo(5, 0); ctx.fill();
+  ctx.restore();
+}
+
+// Juno II: the Jupiter, fat and white with black roll stripes, then JPL's tub of upper stages under a shroud and the small
+// gold Pioneer cone.
+export function junoShape(ctx, x, y, angle) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.fillStyle = '#f2f0e9'; ctx.fillRect(-12, -150, 24, 150);
+  ctx.fillStyle = '#26272b'; ctx.fillRect(-12, -40, 24, 6); ctx.fillRect(-12, -110, 24, 6); ctx.fillRect(-12, -150, 12, 20);
+  ctx.fillStyle = '#d9d6cc'; ctx.beginPath(); ctx.moveTo(-12, -150); ctx.lineTo(-8, -200); ctx.lineTo(8, -200); ctx.lineTo(12, -150); ctx.fill();
+  ctx.fillStyle = '#c9a24a'; ctx.beginPath(); ctx.moveTo(-5, -200); ctx.lineTo(0, -218); ctx.lineTo(5, -200); ctx.fill();
+  ctx.restore();
+}
+
+// Atlas-Agena B with Ranger: the Atlas's steel balloon, its booster skirt, the slim Agena and the shroud over the Ranger.
+export function atlasAgenaShape(ctx, x, y, angle) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.fillStyle = '#c9ccd1'; ctx.fillRect(-14, -170, 28, 170);
+  ctx.fillStyle = '#b3b7bd'; ctx.fillRect(-17, -36, 34, 36); // the booster section
+  ctx.fillStyle = '#3e4652'; ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('UNITED STATES', 100, 3); ctx.restore();
+  ctx.fillStyle = '#e8e6df'; ctx.fillRect(-7, -232, 14, 62); // the Agena
+  ctx.fillStyle = '#f2f0e9'; ctx.beginPath(); ctx.moveTo(-8, -232); ctx.lineTo(-8, -250); ctx.lineTo(0, -270); ctx.lineTo(8, -250); ctx.lineTo(8, -232); ctx.fill();
   ctx.restore();
 }
 
@@ -333,26 +355,34 @@ function wrap(ctx, text, width) {
   return lines;
 }
 
+// A round grid step, 1, 2 or 5 times a power of ten, for about eight lines across `span`.
+function niceStep(span) {
+  const raw = span / 8, p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+}
+
 // THE TRACKING BOARD: the range's plot of height against distance downrange, drawn as the flight goes.
 export function drawTracking(ctx, g, view) {
   const { w, h } = view, f = g.flight, path = f.result.path, upto = Math.min(path.length - 1, Math.floor(f.t));
   ctx.fillStyle = '#0d1a14'; ctx.fillRect(0, 0, w, h);
   // The plot's scale grows with the round: a WAC peaks near 70 km, a V-2 over 150, a Bumper several hundred.
-  const top = Math.max(80, g.round.estimate.high * 1.15, f.result.apogee * 1.1), hStep = top <= 100 ? 10 : top <= 250 ? 25 : top <= 500 ? 50 : 100;
-  const range = f.result.range, maxH = Math.ceil(top / hStep) * hStep, xStep = range <= 40 ? 5 : range <= 120 ? 10 : range <= 300 ? 25 : range <= 1000 ? 100 : 400;
+  const deep = !!f.result.deep, top = Math.max(80, deep ? 0 : g.round.estimate.high * 1.15, f.result.apogee * 1.1), hStep = niceStep(top);
+  const range = f.result.range, maxH = Math.ceil(top / hStep) * hStep, xStep = range <= 40 ? 5 : range <= 120 ? 10 : niceStep(range * 1.1);
   const pad = 70, maxX = Math.max(30, Math.ceil(f.result.range / xStep) * xStep + xStep);
   const px = x => pad + (x / maxX) * (w - pad * 2), py = km => h - pad - (km / maxH) * (h - pad * 2);
   ctx.strokeStyle = '#1f3b2d'; ctx.lineWidth = 1; ctx.font = '12px monospace'; ctx.fillStyle = '#5fae7f'; ctx.textAlign = 'right';
-  for (let k = 0; k <= maxH; k += hStep) { ctx.beginPath(); ctx.moveTo(pad, py(k)); ctx.lineTo(w - pad, py(k)); ctx.stroke(); ctx.fillText(`${k} km`, pad - 8, py(k) + 4); }
+  for (let k = 0; k <= maxH; k += hStep) { ctx.beginPath(); ctx.moveTo(pad, py(k)); ctx.lineTo(w - pad, py(k)); ctx.stroke(); ctx.fillText(k >= 10000 ? `${k / 1000}k km` : `${k} km`, pad - 8, py(k) + 4); }
   ctx.textAlign = 'center';
   for (let k = 0; k <= maxX; k += xStep) { ctx.beginPath(); ctx.moveTo(px(k), py(0)); ctx.lineTo(px(k), py(maxH)); ctx.stroke(); ctx.fillText(`${k}`, px(k), h - pad + 18); }
   ctx.fillText('km downrange', w / 2, h - pad + 36);
   ctx.textAlign = 'left'; ctx.fillStyle = '#8fd6a8'; ctx.font = '14px monospace';
   ctx.fillText(`${SITES[g.site || 'white-sands'].plot} · RANGE PLOT · ${KITS[g.vehicle].range}`, pad, 32);
-  // The drawing office's estimate, faint.
+  // The drawing office's estimate, faint (a lunar shot has none: she goes off the top of the board).
+  if (!deep) {
   ctx.strokeStyle = 'rgba(232,198,106,.35)'; ctx.setLineDash([6, 6]);
   ctx.beginPath(); ctx.moveTo(px(0), py(g.round.estimate.low)); ctx.lineTo(w - pad, py(g.round.estimate.low)); ctx.moveTo(px(0), py(g.round.estimate.high)); ctx.lineTo(w - pad, py(g.round.estimate.high)); ctx.stroke();
   ctx.setLineDash([]); ctx.fillStyle = 'rgba(232,198,106,.6)'; ctx.fillText('drawing-office estimate', w - pad - 190, py(g.round.estimate.high) - 6);
+  }
   ctx.strokeStyle = '#9ff0b8'; ctx.lineWidth = 2; ctx.beginPath();
   for (let i = 0; i <= upto; i++) { const p = path[i]; i ? ctx.lineTo(px(p.x), py(p.h)) : ctx.moveTo(px(p.x), py(p.h)); }
   ctx.stroke();

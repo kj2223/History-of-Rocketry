@@ -31,9 +31,9 @@ const PEOPLE = {
 };
 
 // Whether you run this round as its test conductor: you plan it, run the count and chair the review.
-export const conducting = () => g.record.seat === 'test-conductor' && ['aerobee', 'viking', 'vanguard'].includes(g.vehicle);
+export const conducting = () => g.record.seat === 'test-conductor' && ['aerobee', 'viking', 'vanguard', 'juno', 'ranger'].includes(g.vehicle);
 // Whether this round is paid from your own budget line: the Viking and Vanguard firings you conduct.
-export const onBudget = () => conducting() && ['viking', 'vanguard'].includes(g.vehicle);
+export const onBudget = () => conducting() && ['viking', 'vanguard', 'juno', 'ranger'].includes(g.vehicle);
 // Whether the round flies from the Cape, where what falls lands in the Atlantic and the range reads it from telemetry.
 export const atSea = () => g.site === 'cape';
 export const budgetLine = () => lineFor(g.record, g.day);
@@ -81,7 +81,7 @@ function resetRound() {
 function setVehicle() {
   g.vehicle = SEASON[g.roundIndex].vehicle;
   g.people.hoyt.hidden = !['v2', 'bumper'].includes(g.vehicle);
-  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard'].includes(g.vehicle);
+  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger'].includes(g.vehicle);
   g.site = SEASON[g.roundIndex].site || 'white-sands';
   g.people.you.role = SEATS[g.record.seat];
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
@@ -242,7 +242,7 @@ const BEATS = {
   recovery() {
     g.objective = atSea() ? 'Go over to the telemetry building with Morgan: take the range car.' : 'Ride out with the recovery party: go to the truck.';
     walk('morgan', PLACES.truck.door + 30); walk('kowalski', PLACES.truck.door - 20);
-    say('morgan', atSea() ? 'Whatever came down is in the Atlantic. The telemetry records are being pulled now. Coming?' : 'Truck\'s leaving for the impact area. Coming?');
+    say('morgan', atSea() ? (kit().deep ? 'The tracking reports are coming in. Coming over?' : 'Whatever came down is in the Atlantic. The telemetry records are being pulled now. Coming?') : 'Truck\'s leaving for the impact area. Coming?');
   },
   review() {
     g.objective = conducting() ? 'You chair the review. Go to the technical office: the team will give you their readings, and the call is yours.' : 'Ellis wants your findings. Go to the technical office.';
@@ -497,8 +497,10 @@ function flightCalls(r) {
     lines.forEach((c, i) => calls.push({ t: c.t, who: 'morgan', text: c.text, tone: i === lines.length - 1 ? 'bad' : c.tone || '' }));
   } else {
     for (const c of k.steady) calls.push({ t: c.t, who: 'morgan', text: c.text, tone: c.tone || '' });
-    calls.push({ t: r.orbit ? end - 40 : r.burn, who: 'morgan', text: k.burnout(r.burn), tone: 'go' });
+    calls.push({ t: r.orbit || r.deep ? end - 40 : r.burn, who: 'morgan', text: k.burnout(r.burn), tone: 'go' });
   }
+  // A lunar shot leaves the range plot: the tracking stations' word on her ends it.
+  if (r.deep) { calls.push({ t: end, who: 'morgan', text: k.final(r), tone: r.failure ? 'bad' : 'go' }); return calls.sort((a, b) => a.t - b.t); }
   // A satellite never comes down: Minitrack's call that she is in orbit ends the plot.
   if (r.orbit) { calls.push({ t: end, who: 'morgan', text: k.orbit(r.orbit.perigee, r.orbit.apogee), tone: 'go' }); return calls.sort((a, b) => a.t - b.t); }
   // Higher than the range has ever tracked: the radar's peak against every good flight before it.
@@ -606,7 +608,7 @@ function finishReview(entry) {
     note(`Washington wanted this round on the day. ${g.slipDays === 1 ? 'A day' : `${g.slipDays} days`} lost goes on your record.`);
   }
   addRound(g.record, { id: SEASON[g.roundIndex].id, vehicle: g.vehicle, name: SEASON[g.roundIndex].name, day: g.launchDay ?? g.day,
-    flight: f.failure ? `Lost at ${f.failAt} seconds.` : f.orbit ? `In orbit: perigee about ${f.orbit.perigee.toFixed(0)} km, apogee about ${f.orbit.apogee.toFixed(0)} km.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad, ...entry });
+    flight: f.deep ? f.deep.text : f.failure ? `Lost at ${f.failAt} seconds.` : f.orbit ? `In orbit: perigee about ${f.orbit.perigee.toFixed(0)} km, apogee about ${f.orbit.apogee.toFixed(0)} km.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad, ...entry });
   g.room = null;
   if (SEASON[g.roundIndex].turningPoint && g.record.seat !== FIRST_OFFER.seat) {
     const again = g.record.offers.length > 0;

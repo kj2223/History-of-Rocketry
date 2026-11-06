@@ -16,9 +16,11 @@ export const FIX_HOURS = 2, FALSE_ALARM_HOURS = 3;
 export const WELD_FAILURE = 0.45, LEAK_FAILURE = 0.6, VANE_FAILURE = 0.5, SEPARATION_FAILURE = 0.6;
 // A Viking with a cracked fin attachment loses it to the airloads this often (Viking 6, December 1950).
 export const FIN_FAILURE = 0.5;
+// A Ranger whose camera supply arcs over in vacuum sends no pictures (Ranger 6, February 1964).
+export const CAMERA_FAILURE = 0.6;
 // Hold-down fittings with a flaw let go under a full-duration firing's thrust this often (Viking 8, June 1952).
 export const HOLDDOWN_FAILURE = 0.7;
-const SPOT_FAILURE = { weld: WELD_FAILURE, leak: LEAK_FAILURE, vanes: VANE_FAILURE, separation: SEPARATION_FAILURE, fin: FIN_FAILURE };
+const SPOT_FAILURE = { weld: WELD_FAILURE, leak: LEAK_FAILURE, vanes: VANE_FAILURE, separation: SEPARATION_FAILURE, fin: FIN_FAILURE, camera: CAMERA_FAILURE };
 
 // How each kind of round flies, and how each cause cuts it short: when (s after liftoff) and what share of the peak is left.
 // The order is the order the causes can strike in flight: a V-2 that dies early never tests its upper stage.
@@ -34,17 +36,24 @@ const PROFILE = {
   // A good Vanguard does not come down: fly() puts it in orbit. The first stage burns for 145 s.
   vanguard: { burn: 145, order: ['injector', 'leak', 'separation'],
     fail: { injector: { at: 2, keep: 0.0008 }, leak: { at: 60, keep: 0.12 }, separation: { at: 145, keep: 0.35 } } },
+  // The lunar shots. A good one leaves the range plot on its way to the Moon (fly() hands it to deep()). The first two causes
+  // of each bring it down near the Cape; the others are told by the tracking stations.
+  juno: { burn: 180, order: ['leak', 'depletion', 'separation'], deep: ['depletion'],
+    fail: { leak: { at: 60, keep: 0.001 }, depletion: { at: 176, keep: 1 }, separation: { at: 180, keep: 0.005 } } },
+  ranger: { burn: 300, order: ['leak', 'agena', 'camera'], deep: ['agena', 'camera'],
+    fail: { leak: { at: 80, keep: 0.0012 }, agena: { at: 600, keep: 1 }, camera: { at: 900, keep: 1 } } },
   bumper: { burn: 110, order: ['turbopump', 'vanes', 'separation', 'ignition', 'weld', 'leak'],
     fail: { turbopump: { at: 30, keep: 0.04 }, vanes: { at: 40, keep: 0.05, dev: 25 }, separation: { at: 65, keep: 0.3 },
       ignition: { at: 65, keep: 0.35 }, weld: { at: 75, keep: 0.38 }, leak: { at: 85, keep: 0.6 } } },
 };
-const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'liner', 'pm-19': 'cutoff', 'pm-23': 'injector' };
+const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'liner', 'pm-19': 'cutoff', 'pm-23': 'injector', 'pm-29': 'depletion', 'pm-31': 'agena' };
 // Some faults leave nothing to find: old hardware, a part that passed every test and failed anyway. However carefully a round
 // is looked over, it is lost this often, about as often as the real rounds were lost to causes nobody could have caught.
-export const HIDDEN_FAILURE = { wac: 0.12, v2: 0.3, bumper: 0.3, aerobee: 0.15, viking: 0.15, vanguard: 0.3 };
+// The early lunar shots failed more often than not: Rangers 1 to 6 all failed.
+export const HIDDEN_FAILURE = { wac: 0.12, v2: 0.3, bumper: 0.3, aerobee: 0.15, viking: 0.15, vanguard: 0.3, juno: 0.3, ranger: 0.35 };
 const usesWac = vehicle => vehicle === 'wac' || vehicle === 'bumper';
 const usesV2 = vehicle => vehicle === 'v2' || vehicle === 'bumper';
-export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
+export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
 
 // A new round. seed: a whole number; the same seed always makes the same round. programme: how the team builds rounds now
 // (world/programme.js): the chance of each fault, and which igniter and pump standard is in use. vehicle: 'wac', 'v2' or 'bumper'.
@@ -71,7 +80,11 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   put('separation', p.sepRisk, sep, sepAt);
   // Vanguard's injector draw is taken only on a Vanguard round, after the others, so the earlier rounds are unchanged.
   const injectorFault = vehicle === 'vanguard' && draw(rng.physical) < 0.5;
-  const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07', turbineFault && vehicle === 'viking' && 'pm-19', injectorFault && 'pm-23'].filter(Boolean);
+  // Likewise the lunar shots' own draws, taken only on their rounds.
+  const depletionFault = vehicle === 'juno' && draw(rng.physical) < 0.5;
+  const agenaFault = vehicle === 'ranger' && draw(rng.physical) < 0.5;
+  if (vehicle === 'ranger') { const cam = draw(rng.physical), camAt = draw(rng.physical); put('camera', p.cameraRisk, cam, camAt); }
+  const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07', turbineFault && vehicle === 'viking' && 'pm-19', injectorFault && 'pm-23', depletionFault && 'pm-29', agenaFault && 'pm-31'].filter(Boolean);
   // V1's worked-case defect, the Aerobee's debonding liner (pm-07), is a latent fault like the others: some sustainers have it.
   const physical = { ...initPhysical(), latentMechanisms: latent, trueDefectMechanism: null };
   const cues = Object.fromEntries(Object.keys(spots).map(id => [id, draw(rng.observation) < (faults[id] ? CUE_IF_FAULT : CUE_IF_SOUND)]));
@@ -82,6 +95,8 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     sustainer: p.sustainer, // the Aerobee's: r2 has the rebonded liner
     viking: p.viking, // the Viking's: r2 has the welded turbine casing and reworked steam feed
     vanguard: p.vanguard, // Vanguard's first stage: r2 has the reworked injector
+    juno: p.juno, // Juno II's Jupiter: r2 has the recalibrated propellant utilisation
+    ranger: p.ranger, // Ranger's Agena: r2 has the reworked restart system
     propellantLoad: 1,
     events: [], // what happened, for the debrief
   };
@@ -96,12 +111,14 @@ export const hasIgniterFault = round => round.physical.latentMechanisms.includes
 export const hasPumpFault = round => round.physical.latentMechanisms.includes('pm-03') && round.turbopump === 'v2/r1';
 export const hasTurbineFault = round => round.physical.latentMechanisms.includes('pm-19') && (round.viking || 'viking/r1') === 'viking/r1';
 export const hasInjectorFault = round => round.physical.latentMechanisms.includes('pm-23') && (round.vanguard || 'vanguard-1/r1') === 'vanguard-1/r1';
+export const hasDepletionFault = round => round.physical.latentMechanisms.includes('pm-29') && (round.juno || 'jupiter/r1') === 'jupiter/r1';
+export const hasAgenaFault = round => round.physical.latentMechanisms.includes('pm-31') && (round.ranger || 'agena/r1') === 'agena/r1';
 export const hasHolddownFault = round => Object.values(round.faults).includes('holddown');
 export const hasLinerFault = round => round.physical.latentMechanisms.includes('pm-07') && (round.sustainer || 'aerobee-sustainer/r1') === 'aerobee-sustainer/r1';
 // The faults the round really has right now, by cause.
-export const causesPresent = round => [...new Set(Object.values(round.faults))].concat(hasIgniterFault(round) ? ['ignition'] : [], hasPumpFault(round) ? ['turbopump'] : [], hasLinerFault(round) ? ['liner'] : [], hasTurbineFault(round) ? ['cutoff'] : [], hasInjectorFault(round) ? ['injector'] : []);
+export const causesPresent = round => [...new Set(Object.values(round.faults))].concat(hasIgniterFault(round) ? ['ignition'] : [], hasPumpFault(round) ? ['turbopump'] : [], hasLinerFault(round) ? ['liner'] : [], hasTurbineFault(round) ? ['cutoff'] : [], hasInjectorFault(round) ? ['injector'] : [], hasDepletionFault(round) ? ['depletion'] : [], hasAgenaFault(round) ? ['agena'] : []);
 
-const FOUND = { weld: 'weld flaw', leak: 'leak', vanes: 'cracked vane', separation: 'bad firing lead', fin: 'cracked fin fitting', holddown: 'flawed hold-down fitting' };
+const FOUND = { camera: 'arcing camera supply', weld: 'weld flaw', leak: 'leak', vanes: 'cracked vane', separation: 'bad firing lead', fin: 'cracked fin fitting', holddown: 'flawed hold-down fitting' };
 // The player flags spots for the crew. Real faults are fixed; false alarms cost time. Returns the hours the crew spends.
 export function flagSpots(round, ids) {
   const spots = spotsOf(round);
@@ -119,12 +136,16 @@ export function flagSpots(round, ids) {
 const stages = round => round.vehicle === 'v2' ? { v2: round.turbopump }
   : round.vehicle === 'viking' ? { viking: round.viking || 'viking/r1' }
   : round.vehicle === 'vanguard' ? { 'vanguard-1': round.vanguard || 'vanguard-1/r1' }
+  : round.vehicle === 'juno' ? { jupiter: round.juno || 'jupiter/r1' }
+  : round.vehicle === 'ranger' ? { agena: round.ranger || 'agena/r1' }
   : round.vehicle === 'aerobee' ? { 'aerobee-booster': 'aerobee-booster/r1', 'aerobee-sustainer': round.sustainer || 'aerobee-sustainer/r1' }
   : round.vehicle === 'bumper' ? { v2: round.turbopump, 'wac-upper': round.igniter }
   : { 'tiny-tim': 'tiny-tim/r1', 'wac-upper': round.igniter };
 // The stage that goes on the stand: the WAC's upper stage, or the V-2 (alone, or the lower stage of a Bumper).
-const standStage = round => (round.vehicle === 'vanguard' ? 'vanguard-1' : round.vehicle === 'viking' ? 'viking' : round.vehicle === 'aerobee' ? 'aerobee-sustainer' : usesV2(round.vehicle || 'wac') ? 'v2' : 'wac-upper');
-const NOMINAL_PC = { 'wac-upper': 20, v2: 15.5, 'aerobee-sustainer': 20.5, viking: 21, 'vanguard-1': 21 };
+const standStage = round => (round.vehicle === 'juno' ? 'jupiter' : round.vehicle === 'ranger' ? 'agena' : round.vehicle === 'vanguard' ? 'vanguard-1' : round.vehicle === 'viking' ? 'viking' : round.vehicle === 'aerobee' ? 'aerobee-sustainer' : usesV2(round.vehicle || 'wac') ? 'v2' : 'wac-upper');
+const NOMINAL_PC = { 'wac-upper': 20, v2: 15.5, 'aerobee-sustainer': 20.5, viking: 21, 'vanguard-1': 21, jupiter: 21, agena: 20 };
+// Stages whose fault is a late sag on a full-duration firing, not a rough start: when (s) the sag sets in.
+const SAG_AT = { viking: 12, jupiter: 20 };
 
 // A static firing on the stand. Returns the trace the player sees: [{ t, pc, tank, wall? }] with gauge noise.
 // burn 'short' (8 s): a start-up check. It shows a rough, low start if the stage has a start-up fault, and a falling tank
@@ -136,10 +157,10 @@ export function staticFire(round, burn = 'short') {
   const samples = Object.fromEntries(round.physical.traces.stand.map((x, i) => { const v = sampleAt(round, 'stand', i); return [v.quantity, v.value]; }));
   discardTrace(round, 'stand');
   const steady = samples[`${stage}.chamber-pressure`], wallEnd = samples[`${stage}.wall-temp`];
-  const long = burn === 'long', viking = stage === 'viking', leak = hasLeak(round);
-  // A Viking's turbine fault is not a rough start: the chamber runs normally, then sags once the steam leak takes hold.
-  const obs = round.rng.observation, rough = viking ? 0 : Math.max(0, NOMINAL_PC[stage] - 0.5 - steady) / 4;
-  const pcAt = t => (!viking || t < 12 ? (viking ? NOMINAL_PC.viking : steady) : steady + (NOMINAL_PC.viking - steady) * Math.exp(-(t - 12) / 2.5));
+  const long = burn === 'long', sagAt = SAG_AT[stage], leak = hasLeak(round);
+  // A Viking's turbine fault, or a Jupiter running short, is not a rough start: the chamber runs normally, then sags.
+  const obs = round.rng.observation, nominal = NOMINAL_PC[stage], rough = sagAt ? 0 : Math.max(0, nominal - 0.5 - steady) / 4;
+  const pcAt = t => (!sagAt ? steady : t < sagAt ? nominal : steady + (nominal - steady) * Math.exp(-(t - sagAt) / 2.5));
   // A flawed hold-down lets go under full thrust: the firing ends with the round leaving the stand. One physical draw.
   const loose = long && hasHolddownFault(round) && draw(round.rng.physical) < HOLDDOWN_FAILURE ? 9 : null;
   const span = loose ?? (long ? 30 : 8), step = long ? 0.25 : 0.1;
@@ -214,7 +235,16 @@ export function reworkInjector(round) {
   round.events.push(hasInjectorFault(round) ? 'The first-stage injector was replaced: the old one really was burning through.' : 'The first-stage injector was replaced, though the old one was sound.');
   round.vanguard = 'vanguard-1/r2';
 }
-export const standRework = round => { const st = standStage(round); return st === 'vanguard-1' ? reworkInjector(round) : st === 'v2' ? refurbishPump(round) : st === 'aerobee-sustainer' ? rebondLiner(round) : st === 'viking' ? reworkTurbine(round) : reworkIgniter(round); };
+// Juno II's Jupiter: recalibrate the propellant utilisation (jupiter/r2). Ranger's Agena: rework the restart system (agena/r2).
+export function recalibrateJupiter(round) {
+  round.events.push(hasDepletionFault(round) ? 'The Jupiter\'s propellant utilisation was recalibrated: it really would have run short.' : 'The Jupiter\'s propellant utilisation was recalibrated, though it was right.');
+  round.juno = 'jupiter/r2';
+}
+export function reworkAgena(round) {
+  round.events.push(hasAgenaFault(round) ? 'The Agena\'s restart system was reworked: it really would not have lit again.' : 'The Agena\'s restart system was reworked, though it was sound.');
+  round.ranger = 'agena/r2';
+}
+export const standRework = round => { const st = standStage(round); return st === 'jupiter' ? recalibrateJupiter(round) : st === 'agena' ? reworkAgena(round) : st === 'vanguard-1' ? reworkInjector(round) : st === 'v2' ? refurbishPump(round) : st === 'aerobee-sustainer' ? rebondLiner(round) : st === 'viking' ? reworkTurbine(round) : reworkIgniter(round); };
 
 // The tank pressure the blockhouse gauge shows at count second s: steady, or bleeding off if the round leaks.
 // The needle's flutter depends only on the round and the moment (it changes every few seconds), so the gauge holds still
@@ -248,6 +278,7 @@ export function fly(round) {
   const hidden = draw(ph), which = draw(ph);
   if (!failure && hidden < (HIDDEN_FAILURE[vehicle] || 0)) { failure = profile.order[Math.floor(which * profile.order.length)]; round.events.push('Something failed that no inspection could have found.'); }
   if (!failure && vehicle === 'vanguard') return orbit(round, apogee);
+  if (profile.deep && (!failure || profile.deep.includes(failure))) return deep(round, apogee, failure);
   const cut = failure ? profile.fail[failure] : null, failAt = cut ? cut.at : null;
   if (cut) { apogee *= cut.keep; deviation += cut.dev || 0; }
   // A ballistic arc to the apogee: burn for the first part, coast up and fall, tilted by the deviation (degrees off vertical,
@@ -284,9 +315,37 @@ function orbit(round, perigee) {
   return result;
 }
 
+// A lunar shot that got away from the Cape. Its plot climbs off the top of the range's board; what happened after that
+// is told by the tracking stations, in deep.text. failure: null, or a cause the tracking stations see.
+function deep(round, height, failure) {
+  const ph = round.rng.physical, a = draw(ph), b = draw(ph), path = [];
+  const fallsBack = failure === 'depletion', stranded = failure === 'agena';
+  const top = stranded ? 190 : fallsBack ? height * 0.85 : height;
+  for (let t = 0; t <= 900; t++) {
+    const f = t / 900;
+    path.push({ t, x: (stranded ? 2600 : 900) * f * f, h: stranded ? top * Math.sin(Math.min(1, f * 1.6) * Math.PI / 2) : top * f ** 1.6 });
+  }
+  const r = round.vehicle, km = n => Math.round(n / 1000) * 1000;
+  let say;
+  if (fallsBack) say = `The first stage ran out early. She climbed to about ${km(95000 + 15000 * a).toLocaleString('en-US')} km and fell back to Earth.`;
+  else if (stranded) say = 'The Agena never lit again, and she was left in a low orbit.';
+  else if (failure === 'camera') say = 'She hit the Moon on time, but the cameras never came on. No pictures.';
+  else if (r === 'juno') say = `Passed the Moon at about ${km(40000 + 40000 * a).toLocaleString('en-US')} km and went on into orbit round the Sun.`;
+  else say = `Hit the Moon on target, sending ${Math.round(4000 + 600 * b).toLocaleString('en-US')} pictures in the last minutes.`;
+  // say: as the tracking stations put it; text: as your record puts it.
+  const text = failure ? `Lost: ${say[0].toLowerCase()}${say.slice(1)}` : say;
+  const result = { apogee: Math.max(...path.map(p => p.h)), range: path[path.length - 1].x, failure, failAt: failure ? PROFILE[r].fail[failure].at : null, burn: PROFILE[r].burn, path, deep: { text, say } };
+  round.flight = result;
+  result.radar = radarApogee(round);
+  return result;
+}
+
 // What the recovery party finds at the impact point: the evidence, in the words of someone kneeling by the wreck. At sea
 // (the Cape), what the range reads from telemetry and radar instead, where the kit has those words.
-export const wreckage = (round, sea = false) => { const k = KITS[round.vehicle || 'wac']; return ((sea && k.sea) || k.wreck)[round.flight.failure || 'nominal']; };
+export const wreckage = (round, sea = false) => {
+  const k = KITS[round.vehicle || 'wac'], lines = ((sea && k.sea) || k.wreck)[round.flight.failure || 'nominal'];
+  return round.flight.deep ? [...lines, round.flight.deep.say] : lines;
+};
 
 // What the range's radar reports for a good flight's peak: the true apogee with a little tracking error.
 export const radarApogee = round => round.flight.apogee * (1 + 0.03 * normal(round.rng.observation));

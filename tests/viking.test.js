@@ -125,9 +125,9 @@ test('a round that breaks loose on the stand goes to the range plot, the recover
   assert.fail('no seed broke loose');
 });
 
-test('the whole campaign, 1945 to Vanguard TV-4, runs to the end on either path', () => {
+test('the whole campaign, 1945 to Ranger 7, runs to the end on either path', () => {
   newGame(13);
   for (let i = 0; i < SEASON.length; i++) { playRound(() => 'unknown'); if (i + 1 < SEASON.length) advance(false); }
   assert.equal(g.beat, 'seasonEnd');
-  assert.equal(SEASON.at(-1).id, 'vanguard-tv4');
+  assert.equal(SEASON.at(-1).id, 'ranger-7');
 });

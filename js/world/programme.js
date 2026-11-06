@@ -4,7 +4,7 @@
 // likely as before.
 
 // How likely each fault is on a new round before any fix (hidden from the player, but the team's fixes move them).
-export const initProgramme = () => ({ igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', finRisk: 0.35, holddownRisk: 0.3, weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35, flights: [], adopted: [] });
+export const initProgramme = () => ({ igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, finRisk: 0.35, holddownRisk: 0.3, weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35, flights: [], adopted: [] });
 
 // What the review decided, turned into a standing change to how rounds are built. Returns the line Ellis gives, or null.
 const FIXES = {
@@ -16,6 +16,9 @@ const FIXES = {
   liner: { text: 'Every Aerobee sustainer now has its chamber liner rebonded, with a wall-temperature pickup to watch it.', apply: p => { p.sustainer = 'aerobee-sustainer/r2'; } },
   cutoff: { text: 'Every Viking turbine casing is now welded up and its steam feed reworked before the engine is installed.', apply: p => { p.viking = 'viking/r2'; } },
   injector: { text: 'Every Vanguard first stage now gets the reworked injector before it goes on the stand.', apply: p => { p.vanguard = 'vanguard-1/r2'; } },
+  depletion: { text: 'Every Jupiter now has its propellant utilisation recalibrated before it leaves the hangar.', apply: p => { p.juno = 'jupiter/r2'; } },
+  agena: { text: 'Every Agena now gets the reworked restart system before it goes on the stack.', apply: p => { p.ranger = 'agena/r2'; } },
+  camera: { text: 'Every Ranger camera supply is now run for hours in a vacuum chamber before the spacecraft is closed up.', apply: p => { p.cameraRisk *= 0.3; } },
   fin: { text: 'Every Viking fin fitting is now magnafluxed for cracks before the fins go on.', apply: p => { p.finRisk *= 0.4; } },
   holddown: { text: 'The stand\'s hold-down fittings are now proof-loaded before every full-duration firing.', apply: p => { p.holddownRisk *= 0.3; } },
   separation: { text: 'Every separation bolt and firing lead is now tested on the bench before it goes on the stack.', apply: p => { p.sepRisk *= 0.4; } },
@@ -42,7 +45,7 @@ export const rangeRecord = programme => Math.max(0, ...programme.flights.map(f =
 // narrows it.
 const loadFactor = load => (0.55 + 0.45 * load) ** 2;
 // km for a full load: the office's pre-flight figures, a little pessimistic. A Bumper has never flown, so its spread is widest.
-export const PAPER = { wac: { apogee: 62, spread: 0.18 }, v2: { apogee: 140, spread: 0.22 }, bumper: { apogee: 300, spread: 0.3 }, aerobee: { apogee: 95, spread: 0.2 }, viking: { apogee: 150, spread: 0.22 }, vanguard: { apogee: 560, spread: 0.3 } };
+export const PAPER = { wac: { apogee: 62, spread: 0.18 }, v2: { apogee: 140, spread: 0.22 }, bumper: { apogee: 300, spread: 0.3 }, aerobee: { apogee: 95, spread: 0.2 }, viking: { apogee: 150, spread: 0.22 }, vanguard: { apogee: 560, spread: 0.3 }, juno: { apogee: 110000, spread: 0.1 }, ranger: { apogee: 110000, spread: 0.1 } };
 export const PAPER_APOGEE = PAPER.wac.apogee;
 export function estimate(programme, vehicle = 'wac', load = 1) {
   if (typeof vehicle === 'number') { load = vehicle; vehicle = 'wac'; } // estimate(programme, load) means a WAC

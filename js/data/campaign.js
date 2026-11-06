@@ -1,5 +1,5 @@
-// The player's years on the range, 1945–1958: the rounds they work, and what happens between them. White Sands first; from
-// late 1956 Project Vanguard at Cape Canaveral.
+// The player's years on the range, 1945–1964: the rounds they work, and what happens between them. White Sands first; from
+// late 1956 Project Vanguard at Cape Canaveral; then NASA's first lunar shots, with JPL, from the Cape.
 // WAC Corporal first (first flights 11 October 1945). Then the Army lends JPL hands to the captured V-2 firings, and JPL
 // and General Electric put a WAC on a V-2's nose: Project Bumper. Dates marked Provisional are a plausible round in that
 // stretch; the others are the real flight's date less two days of preparation.
@@ -26,6 +26,11 @@ export const SEASON = [
   { id: 'vanguard-tv0', vehicle: 'viking', site: 'cape', start: dayOf(1956, 12, 6), name: 'Vanguard TV-0, Viking 13, the first round at the Cape' }, // flew 8 December 1956
   { id: 'vanguard-tv3', vehicle: 'vanguard', site: 'cape', pressure: true, start: dayOf(1957, 12, 4), name: 'Vanguard TV-3, the first try for orbit' }, // 6 December 1957
   { id: 'vanguard-tv4', vehicle: 'vanguard', site: 'cape', pressure: true, start: dayOf(1958, 3, 15), name: 'Vanguard TV-4' }, // flew 17 March 1958, Vanguard 1
+  // NASA, from 1 October 1958. JPL's lunar probes: two Juno II Pioneers aimed past the Moon, and Ranger 7, after six Rangers
+  // had failed, aimed to hit it with its cameras running.
+  { id: 'pioneer-3', vehicle: 'juno', site: 'cape', start: dayOf(1958, 12, 4), name: 'Pioneer 3, a Juno II for the Moon' }, // flew 6 December 1958
+  { id: 'pioneer-4', vehicle: 'juno', site: 'cape', start: dayOf(1959, 3, 1), name: 'Pioneer 4' }, // flew 3 March 1959
+  { id: 'ranger-7', vehicle: 'ranger', site: 'cape', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
@@ -105,6 +110,21 @@ export const BETWEEN = {
     'On 31 January 1958 the Army put Explorer 1 into orbit from the Cape on a Jupiter-C: a Redstone with three upper stages of small solid rockets, clustered in a spinning tub. JPL built the upper stages and the satellite. Ellis\'s people were on it.',
     'Explorer 1\'s Geiger counter found far more radiation than anyone expected, in belts around the Earth.',
     'Vanguard TV-3BU, the backup, went up on 5 February. Its steering failed and it broke up at 57 seconds. You were not on it.',
+  ],
+  'pioneer-3': [
+    'On 1 October 1958 the National Aeronautics and Space Administration opened its doors. The Vanguard team went to it, and in December so did JPL.',
+    'Pioneer 1 went up on 11 October on an Air Force Thor-Able, aimed at the Moon. It climbed to about 113,800 km and fell back. Pioneer 2, in November, never got that far: its third stage did not fire.',
+    'Ellis asked for you. JPL\'s Pioneers fly on Juno II: a Jupiter missile with JPL\'s spinning tub of small solid rockets on top. The aim is to go past the Moon. Brandt went to NASA too, and he still keeps the schedule.',
+  ],
+  'pioneer-4': [
+    'On 2 January 1959 the Soviet Luna 1 passed the Moon at about 6,000 km and went on into orbit round the Sun, the first craft to escape the Earth.',
+    'In February Vanguard 2 went into orbit with the first weather instruments.',
+  ],
+  'ranger-7': [
+    'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',
+    'In April 1961 Yuri Gagarin orbited the Earth, and in May Alan Shepard flew from the Cape. On 25 May President Kennedy asked Congress to land a man on the Moon before the decade was out. Apollo needs to know what the Moon\'s surface is like.',
+    'JPL\'s Ranger was meant to find out, and six Rangers failed. Rangers 1 and 2, in 1961, were left in low orbit when the Agena did not restart. Ranger 3 missed the Moon. Ranger 4 hit the far side, dead. Ranger 5 lost its power and missed. In February 1964 Ranger 6 hit the Sea of Tranquility on time, and its cameras never came on.',
+    'Congress has held hearings. The papers call Ranger a shoot-and-hope programme. Every day this round slips is reported to Washington.',
   ],
 };
 

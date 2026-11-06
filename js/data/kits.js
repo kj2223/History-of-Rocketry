@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -228,6 +228,97 @@ export const KITS = {
     },
   },
 
+  // NASA's first lunar shots, flown from the Cape. Juno II: the Army's Jupiter with JPL's spinning tub of small solid
+  // rockets on top, aimed past the Moon (Pioneers 3 and 4). Ranger: an Atlas with an Agena B that restarts in orbit, and a
+  // JPL spacecraft with television cameras, aimed to hit the Moon.
+  juno: {
+    name: 'Juno II', range: 'JUNO II · PIONEER', crew: ['kowalski', 'delgado'], deep: true,
+    track: { title: 'The tracking reports', intro: 'The reports come in from the tracking stations: Mayaguez, Goldstone, and JPL in Pasadena. Morgan pins them up.' },
+    inspect: { title: 'Hangar: Juno II and Pioneer', objective: 'Go to the hangar and look over the Jupiter, the cluster of upper stages and the probe before the static firing.',
+      intro: 'The Jupiter lies on its transporter, fat and white. Beside it sits JPL\'s tub of small solid rockets, eleven round a ring, three and one inside, and on top the little gold-washed Pioneer cone.' },
+    brief: 'The Juno is in the hangar. Look her over, then the Jupiter goes on the stand.',
+    stand: { thing: 'Jupiter', pc: [18, 24], long: 'the whole burn on the stand. Shows whether the engine runs to the end or runs out early.', rework: 'Recalibrate the propellant utilisation system', reworkJob: 'Recalibrating the propellant utilisation', reworkDay: 'The crew spent the day recalibrating the Jupiter\'s propellant utilisation and checking the tank levels.', reworkSay: 'A recalibration. That puts the launch back a day.' },
+    spots: {
+      'lox-feed': { name: 'Jupiter oxygen feed', fault: 'leak', sound: 'Tight and dry after the cold-flow.', cue: 'A rime of frost round one flange that ought to be clear.' },
+      'fuel-valve': { name: 'Jupiter fuel prevalve', fault: 'leak', sound: 'Seated, the gaskets new.', cue: 'A faint smell of kerosene at the valve body.' },
+      'cluster-leads': { name: 'Upper-stage firing leads', fault: 'separation', sound: 'Every lead tests good on the bench.', cue: 'One lead reads open, then good when you wiggle the plug.' },
+      tub: { name: 'Spinning tub bearings', fault: null, sound: 'Spins up quiet and true.', cue: 'A faint rumble at the top of the spin-up.' },
+      probe: { name: 'The Pioneer probe and its radio', fault: null, sound: 'The transmitter is on frequency, the batteries charged.', cue: 'The signal drifts a little as the transmitter warms.' },
+      guidance: { name: 'Jupiter guidance platform', fault: null, sound: 'The platform holds level through the checkout.', cue: 'One gyro takes a moment longer to settle.' },
+    },
+    explanations: {
+      nominal: 'She got away and passed the Moon. Nothing to fix.',
+      depletion: 'The Jupiter ran out of propellant early, so she never reached escape speed. Recalibrate the propellant utilisation.',
+      leak: 'A leak cost the Jupiter its pressure and it cut off early.',
+      separation: 'The upper stages never fired.',
+      holddown: 'She broke loose from the stand: the hold-down fittings failed.',
+      unknown: 'Not enough evidence. I want a full-duration firing on the stand.',
+    },
+    calls: {
+      lift: 'Liftoff! The tub is spinning, she\'s climbing clean.',
+      steady: [{ t: 30, text: 'Jupiter steady. Pitching over.', tone: 'go' }, { t: 180, text: 'Jupiter cutoff. The cluster has fired, all three stages!', tone: 'go' }],
+      burnout: () => 'Fourth stage burnout. The probe is away.',
+      final: f => (f.failure ? f.deep.say : `Goldstone has her. ${f.deep.say}`),
+      fail: {
+        leak: [{ t: 30, text: 'Jupiter steady.' }, { t: 60, text: 'Chamber pressure falling! Early cutoff!' }],
+        depletion: [{ t: 30, text: 'Jupiter steady. Pitching over.' }, { t: 176, text: 'Jupiter cutoff, four seconds early!' }, { t: 600, text: 'She\'s climbing, but slower than she should be.' }],
+        separation: [{ t: 30, text: 'Jupiter steady. Pitching over.' }, { t: 180, text: 'Jupiter cutoff. No ignition on the cluster! The upper stages haven\'t fired!' }],
+        holddown: [{ t: 2, text: 'She\'s off the stand! She\'s loose!' }, { t: 55, text: 'Range safety has cut her engine. She\'s coming down offshore.' }],
+      },
+    },
+    wreck: {
+      leak: ['Telemetry shows the Jupiter\'s tank pressure bleeding off from liftoff.', 'The engine stopped at 60 seconds and the stack fell into the Atlantic.'],
+      depletion: ['Telemetry shows the Jupiter running normally until its chamber pressure falls away just before the planned cutoff.', 'The upper stages all fired, but she never had the speed she needed.'],
+      separation: ['The Jupiter ran its full burn: telemetry is clean to cutoff.', 'There is no firing signal from the cluster at all. The upper stages fell into the Atlantic still on the tub.'],
+      holddown: ['The round came down offshore, a few miles out.', 'At the stand, two hold-down fittings are sheared, their pins pulled through.'],
+      nominal: ['Telemetry is clean through all four stages.', 'Goldstone\'s big dish has the probe\'s signal and follows her out.'],
+    },
+  },
+
+  ranger: {
+    name: 'Ranger', range: 'ATLAS-AGENA B · RANGER', crew: ['kowalski', 'delgado'], deep: true,
+    track: { title: 'The tracking reports', intro: 'The reports come in from the Deep Space Network: Johannesburg, Woomera, Goldstone, and JPL in Pasadena. Morgan pins them up.' },
+    inspect: { title: 'Hangar AO: Ranger and its Agena', objective: 'Go to the hangar and look over the Atlas, the Agena and the Ranger spacecraft before the Agena\'s static firing.',
+      intro: 'The Atlas is a steel balloon, held round by its own pressure. The Agena lies beside it, and in the clean room the Ranger stands on its legs of solar panel, its six television cameras under a cone.' },
+    brief: 'The Atlas, the Agena and the Ranger are in the hangar. Look them over, then the Agena goes on the stand.',
+    stand: { thing: 'Agena', pc: [17, 23], long: 'the whole Agena burn on the stand.', rework: 'Rework the Agena\'s restart system', reworkJob: 'Reworking the Agena restart', reworkDay: 'The crew spent the day reworking the Agena\'s restart system.', reworkSay: 'An Agena rework. That puts the launch back a day.' },
+    spots: {
+      'atlas-lox': { name: 'Atlas oxygen feed', fault: 'leak', sound: 'Tight and dry after the cold-flow.', cue: 'A patch of frost at a flange that ought to be clear.' },
+      'atlas-press': { name: 'Atlas tank pressurisation', fault: 'leak', sound: 'The tank holds its pressure through the night.', cue: 'The pressure has crept down a fraction overnight.' },
+      'camera-hv': { name: 'Camera high-voltage supply', fault: 'camera', sound: 'Runs clean for an hour in the vacuum chamber.', cue: 'A faint tick from the supply under vacuum. Arcing, or a relay.' },
+      'camera-timer': { name: 'Camera warm-up timer', fault: null, sound: 'Fires on the second, every time.', cue: 'One run fired a fraction late.' },
+      panels: { name: 'Solar panels', fault: null, sound: 'Both panels deploy and give full current.', cue: 'One panel gives a little less current under the lamps.' },
+      midcourse: { name: 'Midcourse motor', fault: null, sound: 'Valves cycle clean.', cue: 'One valve is slow to close, once.' },
+    },
+    explanations: {
+      nominal: 'She hit the Moon and the pictures came back. Nothing to fix.',
+      agena: 'The Agena never restarted in orbit. Rework the restart system.',
+      camera: 'The camera supply failed: no pictures. Every supply goes through the vacuum chamber.',
+      leak: 'A leak cost the Atlas its pressure and it cut off early.',
+      holddown: 'She broke loose from the stand: the hold-down fittings failed.',
+      unknown: 'Not enough evidence. I want a full-duration firing on the stand.',
+    },
+    calls: {
+      lift: 'Liftoff! The Atlas is climbing.',
+      steady: [{ t: 130, text: 'Booster engines off and away. Sustainer steady.', tone: 'go' }, { t: 300, text: 'Atlas cutoff. Agena has separated and lit.', tone: 'go' }, { t: 600, text: 'Agena restart! She\'s burning for the Moon!', tone: 'go' }],
+      burnout: () => 'Agena cutoff. Ranger has separated, panels out.',
+      final: f => (f.failure ? f.deep.say : `Goldstone has her. ${f.deep.say}`),
+      fail: {
+        leak: [{ t: 30, text: 'Atlas steady.' }, { t: 80, text: 'Sustainer pressure falling! She\'s lost thrust!' }],
+        agena: [{ t: 130, text: 'Booster engines off and away.' }, { t: 300, text: 'Agena has lit. Parking orbit.' }, { t: 600, text: 'No Agena restart! She\'s stuck in the parking orbit!' }],
+        camera: [{ t: 300, text: 'Agena has lit. Parking orbit.' }, { t: 600, text: 'Agena restart! She\'s on her way.' }, { t: 880, text: 'Sixty-five hours on. Cameras commanded on... nothing. No video.' }],
+        holddown: [{ t: 2, text: 'She\'s off the stand! She\'s loose!' }, { t: 55, text: 'Range safety has cut her engine. She\'s coming down offshore.' }],
+      },
+    },
+    wreck: {
+      leak: ['Telemetry shows the Atlas tank pressure bleeding off from liftoff.', 'The sustainer stopped at 80 seconds and the stack fell into the Atlantic.'],
+      agena: ['The Atlas and the Agena\'s first burn were clean.', 'At the restart, the Agena\'s chamber pressure never rose. She stayed in the parking orbit and came down within days.'],
+      camera: ['Every stage worked, and the Ranger flew true all the way.', 'The cameras\' high-voltage supply shows a flicker early in the flight, then nothing. When the cameras were commanded on, there was no video at all.'],
+      holddown: ['The round came down offshore, a few miles out.', 'At the stand, two hold-down fittings are sheared, their pins pulled through.'],
+      nominal: ['Every stage worked, and the Ranger flew true all the way.', 'The cameras came on seventeen minutes out and sent pictures until the moment she hit.'],
+    },
+  },
+
   bumper: {
     name: 'Bumper', range: 'BUMPER (V-2 + WAC)', crew: ['kowalski', 'delgado'],
     inspect: { title: 'Hangar: the Bumper stack', objective: 'Go to the assembly hangar and look over the whole Bumper stack, the V-2 and the WAC on its nose, before tomorrow\'s static fire.',
@@ -284,5 +375,6 @@ export const FAILED_BECAUSE = {
   liner: 'the chamber liner came away and the wall burned through',
   cutoff: 'the turbine leaked steam and the engine cut off early', fin: 'a fin fitting cracked and a fin came off', holddown: 'the hold-down fittings let go on the stand',
   injector: 'the first-stage injector burned through and she fell back on the pad',
+  depletion: 'the Jupiter ran out of propellant early', agena: 'the Agena would not restart in orbit', camera: 'the camera high-voltage supply failed',
 };
-export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting' };
+export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum' };
