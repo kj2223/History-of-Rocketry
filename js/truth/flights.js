@@ -144,6 +144,30 @@ const RESOLVE = {
     else { out.verdict = 'bad'; out.judge = 'You held them up a day against the rule with the re-entry thrusters half spent. It came off. Don\'t do it again.'; }
     return out;
   },
+  evaplan(choice, { d, out }) {
+    if (choice === 'standup') {
+      out.lines.push(['crew2', 'Standing in the hatch. Photographs, and a look round. Copy, no tasks.', '']);
+      out.verdict = 'fair'; out.judge = 'Safe, and it taught Apollo nothing it didn\'t know. Gemini 12 was the last chance to show the work could be done.';
+      return out;
+    }
+    if (choice === 'full') {
+      if (d[12] < 0.6) {
+        out.lines.push(['crew2', 'Houston, my visor\'s fogging. I can\'t see the handholds. I need to rest.', 'bad']);
+        out.lines.push(['kessler', 'Flight, Surgeon says heart rate one-seventy and climbing. Bring him in.', 'bad']);
+        out.verdict = 'bad'; out.judge = 'The full list wore him out the way it wore out Gemini 9A. We knew that, and we flew it anyway.';
+        out.note = 'The spacewalker overheated and his visor fogged. The spacewalk was cut short with most tasks undone.';
+        out.hurt = 0.05;
+        return out;
+      }
+      out.lines.push(['crew2', 'Last task done. Tired, Houston, but done.', 'go']);
+      out.capability = 'evawork'; out.verdict = 'fair'; out.judge = 'He got through the whole list. Lucky: Gemini 9A\'s man didn\'t.';
+      return out;
+    }
+    out.lines.push(['crew2', 'Foot restraints on. Torque wrench… done. Resting. Next task.', 'go']);
+    out.lines.push(['kessler', 'Flight, Surgeon: heart rate steady, under a hundred and twenty.', 'go']);
+    out.capability = 'evawork'; out.verdict = 'good'; out.judge = 'Two hours outside and he came back fresh. That\'s what Apollo needed to see.';
+    return out;
+  },
   navcheck(choice, { f, out }) {
     if (choice === 'check') {
       out.set.secondary = true;

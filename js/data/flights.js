@@ -86,6 +86,23 @@ export const FLIGHTS = {
       { at: 71, retro: true },
     ],
   },
+  // Gemini 12, the last: what a man can really do outside.
+  'gem-12': {
+    program: 'gemini', craft: 'Gemini 12', entry: 'gemini', completes: null, objective: 'to show that a man can do useful work outside a spacecraft without wearing himself out',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Stop the spacewalk if the suit cannot keep up with the man in it: a fogged visor or a heart rate held over 160.',
+      'Every task outside is rehearsed underwater first.',
+    ],
+    steps: [
+      { at: 0.3, phase: 'Earth orbit', say: [['kessler', 'Flight, EECOM: platform good, the Agena is up and waiting.', 'go']], show: { AGENA: ['good orbit'], 'HANDHOLDS AND RESTRAINTS': ['fitted'] } },
+      { at: 4.2, phase: 'Docked', say: [['pilot', 'Houston, docked with the Agena. The radar quit on us; we did it on the charts.', 'go']] },
+      { at: 18.5, phase: 'The spacewalk', decide: 'evaplan' },
+      { at: 50, offShift: 'Experiments, photography and a stand-up spacewalk. Nothing for your team.' },
+      { at: 93, decide: 'navcheck' },
+      { at: 94, retro: true },
+    ],
+  },
 };
 
 // The questions, the options for each, who owns the call (the flight director unless said otherwise) and what the
@@ -104,6 +121,8 @@ export const DECISIONS = {
     options: { onboard: 'Fly it from the spacecraft\'s radar and computer.', ground: 'Fly the ground\'s solution.' } },
   tumble: { q: 'The crew has stopped the tumble with the re-entry thrusters. The rule says come home at the next area they can reach: the western Pacific, one destroyer, tonight. The primary area is a day away.', auto: 'secondary', rule: 1,
     options: { secondary: 'Bring them down in the Pacific tonight, on the rule.', primary: 'Hold them up a day for the primary area and the carrier.' } },
+  evaplan: { q: 'The spacewalk. After Gemini 9A\'s exhausted spacewalker, the plan can be paced: handholds, foot restraints and a rest after every task. Or fly the full task list, as Gemini 9A tried.', auto: 'rest', rule: 1,
+    options: { rest: 'Pace it: the restraints and a rest after every task.', full: 'Fly the full task list.', standup: 'A stand-up spacewalk only, from the hatch.' } },
   navcheck: { q: 'Retrofire is next. Retro has the landing-point numbers ready for the spacecraft\'s computer. An independent check costs a revolution: retrofire one orbit later, into the secondary area with one destroyer.', auto: 'send', owner: 'retro',
     options: { send: 'Send the numbers now.', check: 'Have the back room check them first.' } },
 };
@@ -117,4 +136,5 @@ export const CAPABILITIES = {
   rendezvous: 'A rendezvous in orbit, Gemini 6A with Gemini 7, closing to a foot',
   docking: 'A docking in orbit, Gemini 8 with an Agena target',
   threedays: 'Three days of docked work with an Agena',
+  evawork: 'Two hours of useful work outside, paced, with handholds and foot restraints',
 };

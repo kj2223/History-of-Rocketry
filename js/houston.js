@@ -151,7 +151,7 @@ export function flightJudgement(decisions) {
   }
   return out;
 }
-export const DECISION_NAMES = { rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers' };
+export const DECISION_NAMES = { evaplan: 'the spacewalk plan', rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers' };
 // What the flight's own troubles were, in flight-plan order, for the review: the first one that showed.
 export function flightCause(round) {
   const t = round.flightTruth;

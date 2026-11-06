@@ -6,9 +6,9 @@
 
 export const initRecord = () => ({ rounds: [], trust: 0, seat: 'junior', offers: [] });
 export const TRUST = { min: -3, max: 3, defer: 2 };
-export const SEATS = { junior: 'Junior engineer', 'test-conductor': 'Test conductor', retro: 'Retrofire officer', engineer: 'Project engineer, Mercury', flight: 'Flight director' };
+export const SEATS = { junior: 'Junior engineer', 'test-conductor': 'Test conductor', retro: 'Retrofire officer', engineer: 'Project engineer, Mercury', flight: 'Flight director', programme: 'Apollo programme office' };
 // The seat in a sentence: "You are now …".
-export const SEAT_PHRASE = { junior: 'a junior engineer', 'test-conductor': 'a test conductor', retro: 'the Retrofire officer in Mercury Control', engineer: 'a project engineer on the Mercury capsules', flight: 'a flight director in Mission Control, Houston' };
+export const SEAT_PHRASE = { junior: 'a junior engineer', 'test-conductor': 'a test conductor', retro: 'the Retrofire officer in Mercury Control', engineer: 'a project engineer on the Mercury capsules', flight: 'a flight director in Mission Control, Houston', programme: 'in the Apollo programme office' };
 
 export function addRound(record, entry) { record.rounds.push(entry); }
 export const shiftTrust = (record, by) => { record.trust = Math.max(TRUST.min, Math.min(TRUST.max, record.trust + by)); };
