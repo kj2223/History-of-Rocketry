@@ -9,5 +9,13 @@ export const ASTRONAUTS = {
   price: { name: 'Samuel Price', service: 'Navy test pilot', hours: 2600, note: 'Team player; defers to the engineers.', color: '#d9d4c7' },
   achterberg: { name: 'Robert Achterberg', service: 'Air Force test pilot', hours: 3200, note: 'Competitive and outspoken.', color: '#d9d4c7' },
   moreau: { name: 'Charles Moreau', service: 'Navy test pilot', hours: 2900, note: 'Cautious. Will not fly what he does not understand.', color: '#d9d4c7' },
+  // The second group, chosen in September 1962 for Gemini and Apollo.
+  boateng: { name: 'Richard Boateng', service: 'Navy test pilot', hours: 2500, note: 'Careful, precise checklists.', color: '#d9d4c7' },
+  nakamura: { name: 'Edward Nakamura', service: 'Air Force test pilot', hours: 3100, note: 'Bold; pushes for more in every flight.', color: '#d9d4c7' },
+  castellano: { name: 'John Castellano', service: 'Navy test pilot', hours: 2900, note: 'Gregarious; reports late when he thinks he can fix it himself.', color: '#d9d4c7' },
+  kowalczyk: { name: 'James Kowalczyk', service: 'Air Force test pilot', hours: 3300, note: 'Rendezvous theory is his strength.', color: '#d9d4c7' },
+  fairbanks: { name: 'Neil Fairbanks', service: 'Civilian research pilot', hours: 2300, note: 'Unflappable in emergencies.', color: '#d9d4c7' },
+  szabo: { name: 'David Szabo', service: 'Marine Corps test pilot', hours: 3400, note: 'Aggressive flyer, honest debriefs.', color: '#d9d4c7' },
 };
-export const SEVEN = Object.keys(ASTRONAUTS);
+export const SEVEN = ['rourke', 'okafor', 'whitcomb', 'lindqvist', 'price', 'achterberg', 'moreau'];
+export const NINE = ['boateng', 'nakamura', 'castellano', 'kowalczyk', 'fairbanks', 'szabo'];

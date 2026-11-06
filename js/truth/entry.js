@@ -88,3 +88,17 @@ export const KM_PER_MILE = 1.609344;
 const DEG = Math.PI / 180;
 export const MERCURY_ENTRY = { beta: 260, ld: 0, noseRadius: 2.4, retroDv: 170, retroPitch: 34 * DEG, orbitAltitude: 160e3 };
 export const GEMINI_ENTRY = { beta: 340, ld: 0.19, noseRadius: 2.3, retroDv: 100, retroPitch: 20 * DEG, orbitAltitude: 160e3, nominalBank: 60 * DEG };
+
+// Coming home from the Moon: no retrofire, the ship meets the air at 120 km at about 11 km/s on a flight-path angle the
+// midcourse burns set. Too shallow and she skips back out; too steep and the g load crushes. The command module banks its
+// lift to steer for the target it believes in, as Gemini did. gammaError in degrees, navError in m.
+export const LUNAR_ENTRY = { beta: 360, ld: 0.3, noseRadius: 4.7, speed: 11.03e3, gamma: -6.2, nominalBank: 55 * DEG, corridor: [-7.2, -5.5] };
+export const flyLunarEntry = (v, gammaError = 0, navError = 0) => {
+  const at = gamma => [RE + ENTRY_INTERFACE - 1, 0, v.speed * Math.sin(gamma * DEG), v.speed * Math.cos(gamma * DEG)];
+  const aim = descend(at(v.gamma), { ...v, bank: v.nominalBank }).range;
+  const gamma = v.gamma + gammaError;
+  if (gamma > v.corridor[1]) return { skip: true, gamma, miss: Infinity, peakG: 4, heatLoad: 0, blackout: 0, aim };
+  const start = at(gamma), bank = steer(start, v, aim + navError);
+  const out = descend(start, { ...v, bank });
+  return { ...out, gamma, aim, miss: out.range - aim, bank, skip: false };
+};

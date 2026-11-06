@@ -34,16 +34,17 @@ const smooth = k => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
 export const orbitGamma = t => (t < 10 ? 90 : 90 - 90 * smooth((t - 10) / (ORBIT_PLAN.burn - 10)) ** 0.8);
 
 // The climb to orbit, decided in full at liftoff. A fixed 9 draws.
-export function atlasAscent(round, force = null) {
+// names: the booster's own fault kinds for a control failure and an early cutoff (the Titan II's are its own).
+export function atlasAscent(round, force = null, names = { guidance: 'guidance', shortburn: 'shortburn', booster: 'Atlas' }) {
   const ph = round.rng.physical, present = new Set(Object.values(round.faults || {}));
   const d = { guidance: draw(ph), sign: draw(ph), start: draw(ph), sustainer: draw(ph), cutAt: draw(ph), hidden: draw(ph), which: draw(ph), v: normal(ph), gamma: normal(ph) };
   let failure = null;
   if (force) failure = force === 'nominal' ? null : force;
-  else if (present.has('guidance') && d.guidance < ORBIT_FAILURE.guidance) failure = 'guidance';
-  else if (present.has('shortburn') && d.sustainer < ORBIT_FAILURE.shortburn) failure = 'shortburn';
-  else if (d.hidden < ORBIT_HIDDEN) { failure = d.which < 0.5 ? 'guidance' : 'shortburn'; round.events.push('Something failed on the Atlas that no inspection could have found.'); }
-  const P = ORBIT_PLAN, vEnd = P.v * (1 + 0.002 * d.v), burn = failure === 'shortburn' ? Math.round(230 + 60 * d.cutAt) : P.burn;
-  const disp = 0.6 * d.gamma, drift = failure === 'guidance' ? (d.sign < 0.5 ? -1 : 1) * 0.25 : 0, t0 = 60 + Math.round(90 * d.start);
+  else if (present.has(names.guidance) && d.guidance < ORBIT_FAILURE.guidance) failure = names.guidance;
+  else if (present.has(names.shortburn) && d.sustainer < ORBIT_FAILURE.shortburn) failure = names.shortburn;
+  else if (d.hidden < ORBIT_HIDDEN) { failure = d.which < 0.5 ? names.guidance : names.shortburn; round.events.push(`Something failed on the ${names.booster} that no inspection could have found.`); }
+  const P = ORBIT_PLAN, vEnd = P.v * (1 + 0.002 * d.v), burn = failure === names.shortburn ? Math.round(230 + 60 * d.cutAt) : P.burn;
+  const disp = 0.6 * d.gamma, drift = failure === names.guidance ? (d.sign < 0.5 ? -1 : 1) * 0.25 : 0, t0 = 60 + Math.round(90 * d.start);
   const steps = [];
   let breakupAt = null;
   for (let t = 0; t <= burn; t++) {
