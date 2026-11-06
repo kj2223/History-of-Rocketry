@@ -3,7 +3,7 @@
 // Mercury Control could see: g.console and g.mission, which the game fills from the telemetry and the radars.
 import { g, dateText, clockText } from '../game.js';
 import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, evidence, simStart, simClose, simOpen, toReview, board,
-  consoleInsertion, consolePack, consoleRetro, routeArgue, routeDone, orbitMisses, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
+  consoleInsertion, consolePack, consoleRetro, lookSpot, flagSpot, runQual, CAPSULE_SPOTS, QUAL_TESTS, routeArgue, routeDone, orbitMisses, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
 import { KITS } from '../data/kits.js';
 import { ROUTE_MODES } from '../data/route.js';
 import { SEASON } from '../data/campaign.js';
@@ -15,6 +15,9 @@ export const CONTROL_ROOMS = {
   console() {
     const c = g.console;
     if (!c || c.kind !== 'flight') return '<h2>Mercury Control</h2><p class="muted">Your console is quiet.</p>';
+    if (c.auto) return `<h2>Mercury Control: the back room</h2>
+      <p>You are behind the glass with the capsule drawings and a headset on Hollis's loop. Tate has the Retrofire console; he makes the calls on the
+      count, the climb and the splashdown point. When the hardware does something odd, Hollis asks you.</p>${consoleBody(c, true)}`;
     return `<h2>Mercury Control: the Retrofire officer's console</h2>
       <p>Hollis is in the middle of the row with his headset on. Albrecht has the booster, Morgan the network, Reyes the recovery forces. Your
       console has the trajectory plot and the impact computers, and the recovery board is on the wall.</p>${consoleBody(c)}`;
@@ -56,6 +59,27 @@ export const CONTROL_ROOMS = {
       ${done ? `<p>${esc(done.reply)}</p><p class="muted">The decision is NASA's. It is in your notebook.</p><button class="primary" data-act="route-done">Leave the meeting</button>`
         : `<div class="choices">${Object.entries(ROUTE_MODES).map(([k, m]) => `<button data-act="route" data-id="${k}">Argue for ${esc(m.name.toLowerCase())}</button>`).join('')}</div>`}`;
   },
+  // The project engineer's day: the capsule's spots in Hangar S, and the qualification tests.
+  checkout() {
+    const m = g.mission || {}, k = KITS[g.vehicle];
+    return `<h2>Hangar S: the capsule on its stand</h2>
+      <p>McDonnell's crew has her opened up for you. Each look takes about forty minutes. Flag what you don't like: Hangar S reworks it overnight,
+      and any flag slips the launch a day.</p>
+      <ul class="reports">${CAPSULE_SPOTS.map(id => { const seen = m.checkout?.[id], flagged = m.flags?.[id];
+        return `<li><strong>${esc(k.spots[id].name)}</strong>${seen ? `: ${esc(seen.text)}` : ''}<br>
+          ${seen ? '' : `<button data-act="eng-look" data-id="${id}">Look it over</button>`}
+          <button class="${flagged ? 'danger' : ''}" data-act="eng-flag" data-id="${id}">${flagged ? 'Flagged for rework (unflag)' : 'Flag for rework'}</button></li>`; }).join('')}</ul>
+      <p class="muted">The Atlas is Convair's. Your job is the capsule.</p>`;
+  },
+  qual() {
+    const m = g.mission || {};
+    return `<h2>The test rooms</h2>
+      <p>The qualification rigs for the capsule. Each test takes a few hours; the trace tells you whether the hardware stayed in its band.</p>
+      <ul class="reports">${Object.entries(QUAL_TESTS).map(([id, t]) => { const r = m.quals?.[id];
+        return `<li><strong>${esc(t.name)}.</strong> ${esc(t.what)} <span class="muted">About ${Math.round(t.minutes / 60)} hours.</span><br>
+          ${r ? `<strong class="${r.bad ? 'danger-text' : 'go-text'}">${esc(r.text)}</strong>` : `<button data-act="eng-qual" data-id="${id}">Run it</button>`}</li>`; }).join('')}</ul>
+      <p class="muted">Flag the capsule's parts in Hangar S if a trace worries you.</p>`;
+  },
   mreview() {
     const k = KITS[g.vehicle] || KITS.redstone;
     return `<h2>The review, in Mercury Control</h2>
@@ -67,7 +91,12 @@ export const CONTROL_ROOMS = {
 };
 
 // The console itself, at whatever point the count or the flight has reached.
-function consoleBody(c) {
+function consoleBody(c, backRoom = false) {
+  const html = consoleView(c);
+  // In the back room the Retrofire officer's calls are Tate's: you see them, but they are not your buttons.
+  return backRoom ? html.replace(/<button[^>]*data-act="m-(go|nogo|abort|insert|aim)"[^>]*>.*?<\/button>/g, '') : html;
+}
+function consoleView(c) {
   const head = `<div class="clock" data-live="mclock">—</div><p class="center" data-live="mstate"></p>`;
   if (c.phase === 'pad') return `${head}<div class="poll"><p><strong>The capsule is sitting on the pad on a fuelled booster, its parachutes draped over the side.</strong>
     The batteries are live and the pyrotechnics armed. Hollis turns round: "Retro, ideas?"</p>
@@ -159,8 +188,8 @@ function plot(canvas, c) {
 
 // Clicks in Mercury Control's panels.
 export const CONTROL_ACTS = {
-  'm-go': () => consolePoll(true), 'm-nogo': () => consolePoll(false), 'm-abort': consoleAbort,
-  'm-aim': id => consoleAim(id), 'm-insert': id => consoleInsertion(id === 'go'), 'm-pack': id => consolePack(id), 'm-retro': id => consoleRetro(id), pad: id => padChoose(id), 'm-present': id => missionPresent(id),
-  'sim-start': simStart, route: id => routeArgue(id), 'route-done': routeDone, 'sim-close': simClose, 'to-review': toReview,
+  'm-go': () => !g.console?.auto && consolePoll(true), 'm-nogo': () => !g.console?.auto && consolePoll(false), 'm-abort': () => !g.console?.auto && consoleAbort(),
+  'm-aim': id => !g.console?.auto && consoleAim(id), 'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go'), 'm-pack': id => consolePack(id), 'm-retro': id => consoleRetro(id), pad: id => padChoose(id), 'm-present': id => missionPresent(id),
+  'sim-start': simStart, 'eng-look': id => lookSpot(id), 'eng-flag': id => flagSpot(id), 'eng-qual': id => runQual(id), route: id => routeArgue(id), 'route-done': routeDone, 'sim-close': simClose, 'to-review': toReview,
 };
 export const openConsole = () => consoleStart();

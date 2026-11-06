@@ -5,7 +5,7 @@ import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHol
   conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY, onBudget, budgetLine, atSea, nextIndex, placeName } from '../game.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
-import { SEASON, offerFor, blockhouseState, SITES } from '../data/campaign.js';
+import { SEASON, offerFor, offerBySeat, blockhouseState, SITES } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
 import { PLACES } from '../data/white-sands.js';
@@ -283,10 +283,10 @@ function budgetBlock() {
 
 // A turning point's offer, or the news that you were passed over, with the buttons to answer it.
 function offerCard(o) {
-  const offer = offerFor(o.path === 'nasa' ? 'nasa' : true);
-  if (!o.made) return `<div class="offer"><h3>Passed over, this time</h3><p>Ellis: "${esc(offer.sidelined)}"</p>
+  const offer = offerBySeat(o.seat), from = g.people[offer.from || 'ellis'].name.split(' ').pop();
+  if (!o.made) return `<div class="offer"><h3>Passed over, this time</h3><p>${esc(from)}: "${esc(offer.sidelined)}"</p>
     <p class="muted">You stay ${esc(SEATS[g.record.seat].toLowerCase())}, on quieter work for now. A better record brings the offer back.</p></div>`;
-  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>Ellis: "${esc(o.again ? offer.again : offer.text)}"</p>
+  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>${esc(from)}: "${esc(o.again ? offer.again : offer.text)}"</p>
     <p class="muted">${esc(offer.takeNote)} ${esc(offer.declineNote)}</p>
     <button class="primary" data-act="offer-take">Take the job</button><button data-act="offer-decline">Turn it down, for now</button></div>`;
   return `<div class="offer"><p>${o.answer === 'taken' ? `You took the job: ${esc(o.title)}.` : 'You turned the offer down and kept your seat.'}</p></div>`;

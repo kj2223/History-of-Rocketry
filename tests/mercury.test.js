@@ -235,7 +235,8 @@ test('a bad horizon scanner: on the automatic system she lands hundreds of km of
   assert.ok(hand / n < auto / n / 2, `hand ${hand / n}`);
 });
 
-const toMA6 = seed => { toMR3(seed); playMission({ sims: 0 }); advance(true); g.room = null; };
+// Turn down the project office's offer after MR-3: these tests stay on the Retrofire console.
+const toMA6 = (seed, take = false) => { toMR3(seed); playMission({ sims: 0 }); advance(take); g.room = null; };
 
 test('after MR-3 come the orbital flights: MA-6 and MA-7 play from the count through orbit, retrofire and recovery to the review', () => {
   toMA6(8);
@@ -294,4 +295,48 @@ test('the simulator runs orbital sims on the Atlas flights, and grades them', ()
   const kinds = new Set();
   for (let n = 0; n < 8; n++) { const d = runSim(); kinds.add(d.scenario); assert.ok(d.of >= 1 && d.right <= d.of, JSON.stringify(d)); }
   assert.ok(kinds.size >= 3);
+});
+
+// ---- M4: the project engineer ----
+import { lookSpot, flagSpot, runQual, engineer } from '../js/mercury.js';
+import { offerFor } from '../js/data/campaign.js';
+
+test('after MR-3 the project office offers the capsule engineer\'s job; turn it down and you keep the console', () => {
+  assert.equal(SEASON.find(r => r.id === 'mr-3').turningPoint, 'engineer');
+  assert.equal(offerFor('engineer').seat, 'engineer');
+  toMA6(8, false);
+  assert.equal(g.record.seat, 'retro');
+  assert.ok(!engineer() && g.people.tate.hidden);
+});
+
+test('as project engineer: Hangar S and the test rooms the day before, Tate on the console, and the hardware questions are yours', () => {
+  let played = 0;
+  for (let s = 1; s <= 12 && played < 2; s++) {
+    newGame(s); toRoundId('mr-1'); playMission(); advance(true); g.room = null; playMission();
+    const o = g.record.offers.at(-1);
+    if (!o || o.seat !== 'engineer' || !o.made) continue;
+    advance(true); g.room = null;
+    assert.equal(g.record.seat, 'engineer');
+    assert.equal(SEASON[g.roundIndex].id, 'ma-6');
+    assert.ok(engineer() && !g.people.tate.hidden);
+    assert.equal(g.beat, 'mBrief');
+    const t0 = g.clock;
+    lookSpot('heat-shield'); runQual('bag');
+    assert.ok(g.clock > t0 + 150, 'the work takes time');
+    assert.ok(g.mission.checkout['heat-shield'].text && g.mission.quals.bag.text);
+    lookSpot('programmer'); assert.equal(g.mission.checkout.programmer, undefined, 'the Atlas is Convair\'s');
+    // Plant a loose shield; a flag finds it overnight and costs a day.
+    g.round.faults['heat-shield'] = 'shield';
+    flagSpot('heat-shield');
+    const slips = g.slipDays;
+    playMission({ sims: 0 });
+    assert.deepEqual(g.mission.found, ['heat-shield']);
+    assert.equal(g.slipDays, slips + 1 + g.mission.scrubs);
+    assert.ok(g.mission.calls.auto && g.mission.calls.retro, 'Hollis asked Engineering about the scanners');
+    const e = g.record.rounds.at(-1);
+    assert.equal(e.id, 'ma-6');
+    assert.ok(e.calls.engineer);
+    played++;
+  }
+  assert.ok(played >= 1, 'the offer was made on some seed');
 });

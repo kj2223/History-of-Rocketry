@@ -7,6 +7,8 @@ export const MERCURY_PEOPLE = {
   hollis: { name: 'Frank Hollis', role: 'Flight director, Mercury Control', color: '#3d4f6e', x: 180 },
   reyes: { name: 'Cmdr. Luis Reyes', role: 'Recovery, U.S. Navy', color: '#2f3f66', hat: '#e9e9e4', x: 240 },
   albrecht: { name: 'Kurt Albrecht', role: 'Booster, Marshall', color: '#6b5a4a', x: 270 },
+  // Takes the Retrofire console when you move to the project office.
+  tate: { name: 'Bill Tate', role: 'Retrofire officer, Mercury Control', color: '#4a5560', x: 300 },
 };
 // What the other people do in Mercury rounds.
 export const MERCURY_ROLES = { morgan: 'Network, Mercury Control', vega: 'Pad leader, Launch Complex 5', brandt: 'NASA operations, the Cape schedule', kowalski: 'Pad crew', delgado: 'Pad crew' };
@@ -107,4 +109,16 @@ export const ORBIT_SIMS = {
   seg51false: 'Segment 51 lit, but it was a bad switch: the shield was tight.',
   scanner: 'A bad horizon scanner: the automatic system held the wrong attitude and burned fuel.',
   seastate: 'The sea in the recovery area was above state 4.',
+};
+
+// ---- The project engineer's day in Hangar S (from 1961) ----
+// The capsule's spots the project engineer checks out: the Atlas is Convair's.
+export const CAPSULE_SPOTS = ['heat-shield', 'scanners'];
+export const LOOK_MINUTES = 40;
+// The qualification tests in the test rooms, the fault kind each can show, and how long each takes.
+export const QUAL_TESTS = {
+  bag: { name: 'Landing-bag drop test', fault: 'shield', minutes: 150, what: 'The capsule is dropped onto the water tank with the bag deployed, and the latch loads are traced.', good: 'Every latch load stays in its band through the drop.', bad: 'One latch trace drops to nothing halfway through the drop, then comes back.' },
+  horizon: { name: 'Heated-horizon scanner test', fault: 'scanner', minutes: 120, what: 'Each scanner is swept across a heated horizon target and its attitude output traced.', good: 'Both scanners track the target to within a degree.', bad: 'One scanner\'s trace wanders more than twenty degrees off the target before it settles.' },
+  chutes: { name: 'Parachute drop', fault: null, minutes: 180, what: 'A boilerplate capsule is dropped from a C-130 and the drogue and main traced.', good: 'Drogue and main open on time and the loads stay in their bands.', bad: '' },
+  tower: { name: 'Escape tower firing', fault: null, minutes: 180, what: 'An escape tower fires a boilerplate capsule off a stand.', good: 'The tower pulls clean and the capsule separates on time.', bad: '' },
 };

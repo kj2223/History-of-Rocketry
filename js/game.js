@@ -95,6 +95,7 @@ function setVehicle() {
   // A Mercury round: Mercury Control's people are on site, Ellis is back at JPL, and the others have Mercury jobs.
   g.crewed = !!SEASON[g.roundIndex].crewed;
   for (const id of Object.keys(MERCURY_PEOPLE)) g.people[id].hidden = !g.crewed;
+  g.people.tate.hidden = !(g.crewed && g.record.seat === 'engineer');
   g.people.ellis.hidden = g.crewed;
   const pilot = SEASON[g.roundIndex].crew?.[0];
   g.people.pilot.hidden = !pilot;
@@ -652,7 +653,8 @@ export function finishReview(entry) {
     const again = g.record.offers.some(o => o.seat === offer.seat);
     const o = turningPoint(g.record, offer, g.day);
     o.again = again;
-    note(o.made ? `Ellis put your name forward: ${offer.title.toLowerCase()}.` : `${offer.title} was on offer. Ellis did not put your name forward.`);
+    const by = g.people[offer.from || 'ellis'].name.split(' ').pop();
+    note(o.made ? `${by} put your name forward: ${offer.title.toLowerCase()}.` : `${offer.title} was on offer. ${by} did not put your name forward.`);
   }
   const scene = g.crewed ? sceneAfterReview() : null;
   morning(scene || (nextIndex() != null ? 'roundEnd' : 'seasonEnd'));
@@ -709,6 +711,7 @@ export function answerFirstOffer(take) {
   if (!o) return;
   const line = take ? 'Good. They\'ll be glad of you. Come and see me when you need a second opinion.' : 'Your seat here is yours as long as you want it. They may ask again.';
   if (!g.people.ellis.hidden) say('ellis', line, take ? 'go' : '', 8);
+  else if (g.crewed) say('hollis', take ? 'Good luck in Hangar S. I\'ll want straight answers from you on flight day.' : 'Glad to keep you, Retro.', take ? 'go' : '', 8);
   g.people.you.role = SEATS[g.record.seat];
   note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay ${/^[aeiou]/i.test(SEATS[g.record.seat]) ? 'an' : 'a'} ${SEATS[g.record.seat].toLowerCase()}.`);
   morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');
