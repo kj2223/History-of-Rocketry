@@ -1,4 +1,4 @@
-// The player's years on the range, 1945–1949: the rounds they work, and what happens at White Sands between them.
+// The player's years on the range, 1945–1950: the rounds they work, and what happens at White Sands between them.
 // WAC Corporal first (first flights 11 October 1945). Then the Army lends JPL hands to the captured V-2 firings, and JPL
 // and General Electric put a WAC on a V-2's nose: Project Bumper. Dates marked Provisional are a plausible round in that
 // stretch; the others are the real flight's date less two days of preparation.
@@ -11,7 +11,11 @@ export const SEASON = [
   { id: 'wac-b', vehicle: 'wac', start: dayOf(1946, 12, 3), name: 'the first WAC-B, the improved WAC Corporal' }, // Provisional
   { id: 'v2-1', vehicle: 'v2', start: dayOf(1947, 4, 8), name: 'a V-2 round with General Electric\'s Hermes crew' }, // Provisional
   { id: 'bumper-1', vehicle: 'bumper', start: dayOf(1948, 5, 11), name: 'Bumper 1, the first V-2 with a WAC on its nose' }, // flew 13 May 1948
-  { id: 'bumper-5', vehicle: 'bumper', start: dayOf(1949, 2, 22), name: 'Bumper 5' }, // flew 24 February 1949
+  { id: 'bumper-5', vehicle: 'bumper', start: dayOf(1949, 2, 22), name: 'Bumper 5', turningPoint: true }, // flew 24 February 1949
+  // Aerobee firings at White Sands for the Navy and Aerojet. The seat you hold decides whether you run them or work on them.
+  { id: 'aerobee-1', vehicle: 'aerobee', start: dayOf(1949, 6, 7), name: 'an Aerobee round for the Navy' }, // Provisional
+  { id: 'aerobee-2', vehicle: 'aerobee', start: dayOf(1949, 11, 15), name: 'an autumn 1949 Aerobee round' }, // Provisional
+  { id: 'aerobee-3', vehicle: 'aerobee', start: dayOf(1950, 5, 9), name: 'a spring 1950 Aerobee round', turningPoint: true }, // Provisional
 ];
 
 // What went on at White Sands while the player had no round to work. Shown on arrival at the next round.
@@ -41,9 +45,16 @@ export const BETWEEN = {
     'Bumper 4 in November: an explosion in the V-2\'s tail, under 5 km up.',
     'After three bad flights in a row the whole range is watching the next one. Ellis wants you on it.',
   ],
+  'aerobee-1': [
+    'The Aerobee is Aerojet\'s sounding rocket, born of the WAC: a solid booster and a nitric acid and aniline sustainer. It has flown here since November 1947, for the Navy and the Air Force.',
+    'Lt. Cmdr. Paul Brandt is the Navy\'s project officer for these firings. Range time is booked weeks ahead, and he means to keep his slots.',
+  ],
+  'aerobee-2': ['The summer\'s other Aerobee firings went ahead without you: scientists\' instruments in the nose, cosmic rays and the upper air.'],
+  'aerobee-3': ['Winter on the range. Up at the north end, the Navy\'s Viking team is getting its own rocket ready.'],
 };
 
-// The first promotion offer, made when the last round of these years is written up. Aerobee: the sounding rocket Aerojet
+// The test conductor's offer, made at a turning point (Bumper 5, and again after the Aerobee rounds if you are still a
+// junior engineer). Aerobee: the sounding rocket Aerojet
 // built from the WAC's lessons, first flown at White Sands in November 1947.
 export const FIRST_OFFER = {
   seat: 'test-conductor',
@@ -51,4 +62,5 @@ export const FIRST_OFFER = {
   from: 'ellis',
   text: 'Aerojet and the Navy are short of a test conductor for their Aerobee firings here. You\'d plan the tests, run the whole count and chair the reviews. I told them you were ready.',
   sidelined: 'Aerojet wanted a test conductor for their Aerobee firings. They asked me about you, and I couldn\'t say you were ready. Keep at it and they\'ll ask again.',
+  again: 'Aerojet are asking again. They still need a test conductor for the Aerobee firings, and after this year I can tell them you\'re ready.',
 };

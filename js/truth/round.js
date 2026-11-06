@@ -23,14 +23,16 @@ const PROFILE = {
     fail: { ignition: { at: 2, keep: 0.3, dev: 40 }, weld: { at: 14, keep: 0.12 }, leak: { at: 24, keep: 0.35 } } },
   v2: { burn: 65, order: ['turbopump', 'vanes', 'leak'],
     fail: { turbopump: { at: 28, keep: 0.15 }, vanes: { at: 35, keep: 0.12, dev: 25 }, leak: { at: 45, keep: 0.4 } } },
+  aerobee: { burn: 45, order: ['liner', 'weld', 'leak'],
+    fail: { liner: { at: 31, keep: 0.35 }, weld: { at: 12, keep: 0.1 }, leak: { at: 25, keep: 0.35 } } },
   bumper: { burn: 110, order: ['turbopump', 'vanes', 'separation', 'ignition', 'weld', 'leak'],
     fail: { turbopump: { at: 30, keep: 0.04 }, vanes: { at: 40, keep: 0.05, dev: 25 }, separation: { at: 65, keep: 0.3 },
       ignition: { at: 65, keep: 0.35 }, weld: { at: 75, keep: 0.38 }, leak: { at: 85, keep: 0.6 } } },
 };
-const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump' };
-const usesWac = vehicle => vehicle !== 'v2';
-const usesV2 = vehicle => vehicle !== 'wac';
-export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
+const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'liner' };
+const usesWac = vehicle => vehicle === 'wac' || vehicle === 'bumper';
+const usesV2 = vehicle => vehicle === 'v2' || vehicle === 'bumper';
+export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
 
 // A new round. seed: a whole number; the same seed always makes the same round. programme: how the team builds rounds now
 // (world/programme.js): the chance of each fault, and which igniter and pump standard is in use. vehicle: 'wac', 'v2' or 'bumper'.
@@ -49,17 +51,18 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   put('leak', p.leakRisk, leak, leakAt);
   const igniterFault = draw(rng.physical) < 0.5;
   const vane = draw(rng.physical), vaneAt = draw(rng.physical), sep = draw(rng.physical), sepAt = draw(rng.physical), pumpFault = draw(rng.physical) < 0.5;
+  const linerFault = draw(rng.physical) < 0.5;
   put('vanes', p.vaneRisk, vane, vaneAt);
   put('separation', p.sepRisk, sep, sepAt);
-  const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03'].filter(Boolean);
-  const physical = { ...initPhysical(), latentMechanisms: latent };
-  // V1's worked-case defect belongs to the Aerobee and never touches these rounds.
-  physical.trueDefectMechanism = 'pm-07';
+  const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07'].filter(Boolean);
+  // V1's worked-case defect, the Aerobee's debonding liner (pm-07), is a latent fault like the others: some sustainers have it.
+  const physical = { ...initPhysical(), latentMechanisms: latent, trueDefectMechanism: null };
   const cues = Object.fromEntries(Object.keys(spots).map(id => [id, draw(rng.observation) < (faults[id] ? CUE_IF_FAULT : CUE_IF_SOUND)]));
   return {
     seed, rng, physical, faults, cues, vehicle,
     igniter: p.igniter, // r3 (reworked igniter) if it is standard or the player asks for it
     turbopump: p.turbopump, // r2 (refurbished pump and steam generator) likewise
+    sustainer: p.sustainer, // the Aerobee's: r2 has the rebonded liner
     propellantLoad: 1,
     events: [], // what happened, for the debrief
   };
@@ -72,8 +75,9 @@ export const hasLeak = round => Object.values(round.faults).includes('leak');
 export const hasWeldFault = round => Object.values(round.faults).includes('weld');
 export const hasIgniterFault = round => round.physical.latentMechanisms.includes('pm-11') && round.igniter === 'wac-upper/r1';
 export const hasPumpFault = round => round.physical.latentMechanisms.includes('pm-03') && round.turbopump === 'v2/r1';
+export const hasLinerFault = round => round.physical.latentMechanisms.includes('pm-07') && (round.sustainer || 'aerobee-sustainer/r1') === 'aerobee-sustainer/r1';
 // The faults the round really has right now, by cause.
-export const causesPresent = round => [...new Set(Object.values(round.faults))].concat(hasIgniterFault(round) ? ['ignition'] : [], hasPumpFault(round) ? ['turbopump'] : []);
+export const causesPresent = round => [...new Set(Object.values(round.faults))].concat(hasIgniterFault(round) ? ['ignition'] : [], hasPumpFault(round) ? ['turbopump'] : [], hasLinerFault(round) ? ['liner'] : []);
 
 const FOUND = { weld: 'weld flaw', leak: 'leak', vanes: 'cracked vane', separation: 'bad firing lead' };
 // The player flags spots for the crew. Real faults are fixed; false alarms cost time. Returns the hours the crew spends.
@@ -91,28 +95,44 @@ export function flagSpots(round, ids) {
 // The estimate they see comes from the drawing office and the flights so far (world/programme.js), never from here.
 
 const stages = round => round.vehicle === 'v2' ? { v2: round.turbopump }
+  : round.vehicle === 'aerobee' ? { 'aerobee-booster': 'aerobee-booster/r1', 'aerobee-sustainer': round.sustainer || 'aerobee-sustainer/r1' }
   : round.vehicle === 'bumper' ? { v2: round.turbopump, 'wac-upper': round.igniter }
   : { 'tiny-tim': 'tiny-tim/r1', 'wac-upper': round.igniter };
 // The stage that goes on the stand: the WAC's upper stage, or the V-2 (alone, or the lower stage of a Bumper).
-const standStage = round => (usesV2(round.vehicle || 'wac') ? 'v2' : 'wac-upper');
-const NOMINAL_PC = { 'wac-upper': 20, v2: 15.5 };
+const standStage = round => (round.vehicle === 'aerobee' ? 'aerobee-sustainer' : usesV2(round.vehicle || 'wac') ? 'v2' : 'wac-upper');
+const NOMINAL_PC = { 'wac-upper': 20, v2: 15.5, 'aerobee-sustainer': 20.5 };
 
-// A short static firing on the stand. Returns the chamber-pressure trace the player sees: [{ t, pc, tank }] every 0.1 s
-// over 8 s, with gauge noise, a rough, low start if the stage has a start-up fault, and a falling tank pressure if the
-// round leaks.
-export function staticFire(round) {
+// A static firing on the stand. Returns the trace the player sees: [{ t, pc, tank, wall? }] with gauge noise.
+// burn 'short' (8 s): a start-up check. It shows a rough, low start if the stage has a start-up fault, and a falling tank
+// pressure if the round leaks. burn 'long' (30 s, Aerobee only): a full-duration firing with thermocouples on the chamber,
+// the only firing that shows the liner's wall temperature.
+export function staticFire(round, burn = 'short') {
   const stage = standStage(round);
-  runTest(round, 'stand', { kind: 'ground', vehicle: round.vehicle || 'wac', stage, stages: stages(round), conditions: { burn: 'short' } });
-  const steady = sampleAt(round, 'stand', 0).value;
+  runTest(round, 'stand', { kind: 'ground', vehicle: round.vehicle || 'wac', stage, stages: stages(round), conditions: { burn } });
+  const samples = Object.fromEntries(round.physical.traces.stand.map((x, i) => { const v = sampleAt(round, 'stand', i); return [v.quantity, v.value]; }));
   discardTrace(round, 'stand');
+  const steady = samples[`${stage}.chamber-pressure`], wallEnd = samples[`${stage}.wall-temp`];
   const obs = round.rng.observation, rough = Math.max(0, NOMINAL_PC[stage] - 0.5 - steady) / 4, leak = hasLeak(round);
+  const long = burn === 'long', span = long ? 30 : 8, step = long ? 0.25 : 0.1;
   const trace = [];
-  for (let i = 0; i <= 80; i++) {
-    const t = i / 10, rise = Math.min(1, t / 0.6);
+  for (let i = 0; i <= span / step; i++) {
+    const t = i * step, rise = Math.min(1, t / 0.6);
     const chug = rough * (t < 3 ? 4 * Math.sin(t * 23) * Math.exp(-t / 2.5) : 0.6 * Math.sin(t * 17));
-    trace.push({ t, pc: Math.max(0, steady * rise + chug + 0.35 * normal(obs)), tank: 23 - (leak ? t * 0.45 : 0) + 0.15 * normal(obs) });
+    const point = { t, pc: Math.max(0, steady * rise + chug + 0.35 * normal(obs)), tank: 23 - (leak ? Math.min(6, t * 0.45) : 0) + 0.15 * normal(obs) };
+    if (long && wallEnd != null) point.wall = 300 + (wallEnd - 300) * (1 - Math.exp(-t / 7)) + 4 * normal(obs);
+    trace.push(point);
   }
-  return { trace, steady };
+  return { trace, steady, wall: long && wallEnd != null ? wallEnd : null };
+}
+
+// A station's call in a count: GO when its reading is in band, and sometimes GO anyway, from someone who doesn't look
+// twice (lazyGo, their own hidden habit). One observation draw.
+export const stationCall = (round, inBand, lazyGo) => { const d = draw(round.rng.observation); return inBand || d < lazyGo; };
+
+// A crew member looks the round over instead of you, and reports the spots they think look bad. How careful they are is
+// their own (world/people.js); what they find depends on what is really there. Observation draws, one per spot.
+export function crewInspect(round, { hit, falseAlarm }) {
+  return Object.keys(spotsOf(round)).filter(id => draw(round.rng.observation) < (round.faults[id] ? hit : falseAlarm));
 }
 
 // The crew leak-checks the feed and pressurisation system. Finds and fixes a leak if there is one. Returns the hours it takes.
@@ -134,8 +154,13 @@ export function refurbishPump(round) {
   round.events.push(hasPumpFault(round) ? 'The turbopump and steam generator were refurbished: the old ones were really worn.' : 'The turbopump and steam generator were refurbished, though they were sound.');
   round.turbopump = 'v2/r2';
 }
-// The stand's rework for this round: the WAC's igniter, or the V-2's pump.
-export const standRework = round => (standStage(round) === 'v2' ? refurbishPump(round) : reworkIgniter(round));
+// Ask for the Aerobee sustainer's chamber liner to be rebonded (revision aerobee-sustainer/r2, which removes the liner fault).
+export function rebondLiner(round) {
+  round.events.push(hasLinerFault(round) ? 'The chamber liner was rebonded: the old bond was really failing.' : 'The chamber liner was rebonded, though the old bond was sound.');
+  round.sustainer = 'aerobee-sustainer/r2';
+}
+// The stand's rework for this round: the WAC's igniter, the V-2's pump, or the Aerobee's liner.
+export const standRework = round => { const st = standStage(round); return st === 'v2' ? refurbishPump(round) : st === 'aerobee-sustainer' ? rebondLiner(round) : reworkIgniter(round); };
 
 // The tank pressure the blockhouse gauge shows at count second s: steady, or bleeding off if the round leaks.
 export const tankGauge = (round, s) => 23 - (hasLeak(round) ? Math.min(6, s * 0.012) : 0) + 0.12 * normal(round.rng.observation);

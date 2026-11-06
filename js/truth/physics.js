@@ -17,7 +17,7 @@ const showing = (m, conditions) => Object.entries(m.when).every(([k, v]) => cond
 export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions }) => {
   const stream = state.rng.physical;
   // shortcut: saves made before latent mechanisms existed get the default set on load.
-  const ids = [state.physical.trueDefectMechanism, ...(state.physical.latentMechanisms ?? LATENT)];
+  const ids = [state.physical.trueDefectMechanism, ...(state.physical.latentMechanisms ?? LATENT)].filter(id => MECHANISMS[id]);
   const mechanisms = ids.map(id => ({ id, ...MECHANISMS[id] })).filter(m => present(m, stages));
   // One roll decides the flight: each active mechanism brings it down with its own chance, independently.
   const roll = draw(stream);

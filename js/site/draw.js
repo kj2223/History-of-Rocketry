@@ -99,7 +99,7 @@ function hangar(ctx, p, g) {
   ctx.fillStyle = '#6a5a44'; ctx.fillRect(p.x + 30, GROUND - 22, 70, 4); ctx.fillRect(p.x + 34, GROUND - 18, 3, 18); ctx.fillRect(p.x + 94, GROUND - 18, 3, 18);
   // What waits on the rack to be mated: the WAC's Tiny Tim booster, or the WAC that rides on a Bumper's nose.
   if (!g.rocket.mated && g.rocket.where !== 'gone') {
-    if (g.vehicle === 'wac') boosterShape(ctx, p.x + p.w - 90, GROUND - 14, 0);
+    if (g.vehicle === 'wac' || g.vehicle === 'aerobee') boosterShape(ctx, p.x + p.w - 90, GROUND - 14, 0);
     else if (g.vehicle === 'bumper') wacShape(ctx, p.x + p.w - 30, GROUND - 26, -Math.PI / 2, false);
   }
   ctx.fillStyle = '#d9c39a'; ctx.fillRect(p.x + 12, GROUND - 2, p.w - 24, 2);
@@ -157,7 +157,7 @@ function truck(ctx, x, g) {
 
 // The rocket wherever it is on the site: in pieces in the hangar, carried, on the stand, on the truck, in the tower.
 function rocketOnSite(ctx, g) {
-  const r = g.rocket, wac = g.vehicle === 'wac', len = wac ? 24 : 50;
+  const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
   const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
   if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }

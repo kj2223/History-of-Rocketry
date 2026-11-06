@@ -8,7 +8,7 @@ import { SEASON } from '../js/data/campaign.js';
 import { initProgramme, adopt, recordFlight, estimate } from '../js/world/programme.js';
 import { newRound, hasIgniterFault } from '../js/truth/round.js';
 
-import { playRound } from './play.js';
+import { playRound, advance } from './play.js';
 
 test('a season runs through every round on its own dates and ends with your record', () => {
   newGame(11);
@@ -16,7 +16,7 @@ test('a season runs through every round on its own dates and ends with your reco
     assert.equal(g.roundIndex, i);
     assert.equal(dateText(g.roundStart), dateText(SEASON[i].start));
     playRound();
-    if (i + 1 < SEASON.length) { assert.equal(g.beat, 'roundEnd'); nextRound(); assert.equal(g.room, 'away'); }
+    if (i + 1 < SEASON.length) { assert.equal(g.beat, 'roundEnd'); advance(); assert.equal(g.room, 'away'); }
   }
   assert.equal(g.beat, 'seasonEnd');
   assert.equal(g.record.rounds.length, SEASON.length);

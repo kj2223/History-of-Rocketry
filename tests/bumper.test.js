@@ -8,7 +8,7 @@ import { initRecord, turningPoint, answerOffer, shiftTrust } from '../js/career/
 import { SEASON, FIRST_OFFER } from '../js/data/campaign.js';
 import { KITS } from '../js/data/kits.js';
 import { g, newGame, nextRound, answerFirstOffer, checkpoint, checkCheckpoint } from '../js/game.js';
-import { playRound } from './play.js';
+import { playRound, advance } from './play.js';
 
 const seedWhere = (vehicle, ok, programme = initProgramme()) => { for (let s = 1; s < 800; s++) if (ok(newRound(s, programme, vehicle))) return s; throw new Error('no seed'); };
 
@@ -78,15 +78,15 @@ test('each kind of round has its own drawing-office estimate', () => {
 });
 
 test('the campaign runs from the WAC rounds through a V-2 round to Bumper 5, then comes to the first offer', () => {
-  assert.deepEqual(SEASON.map(r => r.vehicle), ['wac', 'wac', 'wac', 'wac', 'v2', 'bumper', 'bumper']);
+  assert.deepEqual(SEASON.slice(0, 7).map(r => r.vehicle), ['wac', 'wac', 'wac', 'wac', 'v2', 'bumper', 'bumper']);
   newGame(5);
-  for (let i = 0; i < SEASON.length; i++) {
+  for (let i = 0; i < 7; i++) {
     assert.equal(g.vehicle, SEASON[i].vehicle);
     assert.equal(g.people.hoyt.hidden, SEASON[i].vehicle === 'wac', 'Hoyt is on the V-2 and Bumper rounds');
     playRound(() => 'nominal');
-    if (i + 1 < SEASON.length) nextRound();
+    if (i < 6) advance();
   }
-  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(g.beat, 'roundEnd');
   assert.equal(g.record.offers.length, 1);
   checkCheckpoint(JSON.parse(JSON.stringify(checkpoint())));
 });
@@ -111,13 +111,15 @@ test('a poor standing passes you over: sidelined, never fired', () => {
   assert.equal(answerOffer(r, true), null);
 });
 
-test('answering the offer in the game is saved and survives a resume', () => {
+test('answering the offer in the game is saved, survives a resume, and an unanswered offer holds the next round', () => {
   newGame(5);
-  for (let i = 0; i < SEASON.length; i++) { playRound(() => 'nominal'); if (i + 1 < SEASON.length) nextRound(); }
-  g.record.offers[0].made = true; g.record.trust = 3; // whatever the round went like, make the offer for this test
+  for (let i = 0; i < 7; i++) { playRound(() => 'nominal'); if (i < 6) advance(); }
+  g.record.offers[0].made = true; g.record.offers[0].answer = null; // whatever the rounds went like, make the offer for this test
+  nextRound();
+  assert.equal(g.roundIndex, 6, 'the offer must be answered first');
   answerFirstOffer(true);
   const saved = JSON.parse(JSON.stringify(checkpoint()));
   newGame(1, saved);
   assert.equal(g.record.seat, 'test-conductor');
-  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(g.beat, 'roundEnd');
 });
