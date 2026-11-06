@@ -166,3 +166,13 @@ test('a launch that is refused, or whose pad is given away, clears the pad', () 
   assert.equal(g.state.decisions.find(d => d.id === waiting).decidedBy, 'flight-control');
   assert.equal(g.state.facilities.reservations.find(r => r.id === 'next').status, 'held');
 });
+
+test('a save whose sections are present but whose contents cannot be shown is refused on import and load', () => {
+  const env = JSON.parse(exportGame(newGame()));
+  env.state.memos.push(null);
+  const text = JSON.stringify(env);
+  assert.throws(() => checkSave(text), /damaged/);
+  const storage = memoryStorage();
+  storage.setItem('pa-v1', text);
+  assert.throws(() => loadGame(storage), /damaged/);
+});

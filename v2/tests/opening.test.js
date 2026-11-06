@@ -103,3 +103,9 @@ test('V2-01 import: the continued campaign saves in the V2 namespace and reloads
   assert.deepEqual(project(back), project(s));
   assert.equal(JSON.parse(exportGame(s)).format, 'per-aspera-v2');
 });
+
+test('V2-01 import: a V1 save whose contents cannot be shown is refused before anything is replaced', () => {
+  const env = JSON.parse(v1Concluded().text);
+  env.state.memos.push(null);
+  assert.throws(() => continueFromV1(JSON.stringify(env)), /damaged/);
+});
