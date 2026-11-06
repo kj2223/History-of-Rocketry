@@ -156,7 +156,20 @@ export function say(id, text, tone = '', seconds = 4.5) {
 }
 export const walk = (id, x) => { g.people[id].target = x; };
 export const place = (id, x) => { const p = g.people[id]; p.x = p.target = x; };
-export function note(text) { g.notes.push({ at: clockText(), text }); }
+// Each note carries its round, so the notebook can show this round's notes and clear the earlier ones. The notebook keeps
+// at most NOTEBOOK_MAX notes, dropping the oldest: your record keeps what each round came to.
+export const NOTEBOOK_MAX = 300;
+export function note(text) {
+  g.notes.push({ at: clockText(), text, round: g.roundIndex });
+  if (g.notes.length > NOTEBOOK_MAX) g.notes.splice(0, g.notes.length - NOTEBOOK_MAX);
+}
+// Clear the notebook of earlier rounds' notes. This round's stay: the review needs them. Returns how many went.
+export function clearNotes() {
+  const before = g.notes.length;
+  g.notes = g.notes.filter(n => n.round === g.roundIndex);
+  if (g.saved) { g.saved.notes = g.saved.notes.filter(n => n.round === g.saved.roundIndex); g.savedVersion++; }
+  return before - g.notes.length;
+}
 const arrived = ids => ids.every(id => Math.abs(g.people[id].x - g.people[id].target) < 1);
 export const roomChanged = () => { g.roomVersion++; };
 

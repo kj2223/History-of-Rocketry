@@ -28,3 +28,18 @@ test('the tank gauge reads the same for the same moment, and takes nothing from 
   assert.equal(JSON.stringify(r.rng), state);
   assert.ok(Math.abs(a - 23) < 0.2);
 });
+
+test('the notebook clears earlier rounds\' notes, keeps this round\'s, and never grows past its limit', async () => {
+  const { note, clearNotes, NOTEBOOK_MAX, checkpoint } = await import('../js/game.js');
+  const { playRound, advance } = await import('./play.js');
+  newGame(5);
+  playRound(() => 'unknown'); advance();
+  const now = g.notes.filter(n => n.round === g.roundIndex).length;
+  assert.ok(g.notes.length > now && now > 0);
+  assert.ok(clearNotes() > 0);
+  assert.equal(g.notes.length, now);
+  assert.ok(checkpoint().notes.every(n => n.round === g.roundIndex), 'the save is cleared too');
+  for (let i = 0; i < NOTEBOOK_MAX + 50; i++) note(`filler ${i}`);
+  assert.equal(g.notes.length, NOTEBOOK_MAX);
+  assert.equal(g.notes.at(-1).text, `filler ${NOTEBOOK_MAX + 49}`);
+});

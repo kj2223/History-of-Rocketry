@@ -1,7 +1,7 @@
 // THE SITE PROTOTYPE: the frame loop, the mouse and keys, and the bar along the top.
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel looks along the site.
 import { drawSite, drawTracking, PLACES, VIEW_H, GROUND } from './draw.js';
-import { g, newGame, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, placeName } from '../game.js';
+import { g, newGame, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, clearNotes, placeName } from '../game.js';
 import { consoleLocked } from '../mercury.js';
 import { talk } from '../data/talk.js';
 import { writeSave, readSave, clearSave } from '../core/save.js';
@@ -99,8 +99,22 @@ document.querySelector('header').addEventListener('click', e => {
 function toggleNotebook() {
   const nb = $('notebook');
   nb.hidden = !nb.hidden;
-  if (!nb.hidden) nb.innerHTML = `<h2>Your notebook</h2><ol>${g.notes.map(n => `<li><span>${n.at}</span> ${n.text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}</li>`).join('')}</ol><p class="muted">N or Esc to close.</p>`;
+  if (!nb.hidden) showNotebook();
 }
+// This round's notes, with the earlier rounds' folded away behind a count and a button to clear them.
+function showNotebook() {
+  const nb = $('notebook'), esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  const now = g.notes.filter(n => n.round === g.roundIndex), earlier = g.notes.length - now.length;
+  const list = notes => `<ol>${notes.map(n => `<li><span>${n.at}</span> ${esc(n.text)}</li>`).join('')}</ol>`;
+  nb.innerHTML = `<h2>Your notebook</h2>
+    ${earlier ? `<p><button data-nb="clear">Clear earlier rounds' notes</button> <span class="muted">This round's notes stay. Your record in the office keeps how each round went.</span></p>
+      <details><summary>${earlier} note${earlier === 1 ? '' : 's'} from earlier rounds</summary>${list(g.notes.filter(n => n.round !== g.roundIndex))}</details>` : ''}
+    ${now.length ? list(now) : '<p class="muted">Nothing written this round yet.</p>'}
+    <p class="muted">N or Esc to close.</p>`;
+}
+$('notebook').addEventListener('click', e => {
+  if (e.target.dataset.nb === 'clear') { clearNotes(); showNotebook(); }
+});
 function hud() {
   $('date').textContent = `${dateText()} · ${clockText()}`;
   $('objective').textContent = g.objective;
