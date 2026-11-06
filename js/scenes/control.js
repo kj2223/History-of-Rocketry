@@ -3,7 +3,7 @@
 // Mercury Control could see: g.console and g.mission, which the game fills from the telemetry and the radars.
 import { g, dateText, clockText, placeName } from '../game.js';
 import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, evidence, simStart, simClose, simOpen, toReview, board,
-  consoleInsertion, consolePack, consoleRetro, consoleDecide, lookSpot, flagSpot, runQual, capsuleSpots, qualTests, programOf, routeArgue, routeDone, orbitMisses, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
+  consoleInsertion, consolePack, consoleRetro, consoleDecide, shutdownChoose, SHUTDOWN_OPTIONS, lookSpot, flagSpot, runQual, capsuleSpots, qualTests, programOf, routeArgue, routeDone, orbitMisses, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
 import { KITS } from '../data/kits.js';
 import { ROUTE_MODES } from '../data/route.js';
 import { SEASON } from '../data/campaign.js';
@@ -99,6 +99,8 @@ function consoleBody(c, backRoom = false) {
 }
 function consoleView(c) {
   const head = `<div class="clock" data-live="mclock">—</div><p class="center" data-live="mstate"></p>`;
+  if (c.phase === 'shutdown') return `${head}<div class="poll"><p><strong>The Titan lit and shut down on the pad. The crew sat tight.</strong> The spacecraft and the booster are being safed. How hard do we look before we try again? Gemini 7 is waiting in orbit.</p>
+    ${Object.entries(SHUTDOWN_OPTIONS).map(([k, t]) => `<button data-act="m-shutdown" data-id="${k}">${esc(t)}</button>`).join('')}</div>`;
   if (c.phase === 'pad') return `${head}<div class="poll"><p><strong>The capsule is sitting on the pad on a fuelled booster, its parachutes draped over the side.</strong>
     The batteries are live and the pyrotechnics armed. Hollis turns round: "Retro, ideas?"</p>
     ${Object.entries(PAD_OPTIONS).map(([k, t]) => `<button data-act="pad" data-id="${k}">${esc(t)}</button>`).join('')}</div>`;
@@ -219,7 +221,7 @@ function plot(canvas, c) {
 // Clicks in Mercury Control's panels.
 export const CONTROL_ACTS = {
   'm-go': () => !g.console?.auto && consolePoll(true), 'm-nogo': () => !g.console?.auto && consolePoll(false), 'm-abort': () => !g.console?.auto && consoleAbort(),
-  'm-aim': id => !g.console?.auto && consoleAim(id), 'm-decide': id => consoleDecide(id), 'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go'), 'm-pack': id => consolePack(id), 'm-retro': id => consoleRetro(id), pad: id => padChoose(id), 'm-present': id => missionPresent(id),
+  'm-aim': id => !g.console?.auto && consoleAim(id), 'm-decide': id => consoleDecide(id), 'm-shutdown': id => shutdownChoose(id), 'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go'), 'm-pack': id => consolePack(id), 'm-retro': id => consoleRetro(id), pad: id => padChoose(id), 'm-present': id => missionPresent(id),
   'sim-start': simStart, 'eng-look': id => lookSpot(id), 'eng-flag': id => flagSpot(id), 'eng-qual': id => runQual(id), route: id => routeArgue(id), 'route-done': routeDone, 'sim-close': simClose, 'to-review': toReview,
 };
 export const openConsole = () => consoleStart();

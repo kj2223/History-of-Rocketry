@@ -111,6 +111,39 @@ const RESOLVE = {
     out.verdict = 'good'; out.judge = 'Eight days on a sick spacecraft, and the cells held. Apollo needed that.';
     return out;
   },
+  rdvplan(choice, { f, d, out }) {
+    const bad = choice === 'onboard' && f.computer;
+    if (bad) {
+      out.lines.push(['pilot', 'Houston, the computer reset in the middle of the burn. We\'re high and fast. We\'ll fly it on the charts.', 'bad']);
+      if (d[10] < 0.5) {
+        out.lines.push(['kessler', 'Flight, they\'re short of fuel to close. They\'ve stopped at twelve miles. No rendezvous.', 'bad']);
+        out.verdict = 'bad'; out.judge = 'The computer had been resetting all morning, and we flew the rendezvous on it. We never caught Gemini 7.';
+        return out;
+      }
+      out.lines.push(['pilot', 'Closing on the charts… a hundred and twenty feet and stopped. We\'re there.', 'go']);
+      out.capability = 'rendezvous'; out.verdict = 'fair'; out.judge = 'The computer failed in the burn and the crew got there on their charts. We shouldn\'t have needed them to.';
+      return out;
+    }
+    out.lines.push(['pilot', choice === 'onboard' ? 'Radar and computer agree. Braking. A hundred and twenty feet, and stopped.' : 'Flying the ground\'s numbers. Braking… a hundred and twenty feet, and stopped.', 'go']);
+    out.capability = 'rendezvous';
+    out.verdict = choice === 'onboard' || f.computer ? 'good' : 'fair';
+    out.judge = choice === 'ground' && !f.computer ? 'We got there on the ground\'s numbers. The spacecraft could have done it cheaper, and Apollo needs to know it can.' : 'Rendezvous. Apollo can put that in its plans.';
+    return out;
+  },
+  tumble(choice, { d, out }) {
+    out.set.short = true;
+    if (choice === 'secondary') {
+      out.endAt = 10.5; out.set.secondary = true;
+      out.lines.push(['tate', 'Flight, Retro: retrofire over Africa, splashdown in the western Pacific, area 7-3. The destroyer Mason is on her way.', 'go']);
+      out.verdict = 'good'; out.judge = 'The re-entry thrusters were spent. You followed the rule and brought them home alive.';
+      return out;
+    }
+    out.endAt = 34;
+    out.lines.push(['kessler', 'Flight, EECOM: re-entry thruster fuel is low. If we hold a day, she has what\'s left for entry, maybe.', 'warn']);
+    if (d[11] < 0.4) { out.hurt = 0.6; out.verdict = 'bad'; out.judge = 'The re-entry thrusters had too little left after a day. She swung through the entry. That rule is there for a reason.'; out.note = 'By entry the re-entry thrusters were nearly dry. The spacecraft swung through the entry.'; }
+    else { out.verdict = 'bad'; out.judge = 'You held them up a day against the rule with the re-entry thrusters half spent. It came off. Don\'t do it again.'; }
+    return out;
+  },
   navcheck(choice, { f, out }) {
     if (choice === 'check') {
       out.set.secondary = true;

@@ -67,7 +67,7 @@ test('the helicopters find her fast at the right point, slowly at the wrong one,
 test('after Pioneer 4 the paths split: Mercury Control if you take the offer, Ranger 7 if you stay with JPL', () => {
   const p4 = SEASON.findIndex(r => r.id === 'pioneer-4');
   assert.equal(SEASON[p4].turningPoint, 'nasa');
-  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-7), ['pioneer-4', 'mr-1', 'mr-3', 'ma-6', 'ma-7', 'gem-4', 'gem-5']);
+  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-9), ['pioneer-4', 'mr-1', 'mr-3', 'ma-6', 'ma-7', 'gem-4', 'gem-5', 'gem-6', 'gem-8']);
   assert.deepEqual(SEASON.filter(r => onPath(r, 'jpl')).map(r => r.id).slice(-2), ['pioneer-4', 'ranger-7']);
   assert.ok(SEASON.find(r => r.id === 'mr-1').start > SEASON[p4].start);
 });

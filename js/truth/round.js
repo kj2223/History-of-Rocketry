@@ -55,7 +55,7 @@ const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'l
 export const HIDDEN_FAILURE = { wac: 0.12, v2: 0.3, bumper: 0.3, aerobee: 0.15, viking: 0.15, vanguard: 0.3, juno: 0.3, ranger: 0.35 };
 const usesWac = vehicle => vehicle === 'wac' || vehicle === 'bumper';
 const usesV2 = vehicle => vehicle === 'v2' || vehicle === 'bumper';
-export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
+export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, shutdownRisk: 0.05, thrusterRisk: 0.08, weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
 
 // A new round. seed: a whole number; the same seed always makes the same round. programme: how the team builds rounds now
 // (world/programme.js): the chance of each fault, and which igniter and pump standard is in use. vehicle: 'wac', 'v2' or 'bumper'.
@@ -102,12 +102,16 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   }
   // Gemini's: the Titan's guidance and second stage, the spacecraft's fuel cells, hatch and computer, and a wrong number
   // from the ground (no spot: nothing in the spacecraft shows it).
-  let navdata = false;
+  let navdata = false, dustcap = false;
   if (vehicle === 'titan') {
-    const d = [...Array(11)].map(() => draw(rng.physical));
+    const d = [...Array(16)].map(() => draw(rng.physical));
     put('titanctl', p.titanctlRisk, d[0], d[1]); put('stage2', p.stage2Risk, d[2], d[3]); put('fuelcell', p.fuelcellRisk, d[4], d[5]);
     put('hatch', p.hatchRisk, d[6], d[7]); put('computer', p.computerRisk, d[8], d[9]);
     navdata = d[10] < p.navRisk;
+    // Gemini 6's pad shutdown (a tail plug that drops out early, and sometimes a second cause behind it) and Gemini 8's
+    // thruster that sticks open.
+    put('shutdown', p.shutdownRisk, d[11], d[12]); put('thruster', p.thrusterRisk, d[13], d[14]);
+    dustcap = d[15] < 0.5;
   }
   const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07', turbineFault && vehicle === 'viking' && 'pm-19', injectorFault && 'pm-23', depletionFault && 'pm-29', agenaFault && 'pm-31'].filter(Boolean);
   // V1's worked-case defect, the Aerobee's debonding liner (pm-07), is a latent fault like the others: some sustainers have it.
@@ -124,7 +128,7 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     ranger: p.ranger, // Ranger's Agena: r2 has the reworked restart system
     propellantLoad: 1,
     ...(vehicle === 'redstone' ? { thrust } : {}),
-    ...(vehicle === 'titan' ? { navdata } : {}),
+    ...(vehicle === 'titan' ? { navdata, dustcap } : {}),
     events: [], // what happened, for the debrief
   };
 }
