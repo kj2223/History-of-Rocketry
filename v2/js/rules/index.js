@@ -29,6 +29,9 @@ import { initAssurance, assuranceDay, challengeRiskAcceptance, answerChallenge }
 import { initStaff, staffDay, approveProposal, declineProposal, quarterReport } from './staff.js';
 import { openFresh, openFromV1, inheritedStatus } from './opening.js';
 import { militaryDay } from './military.js';
+import { setChecking, positionRecovery } from './operations.js';
+import { STREAMS } from '../core/rng.js';
+import { RECOVERY_FORCES, ENTRY_DESIGN, RETROFIRE } from '../data/flight.js';
 import { publicPerson } from './people.js';
 import { dateLabel } from '../core/calendar.js';
 import { VEHICLES } from '../data/vehicles.js';
@@ -249,9 +252,12 @@ const COMMANDS = {
     const evidence = j.observations.filter(id => { const o = s.evidence.observations.find(x => x.id === id); return o.state === 'measured' && !o.normal; });
     const mode = escapeMode(l, j);
     cancelJob(s, j.id);
-    abortFlight(s, l, j, { by, mode, evidence });
+    abortFlight(s, l, j, { by, mode, evidence, early: j.read > 1 });
     return mode;
   } },
+  // Entry and recovery (V2 freeze §6.3, §6.4): the administrator sets the checking habit and where recovery waits.
+  'set-retrofire-checking': { roles: ['administrator'], run: (s, p) => setChecking(s, p) },
+  'position-recovery': { roles: ['administrator', 'flight-control'], run: (s, p) => positionRecovery(s, p) },
   'report-delegation-failure': { roles: ['technical-director'], run: (s, { programmeId, ...f }) => recordFailure(s, programmeId, f) },
 
   // A team's proposed next step (freeze §2.2, §5.1): the go-ahead carries it out through the commands above.
@@ -360,6 +366,9 @@ export const project = state => {
     people: Object.values(people).map(publicPerson),
     opening: state.opening ? { kind: state.opening.kind, day: state.opening.day, v1Summary: state.opening.v1Summary ?? null } : null,
     inherited: inheritedStatus(state),
+    operations: state.operations ? { retrofireChecking: state.operations.retrofireChecking,
+      recoveryForces: Object.entries(RECOVERY_FORCES).map(([id, f]) => ({ id, name: f.name, cost: f.cost })), comesHome: Object.keys(ENTRY_DESIGN),
+      checkCost: RETROFIRE.independentCheckCost } : null,
     military: (state.military?.flights ?? []).map(f => ({ ...f, name: VEHICLES[f.vehicle].name, date: dateLabel(f.day) })),
     // An open selection shows every applicant's record, never their traits.
     selection: state.decisions.filter(d => d.type === 'crew-selection' && d.status === 'open').map(d => ({ decisionId: d.id, group: d.subject,
@@ -374,9 +383,9 @@ export const validateState = s => {
   need(s && Number.isInteger(s.day) && s.day >= 0, 'day');
   for (const k of ['physical', 'evidence', 'beliefs', 'hardware', 'production', 'facilities', 'fiscal', 'stock', 'programmes', 'delegation', 'continuation']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
   for (const k of ['decisions', 'memos', 'work', 'launches', 'commands']) need(Array.isArray(s[k]), k);
-  for (const k of ['people', 'military', 'opening', 'crew']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
+  for (const k of ['people', 'military', 'opening', 'crew', 'operations']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
   need(Array.isArray(s.inherited), 'inherited');
-  for (const k of ['physical', 'observation', 'forecast', 'intelligence', 'crew']) need(s.rng?.[k]?.algorithm === 'mulberry32-v1' && Number.isInteger(s.rng[k].state), `rng.${k}`);
+  for (const k of STREAMS) need(s.rng?.[k]?.algorithm === 'mulberry32-v1' && Number.isInteger(s.rng[k].state), `rng.${k}`);
   need(Array.isArray(s.evidence.observations), 'evidence.observations');
   for (const j of s.work.filter(x => x.status === 'running' && x.plan)) need(Array.isArray(s.physical.traces[j.id]), `trace for ${j.id}`);
   // The shape check cannot see every record, so make sure the save can actually be shown before it is accepted.

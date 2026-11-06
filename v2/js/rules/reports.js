@@ -5,6 +5,7 @@
 import { QUANTITIES, REVISIONS, STAGES, VEHICLES } from '../data/vehicles.js';
 import { FACILITY_KINDS } from '../data/facilities.js';
 import { memo } from './authority.js';
+import { describeEntry } from './operations.js';
 
 export const money = n => `$${Math.round(n).toLocaleString('en-US')}`;
 export const programmeName = (state, id) => state.programmes[id]?.name ?? id;
@@ -35,10 +36,11 @@ const TEXT = {
   },
   flight: (state, j) => {
     const l = state.launches.find(x => x.jobId === j.id);
-    const outcome = { success: 'reached its planned apogee', failure: l.rangeAction ? 'was destroyed by range safety' : 'fell short of its planned apogee',
+    const lost = l.entry && !l.entry.contact;
+    const outcome = { success: 'reached its planned apogee', failure: l.rangeAction ? 'was destroyed by range safety' : lost ? 'was lost on entry' : 'fell short of its planned apogee',
       indeterminate: 'flew, but we could not measure whether it reached its planned apogee' }[l.outcome];
-    const crew = l.crew?.length ? ` ${l.abort ? 'The escape system fired first and brought the crew away.' : `${l.crew.map(id => state.people[id].name).join(' and ')} flew it.`}` : '';
-    return `The ${VEHICLES[l.vehicle].name} flight of ${l.articleId} ${outcome}.${crew} ${readings(state, j)}`;
+    const crew = l.crew?.length ? ` ${l.abort ? 'The escape system fired first and brought the crew away.' : `${l.crew.map(id => state.people[id].name).join(' and ')} ${lost ? `${l.crew.length > 1 ? 'were' : 'was'} lost with it` : 'flew it'}.`}` : '';
+    return `The ${VEHICLES[l.vehicle].name} flight of ${l.articleId} ${outcome}.${crew}${describeEntry(state, l)} ${readings(state, j)}`;
   },
   'crew-training': (state, j) => `${j.payload.crew.map(id => state.people[id]?.name ?? id).join(' and ')} finished training for ${VEHICLES[j.payload.vehicle].name}.`,
   upgrade: (state, j) => `The upgrade of ${unitName(state, j.payload.unitId)} is finished. It is back in service with capacity ${state.facilities.units[j.payload.unitId].capacity}.`,

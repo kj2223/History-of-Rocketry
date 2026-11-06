@@ -4,7 +4,8 @@
 import { ANOMALIES, HYPOTHESES, CANDIDATE_TESTS, FLIGHT_CONDITIONS } from '../data/engineering.js';
 import { REVISIONS, STAGES, VEHICLE_QUANTITIES, lineage } from '../data/vehicles.js';
 import { TUNING } from '../data/tuning.js';
-import { claimStatus } from './evidence.js';
+import { ENTRY_DESIGN, ENTRY_CLAIMS } from '../data/flight.js';
+import { claimStatus, envelope } from './evidence.js';
 
 // `assessed` holds abnormal observations whose failure consequences the technical director has reviewed.
 export const initBeliefs = () => ({ anomalies: {}, assessed: [] });
@@ -99,6 +100,13 @@ export const readiness = (state, decision, config, revId = null) => {
     case 'routine-use': {
       const thin = claims.filter(c => c.status === 'measured-normal' && c.tests < TUNING.routineDistinctTests).map(c => `${c.quantity} has ${c.tests} of ${TUNING.routineDistinctTests} distinct tests`);
       const blockers = [...adverse, ...gaps, ...thin, ...anomalies.map(a => `${ANOMALIES[a.id].name} is unresolved`)];
+      // §6.2: the heat shield's evidence must cover the load this vehicle's entry is predicted to bring.
+      // A suborbital record does not cover an orbital entry.
+      const design = ENTRY_DESIGN[config.vehicle];
+      if (decision === 'crewed-flight' && design) {
+        const heat = ENTRY_CLAIMS(design.spacecraft)[0], covered = envelope(state, config, heat, FLIGHT_CONDITIONS);
+        if (covered < design.heatLoad) blockers.push(`${heat} evidence covers ${Math.round(covered * 10) / 10} of the predicted ${design.heatLoad} MJ/m²`);
+      }
       return { ready: !blockers.length, blockers, gaps };
     }
     default: throw new Error(`Unknown readiness decision ${decision}`);

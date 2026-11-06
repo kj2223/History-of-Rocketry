@@ -62,3 +62,35 @@ export const MECHANISMS = {
 export const LATENT = ['pm-03', 'pm-11', 'pm-19'];
 // Mechanisms present in Mercury and Gemini hardware, whichever way V2 opens.
 export const LATENT_V2 = ['pm-31', 'pm-41', 'pm-51', 'pm-61'];
+
+// ---- V2: entry and recovery (V2 freeze §6) ----
+const DEG = Math.PI / 180;
+
+// The true flight-path physics of each spacecraft for the entry model (rules/entry-model.js). Ballistic
+// coefficient in kg/m², lift-to-drag ratio, heat-shield nose radius in m, retrofire Δv in m/s and its pitch
+// below the flight direction. Mercury flies ballistic; Gemini banks its lift. A Redstone arc starts at apogee.
+const MERCURY = { beta: 260, ld: 0, noseRadius: 2.4, retroDv: 170, retroPitch: 34 * DEG, orbitAltitude: 160e3 };
+export const ENTRY_VEHICLES = {
+  'mercury-redstone': { ...MERCURY, suborbital: true, apogee: 187e3, apogeeSpeed: 1250 },
+  'mercury-atlas': { ...MERCURY },
+  'gemini-titan': { beta: 340, ld: 0.19, noseRadius: 2.3, retroDv: 100, retroPitch: 20 * DEG, orbitAltitude: 160e3, nominalBank: 60 * DEG },
+};
+
+// How far retrofire really departs from plan, one flight to the next: Δv as a fraction, attitude in
+// radians, timing in s. Now and then the attitude reference itself is off (MA-7's horizon scanner), which
+// gives a large yaw error; rarely a retro rocket fails to fire and the burn falls short.
+export const RETRO_ERRORS = {
+  dvScale: 0.01, pitch: 1 * DEG, yaw: 1.5 * DEG, late: 0.5,
+  attitudeFaultChance: 0.08, attitudeFault: 20 * DEG,
+  shortBurnChance: 0.02, shortBurn: 0.33,
+};
+
+// The heat shield and the capsule in the water. A shield is safe well below its true capacity; nearer it,
+// and beyond it, burn-through grows likely (V2 freeze §6.2: chemistry is not simulated, only the odds).
+// Water gets into a floating capsule at its true leak rate, and it sinks once it has taken on enough.
+export const SPACECRAFT_TRUTH = {
+  'mercury-capsule': { heatCapacity: 115, leakPerHour: 6, sinksAt: 150 },
+  gemini: { heatCapacity: 150, leakPerHour: 2.5, sinksAt: 200 },
+};
+// Burn-through is impossible below this share of capacity, certain at `certainAt` of it, and rises as a square between.
+export const BURN_THROUGH = { safeBelow: 0.8, certainAt: 1.2 };

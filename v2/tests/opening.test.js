@@ -15,7 +15,7 @@ test('V2-01 fresh: the standard 1958 agency loads on 1 October 1958 with heads, 
   const v = project(s);
   assert.equal(v.date, '1 October 1958');
   assert.equal(v.opening.kind, 'fresh');
-  assert.deepEqual(v.people.map(p => p.role), ['technical-director', 'financial-officer', 'department-head']);
+  assert.deepEqual(v.people.map(p => p.role), ['technical-director', 'financial-officer', 'department-head', 'retrofire-officer']);
   for (const id of ['pad-1', 'pad-2', 'stand-1', 'env-1', 'struct-1', 'tracking-1']) assert.equal(s.facilities.units[id].status, 'operational', id);
   assert.deepEqual(v.inherited.map(i => [i.kind, i.status]), [['obligation', 'open'], ['disagreement', 'open']]);
   // It is authored content, not a roll: every seed opens the same agency.

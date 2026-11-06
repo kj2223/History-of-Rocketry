@@ -1,5 +1,7 @@
 // Drive the façade in tests: issue commands that must succeed. game() is a fresh V2 start on 1 October 1958.
 import assert from 'node:assert/strict';
+import { VEHICLE_QUANTITIES } from '../js/data/vehicles.js';
+import { FLIGHT_CONDITIONS } from '../js/data/engineering.js';
 import { newGame, dispatch, advance, project } from '../js/rules/index.js';
 import { MECHANISMS } from '../js/data/physical.js';
 import { TUNING } from '../js/data/tuning.js';
@@ -63,7 +65,7 @@ export const fly = (g, programmeId, articleId, { cost = 20000, replacementCost =
 };
 
 // What no projection may ever contain: hidden physical truth and hidden traits.
-const HIDDEN = ['physical', 'trueDefectMechanism', 'latentMechanisms', 'traces', 'traits', 'candour', 'independence', ...Object.keys(MECHANISMS)];
+const HIDDEN = ['physical', 'trueDefectMechanism', 'latentMechanisms', 'traces', 'traits', 'candour', 'independence', 'skill', 'heatCapacity', 'burnThrough', 'leakPerHour', 'navError', ...Object.keys(MECHANISMS)];
 export const assertNoLeak = s => {
   const text = JSON.stringify(project(s));
   for (const word of HIDDEN) assert.equal(text.includes(word), false, `projection leaks "${word}"`);
@@ -76,5 +78,45 @@ export const mercuryRedstone = (seed = 77) => {
   greenlightProgramme(g, 'mercury-redstone');
   g.days(TUNING.designDays['mercury-redstone']);
   return g;
+};
+
+
+// ---- crew helpers (V2 slice 2) ----
+const MR = 'mercury-redstone';
+
+// Readings that make every claim of this configuration measured-normal on enough distinct tests.
+export const cleanRecord = (g, vehicle, stages, tests = 3) => {
+  const obs = g.state.evidence.observations;
+  for (let t = 0; t < tests; t++) for (const quantity of VEHICLE_QUANTITIES[vehicle])
+    obs.push({ id: `seed-${obs.length + 1}`, day: g.state.day, workId: `seed-${vehicle}-${t}`, kind: 'flight', vehicle, stages: { ...stages }, conditions: { ...FLIGHT_CONDITIONS }, quantity, state: 'measured', value: quantity.endsWith('.heat-load') ? 90 : 1, normal: true });
+};
+
+export const selected = (g, ids) => {
+  const d = g.state.decisions.find(x => x.type === 'crew-selection' && x.status === 'open');
+  if (ids) g.cmd('select-crew', 'administrator', { group: d.subject, ids });
+  else g.approve(d.id);
+  return g.state;
+};
+
+export const train = (g, vehicle, crew) => { const jobId = `train-${crew.join('-')}-${g.state.day}`; g.cmd('train-crew', 'administrator', { jobId, vehicle, crew }); g.finish(jobId); };
+
+// Mercury-Redstone with a clean record, a readiness decision for crewed use and a trained crew.
+export const crewedReady = (crew = ['cand-01'], seed = 77) => {
+  const g = mercuryRedstone(seed);
+  selected(g, crew);
+  train(g, MR, crew);
+  cleanRecord(g, MR, g.state.programmes[MR].baseline);
+  g.approve(g.cmd('request-crew-readiness', 'technical-director', { programmeId: MR }));
+  return g;
+};
+
+let n = 0;
+export const askLaunch = (g, crew, articleId = `art-${++n}`, { programmeId = MR, recovery } = {}) => {
+  g.cmd('build-article', 'production', { id: articleId, programmeId });
+  const pad = book(g, 'pad-1', programmeId, 5), tracking = book(g, 'tracking-1', programmeId, 5), id = `L-${articleId}`;
+  const r = g.try('request-launch', 'administrator', { id, articleId, pad, tracking, cost: 1, replacementCost: 1, crew, ...(recovery ? { recovery } : {}) });
+  if (r.rejection) return { rejection: r.rejection.reason };
+  g.state = r.state;
+  return { id, decision: r.result.decision };
 };
 

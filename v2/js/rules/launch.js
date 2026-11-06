@@ -11,6 +11,11 @@ import { assessFlight, recordExposure, resolveExposure, commit } from './fiscal.
 import { startJob } from './work.js';
 import { money as dollars, programmeName } from './reports.js';
 import { qualified, crewReady, consentTier } from './crew.js';
+import { flies, operationsCost, checkRecovery, retrofireData, entryRecord, describeEntry } from './operations.js';
+import { flyAndLand, entryEvents } from './physics.js';
+import { observe } from './evidence.js';
+import { updateBeliefs } from './belief.js';
+import { ENTRY_CLAIMS, ENTRY_DESIGN, ENTRY_RECORDS, RECOVERY_FORCES } from '../data/flight.js';
 
 export const initLaunches = () => [];
 
@@ -25,8 +30,10 @@ const heldBy = (state, id, programmeId) => {
 // Ask for launch. Flight Control holds on operational grounds at once; otherwise a vetoable
 // decision records each tier's position.
 // `crew` names the people aboard (V2 freeze §4): none for an uncrewed flight.
-export const requestLaunch = (state, { id, articleId, pad, tracking, cost, replacementCost, crew = [] }) => {
+// `recovery` names the recovery force for a vehicle that comes home (V2 freeze §6.4); its cost is part of the launch.
+export const requestLaunch = (state, { id, articleId, pad, tracking, cost, replacementCost, crew = [], recovery = 'primary' }) => {
   const a = article(state, articleId);
+  if (flies(a.vehicle)) checkRecovery(recovery);
   if (crew.length) {
     if (!VEHICLES[a.vehicle].crewed) throw new Rejection(`${VEHICLES[a.vehicle].name} carries no crew`);
     // V2-04: no crewed launch without a readiness decision for this configuration and crewed use.
@@ -47,7 +54,8 @@ export const requestLaunch = (state, { id, articleId, pad, tracking, cost, repla
   const routine = readiness(state, 'routine-use', config);
   const experimental = !routine.ready;
   const tech = experimental ? readiness(state, 'experimental-flight', config, trial) : routine;
-  const money = assessFlight(state, { cost, replacementCost });
+  const ops = operationsCost(state, a.vehicle, recovery);
+  const money = assessFlight(state, { cost: cost + ops, replacementCost });
   const launch = {
     id, articleId, programmeId: a.programmeId, vehicle: a.vehicle, stages: { ...a.stages }, experimental, cost, replacementCost,
     status: 'awaiting-decision', day: state.day, outcome: null, jobId: null, rangeAction: null,
@@ -59,11 +67,12 @@ export const requestLaunch = (state, { id, articleId, pad, tracking, cost, repla
         : { stance: 'inactive', reason: VEHICLES[a.vehicle].crewed ? 'no crew aboard' : 'uncrewed vehicle' },
     },
     crew: [...crew], abort: null,
+    ...(flies(a.vehicle) ? { recovery, operationsCost: ops, retrofire: null, entry: null } : {}),
     reservations: [padRes.id, trackRes.id],
   };
   state.launches.push(launch);
   const d = openDecision(state, { type: 'launch', subject: id, raisedBy: 'flight-control', vetoable: true,
-    text: `Launch ${VEHICLES[a.vehicle].name} ${articleId}${programmeName(state, a.programmeId) === VEHICLES[a.vehicle].name ? '' : ` for ${programmeName(state, a.programmeId)}`} (${experimental ? 'experimental' : 'routine'} flight, costing ${dollars(cost)}). ${money.text}`,
+    text: `Launch ${VEHICLES[a.vehicle].name} ${articleId}${programmeName(state, a.programmeId) === VEHICLES[a.vehicle].name ? '' : ` for ${programmeName(state, a.programmeId)}`} (${experimental ? 'experimental' : 'routine'} flight, costing ${dollars(cost)}${ops ? `, and ${dollars(ops)} for recovery by ${RECOVERY_FORCES[recovery].name}` : ''}). ${money.text}`,
     finance: launch.tiers['ground-executive'], technical: launch.tiers['ground-technical'], effect: { kind: 'launch', payload: { id } } });
   // Launch needs both chains (V2 freeze §4): the crew's position sits beside the ground's, and a refusal is a veto.
   if (crew.length) d.positions.crew = launch.tiers.flight;
@@ -102,11 +111,18 @@ export const launchRecord = (state, id) => state.launches.find(l => l.id === id)
 // Approved: pay for the flight, record the exposure, and fly.
 export const executeLaunch = (state, { id }) => {
   const l = launchRecord(state, id);
-  commit(state, { id: `launch-cost-${id}`, dept: 'flight-control', programmeId: l.programmeId, payments: [{ amount: l.cost, due: state.day }] }, { approved: true });
+  commit(state, { id: `launch-cost-${id}`, dept: 'flight-control', programmeId: l.programmeId, payments: [{ amount: l.cost + (l.operationsCost ?? 0), due: state.day }] }, { approved: true });
   recordExposure(state, id, l.replacementCost, l.tiers['ground-executive'].reason);
   const telemetry = [...new Set(Object.values(l.stages).flatMap(r => REVISIONS[r].telemetry))];
-  const j = startJob(state, { id: `flight-${id}`, kind: 'flight', programmeId: l.programmeId, reservations: l.reservations,
-    plan: { kind: 'flight', vehicle: l.vehicle, stages: l.stages, conditions: { ...FLIGHT_CONDITIONS }, channels: [...TRACKING_CHANNELS, ...telemetry] } });
+  // A vehicle that comes home is instrumented for its entry, and recovery reports the rest.
+  const entry = flies(l.vehicle) ? [...ENTRY_CLAIMS(ENTRY_DESIGN[l.vehicle].spacecraft), ...ENTRY_RECORDS] : [];
+  const data = flies(l.vehicle) ? retrofireData(state, l) : null;
+  if (data) l.retrofire = data.sent;
+  const plan = { kind: 'flight', vehicle: l.vehicle, stages: l.stages, conditions: { ...FLIGHT_CONDITIONS }, channels: [...TRACKING_CHANNELS, ...telemetry, ...entry],
+    ...(data ? { entry: { recovery: l.recovery, ground: data.ground } } : {}) };
+  const j = startJob(state, { id: `flight-${id}`, kind: 'flight', programmeId: l.programmeId, reservations: l.reservations, plan });
+  // Whatever was wrong in the data sent is now in the flight itself; nobody knows it until the post-flight review.
+  if (data) delete j.plan.entry.ground;
   // Flight Control invites the administrator to the blockhouse (freeze §8.3, §10.3). Watching changes nothing.
   Object.assign(l, { status: 'in-flight', jobId: j.id, launchDay: state.day, invitation: 'open' });
   article(state, l.articleId).status = 'flying';
@@ -118,26 +134,46 @@ const logCrew = (state, l) => {
   for (const pid of l.crew ?? []) {
     const rec = state.people[pid].record;
     rec.flights.push({ launchId: l.id, vehicle: l.vehicle, day: l.launchDay, outcome: l.outcome, abort: l.abort?.mode ?? null });
-    rec.availability = 'available';
+    rec.availability = l.entry && !l.entry.contact ? 'killed' : 'available';
+    if (rec.availability === 'killed') rec.history.push({ day: state.day, event: `killed when ${VEHICLES[l.vehicle].name} ${l.articleId} was lost on entry` });
   }
 };
 
 // A binding crew abort (V2 freeze §4): the flight ends now, by the means this phase allows, and no ground
 // authority can undo it. Readings taken so far stay in the record.
-export const abortFlight = (state, l, j, { by, mode, evidence }) => {
+export const abortFlight = (state, l, j, { by, mode, evidence, early = false }) => {
   Object.assign(l, { status: 'flown', outcome: 'crew-abort', abort: { by, mode, day: state.day, evidence } });
+  // After the launch phase the spacecraft still has to come home: an early retrofire, wherever it is (V2 freeze §4).
+  if (early && flies(l.vehicle)) {
+    const obs = flyAndLand(state, j.id, { vehicle: l.vehicle, recovery: l.recovery, early: ENTRY_DESIGN[l.vehicle].retro }).map(s => observe(state, j, s));
+    j.observations.push(...obs.map(o => o.id));
+    updateBeliefs(state, obs);
+    land(state, l, obs, j.id);
+  }
   if (l.invitation === 'open') l.invitation = 'lapsed';
   article(state, l.articleId).status = 'expended';
   resolveExposure(state, l.id, 'failure');
   logCrew(state, l);
   memo(state, { from: 'flight-control', kind: 'warning', refs: { launch: l.id },
-    text: `${state.people[by]?.name ?? by} called an abort on ${VEHICLES[l.vehicle].name} ${l.articleId} (${mode}). The call is the crew's and it stands. ${evidence.length} abnormal reading${evidence.length === 1 ? '' : 's'} prompted it; everything recorded up to the abort is in Records.` });
+    text: `${state.people[by]?.name ?? by} called an abort on ${VEHICLES[l.vehicle].name} ${l.articleId} (${mode}). The call is the crew's and it stands. ${evidence.length} abnormal reading${evidence.length === 1 ? '' : 's'} prompted it; everything recorded up to the abort is in Records.${describeEntry(state, l)}` });
 };
 
 export const answerInvitation = (state, { launchId, attend }) => {
   const l = launchRecord(state, launchId);
   if (!l || l.invitation !== 'open') throw new Rejection(`There is no open invitation for ${launchId}`);
   l.invitation = attend ? 'attending' : 'apologies';
+};
+
+// Splashdown, or the loss of the spacecraft: the record of what instruments, tracking and recovery showed.
+const land = (state, l, obs, key) => {
+  const events = entryEvents(state, key);
+  if (!events) return;
+  l.entry = entryRecord(state, l, obs, events);
+  if (!l.entry.contact && !l.abort) l.outcome = 'failure';
+  // Post-flight review: Flight Control compares the data it sent with the reconstructed trajectory.
+  if (l.retrofire && !l.retrofire.caught) l.retrofire.review = Math.abs(l.entry.sighting ?? 0) > 3 * ENTRY_DESIGN[l.vehicle].footprint
+    ? 'the landing was well outside the predicted footprint; the review is checking the retrofire data and the attitude records'
+    : 'the landing was within the predicted footprint';
 };
 
 // The outcome is what tracking and telemetry showed, not hidden truth.
@@ -151,6 +187,7 @@ export const completeFlight = (state, j) => {
   if (l.rangeAction && l.crew?.length) l.abort = { by: 'escape-system', mode: 'escape fired before range safety', day: state.day, evidence: [dev.id] };
   l.outcome = l.rangeAction ? 'failure' : apogee.state === 'measured' && apogee.normal ? 'success' : apogee.state === 'measured' ? 'failure' : 'indeterminate';
   l.status = 'flown';
+  if (l.outcome !== 'failure' && flies(l.vehicle)) land(state, l, obs, j.id);
   if (l.invitation === 'open') l.invitation = 'lapsed';
   article(state, l.articleId).status = l.outcome === 'failure' ? 'lost' : 'expended';
   resolveExposure(state, l.id, l.outcome);
