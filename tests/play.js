@@ -53,7 +53,7 @@ export function toRoundId(id, call = () => 'nominal') {
 }
 
 // One console decision point at a time: a poll, the climb (abort or not), the impact points, the pad.
-const waiting = () => g.beat !== 'mFlight' || (g.console && (g.console.poll || g.console.phase === 'poll' || g.console.phase === 'ip' || ['pad', 'ascent', 'insertion', 'pack', 'retro'].includes(g.console.phase)));
+const waiting = () => g.beat !== 'mFlight' || (g.console && g.console.auto ? ['pack', 'retro'].includes(g.console.phase) : g.console && (g.console.poll || g.console.phase === 'poll' || g.console.phase === 'ip' || ['pad', 'ascent', 'insertion', 'pack', 'retro'].includes(g.console.phase)));
 function work(c, opts) {
   if (c.poll || c.phase === 'poll') return consolePoll(opts.poll(c));
   if (c.phase === 'ip') return consoleAim(opts.aim(c));

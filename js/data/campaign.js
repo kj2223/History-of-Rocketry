@@ -35,7 +35,7 @@ export const SEASON = [
   { id: 'mr-1', vehicle: 'redstone', site: 'cape', crewed: 'mercury', path: 'nasa', start: dayOf(1960, 11, 20), name: 'Mercury-Redstone 1, the first Mercury capsule on a Redstone' }, // 21 November 1960: a sim day, then launch day
   // The first American in space. crew: who flies it. adopt: fixes Marshall made between flights whatever the reviews said
   // (after MR-1 the tail plug; after Ham's flight the thrust controller, proved on the MR-BD flight of 24 March 1961).
-  { id: 'mr-3', vehicle: 'redstone', site: 'cape', crewed: 'mercury', crew: ['rourke'], adopt: ['plug', 'thrust'], path: 'nasa', pressure: true, start: dayOf(1961, 5, 4), name: 'Mercury-Redstone 3, the first American in space' }, // 5 May 1961
+  { id: 'mr-3', vehicle: 'redstone', site: 'cape', crewed: 'mercury', crew: ['rourke'], adopt: ['plug', 'thrust'], turningPoint: 'engineer', path: 'nasa', pressure: true, start: dayOf(1961, 5, 4), name: 'Mercury-Redstone 3, the first American in space' }, // 5 May 1961
   // Into orbit on the Atlas. orbital: the flight is worked through orbit, retrofire and entry. risk: what is likelier on this
   // flight than the programme's usual odds (the hidden layer still decides).
   { id: 'ma-6', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['okafor'], risk: { seg51Risk: 0.6 }, path: 'nasa', pressure: true, start: dayOf(1962, 2, 19), name: 'Mercury-Atlas 6, the first American in orbit' }, // 20 February 1962
@@ -194,5 +194,20 @@ export const FIRST_OFFER = {
   takeNote: 'Take it and you plan the rounds, run the count and chair the reviews from now on.',
   declineNote: 'Turn it down and you keep your seat; they may ask again.',
 };
-// Which offer a turning point brings: turningPoint true is the test conductor's, 'nasa' is Mercury Control's.
-export const offerFor = turningPoint => (turningPoint === 'nasa' ? NASA_OFFER : FIRST_OFFER);
+// The third, after the first American in space: the Mercury project office wants an engineer for the orbital capsules.
+export const ENGINEER_OFFER = {
+  seat: 'engineer',
+  title: 'Project engineer, Mercury capsules',
+  from: 'hollis',
+  text: 'The project office wants an engineer on the orbital capsules: checkout in Hangar S, the qualification tests, and someone to tell me straight what the hardware will do. They asked for you. I\'d keep you on the console if I could, but it\'s your call.',
+  sidelined: 'The project office was looking for a capsule engineer. I didn\'t send your name this time.',
+  again: 'The project office is asking for you again.',
+  takeNote: 'From now on you check the capsules out in Hangar S and run their qualification tests. On flight day you sit in the back room and answer for the hardware; Bill Tate takes the Retrofire console.',
+  declineNote: 'You stay the Retrofire officer.',
+};
+
+// Which offer a turning point brings: turningPoint true is the test conductor's, 'nasa' is Mercury Control's, 'engineer'
+// the Mercury project office's.
+export const offerFor = turningPoint => (turningPoint === 'nasa' ? NASA_OFFER : turningPoint === 'engineer' ? ENGINEER_OFFER : FIRST_OFFER);
+// The offer behind an entry in your record, by the seat it offered.
+export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;

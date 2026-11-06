@@ -15,12 +15,12 @@ import { newRound, ellisReading } from './truth/round.js';
 import { draw } from './core/rng.js';
 import { KITS, SHORT } from './data/kits.js';
 import { SEASON } from './data/campaign.js';
-import { MERCURY_COUNT, UNITS, SEA_LIMIT, TAPES, PAD_OPTIONS, SIMS, SIM_MINUTES, ORBIT_UNITS, STATIONS, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_TAPES, ORBIT_SIMS } from './data/mercury.js';
+import { MERCURY_COUNT, UNITS, SEA_LIMIT, TAPES, PAD_OPTIONS, SIMS, SIM_MINUTES, ORBIT_UNITS, STATIONS, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_TAPES, ORBIT_SIMS, CAPSULE_SPOTS, LOOK_MINUTES, QUAL_TESTS } from './data/mercury.js';
 import { addSim, shiftTrust, TRUST } from './career/record.js';
 import { ROUTE_DAY, ROUTE_MODES, ROUTE_ANNOUNCED } from './data/route.js';
 import { adopt } from './world/programme.js';
 
-export { ABORT_LIMIT, PLAN, UNITS, SEA_LIMIT, PAD_OPTIONS, SIMS, SIM_MINUTES, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_PLAN };
+export { ABORT_LIMIT, PLAN, UNITS, SEA_LIMIT, PAD_OPTIONS, SIMS, SIM_MINUTES, PACK_OPTIONS, RETRO_OPTIONS, ORBIT_PLAN, CAPSULE_SPOTS, QUAL_TESTS };
 export const plannedAngle = plannedGamma;
 // The planned flight-path angle at second t, for this console's booster.
 export const plannedAngleFor = (c, t) => (c.orbital ? orbitGamma(t) : plannedGamma(t));
@@ -36,6 +36,7 @@ export const MERCURY_BEATS = {
   // The day before: the capsule and the booster are on the pad. The sims are open, and the day can end at any time.
   mBrief() {
     seatPeople();
+    if (engineer()) return engineerBrief();
     g.rocket.where = 'tower'; g.rocket.mated = true;
     const launch = dateText(g.roundStart + LAUNCH_DAY);
     const line = pilotId() ? `We fly ${pilotName()} on ${launch}. Today you're in the simulator, and so is he: the sim supervisor will throw everything he has at you both. If he has to trust your numbers, they had better be right.`
@@ -50,11 +51,12 @@ export const MERCURY_BEATS = {
   mLaunch() {
     seatPeople();
     g.rocket.where = 'tower'; g.rocket.mated = true;
+    if (engineer()) rework();
     g.mission.cond = conditions(g.round);
-    g.objective = 'Launch day. Go to your console in Mercury Control for the count.';
+    g.objective = engineer() ? 'Launch day. Go to the back room in Mercury Control: Hollis will want the hardware answered for.' : 'Launch day. Go to your console in Mercury Control for the count.';
     // Suited up in Hangar S, then out to the gantry and up into the capsule.
-    if (pilotId()) { g.people.pilot.hidden = false; place('pilot', 690); walk('pilot', 2050); say('pilot', 'Morning, Retro. Get me a good splashdown point.', '', 6); }
-    say('hollis', 'Morning, Retro. Get on your console. We pick up the count at T minus fifteen.', '', 6);
+    if (pilotId()) { g.people.pilot.hidden = false; place('pilot', 690); walk('pilot', 2050); say('pilot', engineer() ? 'Morning. Is she a good one?' : 'Morning, Retro. Get me a good splashdown point.', '', 6); }
+    say('hollis', engineer() ? 'Morning, Engineering. Back room. If the hardware does anything odd, you answer for it.' : 'Morning, Retro. Get on your console. We pick up the count at T minus fifteen.', '', 6);
   },
   mFlight() {},
   // The count was scrubbed: the launch is tomorrow, in whatever weather tomorrow brings.
@@ -89,11 +91,16 @@ const cap = t => t[0].toUpperCase() + t.slice(1);
 export const pilotId = () => (g.crewed && SEASON[g.roundIndex].crew?.[0]) || null;
 const pilotName = () => ASTRONAUTS[pilotId()].name;
 const first = () => pilotName().split(' ')[0];
+// Whether you are the project engineer: Tate has the Retrofire console, and you answer for the hardware.
+export const engineer = () => g.crewed && g.record.seat === 'engineer';
+const retroWho = c => (c.auto ? 'tate' : 'you');
+const callsign = c => (c.auto ? 'Engineering' : 'Retro');
 
 // Who is where in a Mercury round.
 function seatPeople() {
   place('hollis', 180); place('reyes', 230); place('albrecht', 262); place('morgan', 150); place('brandt', 420);
   place('vega', 2010); place('kowalski', 1980); place('delgado', 2090);
+  if (engineer()) place('tate', 300);
 }
 
 // A Mercury round starts the day before launch.
@@ -105,6 +112,7 @@ export function startMission() {
 // ---- Which room each building opens in a Mercury round ----
 export function missionRoomFor(id) {
   const flying = g.console && g.console.kind === 'flight';
+  if (engineer() && ['mBrief', 'mScrub'].includes(g.beat)) { if (id === 'hangar') return 'checkout'; if (id === 'dugout' || id === 'stand') return 'qual'; }
   if (id === 'office' && g.beat === 'sRoute') return 'route';
   if (id === 'office') return ['mLaunch', 'mFlight'].includes(g.beat) ? 'console' : g.beat === 'mReview' ? 'mreview' : ['roundEnd', 'seasonEnd'].includes(g.beat) ? g.beat : 'watch';
   if (id === 'dugout' || id === 'stand') return flying || g.beat === 'mFlight' ? 'watch' : 'sim';
@@ -115,7 +123,7 @@ export function missionRoomFor(id) {
 // ---- The console: one model for the real count and flight and for a training sim ----
 // phase: count → poll → count → … → ascent → ip → coast → done (sim: debrief). The rooms read only these fields.
 function newConsole(kind, round, cond, scenario = null, orbital = false) {
-  return { kind, round, cond, scenario, orbital, phase: kind === 'sim' ? 'poll' : 'count', clock: kind === 'sim' ? 600 : 900, next: 0, poll: kind === 'sim' ? 'recovery' : null,
+  return { kind, round, cond, scenario, orbital, auto: kind === 'flight' && engineer(), phase: kind === 'sim' ? 'poll' : 'count', clock: kind === 'sim' ? 600 : 900, next: 0, poll: kind === 'sim' ? 'recovery' : null,
     t: 0, trace: [], abortAt: null, ip: null, aim: null, holds: 0, calls: { poll: [], abort: null, ip: null }, lines: [], chatter: [], live: true };
 }
 // Who says what on the loop. A sim's loop is the simulator's own: nobody on the real site hears it.
@@ -135,7 +143,7 @@ export function consoleStart() {
   if (g.console || g.beat !== 'mLaunch') return;
   g.console = newConsole('flight', g.round, g.mission.cond, null, !!SEASON[g.roundIndex].orbital);
   place('you', 300);
-  setBeat('mFlight', 'Work the count from your console. Give your status when Hollis polls you, and watch the plot once she flies.');
+  setBeat('mFlight', engineer() ? 'Listen on the loop from the back room. When Hollis asks about the hardware, answer him.' : 'Work the count from your console. Give your status when Hollis polls you, and watch the plot once she flies.');
 }
 
 // Your status at a poll: GO or NO-GO on the recovery area.
@@ -145,12 +153,12 @@ export function consolePoll(go) {
   const b = board(c), ok = boardGood(c);
   c.calls.poll.push({ go, ok });
   const sim = c.kind === 'sim';
-  if (!sim) note(`T-${Math.ceil(c.clock)} s poll: the recovery board showed sea state ${b.sea}${c.cond.late ? `, and ${unitsOf(c)[c.cond.late].toLowerCase().replace(/^the /, 'the ')} not on station` : ', every unit on station'}. You called ${go ? 'GO' : 'NO-GO'}.`);
+  if (!sim) note(`${c.auto ? 'Tate\'s' : 'Your'} poll at T-${Math.ceil(c.clock)} s: the recovery board showed sea state ${b.sea}${c.cond.late ? `, and ${unitsOf(c)[c.cond.late].toLowerCase().replace(/^the /, 'the ')} not on station` : ', every unit on station'}. ${c.auto ? 'Tate' : 'You'} called ${go ? 'GO' : 'NO-GO'}.`);
   const poll = c.poll;
   c.poll = null;
   // The man on top has his own say at the final poll, and his no is binding.
   if (go && poll === 'final' && c.kind === 'flight' && pilotId()) {
-    speak(c, 'you', 'Retro is go.', 'go');
+    speak(c, retroWho(c), 'Retro is go.', 'go');
     const t = CREW_TRAITS[pilotId()], ok = consents(t, { sea: b.sea, late: c.cond.late });
     speak(c, 'hollis', `${first()}, are you go?`);
     if (impatient(t, c.holds)) speak(c, 'pilot', 'Why don\'t you fix your little problem and light this candle?', 'warn', 6);
@@ -165,23 +173,23 @@ export function consolePoll(go) {
     roomChanged(); return;
   }
   if (go) {
-    speak(c, 'you', 'Retro is go.', 'go');
+    speak(c, retroWho(c), 'Retro is go.', 'go');
     if (sim && c.phase === 'poll') { c.phase = 'count'; c.clock = 10; }
     roomChanged(); return;
   }
   // NO-GO: a ship off station is waited for; a rough sea scrubs the day; a clean board is a hold while Hollis asks why.
   if (c.cond.seaState > SEA_LIMIT) {
-    speak(c, 'you', `Retro is no-go. Sea state ${b.sea} in the recovery area. The rule says four.`, 'bad');
+    speak(c, retroWho(c), `Retro is no-go. Sea state ${b.sea} in the recovery area. The rule says four.`, 'bad');
     speak(c, 'hollis', 'Agreed. We scrub for today.', 'warn');
     return endCount('scrub');
   }
   if (c.cond.late) {
-    speak(c, 'you', `Retro is no-go until ${unitsOf(c)[c.cond.late].split(',')[0].toLowerCase()} is on station.`, 'bad');
+    speak(c, retroWho(c), `Retro is no-go until ${unitsOf(c)[c.cond.late].split(',')[0].toLowerCase()} is on station.`, 'bad');
     speak(c, 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
     c.phase = 'hold'; c.holdLeft = 3; c.holdFor = 'ship'; c.holds++;
     roomChanged(); return;
   }
-  speak(c, 'you', 'Retro is no-go.', 'bad');
+  speak(c, retroWho(c), 'Retro is no-go.', 'bad');
   speak(c, 'hollis', 'Retro, I have every ship on station and a flat sea. What are you seeing? Holding while you look.', 'warn');
   c.phase = 'hold'; c.holdLeft = 1.5; c.holdFor = 'look'; c.holds++;
   roomChanged();
@@ -193,9 +201,9 @@ export function consoleAbort() {
   if (!c || c.phase !== 'ascent' || c.abortAt != null) return;
   c.abortAt = Math.floor(c.t);
   c.calls.abort = { at: c.abortAt, off: c.trace.length ? c.trace[c.trace.length - 1].off : 0 };
-  speak(c, 'you', 'Flight, Retro: she\'s off her line. Recommend abort!', 'bad');
+  speak(c, retroWho(c), 'Flight, Retro: she\'s off her line. Recommend abort!', 'bad');
   speak(c, 'hollis', 'Abort! Abort!', 'bad');
-  if (c.kind === 'flight') note(`T+${c.abortAt} s: you called an abort with the flight-path angle ${Math.abs(c.calls.abort.off).toFixed(1)} degrees off the planned line.`);
+  if (c.kind === 'flight') note(`T+${c.abortAt} s: ${c.auto ? 'Tate' : 'you'} called an abort with the flight-path angle ${Math.abs(c.calls.abort.off).toFixed(1)} degrees off the planned line.`);
   finishAscent(c);
 }
 
@@ -206,17 +214,17 @@ export function consoleAim(which) {
   c.aim = which; c.calls.ip = which;
   if (c.orbital) {
     const where = which === 'planned' ? 'the planned point' : km(c.ip[which]) + ' of the planned point';
-    speak(c, 'you', which === 'radar' ? 'Recovery, Retro: hold the helicopters for Grand Turk\'s fix.' : `Recovery, Retro: best splashdown ${where}.`, 'go');
+    speak(c, retroWho(c), which === 'radar' ? 'Recovery, Retro: hold the helicopters for Grand Turk\'s fix.' : `Recovery, Retro: best splashdown ${where}.`, 'go');
     if (which === 'radar') speak(c, 'reyes', `Grand Turk has her ${km(c.ip.radar)}. Helicopters launching.`, 'go');
     else speak(c, 'reyes', 'Copy. Helicopters launching.', 'go');
-    if (c.kind === 'flight') note(`You sent the recovery forces to ${which === 'radar' ? `Grand Turk's radar fix, ${km(c.ip.radar)}` : where}${which === 'radar' ? ', after holding them for it' : ''}.`);
+    if (c.kind === 'flight') note(`${c.auto ? 'Tate' : 'You'} sent the recovery forces to ${which === 'radar' ? `Grand Turk's radar fix, ${km(c.ip.radar)}` : where}${which === 'radar' ? ', after holding them for it' : ''}.`);
     c.phase = 'coast'; c.coastLeft = COAST_SECONDS;
     return roomChanged();
   }
   const kmDown = Math.round(c.ip[which]);
-  speak(c, 'you', `Recovery, Retro: best splashdown ${kmDown} kilometres downrange.`, 'go');
+  speak(c, retroWho(c), `Recovery, Retro: best splashdown ${kmDown} kilometres downrange.`, 'go');
   speak(c, 'reyes', `Copy. Helicopters launching for ${kmDown}.`, 'go');
-  if (c.kind === 'flight') note(`You sent the recovery forces to ${kmDown} km downrange (the ${which === 'planned' ? 'planned point' : `${which} impact point`}).`);
+  if (c.kind === 'flight') note(`${c.auto ? 'Tate' : 'You'} sent the recovery forces to ${kmDown} km downrange (the ${which === 'planned' ? 'planned point' : `${which} impact point`}).`);
   c.phase = 'coast'; c.coastLeft = COAST_SECONDS;
   roomChanged();
 }
@@ -240,6 +248,7 @@ export const consoleLocked = () => !!(g.console && g.console.kind === 'flight' &
 export function tickConsole(dt) {
   const c = g.console;
   if (!c || !c.live) return;
+  if (c.auto && tateCalls(c)) return;
   if (c.phase === 'hold') {
     c.holdLeft -= dt;
     g.clock += dt * 15;
@@ -434,6 +443,7 @@ export function missionPresent(key) {
 // What the plot showed about your abort call, as Hollis sees it on the tape. The trust it earns or costs.
 function judgeCalls() {
   const end = g.round.end || {}, a = g.round.ascent || {}, calls = g.mission.calls || {};
+  if (calls.auto) return engineerJudgement(calls);
   if (calls.pilotAbort && !calls.abort) return { text: `${pilotName()} pulled the handle himself at ${calls.pilotAbort.at} seconds, before anyone on the ground called it.`, calls: { abort: 'pilot abort', aim: calls.aim || null, hours: calls.hours ?? null } };
   const abort = calls.abort, overLine = (a.steps || []).find(s => Math.abs(s.off) > ABORT_LIMIT);
   let text = '', verdict = null;
@@ -581,7 +591,7 @@ export function simClose() { if (g.console && g.console.kind === 'sim' && !g.con
 export function toReview() {
   if (g.beat !== 'mRecovery') return;
   const c = g.console;
-  if (c) { g.mission.calls = { ...c.calls, aim: c.aim, hours: c.hours }; g.mission.sank = !!c.sank; g.mission.lines = c.lines; g.mission.fate = c.fate || null; }
+  if (c) { g.mission.calls = { ...c.calls, aim: c.aim, hours: c.hours, auto: !!c.auto }; g.mission.sank = !!c.sank; g.mission.lines = c.lines; g.mission.fate = c.fate || null; }
   if (c && c.orbital && c.round.end?.outcome === 'entry' && c.round.end.capsule !== 'lost') (g.record.orbitMisses = g.record.orbitMisses || []).push(c.round.end.miss);
   if (g.mission.fate === 'killed') { (g.record.losses = g.record.losses || []).push({ name: pilotName(), day: g.day, round: SEASON[g.roundIndex].id }); }
   g.console = null; g.room = null;
@@ -623,14 +633,14 @@ export function consoleInsertion(go) {
   const end = c.round.end, good = end.margin >= 0;
   c.calls.insertion = { go, right: go === good, goddard: c.goddard.go };
   insertion(c.round, go);
-  if (c.kind === 'flight') note(`Insertion: you called ${go ? 'GO for orbit' : 'NO-GO'}${go === c.goddard.go ? ', with Goddard' : ', against Goddard'}.`);
+  if (c.kind === 'flight') note(`Insertion: ${c.auto ? 'Tate' : 'you'} called ${go ? 'GO for orbit' : 'NO-GO'}${go === c.goddard.go ? ', with Goddard' : ', against Goddard'}.`);
   if (!go) {
-    speak(c, 'you', 'Flight, Retro: no-go. Bring her down in the abort area.', 'bad');
+    speak(c, retroWho(c), 'Flight, Retro: no-go. Bring her down in the abort area.', 'bad');
     speak(c, 'hollis', 'Fire the retros. Recovery, she\'s yours.', 'warn');
     c.aim = null; c.phase = 'coast'; c.coastLeft = 3;
     return roomChanged();
   }
-  speak(c, 'you', 'Flight, Retro: we are go for orbit.', 'go');
+  speak(c, retroWho(c), 'Flight, Retro: we are go for orbit.', 'go');
   if (end.outcome === 'decay') {
     speak(c, 'hollis', 'We have a go!', 'go');
     speak(c, 'morgan', 'Flight, Network: Bermuda\'s radar has her perigee too low. She will not make one orbit.', 'bad', 7);
@@ -659,7 +669,7 @@ function tickOrbit(c, dt) {
   while (c.pass < passes.length && passes[c.pass].at <= c.orbitT) stationPass(c, passes[c.pass++]);
   if (c.orbitT >= c.retroAt) {
     c.phase = o.signal && !c.pack ? 'pack' : 'retro';
-    speak(c, 'hollis', c.phase === 'pack' ? 'Retro, we are coming up on retrofire. What about that retro pack?' : 'Retro, California has her. Give me retrofire.', 'warn', 6);
+    speak(c, 'hollis', c.phase === 'pack' ? `${callsign(c)}, we are coming up on retrofire. What about that retro pack?` : c.auto ? 'Engineering, Tate fires on the automatic system unless you tell me those scanners are bad. Well?' : 'Retro, California has her. Give me retrofire.', 'warn', 6);
     roomChanged();
   }
 }
@@ -681,7 +691,7 @@ function stationPass(c, { n, st }) {
   if (st.name === 'Texas' && n === 0 && o.signal) {
     s.seg51 = o.flicker ? 'flickering' : 'steady';
     speak(c, 'morgan', `Flight, Network: Segment 51 is showing on telemetry. Landing bag deployed. It is ${s.seg51}.`, 'bad', 7);
-    speak(c, 'hollis', 'If that bag is down, the heat shield is only held by the retro pack straps. Retro, think about it.', 'warn', 7);
+    speak(c, 'hollis', `If that bag is down, the heat shield is only held by the retro pack straps. ${c.auto ? 'Engineering, is that shield loose?' : 'Retro, think about it.'}`, 'warn', 7);
     if (c.kind === 'flight') note(`Over Texas at the end of the first orbit, Segment 51 showed: the landing bag deployed, which would mean the heat shield is loose. The signal was ${s.seg51}. ${pilotName()} has no light in the cabin and has heard nothing.`);
   }
   if (st.name === 'Muchea, Australia' && n === 1 && o.signal) speak(c, 'morgan', `Muchea: Segment 51 still ${s.seg51}.`, 'warn');
@@ -692,7 +702,7 @@ export function consolePack(choice) {
   const c = g.console;
   if (!c || c.phase !== 'pack') return;
   c.pack = choice; c.calls.pack = choice;
-  speak(c, 'you', choice === 'keep' ? 'Flight, Retro: leave the retro pack on through entry. The straps hold the shield until the air does.' : 'Flight, Retro: jettison the pack as planned. I read Segment 51 as a bad switch.', choice === 'keep' ? 'warn' : '');
+  speak(c, 'you', choice === 'keep' ? `Flight, ${callsign(c)}: leave the retro pack on through entry. The straps hold the shield until the air does.` : `Flight, ${callsign(c)}: jettison the pack as planned. I read Segment 51 as a bad switch.`, choice === 'keep' ? 'warn' : '');
   speak(c, 'hollis', choice === 'keep' ? 'Pass it to him. Keep the pack on.' : 'Your call. Jettison as planned.', '');
   if (c.kind === 'flight') note(`You advised ${choice === 'keep' ? 'keeping the retro pack on through entry' : 'jettisoning the retro pack as planned'}.`);
   c.phase = 'retro';
@@ -705,7 +715,8 @@ export function consoleRetro(how) {
   if (!c || c.phase !== 'retro') return;
   c.calls.retro = how;
   const e = retrofire(c.round, how, c.pack || 'jettison');
-  speak(c, 'you', how === 'auto' ? 'Retrofire on the automatic sequence. Five, four, three, two, one, fire.' : `${first()}, fire them by hand on the window. Five, four, three, two, one, fire.`, 'go', 6);
+  if (c.auto) speak(c, 'you', how === 'auto' ? 'Flight, Engineering: the scanners are good. Fire on the automatic system.' : 'Flight, Engineering: I don\'t trust those scanners. Have him fire by hand on the window.', how === 'auto' ? 'go' : 'warn');
+  speak(c, retroWho(c), how === 'auto' ? 'Retrofire on the automatic sequence. Five, four, three, two, one, fire.' : `${first()}, fire them by hand on the window. Five, four, three, two, one, fire.`, 'go', 6);
   speak(c, 'pilot', 'Retros firing. One… two… three. Retro pack jettison ' + (c.pack === 'keep' ? 'held.' : 'green.'), 'go', 6);
   if (c.kind === 'flight') note(`Retrofire over California, ${how === 'auto' ? 'on the automatic system' : 'fired by hand'}${c.pack === 'keep' ? ', retro pack kept on' : ''}. Fuel at retrofire ${pctFuel(c.status.fuel)}.`);
   if (e.oscillated) speak(c, 'pilot', 'Fuel\'s gone. She\'s swinging. I can\'t hold her.', 'bad', 6);
@@ -790,4 +801,92 @@ export function routeDone() {
   if (g.beat !== 'sRoute' || !g.record.scenes?.route) return;
   g.room = null;
   morning(nextIndexFn() != null ? 'roundEnd' : 'seasonEnd');
+}
+
+// ---- The project engineer: Hangar S, the test rooms, and the back room on flight day ----
+function engineerBrief() {
+  g.mission.checkout = g.mission.checkout || {}; g.mission.flags = g.mission.flags || {}; g.mission.quals = g.mission.quals || {};
+  const launch = dateText(g.roundStart + LAUNCH_DAY);
+  const line = `We fly ${pilotName()} on ${launch}. The capsule's yours today, Engineering: Hangar S, and whatever tests you want run. Flag anything you don't like. A flag means a day's rework and a day's slip, so make it count.`;
+  say('hollis', line, '', 8);
+  note(`${cap(SEASON[g.roundIndex].name)}. Hollis: ${line}`);
+  if (pilotId()) { place('pilot', 1180); g.people.pilot.hidden = false; }
+  g.objective = 'Check the capsule out in Hangar S and run qualification tests in the training building. Flag what you don\'t like, then end the day.';
+  g.dayDone = true;
+}
+// A reading that depends only on the round and what is looked at: no draw is taken, so looking never shifts the flight.
+function glance(seed, key) {
+  let h = Math.imul((seed | 0) ^ [...key].reduce((a, ch) => Math.imul(a ^ ch.charCodeAt(0), 16777619), 2166136261), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+const busy = minutes => { g.clock += minutes; roomChanged(); };
+// Look over one of the capsule's spots: what McDonnell's crew shows you, and whether anything catches your eye.
+export function lookSpot(id) {
+  if (!engineer() || !CAPSULE_SPOTS.includes(id) || g.mission.checkout[id]) return;
+  const spot = KITS[g.vehicle].spots[id], cue = g.round.cues[id];
+  g.mission.checkout[id] = { name: spot.name, text: cue ? `${spot.sound} ${spot.cue}` : spot.sound, cue };
+  note(`Hangar S, ${spot.name.toLowerCase()}: ${g.mission.checkout[id].text}`);
+  busy(LOOK_MINUTES);
+}
+// Run a qualification test: its trace is in band or not. A fault shows most of the time; a sound part now and then
+// shows a bad trace too.
+export function runQual(id) {
+  const t = QUAL_TESTS[id];
+  if (!engineer() || !t || g.mission.quals[id]) return;
+  const fault = t.fault && Object.values(g.round.faults).includes(t.fault), r = glance(g.round.seed, id);
+  const bad = t.fault ? (fault ? r < 0.75 : r < 0.1) : false;
+  g.mission.quals[id] = { name: t.name, what: t.what, text: bad ? t.bad : t.good, bad };
+  note(`${t.name}: ${g.mission.quals[id].text}`);
+  busy(t.minutes);
+}
+export function flagSpot(id) {
+  if (!engineer() || !CAPSULE_SPOTS.includes(id) || g.beat !== 'mBrief') return;
+  g.mission.flags[id] = !g.mission.flags[id];
+  roomChanged();
+}
+// Overnight before launch, Hangar S reworks what you flagged. Any flag slips the launch a day.
+function rework() {
+  if (g.mission.reworked) return;
+  g.mission.reworked = true;
+  const flagged = Object.keys(g.mission.flags || {}).filter(id => g.mission.flags[id]);
+  g.mission.found = [];
+  if (!flagged.length) return;
+  for (const id of flagged) {
+    const name = KITS[g.vehicle].spots[id].name.toLowerCase();
+    if (g.round.faults[id]) { g.mission.found.push(id); delete g.round.faults[id]; note(`Hangar S took the ${name} apart on your flag and found ${FAULT_AT_SPOT_TEXT[KITS[g.vehicle].spots[id].fault]}. Reworked.`); }
+    else note(`Hangar S took the ${name} apart on your flag and found nothing wrong.`);
+  }
+  g.slipDays += 1; g.day += 1; g.clock += 1440;
+  say('hollis', `Hangar S worked your flags overnight. We fly a day late, ${dateText()}.`, 'warn', 6);
+}
+const FAULT_AT_SPOT_TEXT = { shield: 'a landing-bag latch that did not seat', scanner: 'a horizon scanner out of calibration' };
+
+// Tate's calls on the Retrofire console when you are in the back room. Returns true when he made one this frame.
+function tateCalls(c) {
+  if (c.poll) { consolePoll(boardGood(c)); return true; }
+  if (c.phase === 'insertion') { consoleInsertion(c.goddard.go); return true; }
+  if (c.phase === 'ip') { consoleAim(c.orbital ? 'radar' : c.ip.intermittent ? 'telemetry' : 'radar'); return true; }
+  if (c.phase === 'pad') { padChoose('wait'); return true; }
+  const last = c.trace[c.trace.length - 1];
+  if (c.phase === 'ascent' && c.abortAt == null && last && Math.abs(last.off) > ABORT_LIMIT + 0.5) { consoleAbort(); return true; }
+  return false;
+}
+
+// How Hollis sees the project engineer's work: what Hangar S found on your flags, and your answers on flight day.
+function engineerJudgement(calls) {
+  const out = [], o = g.round.orbit, m = g.mission;
+  if ((m.found || []).length) { shiftTrust(g.record, 1); out.push(`Hollis on your flags: "Hangar S found ${m.found.map(id => FAULT_AT_SPOT_TEXT[KITS[g.vehicle].spots[id].fault]).join(' and ')} because you flagged it."`); }
+  else if (Object.values(m.flags || {}).some(Boolean)) out.push('Hollis on your flags: "Nothing in what you flagged, and a day gone."');
+  if (o && o.signal && calls.pack) {
+    if (o.loose && calls.pack === 'keep') { shiftTrust(g.record, 1); out.push('Hollis on the retro pack: "You told me the shield might be loose, and it was. Those straps held it."'); }
+    else if (o.loose) { shiftTrust(g.record, -1); out.push('Hollis on the retro pack: "You told me the shield was tight. It wasn\'t."'); }
+    else out.push('Hollis on the retro pack: "A bad switch, as it turned out."');
+  }
+  if (o && calls.retro) {
+    if (o.scanner && calls.retro === 'manual') { shiftTrust(g.record, 1); out.push('Hollis on retrofire: "You said not to trust the scanners. You were right."'); }
+    else if (o.scanner) out.push(`Hollis on retrofire: "You cleared the scanners, and one was bad. ${Math.round(Math.abs(g.round.end.miss || 0))} km off the point."`);
+    else if (calls.retro === 'manual') out.push('Hollis on retrofire: "The scanners were good. We gave away a few seconds and some fuel for nothing."');
+  }
+  return { text: out.join(' '), calls: { abort: null, aim: calls.aim || null, hours: calls.hours ?? null, pack: calls.pack, retro: calls.retro, engineer: true } };
 }
