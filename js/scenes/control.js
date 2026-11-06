@@ -3,7 +3,7 @@
 // Mercury Control could see: g.console and g.mission, which the game fills from the telemetry and the radars.
 import { g, dateText, clockText, placeName } from '../game.js';
 import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, evidence, simStart, simClose, simOpen, toReview, board,
-  consoleInsertion, consolePack, consoleRetro, consoleDecide, shutdownChoose, SHUTDOWN_OPTIONS, lookSpot, flagSpot, runQual, capsuleSpots, qualTests, programOf, routeArgue, routeDone, orbitMisses, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
+  consoleInsertion, consolePack, consoleRetro, consoleDecide, shutdownChoose, apollo8Brief, apollo8Decide, apollo8Done, APOLLO8_OPTIONS, SHUTDOWN_OPTIONS, lookSpot, flagSpot, runQual, capsuleSpots, qualTests, programOf, routeArgue, routeDone, orbitMisses, plannedAngleFor, planFor, ABORT_LIMIT, SEA_LIMIT, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SIM_MINUTES } from '../mercury.js';
 import { KITS } from '../data/kits.js';
 import { ROUTE_MODES } from '../data/route.js';
 import { SEASON } from '../data/campaign.js';
@@ -49,6 +49,17 @@ export const CONTROL_ROOMS = {
       <ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
       <p class="muted">All of this is in your notebook.</p>
       <button class="primary" data-act="to-review">On to the review</button>`;
+  },
+  apollo8() {
+    const done = g.record.scenes?.apollo8, b = apollo8Brief();
+    return `<h2>The next Saturn V, ${dateText()}</h2>
+      <p>Hollis has the door shut. Kraft's question, from Low's office: the lunar module is months late, and the spacecraft is ready. Could the next Saturn V go round the Moon in December, without the lander?</p>
+      <ul><li>The lander: not before the spring.</li>
+      <li>The Saturn V: ${b.pogoFixed ? 'the pogo fix is in and has been tested on the ground.' : 'the last one shook in pogo; the fix is still being proved.'}</li>
+      <li>The other side: ${b.zond ? 'the intelligence reports say the Russians mean to send men round the Moon in a Zond before the year is out.' : 'the intelligence reports have nothing firm.'}</li>
+      ${b.slip ? `<li>Apollo is ${b.slip} days behind where it would have been.</li>` : ''}</ul>
+      ${done ? `<p>You argued to ${esc(APOLLO8_OPTIONS[done.choice].toLowerCase())}</p><p class="muted">It is in your notebook.</p><button class="primary" data-act="a8-done">Leave the meeting</button>`
+        : `<div class="choices">${Object.entries(APOLLO8_OPTIONS).map(([k, t]) => `<button data-act="a8" data-id="${k}">${esc(t)}</button>`).join('')}</div>`}`;
   },
   route() {
     const done = g.mission && g.mission.route, misses = orbitMisses();
@@ -149,7 +160,15 @@ function houstonIntro(c) {
 // The flight's board: the phase, the elapsed time and the lamps the flight plan has lit.
 function flightBoard(c) {
   const f = c.flight;
-  return `<div class="gauges"><div class="lamp on">${esc(f.craft.toUpperCase())}<br><b>${esc(f.phase)}</b></div><div class="lamp on">ELAPSED<br><b>${Math.floor(f.at)}</b> h</div>
+  // On a flight to the Moon: which phase this is, and one picture of where the ship is between the Earth and the Moon.
+  const phase = f.phases ? `<p class="center"><strong>Phase ${Math.min(f.phaseNo, f.phases)} of ${f.phases}: ${esc(f.phase)}</strong></p>` : '';
+  const pic = f.where ? `<svg viewBox="0 0 440 60" width="100%" height="60" role="img" aria-label="${esc(f.where.label)}">
+    <line x1="30" y1="30" x2="410" y2="30" stroke="#55606b" stroke-dasharray="4 4"/>
+    <circle cx="30" cy="30" r="16" fill="#3a6ea5"/><text x="30" y="56" fill="#9aa" font-size="9" text-anchor="middle">Earth</text>
+    <circle cx="410" cy="30" r="7" fill="#c9c6bb"/><text x="410" y="56" fill="#9aa" font-size="9" text-anchor="middle">Moon</text>
+    <polygon points="${30 + 380 * f.where.x - 5},24 ${30 + 380 * f.where.x + 5},30 ${30 + 380 * f.where.x - 5},36" fill="#f2e3a0"/>
+    <text x="${Math.max(60, Math.min(380, 30 + 380 * f.where.x))}" y="14" fill="#f2e3a0" font-size="10" text-anchor="middle">${esc(f.where.label)}</text></svg>` : '';
+  return `${phase}${pic}<div class="gauges"><div class="lamp on">${esc(f.craft.toUpperCase())}<br><b>${esc(f.phase)}</b></div><div class="lamp on">ELAPSED<br><b>${Math.floor(f.at)}</b> h</div>
     ${Object.entries(f.status).map(([k, [v, warn]]) => `<div class="lamp ${warn ? 'warn' : 'on'}">${esc(k)}<br><b>${esc(v)}</b></div>`).join('')}</div>`;
 }
 function flightCall(c) {
@@ -221,7 +240,7 @@ function plot(canvas, c) {
 // Clicks in Mercury Control's panels.
 export const CONTROL_ACTS = {
   'm-go': () => !g.console?.auto && consolePoll(true), 'm-nogo': () => !g.console?.auto && consolePoll(false), 'm-abort': () => !g.console?.auto && consoleAbort(),
-  'm-aim': id => !g.console?.auto && consoleAim(id), 'm-decide': id => consoleDecide(id), 'm-shutdown': id => shutdownChoose(id), 'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go'), 'm-pack': id => consolePack(id), 'm-retro': id => consoleRetro(id), pad: id => padChoose(id), 'm-present': id => missionPresent(id),
+  'm-aim': id => !g.console?.auto && consoleAim(id), 'm-decide': id => consoleDecide(id), 'm-shutdown': id => shutdownChoose(id), a8: id => apollo8Decide(id), 'a8-done': apollo8Done, 'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go'), 'm-pack': id => consolePack(id), 'm-retro': id => consoleRetro(id), pad: id => padChoose(id), 'm-present': id => missionPresent(id),
   'sim-start': simStart, 'eng-look': id => lookSpot(id), 'eng-flag': id => flagSpot(id), 'eng-qual': id => runQual(id), route: id => routeArgue(id), 'route-done': routeDone, 'sim-close': simClose, 'to-review': toReview,
 };
 export const openConsole = () => consoleStart();

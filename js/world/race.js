@@ -49,5 +49,8 @@ export function apolloFire(seed, programme) {
 export function raceNews(seed, from, to) {
   return raceOf(seed).filter(e => e.at > from && e.at <= to).map(e => (e.rumour ? `A rumour from the intelligence reports, never confirmed: a Soviet flight has done something big. ${e.text.split('.')[0]}? Nobody in Houston can say.` : e.text));
 }
+// Whether Houston has heard of a line's attempts by a day: 'zond' rumours before the flight, say. A planned attempt is
+// known to the intelligence about four months ahead.
+export const raceHeard = (seed, line, day) => raceOf(seed).some(e => ATTEMPTS.find(a => a.id === e.id).line === line && e.at - 120 <= day);
 // Whether the Soviets have done a thing by a day: 'zond-crewed' (men round the Moon) or 'lander' (a man on the Moon).
 export const sovietHas = (seed, id, day) => raceOf(seed).some(e => e.id === id && e.win && e.at <= day);

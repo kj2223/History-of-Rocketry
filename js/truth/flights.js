@@ -23,8 +23,9 @@ export function flightTruth(round, id) {
   const ph = round.rng.physical, d = [...Array(FLIGHT_DRAWS)].map(() => draw(ph));
   const kinds = new Set(Object.values(round.faults || {}));
   const t = { id, d, flags: {} };
-  for (const k of ['fuelcell', 'hatch', 'computer', 'thruster', 'tank', 'alarm', 'ascent', 'lightning', 'pogo', 'rover']) t.flags[k] = kinds.has(k);
+  for (const k of ['fuelcell', 'hatch', 'computer', 'thruster', 'pogo', 'j2', 'relight', 'sps', 'tank', 'cabin', 'alarm', 'ascent', 'chute']) t.flags[k] = kinds.has(k);
   t.flags.navdata = !!round.navdata;
+  t.flags.lightning = !!round.lightning;
   t.fuelcellRecovers = d[0] < ODDS.fuelcellRecovers;
   return (round.flightTruth = t);
 }
@@ -198,6 +199,86 @@ const RESOLVE = {
     out.fixes = shown;
     return out;
   },
+  tli(choice, { f, d, out }) {
+    if (choice === 'nogo') {
+      out.set.earthOnly = true; out.set.short = true; out.set.earthEntry = true; out.endAt = 10;
+      out.lines.push(['dorsey', 'No-go for TLI. We fly her in Earth orbit and bring her home.', 'warn']);
+      out.verdict = f.relight ? 'fair' : 'bad';
+      out.judge = f.relight ? 'The restart bottle was leaking. She might not have lit. Staying home was defensible.' : 'The third stage was good. We gave away the Moon for nothing.';
+      return out;
+    }
+    if (f.relight && d[13] < 0.6) {
+      out.set.earthOnly = true; out.set.short = true; out.set.earthEntry = true; out.endAt = 10;
+      out.lines.push(['albrecht', 'Flight, Booster: no ignition on the S-IVB. She\'s staying in Earth orbit.', 'bad']);
+      out.verdict = 'fair'; out.judge = 'The third stage would not relight. We tried, and nobody was hurt by trying.';
+      return out;
+    }
+    out.lines.push(['albrecht', 'Flight, Booster: good burn. Cutoff. She\'s on her way to the Moon.', 'go']);
+    out.lines.push(['pilot', 'Roger, Houston. You\'re go for the Moon. We\'re on our way.', 'go']);
+    out.verdict = 'good'; out.judge = f.relight ? 'The third stage relit on a low bottle. It worked, and it was close.' : 'A clean injection.';
+    return out;
+  },
+  loi(choice, { f, d, out }) {
+    if (choice === 'nogo') {
+      out.set.home = true; out.set.short = true;
+      out.lines.push(['pilot', 'Copy, no LOI. We\'ll swing round and see you on the other side.', 'warn']);
+      out.verdict = f.sps ? 'good' : 'bad';
+      out.judge = f.sps ? 'The service engine had a bad valve. You kept them on the free return. That rule saved their lives.' : 'The service engine was sound. We came all that way and didn\'t stop.';
+      return out;
+    }
+    if (f.sps && d[14] < 0.5) {
+      out.set.stranded = true;
+      out.lines.push(['morgan', 'Flight, Network: acquisition of signal. She\'s in lunar orbit.', 'go']);
+      out.verdict = 'bad'; out.judge = 'The service engine had failed its check and we put them in lunar orbit on it. It burned once. It never burned again.';
+      return out;
+    }
+    out.lines.push(['morgan', 'Flight, Network: acquisition of signal, right on time. She\'s in lunar orbit.', 'go']);
+    out.capability = null;
+    out.verdict = f.sps ? 'fair' : 'good';
+    out.judge = f.sps ? 'The service engine had come up short on its check and we went anyway. It held. Don\'t count on that twice.' : 'A good insertion behind the Moon.';
+    return out;
+  },
+  mcc(choice, { t, out }) {
+    const err = entryAngleError(t);
+    out.set.gammaError = choice === 'burn' ? 0.15 * err : err;
+    out.lines.push(choice === 'burn' ? ['tate', 'Flight, Retro: midcourse seven is done. She\'s in the middle of the corridor.', 'go'] : ['tate', 'Flight, Retro: no burn. She comes in where she\'s pointed.', '']);
+    const outside = err > 0.65 || err < -0.95;
+    out.verdict = choice === 'burn' ? 'good' : outside ? 'bad' : 'fair';
+    out.judge = choice === 'skip' && outside ? 'The entry angle was outside the corridor and we left it there.' : choice === 'skip' ? 'We left the entry angle where it was. It was inside the corridor, just.' : 'A trim burn into the middle of the corridor.';
+    return out;
+  },
+  tank(choice, { d, out }) {
+    out.set.home = true; out.set.short = true; out.endAt = 140;
+    if (choice === 'direct') {
+      if (d[15] < 0.5) {
+        out.set.lost = true;
+        out.lines.push(['kessler', 'Flight… the service engine didn\'t light. The tank took out its feed. We have no burn.', 'bad']);
+        out.verdict = 'bad'; out.judge = 'Nobody knew what the explosion had done to the service engine, and we bet three lives on it.';
+        return out;
+      }
+      out.lines.push(['kessler', 'Flight, the service engine burned. They\'re turned round and coming home.', 'warn']);
+      out.endAt = 80; out.hurt = 0.2;
+      out.verdict = 'fair'; out.judge = 'The direct abort worked. Nobody knew whether the service engine would, and we bet on it.';
+      return out;
+    }
+    out.lines.push(['pilot', 'Powering down the command module. We\'re moving into the lander. It\'s going to be cold.', 'warn']);
+    out.lines.push(['kessler', 'Flight, the lander\'s carbon dioxide filters won\'t last three men four days. We\'ll need to make the command module\'s fit.', 'warn']);
+    out.hurt = 0.15;
+    out.verdict = 'good'; out.judge = 'The lander was the lifeboat. You brought them round the Moon and home on it.';
+    out.note = 'The crew lived in the lander for four days on the way home, cold and short of water, with a carbon dioxide filter built from the command module\'s, tape and a plastic bag.';
+    return out;
+  },
+  lowpass(choice, { f, d, out }) {
+    if (choice === 'skip') { out.lines.push(['dorsey', 'No low pass. Keep the lander docked.', '']); out.verdict = f.alarm ? 'fair' : 'bad'; out.judge = f.alarm ? 'The computer was restarting and you kept the lander docked. Cautious, and the next crew lands without the rehearsal.' : 'There was nothing wrong with that lander. We came home without the rehearsal.'; out.set.short = true; return out; }
+    if (f.alarm && d[12] < 0.4) {
+      out.lines.push(['crew2', 'She\'s going all over the place! The computer\'s restarted. I\'ve got her, I\'ve got her.', 'bad']);
+      out.hurt = 0.05; out.verdict = 'fair'; out.judge = 'The computer restarted at fifteen kilometres. The crew flew her out of it. The rule said no.';
+      return out;
+    }
+    out.lines.push(['crew2', 'Fifteen kilometres. We\'re right over the landing site. It\'s smoother than it looks from up there.', 'go']);
+    out.verdict = 'good'; out.judge = 'The full rehearsal, down to fifteen kilometres.';
+    return out;
+  },
   navcheck(choice, { f, out }) {
     if (choice === 'check') {
       out.set.secondary = true;
@@ -212,6 +293,19 @@ const RESOLVE = {
     return out;
   },
 };
+
+// The entry angle the trans-Earth burn left her on, in degrees off the middle of the corridor.
+export const entryAngleError = t => 2.2 * (t.d[11] - 0.5);
+// What the tracking can measure for the board, with its own small error (no draw).
+export function measure(round, what) {
+  const t = round.flightTruth;
+  if (what === 'entryAngle') {
+    const seen = LUNAR_ENTRY.gamma + entryAngleError(t) + 0.12 * (t.d[10] - 0.5);
+    const inside = seen < LUNAR_ENTRY.corridor[1] && seen > LUNAR_ENTRY.corridor[0];
+    return { 'ENTRY ANGLE': [`${seen.toFixed(2)}°`, !inside || Math.abs(seen - LUNAR_ENTRY.gamma) > 0.5], CORRIDOR: [`${LUNAR_ENTRY.corridor[0]}° to ${LUNAR_ENTRY.corridor[1]}°`] };
+  }
+  return {};
+}
 
 // Retrofire and entry for Gemini. state.computer 'down' flies a rolling entry with no lift. Sets round.end.
 export function geminiEntry(round, state) {
@@ -231,7 +325,7 @@ export function lunarEntry(round, state) {
   const t = round.flightTruth, d = t.d;
   const e = flyLunarEntry(LUNAR_ENTRY, state.gammaError || 0, 30e3 * (d[9] - 0.5));
   let capsule = 'safe';
-  if (e.skip || e.peakG > 18) capsule = 'lost';
+  if (e.skip || e.peakG > 18 || state.lost || state.stranded) capsule = 'lost';
   else if (e.peakG > 13 || (state.hurt && d[8] < state.hurt)) capsule = 'damaged';
   round.end = { ...(round.end || {}), outcome: 'entry', miss: e.skip ? 0 : e.miss / 1000, entryG: e.peakG, heat: e.heatLoad, blackout: e.blackout, capsule, skip: !!e.skip, lunar: true };
   return round.end;

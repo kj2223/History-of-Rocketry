@@ -19,7 +19,9 @@ import { MERCURY_COUNT, UNITS, SEA_LIMIT, TAPES, PAD_OPTIONS, SIMS, SIM_MINUTES,
 import { addSim, shiftTrust, TRUST } from './career/record.js';
 import { ROUTE_DAY, ROUTE_MODES, ROUTE_ANNOUNCED } from './data/route.js';
 import { adopt } from './world/programme.js';
-import { startFlight, tickFlight, answer, flightOf, recordCapabilities, flightJudgement, flightCause } from './houston.js';
+import { dayOf } from './core/calendar.js';
+import { raceHeard } from './world/race.js';
+import { startFlight, tickFlight, answer, flightOf, flightIdOf, recordCapabilities, flightJudgement, flightCause } from './houston.js';
 import { flightPredictions, flightRecoveryHours } from './truth/flights.js';
 import { GEMINI_TAPES, GEMINI_SIMS, GEMINI_SPOTS, GEMINI_QUALS } from './data/gemini.js';
 import { FAULT_AT_SPOT } from './data/kits.js';
@@ -96,6 +98,12 @@ export const MERCURY_BEATS = {
     g.objective = 'The centres are arguing how Apollo goes to the Moon. Hollis wants you in the meeting in Mercury Control.';
     say('hollis', 'Retro, you\'re in the meeting this morning. Headquarters wants to know what the flights have taught us about hitting a point from orbit.', '', 8);
   },
+  // August 1968: the lander is late, and somebody asks whether the next Saturn V could go round the Moon without it.
+  sApollo8() {
+    seatPeople();
+    g.objective = 'Hollis has called a meeting in Mission Control about the next Apollo flight. Go in.';
+    say('hollis', 'Closed door this morning. Nobody outside this room hears what we\'re about to talk about.', '', 8);
+  },
   mRecovery() { g.objective = 'Recovery is reporting. Read the board, then go to the review.'; g.room = 'splash'; if (pilotId()) g.people.pilot.hidden = true; },
   mReview() {
     seatPeople();
@@ -152,6 +160,7 @@ export function missionRoomFor(id) {
   const flying = g.console && g.console.kind === 'flight';
   if (engineer() && ['mBrief', 'mScrub'].includes(g.beat)) { if (id === 'hangar') return 'checkout'; if (id === 'dugout' || id === 'stand') return 'qual'; }
   if (id === 'office' && g.beat === 'sRoute') return 'route';
+  if (id === 'office' && g.beat === 'sApollo8') return 'apollo8';
   if (id === 'office') return ['mLaunch', 'mFlight'].includes(g.beat) ? 'console' : g.beat === 'mReview' ? 'mreview' : ['roundEnd', 'seasonEnd'].includes(g.beat) ? g.beat : 'watch';
   if (id === 'dugout' || id === 'stand') return flying || g.beat === 'mFlight' ? 'watch' : 'sim';
   if (id === 'truck') return g.beat === 'mRecovery' ? 'splash' : 'watch';
@@ -161,7 +170,7 @@ export function missionRoomFor(id) {
 // ---- The console: one model for the real count and flight and for a training sim ----
 // phase: count → poll → count → … → ascent → ip → coast → done (sim: debrief). The rooms read only these fields.
 function newConsole(kind, round, cond, scenario = null, orbital = false) {
-  const flightId = flightOf() ? SEASON[g.roundIndex].id : null;
+  const flightId = flightOf() ? flightIdOf() : null;
   return { kind, round, cond, scenario, orbital, flightId, auto: kind === 'flight' && engineer(), phase: kind === 'sim' ? 'poll' : 'count', clock: kind === 'sim' ? 600 : 900, next: 0, poll: kind === 'sim' ? 'recovery' : null,
     t: 0, trace: [], abortAt: null, ip: null, aim: null, holds: 0, calls: { poll: [], abort: null, ip: null }, lines: [], chatter: [], live: true };
 }
@@ -906,7 +915,7 @@ function afterEntry(c) {
 function splashOrbit(c, end, trained, lines) {
   if (end.capsule === 'lost' && end.outcome === 'entry') {
     c.hours = null;
-    lines.push('There was nothing to recover. The search aircraft found a slick and some charred pieces of the heat shield.');
+    lines.push(end.stranded ? 'There was nothing to recover. The spacecraft is still in lunar orbit.' : end.skip ? 'She came in too shallow and skipped back out of the atmosphere. Nothing was heard from her again.' : 'There was nothing to recover. The search aircraft found a slick and some charred pieces of the heat shield.');
     return;
   }
   const aim = c.aim ? c.ip[c.aim] : 0, waited = c.aim === 'radar';
@@ -929,6 +938,7 @@ const orbitSimFailure = c => (Object.values(boosterOf(c).names).includes(c.scena
 // After a round whose SEASON entry has `after: 'route'`: the calendar goes to the meeting, once.
 export function sceneAfterReview() {
   const after = SEASON[g.roundIndex].after;
+  if (after === 'apollo8' && !g.record.scenes?.apollo8) { g.day = Math.max(g.day, APOLLO8_DAY); g.clock = g.day * 1440 + 8 * 60; return 'sApollo8'; }
   if (after !== 'route' || g.record.scenes?.route) return null;
   g.day = Math.max(g.day, ROUTE_DAY);
   g.clock = g.day * 1440 + 7 * 60 + 30;
@@ -961,6 +971,37 @@ export function routeArgue(mode) {
 // Leave the meeting: on to the next round, or the end of the years in this build.
 export function routeDone() {
   if (g.beat !== 'sRoute' || !g.record.scenes?.route) return;
+  g.room = null;
+  morning(nextIndexFn() != null ? 'roundEnd' : 'seasonEnd');
+}
+
+// ---- The Apollo 8 decision, August 1968 ----
+export const APOLLO8_DAY = dayOf(1968, 8, 9);
+export const APOLLO8_OPTIONS = {
+  moon: 'Send it round the Moon in December: ten orbits and home, without the lander.',
+  earth: 'Fly it as planned, in Earth orbit, and wait for the lander to be ready.',
+};
+// What the room knows: the lander is months late, the last Saturn V shook, and the intelligence says the Russians may
+// send men round the Moon in a Zond before the year is out.
+export function apollo8Brief() {
+  const zond = raceHeard(g.seed, 'zond', g.day);
+  return { zond, slip: g.programme.apolloSlip || 0, pogoFixed: g.programme.adopted.includes('pogo') };
+}
+// Your view in the meeting decides what Apollo 8 flies. It goes on your record, and the review judges it against what
+// the Russians did.
+export function apollo8Decide(choice) {
+  if (g.beat !== 'sApollo8' || !APOLLO8_OPTIONS[choice] || g.record.scenes?.apollo8) return;
+  (g.record.scenes = g.record.scenes || {}).apollo8 = { choice, day: g.day };
+  g.record.apollo8 = choice;
+  const lines = choice === 'moon'
+    ? [['hollis', 'Then that\'s what I take to Washington. Round the Moon at Christmas. God help us if we\'re wrong.']]
+    : [['hollis', 'Earth orbit, then. The lander will be ready in the spring, and we go round the Moon with it.']];
+  for (const [who, text] of lines) say(who, text, choice === 'moon' ? 'go' : '', 9);
+  note(`The Apollo 8 meeting: you argued to ${APOLLO8_OPTIONS[choice].toLowerCase()} Hollis: "${lines[0][1]}"`);
+  roomChanged();
+}
+export function apollo8Done() {
+  if (g.beat !== 'sApollo8' || !g.record.scenes?.apollo8) return;
   g.room = null;
   morning(nextIndexFn() != null ? 'roundEnd' : 'seasonEnd');
 }
