@@ -46,13 +46,14 @@ export const SEASON = [
   { id: 'gem-5', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['whitcomb', 'castellano'], risk: { fuelcellRisk: 0.75, navRisk: 0.7 }, path: 'nasa', start: dayOf(1965, 8, 20), name: 'Gemini 5, eight days' }, // 21 August 1965
   { id: 'gem-6', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['szabo', 'kowalczyk'], risk: { shutdownRisk: 0.7, computerRisk: 0.3 }, path: 'nasa', pressure: true, start: dayOf(1965, 12, 11), name: 'Gemini 6A, the rendezvous with Gemini 7' }, // 12 December 1965, flown 15 December
   { id: 'gem-8', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['fairbanks', 'nakamura'], risk: { thrusterRisk: 0.7 }, path: 'nasa', start: dayOf(1966, 3, 15), name: 'Gemini 8, the first docking' }, // 16 March 1966
+  { id: 'gem-12', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['kowalczyk', 'boateng'], turningPoint: 'programme', path: 'nasa', start: dayOf(1966, 11, 10), name: 'Gemini 12, the last Gemini' }, // 11 November 1966
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
 // The last word on the season-end page: what came after the last round you worked, and where this build stops.
 export const LAST_WORD = {
   'ranger-7': 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.',
-  'gem-8': 'Gemini 9A\'s spacewalker came back exhausted and blinded by fog in his visor. Gemini 10 and 11 docked and flew high on their Agenas. That is as far as Gemini goes in this build.',
+  'gem-12': 'Gemini was over: ten crewed flights in twenty months. Its rendezvous, its dockings, its long flights and its spacewalks went to Apollo as evidence. That is as far as Gemini goes in this build.',
 };
 
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
@@ -192,6 +193,11 @@ export const BETWEEN = {
     'Gemini 7 came home after fourteen days. Two Gemini crews have now flown longer than a lunar mission, and Gemini 6A showed that one spacecraft can find another.',
     'Gemini 8 is to dock with an Agena target, the first time two spacecraft have joined in orbit. Then three days of work with the Agena\'s engine.',
   ],
+  'gem-12': [
+    'Gemini 9A, in June 1966: its spacewalker fought his suit for two hours, his visor fogged and his heart rate passed 180. He got back in, exhausted, with most of the work undone.',
+    'Gemini 10 in July and Gemini 11 in September docked with their Agenas and fired the Agena engines to climb, Gemini 11 to 1,370 km. Their spacewalks went better, and still wore men out.',
+    'Gemini 12 is the last. The spacewalk has been rehearsed underwater in a pool, with handholds and foot restraints fitted outside.',
+  ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',
     'In April 1961 Yuri Gagarin orbited the Earth, and in May Alan Shepard flew from the Cape. On 25 May President Kennedy asked Congress to land a man on the Moon before the decade was out. Apollo needs to know what the Moon\'s surface is like.',
@@ -250,8 +256,20 @@ export const FD_OFFER = {
   declineNote: 'You keep your seat for Gemini; another flight director has the room.',
 };
 
+// The fifth, at the end of Gemini: Apollo's hardware is late and over weight, and the programme office needs people.
+export const PROGRAMME_OFFER = {
+  seat: 'programme',
+  title: 'Apollo programme office',
+  from: 'hollis',
+  text: 'Apollo\'s spacecraft are late and the lander\'s over weight. The programme office wants people who\'ve flown these things to run the schedule: the test stands, the pads, the suppliers. They asked for you. You\'d be off the console for good.',
+  sidelined: 'The Apollo programme office was hiring. Your name didn\'t go to them this time.',
+  again: 'The Apollo programme office is asking for you again.',
+  takeNote: 'From now on you run Apollo\'s schedule: the hardware, its tests and its suppliers, and the reviews. On flight day you watch from the viewing room, and the calls that are the programme\'s are yours.',
+  declineNote: 'You keep your seat and fly Apollo from the console.',
+};
+
 // Which offer a turning point brings: turningPoint true is the test conductor's, 'nasa' is Mercury Control's, 'engineer'
 // the Mercury project office's.
-export const offerFor = turningPoint => ({ nasa: NASA_OFFER, engineer: ENGINEER_OFFER, flight: FD_OFFER })[turningPoint] || FIRST_OFFER;
+export const offerFor = turningPoint => ({ nasa: NASA_OFFER, engineer: ENGINEER_OFFER, flight: FD_OFFER, programme: PROGRAMME_OFFER })[turningPoint] || FIRST_OFFER;
 // The offer behind an entry in your record, by the seat it offered.
-export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;
+export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, PROGRAMME_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;

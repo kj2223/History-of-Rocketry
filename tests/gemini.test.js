@@ -172,7 +172,27 @@ test('Gemini 6A and Gemini 8 play end to end from the flight director\'s console
   playMission({ sims: 0 });
   e = g.record.rounds.at(-1);
   assert.equal(e.id, 'gem-8');
-  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(g.beat, 'roundEnd');
+});
+
+test('Gemini 12, the last: a paced spacewalk, and the Apollo programme office\'s offer', () => {
+  toGem6(8);
+  playMission(); advance(true); g.room = null; playMission(); advance(true); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'gem-12');
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  if (!/^Lost/.test(g.record.rounds.at(-1).flight)) {
+    assert.ok(asked.includes('evaplan'));
+    assert.ok(g.record.capabilities.some(c => c.id === 'evawork'));
+  }
+  const o = g.record.offers.at(-1);
+  assert.equal(o.seat, 'programme');
+});
+
+test('the full task list outside wears a man out more often than the paced plan', () => {
+  let tired = 0;
+  for (let s = 1; s <= 40; s++) { const r = titan(s); flightTruth(r, 'gem-12'); if (resolve(r, 'evaplan', 'full', {}).verdict === 'bad') tired++; assert.equal(resolve(r, 'evaplan', 'rest', {}).verdict, 'good'); }
+  assert.ok(tired > 10, `${tired}`);
 });
 
 test('the Titan lights and shuts down on the pad: the commander sits tight, and a quick fix misses a second cause', async () => {

@@ -255,6 +255,7 @@ const ROOMS = {
       <p>You are now ${esc(SEAT_PHRASE[rec.seat] || SEATS[rec.seat].toLowerCase())}.</p>
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
+      ${rec.capabilities?.length ? `<p><strong>What your flights showed, as evidence Apollo can cite:</strong></p><ul>${rec.capabilities.map(c => `<li>${esc(c.text)} (${esc(c.flight)})</li>`).join('')}</ul>` : ''}
       ${offer}
       <p class="muted">${esc(LAST_WORD[rs[rs.length - 1].id] || '')}</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
