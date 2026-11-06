@@ -43,5 +43,14 @@ export const TUNING = {
   traitBounds: [0.05, 0.95],
   // At most this many acts of one kind count when V1 heads get traits on import, so no single habit saturates.
   importSignalCap: 8,
+  // Crew (V2 freeze §7, §15). Training takes this long per item; consent weighs what a crew member is shown.
+  trainingDaysPerItem: 30,
+  crewRecentFlights: 3,
+  crewsPerVehicle: 2,
+  // concern = gap × (blockers × blockerWeight + gaps) + failure × recent failures − experience × own flights,
+  // weighed by independence; a crew member consents while concern ≤ risk tolerance × tolerance.
+  crewConcern: { gap: 0.1, blockerWeight: 3, failure: 0.15, experience: 0.03, noise: 0.06, tolerance: 0.5 },
+  // Chance a crew member calls an abort on an abnormal reading, before their traits shape it.
+  abortOnAbnormal: 0.6,
   jobDays: { 'integration-assessment': 10, recycle: 14, repair: 7, upgrade: 60, commissioning: 30 },
 };

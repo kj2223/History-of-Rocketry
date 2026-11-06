@@ -37,8 +37,10 @@ const TEXT = {
     const l = state.launches.find(x => x.jobId === j.id);
     const outcome = { success: 'reached its planned apogee', failure: l.rangeAction ? 'was destroyed by range safety' : 'fell short of its planned apogee',
       indeterminate: 'flew, but we could not measure whether it reached its planned apogee' }[l.outcome];
-    return `The ${VEHICLES[l.vehicle].name} flight of ${l.articleId} ${outcome}. ${readings(state, j)}`;
+    const crew = l.crew?.length ? ` ${l.abort ? 'The escape system fired first and brought the crew away.' : `${l.crew.map(id => state.people[id].name).join(' and ')} flew it.`}` : '';
+    return `The ${VEHICLES[l.vehicle].name} flight of ${l.articleId} ${outcome}.${crew} ${readings(state, j)}`;
   },
+  'crew-training': (state, j) => `${j.payload.crew.map(id => state.people[id]?.name ?? id).join(' and ')} finished training for ${VEHICLES[j.payload.vehicle].name}.`,
   upgrade: (state, j) => `The upgrade of ${unitName(state, j.payload.unitId)} is finished. It is back in service with capacity ${state.facilities.units[j.payload.unitId].capacity}.`,
   commissioning: (state, j) => `${upper(unitName(state, j.payload.unitId))} is commissioned and can now be reserved.`,
   recycle: (state, j) => `${j.payload.articleId} has been recycled. The recovered material is in the agency stores.`,

@@ -12,7 +12,7 @@ const UI_KEY = 'pa-v2-ui';
 // A V1 campaign saved in this browser (V1 and V2 share an origin). Read only, never written (V2 freeze §3).
 const V1_KEY = 'pa-v1';
 const ACTS = { 'nasa-formation': 'NASA formation', mercury: 'Mercury', 'mercury-to-gemini': 'Between Mercury and Gemini', gemini: 'Gemini' };
-const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', 'Engineering'], ['flights', 'Test and flight'], ['production', 'Production and stores'], ['site', 'Site and funds'], ['records', 'Records']];
+const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', 'Engineering'], ['flights', 'Test and flight'], ['production', 'Production and stores'], ['site', 'Site and funds'], ['crew', 'Astronauts'], ['records', 'Records']];
 
 // ---- game and interface state ----
 let game, view, notice = null;
@@ -499,6 +499,32 @@ const productionView = () => {
 };
 
 // ---- site and funds ----
+// Astronauts (V2 freeze §7): records only. Traits never reach the screen; you learn people from what they do.
+const crewView = () => {
+  const crew = view.people.filter(p => p.kind === 'crew');
+  const sel = view.selection[0];
+  ui.picks ??= new Set(sel?.recommended ?? []);
+  return h('div', {}, h('h2', {}, 'Astronauts'),
+    sel ? h('section', { class: 'card' }, h('h3', {}, 'Selection board'),
+      h('p', { class: 'muted' }, `Choose up to ${sel.picks}. The board's slate is ticked; you can approve it in Mail or pick your own here.`),
+      h('ul', { class: 'plain' }, sel.candidates.map(c => h('li', {}, h('label', {}, h('input', { type: 'checkbox', 'data-key': `pick-${c.id}`, checked: ui.picks.has(c.id), disabled: c.medical !== 'eligible',
+        onchange: e => { e.target.checked ? ui.picks.add(c.id) : ui.picks.delete(c.id); } }),
+        ` ${c.name}: ${c.record.service}, ${c.record.flightHours} hours${c.record.testPilot ? ', test pilot' : ''}, ${c.record.education}. ${c.record.references.join(' ')}${c.medical !== 'eligible' ? ` Medical: ${c.medical}.` : ''}`)))),
+      button('Select these astronauts', () => { if (send('select-crew', 'administrator', { group: sel.group, ids: [...ui.picks] })) { ui.picks = null; say('The astronauts are selected.'); render(); } }, { key: 'select-crew', primary: true }))
+      : null,
+    h('section', { class: 'card' }, h('h3', {}, 'Ready for crewed flight'),
+      view.crewReadiness.length ? h('ul', {}, view.crewReadiness.map(r => h('li', {}, `${r.vehicle} (${Object.values(r.stages).join(', ')}), declared ${day(r.day)}`)))
+        : h('p', { class: 'muted' }, 'No configuration has a readiness decision for crewed use yet.')),
+    h('section', { class: 'card' }, h('h3', {}, 'The astronaut office'),
+      crew.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Name', 'Background', 'Status', 'Training', 'Flights', 'Consents and refusals'].map(t => h('th', {}, t)))),
+        h('tbody', {}, crew.map(p => h('tr', {}, h('td', {}, p.name), h('td', {}, `${p.record.background.service}, ${p.record.background.flightHours} hours`),
+          h('td', {}, `${cap(p.record.availability)}; medical ${p.record.medical.status}`),
+          h('td', {}, [...new Set(p.record.training.map(t => t.vehicle))].map(words).join(', ') || '—'),
+          h('td', {}, p.record.flights.map(f => `${day(f.day)} ${words(f.vehicle)}: ${words(f.outcome)}${f.abort ? ` (abort: ${f.abort})` : ''}`).join('; ') || '—'),
+          h('td', {}, p.record.consents.map(c => `${day(c.day)} ${c.consent ? 'consented' : 'refused'}`).join('; ') || '—')))))
+        : h('p', { class: 'muted' }, 'No astronauts yet. The first selection board sits in April 1959.')));
+};
+
 const siteView = () => {
   const f = view.fiscal, open = e => e.status === 'open' || e.status === 'overdue';
   return h('div', {}, h('h2', {}, 'Site and funds'),
@@ -621,7 +647,7 @@ const render = () => {
   const app = document.getElementById('app');
   const views = view.summary ? [...VIEWS, ['summary', 'Summary']] : VIEWS;
   if (ui.view !== 'observer' && !views.some(([k]) => k === ui.view)) ui.view = 'mail';
-  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, records: recordsView, summary: summaryView, observer: observerView }[ui.view]();
+  const body = { mail: mailView, programmes: programmesView, engineering: engineeringView, flights: flightsView, production: productionView, site: siteView, crew: crewView, records: recordsView, summary: summaryView, observer: observerView }[ui.view]();
   const unread = view.inbox.filter(i => !ui.seen.has(i.id)).length;
   const off = view.concluded;
   const [left, right] = sidePanels(view, { h, day, cap, money, programmeName, openMail: id => { ui.mailId = id; go('mail'); } });

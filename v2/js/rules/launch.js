@@ -10,6 +10,7 @@ import { article } from './hardware.js';
 import { assessFlight, recordExposure, resolveExposure, commit } from './fiscal.js';
 import { startJob } from './work.js';
 import { money as dollars, programmeName } from './reports.js';
+import { qualified, crewReady, consentTier } from './crew.js';
 
 export const initLaunches = () => [];
 
@@ -23,8 +24,16 @@ const heldBy = (state, id, programmeId) => {
 
 // Ask for launch. Flight Control holds on operational grounds at once; otherwise a vetoable
 // decision records each tier's position.
-export const requestLaunch = (state, { id, articleId, pad, tracking, cost, replacementCost }) => {
+// `crew` names the people aboard (V2 freeze §4): none for an uncrewed flight.
+export const requestLaunch = (state, { id, articleId, pad, tracking, cost, replacementCost, crew = [] }) => {
   const a = article(state, articleId);
+  if (crew.length) {
+    if (!VEHICLES[a.vehicle].crewed) throw new Rejection(`${VEHICLES[a.vehicle].name} carries no crew`);
+    // V2-04: no crewed launch without a readiness decision for this configuration and crewed use.
+    if (!crewReady(state, a.vehicle, a.stages)) throw new Rejection(`There is no readiness decision for crewed use of ${VEHICLES[a.vehicle].name} in this configuration`);
+    const unqualified = qualified(state, a.vehicle, crew);
+    if (unqualified.length) throw new Rejection(`The crew is not qualified: ${unqualified.join('; ')}`);
+  }
   if (a.status !== 'built') throw new Rejection(`${articleId} is ${a.status}`);
   if (state.hardware.batches[a.batchId].held) throw new Rejection(`${a.batchId} is on hold`);
   const holds = [];
@@ -46,17 +55,20 @@ export const requestLaunch = (state, { id, articleId, pad, tracking, cost, repla
       'ground-technical': position(tech.blockers, tech.gaps.length ? `known gaps: ${tech.gaps.join('; ')}` : 'supported'),
       'ground-operational': { stance: 'approve', reason: 'pad and tracking ready' },
       'ground-executive': { stance: money.affordable ? 'approve' : 'veto', reason: money.text },
-      // shortcut: crew are not aboard any flight until crew selection is built (V2 slice 2), so every V2 flight is uncrewed.
-      flight: { stance: 'inactive', reason: VEHICLES[a.vehicle].crewed ? 'no crew aboard' : 'uncrewed vehicle' },
+      flight: crew.length ? consentTier(state, { id, vehicle: a.vehicle }, crew, tech)
+        : { stance: 'inactive', reason: VEHICLES[a.vehicle].crewed ? 'no crew aboard' : 'uncrewed vehicle' },
     },
+    crew: [...crew], abort: null,
     reservations: [padRes.id, trackRes.id],
   };
   state.launches.push(launch);
   const d = openDecision(state, { type: 'launch', subject: id, raisedBy: 'flight-control', vetoable: true,
     text: `Launch ${VEHICLES[a.vehicle].name} ${articleId}${programmeName(state, a.programmeId) === VEHICLES[a.vehicle].name ? '' : ` for ${programmeName(state, a.programmeId)}`} (${experimental ? 'experimental' : 'routine'} flight, costing ${dollars(cost)}). ${money.text}`,
     finance: launch.tiers['ground-executive'], technical: launch.tiers['ground-technical'], effect: { kind: 'launch', payload: { id } } });
+  // Launch needs both chains (V2 freeze §4): the crew's position sits beside the ground's, and a refusal is a veto.
+  if (crew.length) d.positions.crew = launch.tiers.flight;
   // A vetoed launch can never be approved, so Flight Control scrubs it now rather than holding the pad.
-  const vetoes = Object.entries({ technical: launch.tiers['ground-technical'], finance: launch.tiers['ground-executive'] }).filter(([, p]) => p.stance === 'veto');
+  const vetoes = Object.entries(d.positions).filter(([, p]) => p?.stance === 'veto');
   if (vetoes.length) {
     Object.assign(d, { status: 'closed', choice: 'reject', decidedBy: 'flight-control', decidedDay: state.day,
       consequence: `Scrubbed: vetoed by ${vetoes.map(([who, p]) => `${who} (${p.reason})`).join(', ')}` });
@@ -98,6 +110,28 @@ export const executeLaunch = (state, { id }) => {
   // Flight Control invites the administrator to the blockhouse (freeze §8.3, §10.3). Watching changes nothing.
   Object.assign(l, { status: 'in-flight', jobId: j.id, launchDay: state.day, invitation: 'open' });
   article(state, l.articleId).status = 'flying';
+  for (const pid of l.crew ?? []) state.people[pid].record.availability = 'flying';
+};
+
+// The crew's flight record, whatever happened.
+const logCrew = (state, l) => {
+  for (const pid of l.crew ?? []) {
+    const rec = state.people[pid].record;
+    rec.flights.push({ launchId: l.id, vehicle: l.vehicle, day: l.launchDay, outcome: l.outcome, abort: l.abort?.mode ?? null });
+    rec.availability = 'available';
+  }
+};
+
+// A binding crew abort (V2 freeze §4): the flight ends now, by the means this phase allows, and no ground
+// authority can undo it. Readings taken so far stay in the record.
+export const abortFlight = (state, l, j, { by, mode, evidence }) => {
+  Object.assign(l, { status: 'flown', outcome: 'crew-abort', abort: { by, mode, day: state.day, evidence } });
+  if (l.invitation === 'open') l.invitation = 'lapsed';
+  article(state, l.articleId).status = 'expended';
+  resolveExposure(state, l.id, 'failure');
+  logCrew(state, l);
+  memo(state, { from: 'flight-control', kind: 'warning', refs: { launch: l.id },
+    text: `${state.people[by]?.name ?? by} called an abort on ${VEHICLES[l.vehicle].name} ${l.articleId} (${mode}). The call is the crew's and it stands. ${evidence.length} abnormal reading${evidence.length === 1 ? '' : 's'} prompted it; everything recorded up to the abort is in Records.` });
 };
 
 export const answerInvitation = (state, { launchId, attend }) => {
@@ -113,11 +147,14 @@ export const completeFlight = (state, j) => {
   const of = q => obs.find(o => o.quantity === q);
   const dev = of('vehicle.deviation'), apogee = of('vehicle.apogee');
   if (dev.state === 'measured' && !dev.normal) l.rangeAction = 'range-safety destruct';
+  // On a crewed vehicle range safety fires the escape system first (V2 freeze §4).
+  if (l.rangeAction && l.crew?.length) l.abort = { by: 'escape-system', mode: 'escape fired before range safety', day: state.day, evidence: [dev.id] };
   l.outcome = l.rangeAction ? 'failure' : apogee.state === 'measured' && apogee.normal ? 'success' : apogee.state === 'measured' ? 'failure' : 'indeterminate';
   l.status = 'flown';
   if (l.invitation === 'open') l.invitation = 'lapsed';
   article(state, l.articleId).status = l.outcome === 'failure' ? 'lost' : 'expended';
   resolveExposure(state, l.id, l.outcome);
+  logCrew(state, l);
   if (l.outcome === 'failure') {
     // Separate the useful evidence, the actual loss and the unaffordable replacement; charge nothing.
     const money = assessFlight(state, { cost: l.replacementCost, replacementCost: 0 });
