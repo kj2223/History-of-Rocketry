@@ -4,6 +4,7 @@ import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHol
   countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway, nextRound, kit, answerFirstOffer,
   conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY, onBudget, budgetLine, atSea, nextIndex, placeName } from '../game.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
+import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
 import { SEASON, offerFor, offerBySeat, blockhouseState, SITES } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
@@ -33,7 +34,7 @@ export function render() {
   shown = { room: g.room, version: g.roomVersion };
   el.hidden = false;
   const [kind, building] = g.room.split(':');
-  const body = kind === 'watch' ? watch(building) : (ROOMS[kind] || CONTROL_ROOMS[kind])();
+  const body = kind === 'watch' ? watch(building) : (ROOMS[kind] || CONTROL_ROOMS[kind] || LUNAR_ROOMS[kind])();
   const closable = !['recovery', 'splash'].includes(kind);
   el.innerHTML = `${closable ? '<button class="close" data-act="close" title="Back to the site (Esc)">✕</button>' : ''}${body}`;
 }
@@ -42,6 +43,7 @@ export function render() {
 export function live() {
   if (!g.room) return;
   controlLive();
+  lunarLive();
   const set = (sel, v) => { const n = panel().querySelector(sel); if (n) n.textContent = v; };
   if (g.room === 'static' && g.stand) {
     const s = g.stand;
@@ -327,7 +329,7 @@ export function bindRoom(handlers) {
       chair: () => chair(id),
       'offer-take': () => answerFirstOffer(true), 'offer-decline': () => answerFirstOffer(false),
       again: () => handlers.again(),
-    })[act]?.() ?? CONTROL_ACTS[act]?.(id);
+    })[act]?.() ?? (CONTROL_ACTS[act] || LUNAR_ACTS[act])?.(id);
   });
   el.addEventListener('change', e => {
     if (e.target.dataset.flag) flags[e.target.dataset.flag] = e.target.checked;

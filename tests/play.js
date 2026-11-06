@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { g, tick, finishInspection, finishBoard, endDay, standStart, standDecide, countStart, countAnswer, rideOut, returnFromRecovery, present, closeAway,
   conducting, finishPlan, chair, nextRound, answerFirstOffer } from '../js/game.js';
 import { pendingOffer } from '../js/career/record.js';
+import { lunarMidcourse, lunarLead } from '../js/lunar.js';
 
 export const until = (done, limit = 40000) => { for (let i = 0; i < limit && !done(); i++) { g.speed = 16; tick(0.05); } assert.ok(done(), `stuck at beat ${g.beat}`); };
 export const nextDay = () => { endDay(); until(() => !g.fading); closeAway(); };
@@ -11,7 +12,7 @@ export const nextDay = () => { endDay(); until(() => !g.fading); closeAway(); };
 // call(g) returns the explanation key, so a test can answer from what the player saw.
 // plan: the test conductor's plan, on rounds you conduct.
 // stopAt: 'staticPrep' stops on the morning of the static fire, 'poll' at the count's first poll.
-export function playRound(call = () => 'unknown', plan = { inspector: 'you', burn: 'short', leak: false }, stopAt = null) {
+export function playRound(call = () => 'unknown', plan = { inspector: 'you', burn: 'short', leak: false }, stopAt = null, lunar = { midcourse: 'wait', lead: 17 }) {
   closeAway();
   if (conducting()) { finishPlan(plan); if (g.plan.inspector !== 'you') until(() => g.beat === 'board'); }
   if (g.beat === 'brief') finishInspection({});
@@ -22,12 +23,31 @@ export function playRound(call = () => 'unknown', plan = { inspector: 'you', bur
   standDecide({ rework: false, leak: false }); nextDay();
   until(() => g.beat === 'countReady');
   countStart();
-  until(() => g.beat === 'recovery' || (g.count && g.count.poll));
+  const flown = () => g.beat === 'recovery' || g.beat === 'lLaunched' || (g.count && g.count.poll);
+  until(flown);
   if (stopAt === 'poll') return;
-  while (g.count && g.count.poll) { countAnswer(true); until(() => g.beat === 'recovery' || (g.count && g.count.poll)); }
+  while (g.count && g.count.poll) { countAnswer(true); until(flown); }
+  if (g.beat === 'lLaunched') followProbe(lunar);
   rideOut(); until(() => g.room === 'recovery');
   returnFromRecovery();
   if (conducting()) chair(call(g)); else present(call(g));
+}
+
+// A lunar shot after the Cape: follow her out from the technical office, make the midcourse and camera calls, and on to
+// the tracking reports.
+export function followProbe({ midcourse = 'wait', lead = 17 } = {}) {
+  nextDay();
+  assert.equal(g.beat, 'lCruise');
+  g.room = 'cruise';
+  until(() => g.beat !== 'lCruise' || g.lunar.poll);
+  if (g.lunar.poll === 'midcourse') { lunarMidcourse(midcourse); until(() => g.beat !== 'lCruise'); }
+  if (g.beat === 'recovery') return;
+  assert.equal(g.beat, 'lCruised');
+  nextDay();
+  assert.equal(g.beat, 'lEncounter');
+  g.room = 'encounter';
+  if (g.lunar.poll === 'lead') lunarLead(lead);
+  until(() => g.beat === 'recovery');
 }
 
 // On to the next round, answering any offer first (take: whether to take it).

@@ -18,6 +18,7 @@ const FIXES = {
   injector: { text: 'Every Vanguard first stage now gets the reworked injector before it goes on the stand.', apply: p => { p.vanguard = 'vanguard-1/r2'; } },
   depletion: { text: 'Every Jupiter now has its propellant utilisation recalibrated before it leaves the hangar.', apply: p => { p.juno = 'jupiter/r2'; } },
   agena: { text: 'Every Agena now gets the reworked restart system before it goes on the stack.', apply: p => { p.ranger = 'agena/r2'; } },
+  miss: { text: 'From now on the midcourse burn waits on the best tracking fix the stations can give.', apply: () => {} },
   camera: { text: 'Every Ranger camera supply is now run for hours in a vacuum chamber before the spacecraft is closed up.', apply: p => { p.cameraRisk *= 0.3; } },
   plug: { text: 'Every Redstone\'s tail plug is now tied down with a lanyard, so the control and power plugs part in the right order.', apply: p => { p.plugRisk *= 0.1; } },
   control: { text: 'Every Redstone autopilot now gets a full gyro run on the bench before it goes into the control compartment.', apply: p => { p.controlRisk *= 0.4; } },

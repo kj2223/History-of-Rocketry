@@ -6,6 +6,7 @@
 import { newStreams, draw, normal } from '../core/rng.js';
 import { initPhysical, runTest, sampleAt, discardTrace } from './physics.js';
 import { KITS } from '../data/kits.js';
+import { injection } from './lunar.js';
 import { SPOTS, EXPLANATIONS } from '../data/wac-round.js';
 export { SPOTS, EXPLANATIONS };
 
@@ -20,7 +21,8 @@ export const FIN_FAILURE = 0.5;
 export const CAMERA_FAILURE = 0.6;
 // Hold-down fittings with a flaw let go under a full-duration firing's thrust this often (Viking 8, June 1952).
 export const HOLDDOWN_FAILURE = 0.7;
-const SPOT_FAILURE = { weld: WELD_FAILURE, leak: LEAK_FAILURE, vanes: VANE_FAILURE, separation: SEPARATION_FAILURE, fin: FIN_FAILURE, camera: CAMERA_FAILURE };
+const SPOT_FAILURE = { weld: WELD_FAILURE, leak: LEAK_FAILURE, vanes: VANE_FAILURE, separation: SEPARATION_FAILURE, fin: FIN_FAILURE };
+// (A Ranger's camera supply is decided at the Moon, when the cameras are switched on: truth/lunar.js.)
 
 // How each kind of round flies, and how each cause cuts it short: when (s after liftoff) and what share of the peak is left.
 // The order is the order the causes can strike in flight: a V-2 that dies early never tests its upper stage.
@@ -36,8 +38,8 @@ const PROFILE = {
   // A good Vanguard does not come down: fly() puts it in orbit. The first stage burns for 145 s.
   vanguard: { burn: 145, order: ['injector', 'leak', 'separation'],
     fail: { injector: { at: 2, keep: 0.0008 }, leak: { at: 60, keep: 0.12 }, separation: { at: 145, keep: 0.35 } } },
-  // The lunar shots. A good one leaves the range plot on its way to the Moon (fly() hands it to deep()). The first two causes
-  // of each bring it down near the Cape; the others are told by the tracking stations.
+  // The lunar shots. One that gets away leaves the range plot on its way to the Moon (fly() hands it to launchProbe(), and
+  // truth/lunar.js takes over for the cruise and the encounter). An Agena that will not restart is stranded (deep()).
   juno: { burn: 180, order: ['leak', 'depletion', 'separation'], deep: ['depletion'],
     fail: { leak: { at: 60, keep: 0.001 }, depletion: { at: 176, keep: 1 }, separation: { at: 180, keep: 0.005 } } },
   ranger: { burn: 300, order: ['leak', 'agena', 'camera'], deep: ['agena', 'camera'],
@@ -293,7 +295,8 @@ export function fly(round) {
   const hidden = draw(ph), which = draw(ph);
   if (!failure && hidden < (HIDDEN_FAILURE[vehicle] || 0)) { failure = profile.order[Math.floor(which * profile.order.length)]; round.events.push('Something failed that no inspection could have found.'); }
   if (!failure && vehicle === 'vanguard') return orbit(round, apogee);
-  if (profile.deep && (!failure || profile.deep.includes(failure))) return deep(round, apogee, failure);
+  if (profile.deep && failure === 'agena') return deep(round, apogee, failure);
+  if (profile.deep && (!failure || profile.deep.includes(failure))) return launchProbe(round, failure);
   const cut = failure ? profile.fail[failure] : null, failAt = cut ? cut.at : null;
   if (cut) { apogee *= cut.keep; deviation += cut.dev || 0; }
   // A ballistic arc to the apogee: burn for the first part, coast up and fall, tilted by the deviation (degrees off vertical,
@@ -330,7 +333,18 @@ function orbit(round, perigee) {
   return result;
 }
 
-// A lunar shot that got away from the Cape. Its plot climbs off the top of the range's board; what happened after that
+// A lunar shot on its way: the range plot follows her to the last stage's burnout, ten minutes in, and the tracking stations
+// take her from there (truth/lunar.js). A Jupiter that ran short climbs a little lower; she is not lost until she falls back.
+function launchProbe(round, failure) {
+  const r = round.vehicle, short = failure === 'depletion', top = short ? 250 : 300, path = [];
+  for (let t = 0; t <= 600; t++) { const f = t / 600; path.push({ t, x: 1800 * f * f, h: top * Math.sin(f * Math.PI / 2) ** 0.8 }); }
+  const result = { apogee: top, range: 1800, failure: short ? 'depletion' : null, failAt: null, burn: PROFILE[r].burn, path, deep: injection(round, failure) };
+  round.flight = result;
+  result.radar = radarApogee(round);
+  return result;
+}
+
+// An Agena that never lit again, stranded in its parking orbit. Its plot climbs off the top of the range's board; what happened after that
 // is told by the tracking stations, in deep.text. failure: null, or a cause the tracking stations see.
 function deep(round, height, failure) {
   const ph = round.rng.physical, a = draw(ph), b = draw(ph), path = [];
