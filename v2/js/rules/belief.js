@@ -92,6 +92,10 @@ export const readiness = (state, decision, config, revId = null) => {
       const blockers = [...unassessed, ...untested];
       return { ready: !blockers.length, blockers, gaps: [...gaps, ...risks] };
     }
+    // V2 freeze §5: ready for crew is evidence, not an unlock. Crewed use asks what routine use asks of every
+    // claim the vehicle has, its abort sensing included: no adverse finding, no gap, enough distinct tests, and no
+    // unresolved anomaly. An accepted known risk is enough for an experimental flight, never for a crew.
+    case 'crewed-flight':
     case 'routine-use': {
       const thin = claims.filter(c => c.status === 'measured-normal' && c.tests < TUNING.routineDistinctTests).map(c => `${c.quantity} has ${c.tests} of ${TUNING.routineDistinctTests} distinct tests`);
       const blockers = [...adverse, ...gaps, ...thin, ...anomalies.map(a => `${ANOMALIES[a.id].name} is unresolved`)];

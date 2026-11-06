@@ -19,6 +19,8 @@ import { holders } from './facilities.js';
 import { available, capacityRemaining, protectedBaseline } from './fiscal.js';
 import { isDelegated } from './delegation.js';
 import { money, programmeName } from './reports.js';
+import { crewMembers, crewReady, qualified } from './crew.js';
+import { TRAINING } from '../data/crew.js';
 
 export const initStaff = () => ({ proposals: [], next: 1, snooze: {}, noted: {}, raised: {} });
 // Saves made before staff existed load without this section; the staff start work on the next day.
@@ -49,6 +51,9 @@ const fixStep = (state, p, stage, rev, hypothesis) => {
   return { kind: 'adopt', stage, rev };
 };
 
+const blockedElsewhere = (state, p, stage, rev) => readiness(state, 'experimental-flight', { vehicle: p.vehicle, stages: { ...p.baseline, [stage]: rev } }, rev)
+  .blockers.some(b => VEHICLES[p.vehicle].stages.some(st => st !== stage && b.startsWith(`${st}.`)));
+
 // The next step, from what the team knows: ground-test each stage under flight conditions, then fly.
 // A finding outside normal limits sends the team after its cause: a discriminating test while explanations
 // compete, then the corrective revision for the leading one. Without a fix the work stops for direction.
@@ -62,7 +67,12 @@ export const nextStep = (state, p) => {
       const anomaly = anomalyOn(state, p, stage);
       if (anomaly?.proposedTests?.length) { const t = anomaly.proposedTests[0]; return { kind: 'ground-test', stage, burn: t.conditions.burn, channels: t.channels, why: 'anomaly', anomaly: anomaly.id }; }
       const leading = anomaly?.status === 'leading' ? openHypotheses(anomaly)[0] : null, rev = leading && remedyFor(stage, leading);
-      if (rev) return fixStep(state, p, stage, rev, leading);
+      if (rev) {
+        const step = fixStep(state, p, stage, rev, leading);
+        // Adoption would be vetoed for a finding on another stage: work on that stage first.
+        if (step.kind === 'adopt' && blockedElsewhere(state, p, stage, rev)) continue;
+        return step;
+      }
       // You accepted the known risk after a failure review: the team may fly this configuration again.
       const assessed = new Set(state.beliefs.assessed ?? []);
       const unassessed = adverse.filter(q => claimStatus(state, config, q).observations.some(id => { const o = state.evidence.observations.find(x => x.id === id); return o.state === 'measured' && !o.normal && !assessed.has(id); }));
@@ -80,18 +90,51 @@ export const nextStep = (state, p) => {
 // administrator has not accepted as a known risk sends it after the cause instead of to the pad.
 const VEHICLE_QUANTITIES_ALL = [...new Set(Object.values(VEHICLE_QUANTITIES).flat())];
 const blockedQuantities = r => VEHICLE_QUANTITIES_ALL.filter(q => r.blockers.some(b => b.startsWith(`${q} `)));
-const flyIfReady = (state, p, config, rev = null, stage = null) => {
-  const r = readiness(state, 'experimental-flight', config, rev);
-  if (r.ready) return rev ? { kind: 'fly', stage, rev } : { kind: 'fly' };
+// Crew for the next crewed flight (V2 freeze §7): qualified and available, least flown first.
+const crewFor = (state, vehicle) => {
+  const n = TRAINING[vehicle].crew, free = crewMembers(state).filter(c => c.record.availability === 'available' && c.record.medical.status === 'eligible')
+    .sort((a, b) => a.record.flights.length - b.record.flights.length || a.id.localeCompare(b.id));
+  const crews = n === 1 ? free.map(c => [c.id]) : free.flatMap((c, i) => free.slice(i + 1).map(d => [c.id, d.id]));
+  const ready = crews.filter(ids => !qualified(state, vehicle, ids).length);
+  const training = state.work.some(j => j.kind === 'crew-training' && j.status === 'running' && j.payload.vehicle === vehicle);
+  // Keep a backup crew in training: with fewer than TUNING.crewsPerVehicle qualified crews, train the next.
+  const flown = new Set(ready.flat()), untrained = free.filter(c => !flown.has(c.id)).slice(0, n).map(c => c.id);
+  if (ready.length < TUNING.crewsPerVehicle && untrained.length === n && !training) return { train: untrained };
+  return ready.length ? { fly: ready[0] } : {};
+};
+
+// What a team flies next on a crewed vehicle (V2 freeze §5): uncrewed until a readiness decision covers the
+// configuration and a crew has trained for it; it asks for that decision once the evidence supports it.
+const crewStep = (state, p, config) => {
+  if (!VEHICLES[p.vehicle].crewed || VEHICLES[p.vehicle].military) return { kind: 'fly' };
+  if (!crewReady(state, p.vehicle, config.stages)) {
+    const waiting = state.decisions.some(d => d.type === 'crew-readiness' && d.status === 'open');
+    if (readiness(state, 'crewed-flight', config).ready) return waiting ? { kind: 'fly' } : { kind: 'crew-readiness' };
+    // A known risk is enough to keep flying uncrewed, never to carry a crew: a fix the team can develop comes first.
+    return chaseCause(state, p, null) ?? { kind: 'fly' };
+  }
+  const c = crewFor(state, p.vehicle);
+  return c.fly ? { kind: 'fly', crew: c.fly } : c.train ? { kind: 'train', vehicle: p.vehicle, crew: c.train } : { kind: 'fly' };
+};
+
+// Chase the cause of a blocking finding: a discriminating test while explanations compete, else the fix
+// for the leading one. Null when there is nothing the team can do itself.
+const chaseCause = (state, p, rev) => {
   for (const st of VEHICLES[p.vehicle].stages) {
     const anomaly = anomalyOn(state, p, st);
     if (anomaly?.proposedTests?.length) { const t = anomaly.proposedTests[0]; return { kind: 'ground-test', stage: st, burn: t.conditions.burn, channels: t.channels, why: 'anomaly', anomaly: anomaly.id }; }
     const leading = anomaly?.status === 'leading' ? openHypotheses(anomaly)[0] : null, fix = leading && remedyFor(st, leading);
     if (!rev && fix && p.baseline[st] !== fix) return fixStep(state, p, st, fix, leading);
   }
-  return { kind: 'adverse', stage: null, quantities: blockedQuantities(r), flight: true };
+  return null;
 };
-const keyOf = s => [s.kind, s.stage, s.rev, s.burn, s.channels?.join('+')].filter(Boolean).join(':');
+
+const flyIfReady = (state, p, config, rev = null, stage = null) => {
+  const r = readiness(state, 'experimental-flight', config, rev);
+  if (r.ready) return rev ? { kind: 'fly', stage, rev } : crewStep(state, p, config);
+  return chaseCause(state, p, rev) ?? { kind: 'adverse', stage: null, quantities: blockedQuantities(r), flight: true };
+};
+const keyOf = s => [s.kind, s.stage, s.rev, s.burn, s.channels?.join('+'), s.crew?.join('+')].filter(Boolean).join(':');
 
 const openLaunchDecision = (state, pid) => state.launches.some(l => l.programmeId === pid && l.status === 'awaiting-decision'
   && state.decisions.some(d => d.type === 'launch' && d.subject === l.id && d.status === 'open'));
@@ -140,7 +183,12 @@ const describe = (state, p, step) => {
       fix: step.burn === 'short' ? 'The fault showed at start-up, so we fire the fix short first to see whether it is gone.' : 'The fix behaves at start-up. Flights run the full burn, so we fire it at full duration before asking for a trial flight.' }[step.why];
     return `${team(p)} would like to run ${what}. ${why}`;
   }
+  if (step.kind === 'train') return `${team(p)} would like to train ${list(step.crew.map(c => state.people[c].name))} for ${VEHICLES[step.vehicle].name}: `
+    + `${list(TRAINING[step.vehicle].items)}, about ${Math.round(TRAINING[step.vehicle].items.length * TUNING.trainingDaysPerItem / 30)} months. Flights go on uncrewed meanwhile.`;
   const article = readyArticle(state, p, step);
+  if (step.crew) return `${VEHICLES[p.vehicle].name} is ready for crewed flight and ${list(step.crew.map(c => state.people[c].name))} ${step.crew.length > 1 ? 'have' : 'has'} trained for it. `
+    + `${article ? `Article ${article.id} is ready` : 'Production would build the next article'}, and we would book pad and tracking and ask for a crewed launch. `
+    + 'The crew will give or withhold their own consent, and the launch itself still comes to you for decision.';
   if (step.rev) return `The ${REVISIONS[step.rev].label} is authorised for a trial flight. ${article ? `Article ${article.id} is ready` : 'Production would build a trial article'}, `
     + 'and we would book pad and tracking and ask for the launch. The launch itself still comes to you for decision.';
   return `Ground readings for every stage of ${VEHICLES[p.vehicle].name} are within normal limits under flight conditions. `
@@ -165,6 +213,8 @@ const execute = (state, run, p, step, actor) => {
     return {};
   }
   if (step.kind === 'trial') return { decision: run(state, 'request-trial', 'department-head', { programmeId: p.id, revId: step.rev }) };
+  if (step.kind === 'crew-readiness') return { decision: run(state, 'request-crew-readiness', 'technical-director', { programmeId: p.id }) };
+  if (step.kind === 'train') { run(state, 'train-crew', as('department-head'), { jobId: id(), vehicle: step.vehicle, crew: step.crew }); return {}; }
   if (step.kind === 'adopt') return { decision: run(state, 'adopt-revision', 'administrator', { revId: step.rev, programmeIds: [p.id] }) };
   if (step.kind === 'ground-test') {
     const stand = book(testFacility(step.stage), TUNING.staffTestBookingDays, `${step.burn}-burn ground test`);
@@ -179,7 +229,7 @@ const execute = (state, run, p, step, actor) => {
   if (pad.decision) return pad;
   const tracking = book('tracking', TUNING.staffLaunchBookingDays, 'tracking');
   if (tracking.decision) return tracking;
-  return run(state, 'request-launch', as('department-head'), { id: id(), articleId, pad: pad.reservation, tracking: tracking.reservation, cost: TUNING.staffFlightCost, replacementCost: TUNING.staffFlightCost });
+  return run(state, 'request-launch', as('department-head'), { id: id(), articleId, pad: pad.reservation, tracking: tracking.reservation, cost: TUNING.staffFlightCost, replacementCost: TUNING.staffFlightCost, crew: step.crew ?? [] });
 };
 
 // ---- proposals the administrator answers ----
@@ -287,6 +337,15 @@ const workRound = (state, run, p) => {
     return;
   }
   // Trials and adoption are decisions in their own right (§5.1): the team raises them, and raises them again only after a while.
+  if (step.kind === 'crew-readiness') {
+    const k = `crew-readiness:${p.id}:${Object.values(p.baseline).join('+')}`;
+    if ((s.raised[k] ?? -Infinity) + TUNING.proposalSnoozeDays * 3 > state.day) return;
+    s.raised[k] = state.day;
+    execute(state, run, p, step, 'team');
+    memo(state, { from: 'technical-director', kind: 'report', refs: { programme: p.id },
+      text: `Every claim we hold on ${VEHICLES[p.vehicle].name} in its current configuration is measured and normal on enough flights, its abort sensing included. I have asked you to declare it ready for crewed flight; that is in your Mail.` });
+    return;
+  }
   if (step.kind === 'trial' || step.kind === 'adopt') {
     const k = `${step.kind}:${p.id}:${step.rev}`;
     if ((s.raised[k] ?? -Infinity) + TUNING.proposalSnoozeDays * 3 > state.day) return;

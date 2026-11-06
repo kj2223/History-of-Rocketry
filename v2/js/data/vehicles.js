@@ -52,6 +52,8 @@ export const QUANTITIES = {
   'titan-ii.chamber-pressure': { name: 'Titan II first-stage chamber pressure', unit: 'bar', normal: [49, 59] },
   'mercury-capsule.cabin-pressure': { name: 'Mercury cabin pressure', unit: 'bar', normal: [0.33, 0.43] },
   'gemini.cabin-pressure': { name: 'Gemini cabin pressure', unit: 'bar', normal: [0.32, 0.42] },
+  // Escape coverage on crewed vehicles: how long the abort sensing system takes to call an abort.
+  'vehicle.abort-sensing': { name: 'Abort sensing response time', unit: 's', normal: [0, 0.5] },
   'v2|wac-upper.separation': { name: 'Stage separation timing error', unit: 's', normal: [0, 0.5] },
   'vehicle.apogee': { name: 'Apogee', unit: 'km', normal: [60, Infinity] },
   'vehicle.deviation': { name: 'Trajectory deviation', unit: 'deg', normal: [0, 5] },
@@ -63,9 +65,9 @@ export const VEHICLE_QUANTITIES = {
   aerobee: ['aerobee-sustainer.wall-temp', 'aerobee-sustainer.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   bumper: ['v2.chamber-pressure', 'wac-upper.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee', 'vehicle.deviation'],
   viking: ['viking.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
-  'mercury-redstone': ['redstone.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation'],
-  'mercury-atlas': ['atlas.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation'],
-  'gemini-titan': ['titan-ii.chamber-pressure', 'gemini.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation'],
+  'mercury-redstone': ['redstone.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing'],
+  'mercury-atlas': ['atlas.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing'],
+  'gemini-titan': ['titan-ii.chamber-pressure', 'gemini.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing'],
   'atlas-icbm': ['atlas.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   'titan-icbm': ['titan-ii.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
 };
@@ -141,13 +143,13 @@ export const REVISIONS = {
     affects: ['titan-ii.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
     remedies: ['titan-pogo'], telemetry: ['titan-ii.chamber-pressure'],
   },
-  'mercury-capsule/r1': { stage: 'mercury-capsule', parent: null, label: 'Mercury spacecraft', affects: [], telemetry: ['mercury-capsule.cabin-pressure'] },
+  'mercury-capsule/r1': { stage: 'mercury-capsule', parent: null, label: 'Mercury spacecraft', affects: [], telemetry: ['mercury-capsule.cabin-pressure', 'vehicle.abort-sensing'] },
   'mercury-capsule/r2': {
     stage: 'mercury-capsule', parent: 'mercury-capsule/r1', label: 'Reworked Mercury hatch seal and cabin relief valve',
     affects: ['mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation'],
-    remedies: ['capsule-hatch-seal'], telemetry: ['mercury-capsule.cabin-pressure'],
+    remedies: ['capsule-hatch-seal'], telemetry: ['mercury-capsule.cabin-pressure', 'vehicle.abort-sensing'],
   },
-  'gemini/r1': { stage: 'gemini', parent: null, label: 'Gemini spacecraft', affects: [], telemetry: ['gemini.cabin-pressure'] },
+  'gemini/r1': { stage: 'gemini', parent: null, label: 'Gemini spacecraft', affects: [], telemetry: ['gemini.cabin-pressure', 'vehicle.abort-sensing'] },
 };
 
 export const BASELINE = {

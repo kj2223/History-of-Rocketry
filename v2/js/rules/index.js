@@ -18,7 +18,8 @@ import { initFiscal, startQuarter, payDue, closeYear, commit, cancelCommitment, 
 import { initStock, reserveStock, consumeStock } from './stock.js';
 import * as programme from './programme.js';
 import { initDelegation, appoint, checkDelegation, isDelegated, recordFailure } from './delegation.js';
-import { initLaunches, requestLaunch, executeLaunch, completeFlight, standDown, answerInvitation } from './launch.js';
+import { initLaunches, requestLaunch, executeLaunch, completeFlight, standDown, answerInvitation, abortFlight, launchRecord } from './launch.js';
+import { crewDay, selectCrew, checkTraining, startTraining, finishTraining, trainingDays, requestCrewReadiness, declareReady, escapeMode, abortCall } from './crew.js';
 import { startJob, advanceWork, pauseJob, resumeJob, cancelJob, job } from './work.js';
 import { initContinuation, conclude } from './summary.js';
 import { project as projectPublic } from './project.js';
@@ -31,6 +32,7 @@ import { militaryDay } from './military.js';
 import { publicPerson } from './people.js';
 import { dateLabel } from '../core/calendar.js';
 import { VEHICLES } from '../data/vehicles.js';
+import { CANDIDATES, SELECTIONS } from '../data/crew.js';
 
 export { Rejection };
 
@@ -98,6 +100,8 @@ const EFFECTS = {
   'accept-risk': (s, { observations }) => { (s.beliefs.assessed ??= []).push(...observations); },
   adopt: (s, { revId, programmeIds }) => adopt(s, revId, programmeIds),
   'facility-work': startFacilityWork,
+  'select-crew': selectCrew,
+  'crew-ready': declareReady,
 };
 
 // Facility work is paid for (freeze §6.4, §7.2): a deposit when it starts and the balance due at completion.
@@ -226,6 +230,26 @@ const COMMANDS = {
   } },
   'reserve-stock': { roles: ['administrator', 'department-head', 'production'], run: (s, r) => reserveStock(s, r) },
   'consume-stock': { roles: ['department-head', 'production'], run: (s, r) => consumeStock(s, r) },
+  // ---- V2 crew (V2 freeze §4, §5, §7) ----
+  'select-crew': { roles: ['administrator'], run: (s, sel) => selectCrew(s, sel) },
+  'train-crew': { roles: ['administrator', 'department-head'], run: (s, { jobId, vehicle, crew }) => {
+    checkTraining(s, { vehicle, crew });
+    startTraining(s, { crew });
+    return startJob(s, { id: jobId, kind: 'crew-training', days: trainingDays(vehicle), payload: { vehicle, crew: [...crew] } }).id;
+  } },
+  'request-crew-readiness': { roles: ['administrator', 'technical-director', 'department-head'], run: (s, { programmeId }) => requestCrewReadiness(s, { programmeId }) },
+  // Only the crew can call it, and nothing undoes it.
+  'crew-abort': { roles: ['crew'], run: (s, { launchId, by }) => {
+    const l = launchRecord(s, launchId);
+    if (!l || l.status !== 'in-flight') throw new Rejection(`${launchId} is not in flight`);
+    if (!l.crew?.includes(by)) throw new Rejection(`${by} is not aboard ${launchId}`);
+    const j = job(s, l.jobId);
+    const evidence = j.observations.filter(id => { const o = s.evidence.observations.find(x => x.id === id); return o.state === 'measured' && !o.normal; });
+    const mode = escapeMode(l, j);
+    cancelJob(s, j.id);
+    abortFlight(s, l, j, { by, mode, evidence });
+    return mode;
+  } },
   'report-delegation-failure': { roles: ['technical-director'], run: (s, { programmeId, ...f }) => recordFailure(s, programmeId, f) },
 
   // A team's proposed next step (freeze §2.2, §5.1): the go-ahead carries it out through the commands above.
@@ -278,6 +302,20 @@ const COMPLETIONS = {
   upgrade: (s, j) => finishUpgrade(s, j.payload.unitId),
   commissioning: (s, j) => commissioned(s, j.payload.unitId),
   'ground-test': () => {},
+  'crew-training': (s, j) => finishTraining(s, j.payload),
+};
+
+// In a crewed flight, each crew member reads the instruments for themselves: an abnormal reading may bring
+// their own abort call, which goes through the crew's command and binds (V2 freeze §4).
+const crewInFlight = (s, before) => {
+  for (const l of s.launches.filter(x => x.status === 'in-flight' && x.crew?.length)) {
+    const j = s.work.find(x => x.id === l.jobId);
+    if (!j || j.status !== 'running') continue;
+    const fresh = j.observations.slice(before[j.id] ?? 0).map(id => s.evidence.observations.find(o => o.id === id)).filter(o => o.state === 'measured' && !o.normal);
+    if (!fresh.length) continue;
+    const by = l.crew.find(pid => abortCall(s, s.people[pid], fresh));
+    if (by) staffCommand(s, 'crew-abort', 'crew', { launchId: l.id, by });
+  }
 };
 
 const oneDay = s => {
@@ -288,10 +326,13 @@ const oneDay = s => {
   programme.arrivals(s);
   programme.designsReady(s);
   programme.lapseWindows(s);
+  const before = Object.fromEntries(s.work.filter(j => j.status === 'running').map(j => [j.id, j.observations.length]));
   for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
+  crewInFlight(s, before);
   payDue(s);
   standDown(s);
   militaryDay(s);
+  crewDay(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
   assuranceDay(s);
   if (!s.concluded) staffDay(s, staffCommand);
@@ -317,7 +358,12 @@ export const project = state => {
     people: Object.values(people).map(publicPerson),
     opening: state.opening ? { kind: state.opening.kind, day: state.opening.day, v1Summary: state.opening.v1Summary ?? null } : null,
     inherited: inheritedStatus(state),
-    military: (state.military?.flights ?? []).map(f => ({ ...f, name: VEHICLES[f.vehicle].name, date: dateLabel(f.day) })) };
+    military: (state.military?.flights ?? []).map(f => ({ ...f, name: VEHICLES[f.vehicle].name, date: dateLabel(f.day) })),
+    // An open selection shows every applicant's record, never their traits.
+    selection: state.decisions.filter(d => d.type === 'crew-selection' && d.status === 'open').map(d => ({ decisionId: d.id, group: d.subject,
+      picks: SELECTIONS.find(g => g.id === d.subject).picks, recommended: d.effect.payload.ids,
+      candidates: CANDIDATES.filter(c => c.group === d.subject).map(c => ({ id: c.id, name: c.name, record: structuredClone(c.record), medical: c.medical })) })),
+    crewReadiness: (state.crew?.readiness ?? []).map(r => ({ vehicle: VEHICLES[r.vehicle].name, stages: { ...r.stages }, day: r.day })) };
 };
 
 // Shape check on load: every section present with the right type, and running tests have their traces.
@@ -326,7 +372,7 @@ export const validateState = s => {
   need(s && Number.isInteger(s.day) && s.day >= 0, 'day');
   for (const k of ['physical', 'evidence', 'beliefs', 'hardware', 'production', 'facilities', 'fiscal', 'stock', 'programmes', 'delegation', 'continuation']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
   for (const k of ['decisions', 'memos', 'work', 'launches', 'commands']) need(Array.isArray(s[k]), k);
-  for (const k of ['people', 'military', 'opening']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
+  for (const k of ['people', 'military', 'opening', 'crew']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
   need(Array.isArray(s.inherited), 'inherited');
   for (const k of ['physical', 'observation', 'forecast', 'intelligence', 'crew']) need(s.rng?.[k]?.algorithm === 'mulberry32-v1' && Number.isInteger(s.rng[k].state), `rng.${k}`);
   need(Array.isArray(s.evidence.observations), 'evidence.observations');

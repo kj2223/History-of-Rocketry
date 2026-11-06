@@ -18,3 +18,24 @@ test('a team does not ask for the pad while an unaccepted finding would make the
   g.state.beliefs.assessed = ['x-dev'];
   assert.equal(nextStep(g.state, p).kind, 'fly', 'once you accept the known risk the team may ask again');
 });
+
+// V2 slice 2: an administrator who says yes to everything sees the teams fly uncrewed, ask for the readiness
+// decision, train crews, and then fly them, each crew member consenting for themselves.
+test('teams move from uncrewed flights to a readiness decision, crew training and crewed flights', async () => {
+  const { newGame, dispatch, advance } = await import('../js/rules/index.js');
+  const { dayOf } = await import('../js/core/calendar.js');
+  let s = newGame(1), n = 0;
+  const act = (type, payload) => { const r = dispatch(s, { id: `y${++n}`, type, actor: 'administrator', payload }); if (!r.rejection) s = r.state; return !r.rejection; };
+  while (s.day < dayOf(1962, 7, 1)) {
+    for (const p of s.staff.proposals.filter(x => x.status === 'open')) act('approve-proposal', { proposalId: p.id });
+    for (const d of s.decisions.filter(x => x.status === 'open')) if (!act('decide', { decisionId: d.id, choice: d.options[0] })) act('decide', { decisionId: d.id, choice: d.options.at(-1) });
+    s = advance(s, 7).state;
+  }
+  assert.ok(s.decisions.some(d => d.type === 'crew-readiness' && d.choice === 'approve'));
+  assert.ok(s.work.some(j => j.kind === 'crew-training' && j.status === 'done'));
+  const crewed = s.launches.filter(l => l.crew.length && l.status === 'flown');
+  assert.ok(crewed.length > 0, 'crewed flights flew');
+  const first = crewed[0], uncrewedBefore = s.launches.filter(l => l.programmeId === first.programmeId && !l.crew.length && l.day < first.day);
+  assert.ok(uncrewedBefore.length >= 3, 'after uncrewed flights built the evidence');
+  assert.ok(first.crew.every(id => s.people[id].record.consents.some(c => c.launchId === first.id && c.consent)));
+});

@@ -14,6 +14,7 @@ import { initFiscal } from './fiscal.js';
 import { initPeople, addPerson, transmit } from './people.js';
 import { openQuestions } from './summary.js';
 import { addV2Mechanisms } from './physics.js';
+import { initCrew } from './crew.js';
 
 // ---- inherited open questions as live items ----
 
@@ -47,6 +48,7 @@ const v2Sections = state => {
   // Revisions that are a V2 vehicle's baseline exist from the start, even where they descend from a military one.
   for (const rev of Object.values(BASELINE).flatMap(b => Object.values(b))) state.hardware.revisions[rev] ??= { id: rev, status: 'defined', trial: false, adoptedFor: ['baseline'] };
   state.military = { flights: [] };
+  state.crew = initCrew();
   state.concluded = false;
 };
 

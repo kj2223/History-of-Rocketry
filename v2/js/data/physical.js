@@ -8,9 +8,9 @@ export const BASE = {
   viking: { 'viking.chamber-pressure': 21, 'vehicle.apogee': 170, 'vehicle.deviation': 1 },
   bumper: { 'v2.chamber-pressure': 15.5, 'wac-upper.chamber-pressure': 20, 'v2|wac-upper.separation': 0.2, 'vehicle.apogee': 390, 'vehicle.deviation': 2 },
   // V2. Apogee in km: a Redstone arc tops out near 187 km, an orbit near 260 km, a missile's arc far higher.
-  'mercury-redstone': { 'redstone.chamber-pressure': 22, 'mercury-capsule.cabin-pressure': 0.38, 'vehicle.apogee': 187, 'vehicle.deviation': 1.5 },
-  'mercury-atlas': { 'atlas.chamber-pressure': 41, 'mercury-capsule.cabin-pressure': 0.38, 'vehicle.apogee': 260, 'vehicle.deviation': 1 },
-  'gemini-titan': { 'titan-ii.chamber-pressure': 54, 'gemini.cabin-pressure': 0.37, 'vehicle.apogee': 280, 'vehicle.deviation': 1 },
+  'mercury-redstone': { 'redstone.chamber-pressure': 22, 'mercury-capsule.cabin-pressure': 0.38, 'vehicle.apogee': 187, 'vehicle.deviation': 1.5, 'vehicle.abort-sensing': 0.2 },
+  'mercury-atlas': { 'atlas.chamber-pressure': 41, 'mercury-capsule.cabin-pressure': 0.38, 'vehicle.apogee': 260, 'vehicle.deviation': 1, 'vehicle.abort-sensing': 0.2 },
+  'gemini-titan': { 'titan-ii.chamber-pressure': 54, 'gemini.cabin-pressure': 0.37, 'vehicle.apogee': 280, 'vehicle.deviation': 1, 'vehicle.abort-sensing': 0.2 },
   'atlas-icbm': { 'atlas.chamber-pressure': 41, 'vehicle.apogee': 1300, 'vehicle.deviation': 1.5 },
   'titan-icbm': { 'titan-ii.chamber-pressure': 54, 'vehicle.apogee': 1300, 'vehicle.deviation': 1 },
 };
