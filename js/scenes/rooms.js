@@ -2,11 +2,12 @@
 // render() rebuilds a panel when the game says the room changed; live() updates its gauges every frame.
 import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHold, standLeakCheck, standTank, standDecide,
   countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway, nextRound, kit, answerFirstOffer,
-  conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY, onBudget, budgetLine, atSea } from '../game.js';
+  conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY, onBudget, budgetLine, atSea, nextIndex, placeName } from '../game.js';
+import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
-import { SEASON, FIRST_OFFER, blockhouseState, SITES } from '../data/campaign.js';
+import { SEASON, offerFor, blockhouseState, SITES } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
-import { SEATS, pendingOffer } from '../career/record.js';
+import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
 import { PLACES } from '../data/white-sands.js';
 
 const panel = () => document.getElementById('room');
@@ -16,10 +17,11 @@ let shown = { room: null, version: -1 }, flags = {}, plan = { inspector: 'you', 
 export function openRoom(building) {
   g.room = building === 'truck' && roomFor('truck') !== 'recovery' ? null : roomFor(building) === 'watch' ? `watch:${building}` : roomFor(building);
   if (building === 'blockhouse' && g.room === 'count' && !g.count) countStart();
+  if (g.room === 'console' && !g.console) openConsole();
   if (g.room === 'count' || g.room === 'static') g.speed = 1;
 }
 export function closeRoom() {
-  if (['recovery'].includes(g.room)) return; // this closes through its own button
+  if (['recovery', 'splash'].includes(g.room)) return; // these close through their own buttons
   if (g.room === 'away') return closeAway();
   g.room = null;
 }
@@ -31,14 +33,15 @@ export function render() {
   shown = { room: g.room, version: g.roomVersion };
   el.hidden = false;
   const [kind, building] = g.room.split(':');
-  const body = kind === 'watch' ? watch(building) : ROOMS[kind]();
-  const closable = kind !== 'recovery';
+  const body = kind === 'watch' ? watch(building) : (ROOMS[kind] || CONTROL_ROOMS[kind])();
+  const closable = !['recovery', 'splash'].includes(kind);
   el.innerHTML = `${closable ? '<button class="close" data-act="close" title="Back to the site (Esc)">✕</button>' : ''}${body}`;
 }
 
 // Gauges and traces that move every frame.
 export function live() {
   if (!g.room) return;
+  controlLive();
   const set = (sel, v) => { const n = panel().querySelector(sel); if (n) n.textContent = v; };
   if (g.room === 'static' && g.stand) {
     const s = g.stand;
@@ -97,7 +100,7 @@ function watch(building) {
   const place = PLACES[building];
   const here = Object.values(g.people).filter(p => !p.hidden && Math.abs(p.x - place.door) < place.w / 2 + 40 && p.id !== 'you');
   const busy = g.jobs.filter(j => Math.abs(j.at - place.door) < place.w / 2 + 60).map(j => j.label);
-  const name = building === 'truck' ? SITES[g.site || 'white-sands'].truck : place.name;
+  const name = building === 'truck' && !g.crewed ? SITES[g.site || 'white-sands'].truck : placeName(building);
   return `<h2>${esc(name)}</h2><p class="muted">Nothing here needs you right now. You can watch.</p>
     ${busy.length ? `<p>Going on here: ${busy.map(esc).join(', ')}.</p>` : ''}
     ${here.length ? `<p>Here: ${here.map(p => `${esc(p.name)} (${esc(p.role)})`).join(', ')}.</p>` : '<p>Nobody is here.</p>'}
@@ -233,7 +236,7 @@ const ROOMS = {
   },
   // The round is over: what you said, what Ellis concluded and what changes. Only what you could know.
   roundEnd() {
-    const r = g.record.rounds[g.record.rounds.length - 1], next = SEASON[g.roundIndex + 1];
+    const r = g.record.rounds[g.record.rounds.length - 1], next = nextIndex() != null ? SEASON[nextIndex()] : null;
     const o = g.record.offers[g.record.offers.length - 1], here = o && o.day >= r.day;
     return `<h2>Written up: ${esc(r.name)}</h2>${recordLine(r)}
       ${here ? offerCard(o) : ''}
@@ -242,15 +245,17 @@ const ROOMS = {
   },
   seasonEnd() {
     const cap = t => t[0].toUpperCase() + t.slice(1);
-    const backed = n => n === 0 ? 'Ellis never went with your reading.' : `Ellis went with your reading ${n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`}.`;
+    const boss = g.record.path === 'nasa' ? 'Your bosses' : 'Ellis';
+    const backed = n => n === 0 ? `${boss} never went with your reading.` : `${boss} went with your reading ${n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`}.`;
     const rec = g.record, rs = rec.rounds, good = rs.filter(r => !/^Lost/.test(r.flight)).length;
     const o = rec.offers[rec.offers.length - 1], offer = o && o.day >= rs[rs.length - 1].day ? offerCard(o) : '';
     return `<h2>Your years on the range, 1945 to ${new Date(Date.UTC(1945, 0, 1) + rs[rs.length - 1].day * 86400000).getUTCFullYear()}</h2>
-      <p>You are now ${esc(SEATS[rec.seat].toLowerCase())}.</p>
+      <p>You are now ${esc(SEAT_PHRASE[rec.seat] || SEATS[rec.seat].toLowerCase())}.</p>
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
       ${offer}
-      <p class="muted">Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.</p>
+      <p class="muted">${rec.path === 'nasa' ? 'Mercury-Redstone 1A flew a month later, on 19 December 1960, and the capsule came home from the edge of space. Next come Ham\'s flight and then a man. That is as far as Mercury goes in this build.'
+        : 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.'}</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
       <button data-act="again">Start again from 1945</button>`;
   },
@@ -278,12 +283,13 @@ function budgetBlock() {
 
 // A turning point's offer, or the news that you were passed over, with the buttons to answer it.
 function offerCard(o) {
-  if (!o.made) return `<div class="offer"><h3>Passed over, this time</h3><p>Ellis: "${esc(FIRST_OFFER.sidelined)}"</p>
-    <p class="muted">You stay a junior engineer, on quieter work for now. A better record brings the offer back.</p></div>`;
-  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>Ellis: "${esc(o.again ? FIRST_OFFER.again : FIRST_OFFER.text)}"</p>
-    <p class="muted">Take it and you plan the rounds, run the count and chair the reviews from now on. Turn it down and you keep your seat; they may ask again.</p>
+  const offer = offerFor(o.path === 'nasa' ? 'nasa' : true);
+  if (!o.made) return `<div class="offer"><h3>Passed over, this time</h3><p>Ellis: "${esc(offer.sidelined)}"</p>
+    <p class="muted">You stay ${esc(SEATS[g.record.seat].toLowerCase())}, on quieter work for now. A better record brings the offer back.</p></div>`;
+  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>Ellis: "${esc(o.again ? offer.again : offer.text)}"</p>
+    <p class="muted">${esc(offer.takeNote)} ${esc(offer.declineNote)}</p>
     <button class="primary" data-act="offer-take">Take the job</button><button data-act="offer-decline">Turn it down, for now</button></div>`;
-  return `<div class="offer"><p>${o.answer === 'taken' ? `You are now ${esc(SEATS[o.seat].toLowerCase())} on the Aerobee firings.` : 'You turned the offer down and kept your seat.'}</p></div>`;
+  return `<div class="offer"><p>${o.answer === 'taken' ? `You took the job: ${esc(o.title)}.` : 'You turned the offer down and kept your seat.'}</p></div>`;
 }
 
 // One round of your record, in words: the flight as the range saw it, your call, Ellis's conclusion and the fix.
@@ -321,7 +327,7 @@ export function bindRoom(handlers) {
       chair: () => chair(id),
       'offer-take': () => answerFirstOffer(true), 'offer-decline': () => answerFirstOffer(false),
       again: () => handlers.again(),
-    })[act]?.();
+    })[act]?.() ?? CONTROL_ACTS[act]?.(id);
   });
   el.addEventListener('change', e => {
     if (e.target.dataset.flag) flags[e.target.dataset.flag] = e.target.checked;

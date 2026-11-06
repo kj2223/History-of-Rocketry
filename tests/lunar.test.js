@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newRound, staticFire, standRework, fly, wreckage, hasDepletionFault, hasAgenaFault, flagSpots } from '../js/truth/round.js';
 import { initProgramme, adopt } from '../js/world/programme.js';
-import { SEASON, BETWEEN } from '../js/data/campaign.js';
+import { SEASON, BETWEEN, onPath } from '../js/data/campaign.js';
 
 const round = (v, s, p = initProgramme()) => newRound(s, p, v);
 const seedWhere = (v, ok) => { for (let s = 1; s < 800; s++) if (ok(round(v, s))) return s; throw new Error('no seed'); };
@@ -46,9 +46,9 @@ test('flagging the arcing camera supply saves the pictures', () => {
 });
 
 test('the campaign ends with NASA\'s lunar shots from the Cape, after the Soviet Lunas and six failed Rangers', () => {
-  const ids = SEASON.map(r => r.id);
+  const jpl = SEASON.filter(r => onPath(r, 'jpl')), ids = jpl.map(r => r.id);
   assert.deepEqual(ids.slice(-3), ['pioneer-3', 'pioneer-4', 'ranger-7']);
-  assert.ok(SEASON.slice(-3).every(r => r.site === 'cape'));
+  assert.ok(jpl.slice(-3).every(r => r.site === 'cape'));
   assert.match(BETWEEN['pioneer-4'].join(' '), /Luna 1/);
   assert.match(BETWEEN['ranger-7'].join(' '), /Ranger 6/);
 });

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { g, newGame, tick, finishInspection, finishBoard, endDay, standStart, standDecide, countStart, countAnswer, rideOut, returnFromRecovery,
   present, nextRound, closeAway, checkpoint, checkCheckpoint, dateText } from '../js/game.js';
-import { SEASON } from '../js/data/campaign.js';
+import { SEASON, onPath } from '../js/data/campaign.js';
 import { initProgramme, adopt, recordFlight, estimate } from '../js/world/programme.js';
 import { newRound, hasIgniterFault } from '../js/truth/round.js';
 
@@ -12,14 +12,16 @@ import { playRound, advance } from './play.js';
 
 test('a season runs through every round on its own dates and ends with your record', () => {
   newGame(11);
-  for (let i = 0; i < SEASON.length; i++) {
+  // Turning down every offer keeps you with JPL: every round on that path, in order.
+  const path = SEASON.map((r, i) => [r, i]).filter(([r]) => onPath(r, 'jpl'));
+  path.forEach(([r, i], n) => {
     assert.equal(g.roundIndex, i);
-    assert.equal(dateText(g.roundStart), dateText(SEASON[i].start));
+    assert.equal(dateText(g.roundStart), dateText(r.start));
     playRound();
-    if (i + 1 < SEASON.length) { assert.equal(g.beat, 'roundEnd'); advance(); assert.equal(g.room, 'away'); }
-  }
+    if (n + 1 < path.length) { assert.equal(g.beat, 'roundEnd'); advance(); assert.equal(g.room, 'away'); }
+  });
   assert.equal(g.beat, 'seasonEnd');
-  assert.equal(g.record.rounds.length, SEASON.length);
+  assert.equal(g.record.rounds.length, path.length);
   assert.ok(g.record.rounds.every(r => /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon/.test(r.flight)));
 });
 

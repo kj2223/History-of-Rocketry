@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', plug: 'a tail plug that came out in the wrong order', control: 'a control failure', lox: 'a propellant valve leak', thrust: 'a booster that burned too hot', depletion: 'a Jupiter running short', agena: 'an Agena that would not restart', camera: 'a failed camera supply', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -319,6 +319,28 @@ export const KITS = {
     },
   },
 
+  // Mercury-Redstone at Launch Complex 5: the Army's Redstone, stretched and given an escape tower and a Mercury capsule on
+  // top. Built by Chrysler for the Marshall centre. Nobody in Mercury Control inspects her: Marshall's crew checks her out.
+  // The spots are what that crew's checkout covers; what you see of her is the telemetry and the trajectory plot.
+  redstone: {
+    name: 'Mercury-Redstone', range: 'MERCURY-REDSTONE', crew: ['kowalski', 'delgado'], crewed: true,
+    brief: 'The booster and the capsule are on the pad. Work the sims, then we fly.',
+    spots: {
+      'tail-plug': { name: 'Tail plug umbilicals', fault: 'plug', sound: 'Both plugs pull free together on the test lanyard.', cue: 'The control cable is cut a few inches shorter than the power cable.' },
+      autopilot: { name: 'Control compartment and autopilot', fault: 'control', sound: 'The gyros spin up clean and hold their null.', cue: 'One gyro drifts a hair before it settles.' },
+      'lox-valve': { name: 'Main oxygen valve', fault: 'lox', sound: 'Seated and dry after the cold-flow.', cue: 'A crust of frost at the flange that ought to be clear.' },
+      peroxide: { name: 'Hydrogen peroxide turbine feed', fault: null, sound: 'The feed line is clean and tight.', cue: 'A pale stain under one union, old perhaps.' },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      plug: 'The tail plug came out in the wrong order and shut the engine down. Fix the disconnect sequence.',
+      control: 'The control system failed and she went off her line.',
+      lox: 'A propellant valve leaked and cut the burn short.',
+      thrust: 'The thrust controller let her burn too hot and she ran dry early.',
+      unknown: 'Not enough evidence to call it. Ask Marshall for a full teardown.',
+    },
+  },
+
   bumper: {
     name: 'Bumper', range: 'BUMPER (V-2 + WAC)', crew: ['kowalski', 'delgado'],
     inspect: { title: 'Hangar: the Bumper stack', objective: 'Go to the assembly hangar and look over the whole Bumper stack, the V-2 and the WAC on its nose, before tomorrow\'s static fire.',
@@ -374,7 +396,8 @@ export const FAILED_BECAUSE = {
   turbopump: 'the V-2 turbopump lost power', vanes: 'a jet vane broke and she tumbled', separation: 'the stages never separated',
   liner: 'the chamber liner came away and the wall burned through',
   cutoff: 'the turbine leaked steam and the engine cut off early', fin: 'a fin fitting cracked and a fin came off', holddown: 'the hold-down fittings let go on the stand',
+  plug: 'the tail plug came out in the wrong order and shut the engine down', control: 'the control system failed and she went off her line', lox: 'the oxygen valve leaked and the burn stopped early', thrust: 'the thrust controller let her burn too hot',
   injector: 'the first-stage injector burned through and she fell back on the pad',
   depletion: 'the Jupiter ran out of propellant early', agena: 'the Agena would not restart in orbit', camera: 'the camera high-voltage supply failed',
 };
-export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum' };
+export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting', camera: 'A camera supply that arcs in vacuum', plug: 'Tail plug cables cut to different lengths', control: 'A drifting autopilot gyro', lox: 'A leaking oxygen valve' };

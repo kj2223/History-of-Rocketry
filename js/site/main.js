@@ -1,7 +1,8 @@
 // THE SITE PROTOTYPE: the frame loop, the mouse and keys, and the bar along the top.
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel looks along the site.
 import { drawSite, drawTracking, PLACES, VIEW_H, GROUND } from './draw.js';
-import { g, newGame, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint } from '../game.js';
+import { g, newGame, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, placeName } from '../game.js';
+import { consoleLocked } from '../mercury.js';
 import { talk } from '../data/talk.js';
 import { writeSave, readSave, clearSave } from '../core/save.js';
 import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom } from '../scenes/rooms.js';
@@ -28,7 +29,7 @@ const placeAt = ({ x, y }) => Object.entries(PLACES).find(([id, p]) => {
   return x >= left && x <= left + p.w && y >= GROUND - p.h - 20 && y <= GROUND + 34;
 });
 const flying = () => g.flight && (g.flight.view === 'site' || g.flight.view === 'board');
-const locked = () => flying() || g.truck.follow || g.fading || g.count || g.room === 'recovery';
+const locked = () => flying() || g.truck.follow || g.fading || g.count || g.room === 'recovery' || g.room === 'splash' || consoleLocked();
 
 function goTo(x, then) {
   if (locked()) return;
@@ -44,7 +45,10 @@ canvas.addEventListener('click', e => {
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p.id, g.beat)); });
   if (pl) {
-    const [id, place] = pl;
+    let [id, place] = pl;
+    // At the Cape in the Mercury years the old stand and dugout are the training building, with the simulator in it.
+    if (g.crewed && id === 'stand') [id, place] = ['dugout', PLACES.dugout];
+    if (g.crewed && id === 'truck') return goTo(g.truck.x + 45, () => say('you', 'Recovery reports come into Mercury Control.'));
     if (id === 'truck') return goTo(g.truck.x + 45, () => { g.beat === 'recovery' ? rideOut() : say('you', 'The recovery truck. Not needed yet.'); });
     if (!place.room) return goTo(place.door, () => say('you', id === 'tower' ? 'The launch tower. The pad crew works here.' : 'The test stand.'));
     return goTo(place.door, () => openRoom(id));
@@ -53,7 +57,7 @@ canvas.addEventListener('click', e => {
 });
 canvas.addEventListener('mousemove', e => {
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
-  g.hover = !p && pl ? { ...pl[1], x: pl[0] === 'truck' ? g.truck.x : pl[1].x } : null;
+  g.hover = !p && pl ? { ...pl[1], name: placeName(pl[0]), x: pl[0] === 'truck' ? g.truck.x : pl[1].x } : null;
   canvas.title = p ? `${p.name}, ${p.role}` : '';
   canvas.style.cursor = p || pl ? 'pointer' : 'default';
 });
@@ -72,7 +76,8 @@ window.addEventListener('keydown', e => {
   if (e.key === '2') g.speed = 4;
   if (e.key === '3') g.speed = 16;
   if (e.key === 'n' || e.key === 'N') toggleNotebook();
-  if (e.key === 'e' || e.key === 'E') { const pl = Object.entries(PLACES).find(([, p]) => Math.abs(p.door - you().x) < 40 && p.room); if (pl && !locked()) openRoom(pl[0]); }
+  if (e.key === 'e' || e.key === 'E') {
+    if (g.crewed && Math.abs(PLACES.stand.door - you().x) < 60 && !locked()) return openRoom('dugout'); const pl = Object.entries(PLACES).find(([, p]) => Math.abs(p.door - you().x) < 40 && p.room); if (pl && !locked()) openRoom(pl[0]); }
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
 

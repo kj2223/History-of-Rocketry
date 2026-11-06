@@ -89,9 +89,11 @@ test('turning the offer down keeps you a junior engineer on the Aerobee rounds, 
   for (let i = 0; i < 7; i++) { playRound(() => 'nominal'); if (i === 6) { g.record.offers[0].made = true; g.record.offers[0].answer = null; } advance(false); }
   assert.equal(g.record.seat, 'junior');
   assert.equal(conducting(), false);
-  for (let i = 7; i < SEASON.length; i++) { playRound(() => 'nominal'); if (i + 1 < SEASON.length) advance(false); }
+  // Turning everything down keeps you with JPL to the end: Ranger 7, not Mercury Control.
+  for (let i = 7; i < 60 && g.beat !== 'seasonEnd'; i++) { playRound(() => 'nominal'); if (g.beat !== 'seasonEnd') advance(false); }
   assert.equal(g.beat, 'seasonEnd');
-  assert.equal(g.record.offers.length, 2, 'a second turning point after the Aerobee rounds');
+  assert.equal(g.record.offers.filter(o => o.seat === 'test-conductor').length, 2, 'a second turning point after the Aerobee rounds');
+  assert.equal(g.record.rounds.at(-1).id, 'ranger-7');
   checkCheckpoint(JSON.parse(JSON.stringify(checkpoint())));
 });
 

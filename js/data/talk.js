@@ -8,8 +8,12 @@ export function talk(id, beat) {
     morgan: { rollout: 'Radar\'s warmed up. Balloon goes up at T minus ten.', recovery: 'Climb in. Bumpy ride.', board: 'Get me that figure and I\'ll clear the range.' },
     hoyt: { brief: 'Have a good look at her. Every one of these came out of a crate in pieces.', staticPrep: 'We\'ll have her on the stand by noon.', static: 'Steam generator\'s topped up. She\'s ready when you are.', rollout: 'Easy with her. The vanes are graphite.', recovery: 'Bring me back anything with a part number on it.' },
     brandt: { brief: 'Range time is booked. I\'d like to keep it that way.', board: 'Is that plan going to cost me a day?', static: 'Make it count. Every firing is money.', rollout: 'The Navy is watching this one. So am I.', countReady: 'Whenever you\'re ready, Conductor.', review: 'I\'ll want to know what it costs to fix.' },
+    // Mercury Control, from 1960.
+    hollis: { mBrief: 'Get in the simulator, Retro. I want you to have seen every bad day before you see a real one.', mLaunch: 'On your console. We pick up at fifteen.', mScrub: 'Better a scrub than a capsule nobody can reach. Get some sleep.', mPadNight: 'Nobody goes near that pad tonight.', mReview: 'In here. Bring your plot.' },
+    reyes: { mBrief: 'The ships sail tonight. Tell me where she\'ll come down and I\'ll have a helicopter over her.', mLaunch: 'Recovery forces are moving out to station.', mRecovery: 'Reports are coming in from the ships.' },
+    albrecht: { mBrief: 'Marshall has checked her out from nose to tail. She is a good rocket.', mLaunch: 'Booster is ready. Huntsville is listening.', mReview: 'Huntsville has the tapes. Tell me what you saw.' },
   };
-  const idle = { ellis: 'Busy, busy.', vega: 'Morning.', morgan: 'Clear skies today.', kowalski: 'Sir.', delgado: 'Morning, sir.', hoyt: 'Morning.', brandt: 'Conductor.' };
+  const idle = { ellis: 'Busy, busy.', vega: 'Morning.', morgan: 'Clear skies today.', kowalski: 'Sir.', delgado: 'Morning, sir.', hoyt: 'Morning.', brandt: 'Conductor.', hollis: 'Retro.', reyes: 'Morning.', albrecht: 'Guten Morgen.' };
   return lines[id]?.[beat] || idle[id] || 'Morning.';
 }
 

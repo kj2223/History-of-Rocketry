@@ -1,0 +1,68 @@
+// MERCURY CONTROL: the people, the count, the training sims and what the tapes show, for the Mercury flights worked from a
+// console at the Cape. Content only: what really happens on a flight is decided in truth/capsule.js.
+// The people you work with are fictional, as at White Sands; the dates and the flights are the real ones.
+
+// Who sits where in Mercury Control, and who is on the pad. x: where they stand on the site (world units).
+export const MERCURY_PEOPLE = {
+  hollis: { name: 'Frank Hollis', role: 'Flight director, Mercury Control', color: '#3d4f6e', x: 180 },
+  reyes: { name: 'Cmdr. Luis Reyes', role: 'Recovery, U.S. Navy', color: '#2f3f66', hat: '#e9e9e4', x: 240 },
+  albrecht: { name: 'Kurt Albrecht', role: 'Booster, Marshall', color: '#6b5a4a', x: 270 },
+};
+// What the other people do in Mercury rounds.
+export const MERCURY_ROLES = { morgan: 'Network, Mercury Control', vega: 'Pad leader, Launch Complex 5', brandt: 'NASA operations, the Cape schedule', kowalski: 'Pad crew', delgado: 'Pad crew' };
+// The buildings, as they are at the Cape in the Mercury years.
+export const MERCURY_PLACES = {
+  office: 'Mercury Control', hangar: 'Hangar S', stand: 'Training building', dugout: 'Training building: the simulator',
+  blockhouse: 'Blockhouse, Launch Complex 5', tower: 'Gantry, Launch Complex 5', truck: 'Recovery room',
+};
+
+// The count in Mercury Control, from T minus 15 minutes. poll: the flight director asks for your status.
+export const MERCURY_COUNT = [
+  { at: 900, who: 'hollis', text: 'All flight controllers, we are picking up the count at T minus fifteen.' },
+  { at: 840, who: 'albrecht', text: 'Booster: oxygen topping, all pressures normal.' },
+  { at: 720, who: 'morgan', text: 'Network: Bermuda and the range radars are up and tracking the balloon.' },
+  { at: 600, who: 'hollis', text: 'Retro, Recovery: give me the recovery area.', poll: 'recovery' },
+  { at: 480, who: 'vega', text: 'Pad: gantry is back. Pad is clear.' },
+  { at: 300, who: 'reyes', text: 'Recovery: the forces are standing by.' },
+  { at: 120, who: 'hollis', text: 'All flight controllers, final status check.', poll: 'final' },
+  { at: 60, who: 'albrecht', text: 'Booster: one minute. Everything in the band.' },
+  ...[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(n => ({ at: n, who: 'vega', text: `${n}…`, quick: true })),
+  { at: 0, who: 'vega', text: 'Ignition!', tone: 'go' },
+];
+
+// What the recovery board says about each unit.
+export const UNITS = {
+  carrier: 'The carrier, with its helicopters, on the planned splashdown point at 486 km',
+  uprange: 'The uprange destroyer, at 300 km',
+  downrange: 'The downrange destroyer, at 640 km',
+};
+// Mission rule: no launch with the sea above state 4 in the recovery area. The helicopters cannot pick up in it.
+export const SEA_LIMIT = 4;
+
+// What the tapes and the pad show afterwards, by what really happened to the booster. The review works from these.
+export const TAPES = {
+  plug: ['The engine lit and shut down within a second. The booster rose about four inches and settled back on its pad.', 'The cutoff signal came at the instant the tail plug pulled out of the booster.', 'The escape tower fired away on its own, and the capsule put its parachutes out on top of the rocket.'],
+  control: ['On the tape the flight-path angle walks off the planned line, steadily, in one direction.', 'Marshall\'s readout of the autopilot shows one pitch gyro drifting.'],
+  lox: ['The engine stopped early, the chamber pressure falling away over a second or two.', 'The oxygen inlet pressure sags in the seconds before the cutoff.'],
+  thrust: ['The velocity ran above the planned line all the way up, and the engine ran dry at 137 seconds.', 'The thrust controller\'s channel sits pinned at its limit from early in the burn.'],
+  nominal: ['Every booster channel on the tape stays in its band from liftoff to cutoff.'],
+};
+
+// The pad after a Redstone shuts down on it: what Mercury Control can do with a live capsule on a fuelled rocket.
+export const PAD_OPTIONS = {
+  wait: 'Leave her overnight. By morning the batteries will have run down and the oxygen boiled off, and the pad crew can safe her.',
+  now: 'Send the pad crew out now to safe the capsule and drain the booster.',
+  shoot: 'Have the range shoot holes in the tanks with a rifle and drain her.',
+};
+
+// The training sims the sim supervisor can throw at you, and what each one was, for the debrief afterwards.
+export const SIMS = {
+  nominal: 'A clean flight. Nothing was wrong.',
+  control: 'A control failure: the autopilot drifted and took her off her line.',
+  lox: 'An oxygen leak: the engine cut off early and she fell short.',
+  thrust: 'An over-thrust: she ran hot and fast, and ran dry early.',
+  radar: 'A radar dropout: the radar\'s impact point was off by a long way.',
+  seastate: 'The sea in the recovery area was above state 4.',
+  offstation: 'One of the destroyers was not on station.',
+};
+export const SIM_MINUTES = 45;
