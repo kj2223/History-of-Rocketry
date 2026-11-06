@@ -14,7 +14,11 @@ const CUE_IF_FAULT = 0.8, CUE_IF_SOUND = 0.2;
 export const FIX_HOURS = 2, FALSE_ALARM_HOURS = 3;
 // A spot fault that is flown brings the flight down this often.
 export const WELD_FAILURE = 0.45, LEAK_FAILURE = 0.6, VANE_FAILURE = 0.5, SEPARATION_FAILURE = 0.6;
-const SPOT_FAILURE = { weld: WELD_FAILURE, leak: LEAK_FAILURE, vanes: VANE_FAILURE, separation: SEPARATION_FAILURE };
+// A Viking with a cracked fin attachment loses it to the airloads this often (Viking 6, December 1950).
+export const FIN_FAILURE = 0.5;
+// Hold-down fittings with a flaw let go under a full-duration firing's thrust this often (Viking 8, June 1952).
+export const HOLDDOWN_FAILURE = 0.7;
+const SPOT_FAILURE = { weld: WELD_FAILURE, leak: LEAK_FAILURE, vanes: VANE_FAILURE, separation: SEPARATION_FAILURE, fin: FIN_FAILURE };
 
 // How each kind of round flies, and how each cause cuts it short: when (s after liftoff) and what share of the peak is left.
 // The order is the order the causes can strike in flight: a V-2 that dies early never tests its upper stage.
@@ -25,14 +29,16 @@ const PROFILE = {
     fail: { turbopump: { at: 28, keep: 0.15 }, vanes: { at: 35, keep: 0.12, dev: 25 }, leak: { at: 45, keep: 0.4 } } },
   aerobee: { burn: 45, order: ['liner', 'weld', 'leak'],
     fail: { liner: { at: 31, keep: 0.35 }, weld: { at: 12, keep: 0.1 }, leak: { at: 25, keep: 0.35 } } },
+  viking: { burn: 75, order: ['cutoff', 'fin', 'leak'],
+    fail: { cutoff: { at: 42, keep: 0.33 }, fin: { at: 30, keep: 0.3, dev: 20 }, leak: { at: 55, keep: 0.5 } } },
   bumper: { burn: 110, order: ['turbopump', 'vanes', 'separation', 'ignition', 'weld', 'leak'],
     fail: { turbopump: { at: 30, keep: 0.04 }, vanes: { at: 40, keep: 0.05, dev: 25 }, separation: { at: 65, keep: 0.3 },
       ignition: { at: 65, keep: 0.35 }, weld: { at: 75, keep: 0.38 }, leak: { at: 85, keep: 0.6 } } },
 };
-const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'liner' };
+const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'liner', 'pm-19': 'cutoff' };
 const usesWac = vehicle => vehicle === 'wac' || vehicle === 'bumper';
 const usesV2 = vehicle => vehicle === 'v2' || vehicle === 'bumper';
-export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
+export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
 
 // A new round. seed: a whole number; the same seed always makes the same round. programme: how the team builds rounds now
 // (world/programme.js): the chance of each fault, and which igniter and pump standard is in use. vehicle: 'wac', 'v2' or 'bumper'.
@@ -52,9 +58,12 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   const igniterFault = draw(rng.physical) < 0.5;
   const vane = draw(rng.physical), vaneAt = draw(rng.physical), sep = draw(rng.physical), sepAt = draw(rng.physical), pumpFault = draw(rng.physical) < 0.5;
   const linerFault = draw(rng.physical) < 0.5;
+  const fin = draw(rng.physical), finAt = draw(rng.physical), hold = draw(rng.physical), holdAt = draw(rng.physical), turbineFault = draw(rng.physical) < 0.5;
+  put('fin', p.finRisk, fin, finAt);
+  put('holddown', p.holddownRisk, hold, holdAt);
   put('vanes', p.vaneRisk, vane, vaneAt);
   put('separation', p.sepRisk, sep, sepAt);
-  const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07'].filter(Boolean);
+  const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07', turbineFault && vehicle === 'viking' && 'pm-19'].filter(Boolean);
   // V1's worked-case defect, the Aerobee's debonding liner (pm-07), is a latent fault like the others: some sustainers have it.
   const physical = { ...initPhysical(), latentMechanisms: latent, trueDefectMechanism: null };
   const cues = Object.fromEntries(Object.keys(spots).map(id => [id, draw(rng.observation) < (faults[id] ? CUE_IF_FAULT : CUE_IF_SOUND)]));
@@ -63,6 +72,7 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     igniter: p.igniter, // r3 (reworked igniter) if it is standard or the player asks for it
     turbopump: p.turbopump, // r2 (refurbished pump and steam generator) likewise
     sustainer: p.sustainer, // the Aerobee's: r2 has the rebonded liner
+    viking: p.viking, // the Viking's: r2 has the welded turbine casing and reworked steam feed
     propellantLoad: 1,
     events: [], // what happened, for the debrief
   };
@@ -75,11 +85,13 @@ export const hasLeak = round => Object.values(round.faults).includes('leak');
 export const hasWeldFault = round => Object.values(round.faults).includes('weld');
 export const hasIgniterFault = round => round.physical.latentMechanisms.includes('pm-11') && round.igniter === 'wac-upper/r1';
 export const hasPumpFault = round => round.physical.latentMechanisms.includes('pm-03') && round.turbopump === 'v2/r1';
+export const hasTurbineFault = round => round.physical.latentMechanisms.includes('pm-19') && (round.viking || 'viking/r1') === 'viking/r1';
+export const hasHolddownFault = round => Object.values(round.faults).includes('holddown');
 export const hasLinerFault = round => round.physical.latentMechanisms.includes('pm-07') && (round.sustainer || 'aerobee-sustainer/r1') === 'aerobee-sustainer/r1';
 // The faults the round really has right now, by cause.
-export const causesPresent = round => [...new Set(Object.values(round.faults))].concat(hasIgniterFault(round) ? ['ignition'] : [], hasPumpFault(round) ? ['turbopump'] : [], hasLinerFault(round) ? ['liner'] : []);
+export const causesPresent = round => [...new Set(Object.values(round.faults))].concat(hasIgniterFault(round) ? ['ignition'] : [], hasPumpFault(round) ? ['turbopump'] : [], hasLinerFault(round) ? ['liner'] : [], hasTurbineFault(round) ? ['cutoff'] : []);
 
-const FOUND = { weld: 'weld flaw', leak: 'leak', vanes: 'cracked vane', separation: 'bad firing lead' };
+const FOUND = { weld: 'weld flaw', leak: 'leak', vanes: 'cracked vane', separation: 'bad firing lead', fin: 'cracked fin fitting', holddown: 'flawed hold-down fitting' };
 // The player flags spots for the crew. Real faults are fixed; false alarms cost time. Returns the hours the crew spends.
 export function flagSpots(round, ids) {
   const spots = spotsOf(round);
@@ -95,12 +107,13 @@ export function flagSpots(round, ids) {
 // The estimate they see comes from the drawing office and the flights so far (world/programme.js), never from here.
 
 const stages = round => round.vehicle === 'v2' ? { v2: round.turbopump }
+  : round.vehicle === 'viking' ? { viking: round.viking || 'viking/r1' }
   : round.vehicle === 'aerobee' ? { 'aerobee-booster': 'aerobee-booster/r1', 'aerobee-sustainer': round.sustainer || 'aerobee-sustainer/r1' }
   : round.vehicle === 'bumper' ? { v2: round.turbopump, 'wac-upper': round.igniter }
   : { 'tiny-tim': 'tiny-tim/r1', 'wac-upper': round.igniter };
 // The stage that goes on the stand: the WAC's upper stage, or the V-2 (alone, or the lower stage of a Bumper).
-const standStage = round => (round.vehicle === 'aerobee' ? 'aerobee-sustainer' : usesV2(round.vehicle || 'wac') ? 'v2' : 'wac-upper');
-const NOMINAL_PC = { 'wac-upper': 20, v2: 15.5, 'aerobee-sustainer': 20.5 };
+const standStage = round => (round.vehicle === 'viking' ? 'viking' : round.vehicle === 'aerobee' ? 'aerobee-sustainer' : usesV2(round.vehicle || 'wac') ? 'v2' : 'wac-upper');
+const NOMINAL_PC = { 'wac-upper': 20, v2: 15.5, 'aerobee-sustainer': 20.5, viking: 21 };
 
 // A static firing on the stand. Returns the trace the player sees: [{ t, pc, tank, wall? }] with gauge noise.
 // burn 'short' (8 s): a start-up check. It shows a rough, low start if the stage has a start-up fault, and a falling tank
@@ -112,17 +125,37 @@ export function staticFire(round, burn = 'short') {
   const samples = Object.fromEntries(round.physical.traces.stand.map((x, i) => { const v = sampleAt(round, 'stand', i); return [v.quantity, v.value]; }));
   discardTrace(round, 'stand');
   const steady = samples[`${stage}.chamber-pressure`], wallEnd = samples[`${stage}.wall-temp`];
-  const obs = round.rng.observation, rough = Math.max(0, NOMINAL_PC[stage] - 0.5 - steady) / 4, leak = hasLeak(round);
-  const long = burn === 'long', span = long ? 30 : 8, step = long ? 0.25 : 0.1;
+  const long = burn === 'long', viking = stage === 'viking', leak = hasLeak(round);
+  // A Viking's turbine fault is not a rough start: the chamber runs normally, then sags once the steam leak takes hold.
+  const obs = round.rng.observation, rough = viking ? 0 : Math.max(0, NOMINAL_PC[stage] - 0.5 - steady) / 4;
+  const pcAt = t => (!viking || t < 12 ? (viking ? NOMINAL_PC.viking : steady) : steady + (NOMINAL_PC.viking - steady) * Math.exp(-(t - 12) / 2.5));
+  // A flawed hold-down lets go under full thrust: the firing ends with the round leaving the stand. One physical draw.
+  const loose = long && hasHolddownFault(round) && draw(round.rng.physical) < HOLDDOWN_FAILURE ? 9 : null;
+  const span = loose ?? (long ? 30 : 8), step = long ? 0.25 : 0.1;
   const trace = [];
   for (let i = 0; i <= span / step; i++) {
     const t = i * step, rise = Math.min(1, t / 0.6);
     const chug = rough * (t < 3 ? 4 * Math.sin(t * 23) * Math.exp(-t / 2.5) : 0.6 * Math.sin(t * 17));
-    const point = { t, pc: Math.max(0, steady * rise + chug + 0.35 * normal(obs)), tank: 23 - (leak ? Math.min(6, t * 0.45) : 0) + 0.15 * normal(obs) };
+    const point = { t, pc: Math.max(0, pcAt(t) * rise + chug + 0.35 * normal(obs)), tank: 23 - (leak ? Math.min(6, t * 0.45) : 0) + 0.15 * normal(obs) };
     if (long && wallEnd != null) point.wall = 300 + (wallEnd - 300) * (1 - Math.exp(-t / 7)) + 4 * normal(obs);
     trace.push(point);
   }
-  return { trace, steady, wall: long && wallEnd != null ? wallEnd : null };
+  if (loose) round.events.push('The hold-down fittings let go during the full-duration firing, and the round left the stand.');
+  return { trace, steady, wall: long && wallEnd != null ? wallEnd : null, loose };
+}
+
+// A round that broke loose on the stand flies until the range cuts its engine: low, short, and lost.
+export function flyLoose(round) {
+  const path = [];
+  for (let t = 0; t <= 120; t++) {
+    const h = t <= 55 ? 6.5 * Math.sin(Math.min(1, t / 55) * Math.PI / 2) : Math.max(0, 6.5 - 0.0049 * (t - 55) ** 2);
+    path.push({ t, x: t * 0.055, h });
+    if (t > 55 && h <= 0) break;
+  }
+  const result = { apogee: Math.max(...path.map(p => p.h)), range: path[path.length - 1].x, failure: 'holddown', failAt: 55, burn: 55, path };
+  round.flight = result;
+  result.radar = radarApogee(round);
+  return result;
 }
 
 // A station's call in a count: GO when its reading is in band, and sometimes GO anyway, from someone who doesn't look
@@ -160,7 +193,12 @@ export function rebondLiner(round) {
   round.sustainer = 'aerobee-sustainer/r2';
 }
 // The stand's rework for this round: the WAC's igniter, the V-2's pump, or the Aerobee's liner.
-export const standRework = round => { const st = standStage(round); return st === 'v2' ? refurbishPump(round) : st === 'aerobee-sustainer' ? rebondLiner(round) : reworkIgniter(round); };
+// Ask for the Viking's turbine casing to be welded up and its steam feed reworked (viking/r2, which removes the cutoff fault).
+export function reworkTurbine(round) {
+  round.events.push(hasTurbineFault(round) ? 'The turbine casing was welded up and the steam feed reworked: it really was leaking steam.' : 'The turbine casing was welded up and the steam feed reworked, though it was sound.');
+  round.viking = 'viking/r2';
+}
+export const standRework = round => { const st = standStage(round); return st === 'v2' ? refurbishPump(round) : st === 'aerobee-sustainer' ? rebondLiner(round) : st === 'viking' ? reworkTurbine(round) : reworkIgniter(round); };
 
 // The tank pressure the blockhouse gauge shows at count second s: steady, or bleeding off if the round leaks.
 export const tankGauge = (round, s) => 23 - (hasLeak(round) ? Math.min(6, s * 0.012) : 0) + 0.12 * normal(round.rng.observation);
@@ -217,8 +255,9 @@ export const radarApogee = round => round.flight.apogee * (1 + 0.03 * normal(rou
 export function ellisReading(round) {
   const truth = round.flight.failure || 'nominal';
   const clear = draw(round.rng.observation), pick = draw(round.rng.observation);
-  if (clear < 0.8) return truth;
-  const others = Object.keys(KITS[round.vehicle || 'wac'].explanations).filter(c => c !== truth && c !== 'unknown');
+  // A round that broke loose on the stand leaves nobody in doubt, and nobody blames the stand for a flight that left it.
+  if (clear < 0.8 || truth === 'holddown') return truth;
+  const others = Object.keys(KITS[round.vehicle || 'wac'].explanations).filter(c => c !== truth && c !== 'unknown' && c !== 'holddown');
   return others[Math.floor(pick * others.length)];
 }
 

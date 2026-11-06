@@ -4,8 +4,9 @@
 // The story runs in beats; each beat says what the player is asked to do and where the others go.
 import { PLACES, WORLD_W } from './data/white-sands.js';
 import { dayOf, dateLabel, weekday } from './core/calendar.js';
-import { newRound, flagSpots, staticFire, standRework, leakCheck, tankGauge, fly, wreckage, hasIgniterFault, hasPumpFault, hasLinerFault, causesPresent, ellisReading, crewInspect, stationCall } from './truth/round.js';
+import { flyLoose, newRound, flagSpots, staticFire, standRework, leakCheck, tankGauge, fly, wreckage, hasIgniterFault, hasPumpFault, hasLinerFault, causesPresent, ellisReading, crewInspect, stationCall } from './truth/round.js';
 import { TRAITS } from './world/people.js';
+import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
 import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER } from './data/campaign.js';
 import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
@@ -30,7 +31,10 @@ const PEOPLE = {
 };
 
 // Whether you run this round as its test conductor: you plan it, run the count and chair the review.
-export const conducting = () => g.record.seat === 'test-conductor' && g.vehicle === 'aerobee';
+export const conducting = () => g.record.seat === 'test-conductor' && ['aerobee', 'viking'].includes(g.vehicle);
+// Whether this round is paid from your own budget line: the Viking firings you conduct.
+export const onBudget = () => conducting() && g.vehicle === 'viking';
+export const budgetLine = () => lineFor(g.record, g.day);
 // Hours each crew member takes to look a round over in your place. Visible: you can see how long they take.
 export const INSPECTORS = { you: { name: 'You', hours: 0 }, kowalski: { name: 'Sgt. Kowalski', hours: 5 }, delgado: { name: 'Pvt. Delgado', hours: 2 } };
 
@@ -75,7 +79,7 @@ function resetRound() {
 function setVehicle() {
   g.vehicle = SEASON[g.roundIndex].vehicle;
   g.people.hoyt.hidden = !['v2', 'bumper'].includes(g.vehicle);
-  g.people.brandt.hidden = g.vehicle !== 'aerobee';
+  g.people.brandt.hidden = !['aerobee', 'viking'].includes(g.vehicle);
   g.people.you.role = SEATS[g.record.seat];
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
 }
@@ -265,6 +269,10 @@ export function finishPlan(plan) {
   if (!conducting() || g.beat !== 'brief' || g.plan) return;
   g.plan = { inspector: plan.inspector || 'you', burn: plan.burn === 'long' ? 'long' : 'short', leak: !!plan.leak };
   note(`Your plan: ${INSPECTORS[g.plan.inspector].name === 'You' ? 'you look her over yourself' : `${INSPECTORS[g.plan.inspector].name} looks her over`}; ${g.plan.burn === 'long' ? 'a full-duration firing' : 'a short start-up firing'} on the stand; ${g.plan.leak ? 'a leak check before rollout' : 'no extra leak check'}.`);
+  if (onBudget()) {
+    if (COSTS.inspect[g.plan.inspector]) spend(g.record, g.day, COSTS.inspect[g.plan.inspector], `${INSPECTORS[g.plan.inspector].name}'s inspection`);
+    if (g.plan.leak) spend(g.record, g.day, COSTS.leak, 'leak check before rollout');
+  }
   if (g.plan.inspector === 'you') { g.objective = kit().inspect.objective; roomChanged(); return; }
   const who = g.plan.inspector, crew = g.people[who];
   say(who, 'Right, I\'ll go over her now.');
@@ -348,7 +356,7 @@ export function standDecide(choices) {
   g.decided = { ...choices };
   let hours = 0;
   const st = kit().stand;
-  if (choices.rework) { standRework(g.round); hours += 8; note(`You asked for this: ${st.rework.toLowerCase()}.`); }
+  if (choices.rework) { standRework(g.round); hours += 8; note(`You asked for this: ${st.rework.toLowerCase()}.`); if (onBudget()) spend(g.record, g.day, COSTS.rework, st.reworkJob.toLowerCase()); }
   if (choices.leak) { const r = leakCheck(g.round); hours += r.hours; note(r.found ? `Leak check after the firing: leak at the ${r.found.toLowerCase()}, fixed.` : 'Leak check after the firing: nothing found.'); }
   if (!choices.rework && !choices.leak) note('You cleared the stage for flight.');
   s.phase = 'decided';
@@ -358,6 +366,7 @@ export function standDecide(choices) {
     // A rework fills the next day, which is told as a day away; a leak check alone is done overnight.
     if (hours) addJob({ label: choices.rework ? st.reworkJob : 'Leak check', at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: hours * 60, quiet: hours >= 8, then: () => {} });
   } });
+  if (s.burn === 'long' && onBudget()) spend(g.record, g.day, COSTS.long, 'full-duration firing');
   if (s.burn === 'long' && hours < 8) {
     g.slipDays += 1;
     g.offDays[g.day + 1] = 'The crew pulled the chamber after the full-duration firing and checked it over.';
@@ -478,7 +487,7 @@ function launch() {
 
 function flightCalls(r) {
   const k = kit().calls, peakAt = r.path.reduce((best, p) => (p.h > best.h ? p : best), r.path[0]).t, end = r.path[r.path.length - 1].t, calls = [];
-  calls.push({ t: 0, who: 'vega', text: k.lift, tone: 'go' });
+  if (r.failure !== 'holddown') calls.push({ t: 0, who: 'vega', text: k.lift, tone: 'go' });
   if (r.failure) {
     const lines = k.fail[r.failure];
     lines.forEach((c, i) => calls.push({ t: c.t, who: 'morgan', text: c.text, tone: i === lines.length - 1 ? 'bad' : c.tone || '' }));
@@ -577,6 +586,12 @@ export function chair(key) {
 // this round is one.
 function finishReview(entry) {
   const f = g.round.flight, seen = f.failure ? null : f.radar;
+  if (onBudget()) {
+    if (g.slipDays) spend(g.record, g.day, g.slipDays * COSTS.slipDay, `${g.slipDays} day${g.slipDays > 1 ? 's' : ''} of range time lost`);
+    const b = budgetLine();
+    entry.budget = { fy: b.fy, spent: b.spent, line: b.line };
+    note(`Your budget line, fiscal ${b.fy}: ${dollars(b.spent)} spent of ${dollars(b.line)}.${b.spent > b.line ? ' Over the line.' : ''}`);
+  }
   recordFlight(g.programme, { vehicle: g.vehicle, load: g.round.propellantLoad, apogee: seen, failure: f.failure });
   addRound(g.record, { id: SEASON[g.roundIndex].id, vehicle: g.vehicle, name: SEASON[g.roundIndex].name, day: g.launchDay ?? g.day,
     flight: f.failure ? `Lost at ${f.failAt} seconds.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad, ...entry });
@@ -711,24 +726,39 @@ function tickStand(dt) {
     if (s.clock <= 0) {
       s.phase = 'firing'; s.shown = 0;
       const r = staticFire(g.round, s.burn);
-      s.trace = r.trace; s.steady = r.steady; s.wall = r.wall;
+      s.trace = r.trace; s.steady = r.steady; s.wall = r.wall; s.loose = r.loose;
       say('ellis', 'Ignition!', 'go', 2);
       roomChanged();
     }
   } else if (s.phase === 'firing') {
     s.shown = Math.min(s.trace.length, s.shown + dt * 10);
     g.standFlame = 1;
+    if (s.shown >= s.trace.length && s.loose) return breakaway();
     if (s.shown >= s.trace.length) {
       s.phase = 'read'; g.standFlame = 0;
       say('kowalski', 'Shutdown. Stand is safe.', 'go');
       const early = s.trace.slice(0, 25).map(p => p.pc), late = s.trace.slice(40).map(p => p.pc);
       const spread = Math.max(...early) - Math.min(...early.slice(8)), avg = late.reduce((a, b) => a + b, 0) / late.length;
       const tankEnd = s.trace[s.trace.length - 1].tank;
-      const wall = s.trace[s.trace.length - 1].wall;
-      note(`${s.burn === 'long' ? 'Full-duration firing' : 'Static fire'}: chamber pressure settled near ${avg.toFixed(1)} bar; the first seconds swung by about ${spread.toFixed(1)} bar. Tank pressure ended at ${tankEnd.toFixed(1)} bar.${wall != null ? ` Chamber wall temperature ended at ${wall.toFixed(0)} K.` : ''}`);
+      const wall = s.trace[s.trace.length - 1].wall, endPc = s.trace.slice(-12).reduce((a, p) => a + p.pc, 0) / 12;
+      note(`${s.burn === 'long' ? 'Full-duration firing' : 'Static fire'}: chamber pressure settled near ${avg.toFixed(1)} bar; the first seconds swung by about ${spread.toFixed(1)} bar. Tank pressure ended at ${tankEnd.toFixed(1)} bar.${s.burn === 'long' ? ` At shutdown the chamber was at ${endPc.toFixed(1)} bar.` : ''}${wall != null ? ` Chamber wall temperature ended at ${wall.toFixed(0)} K.` : ''}`);
       roomChanged();
     }
   } else g.standFlame = 0;
+}
+
+// A round that breaks loose on the stand: it flies, the range cuts its engine, and the round is lost (Viking 8, 1952).
+function breakaway() {
+  const s = g.stand;
+  s.phase = 'loose'; g.standFlame = 0;
+  say('kowalski', 'She\'s loose! She\'s off the stand!', 'bad', 5);
+  note('The round broke loose from the stand during the full-duration firing and flew.');
+  const result = flyLoose(g.round);
+  g.launchDay = g.day;
+  g.rocket.where = 'gone';
+  g.room = null; g.speed = 1; g.paused = false;
+  g.flight = { result, t: 0, real: 3, view: 'board', calls: [], next: 0, schedule: flightCalls(result) };
+  setBeat('flight', 'She broke loose. Watch the range plot.');
 }
 
 // The camera follows the player, or the truck on the way out, unless the player has scrolled it themselves.

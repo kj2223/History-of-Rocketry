@@ -3,6 +3,7 @@
 import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
+import { blockhouseState } from '../data/campaign.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -37,7 +38,7 @@ export function drawSite(ctx, g, view) {
   hangar(ctx, PLACES.hangar, g);
   stand(ctx, PLACES.stand, g);
   dugout(ctx, PLACES.dugout);
-  blockhouse(ctx, PLACES.blockhouse);
+  blockhouse(ctx, PLACES.blockhouse, g);
   tower(ctx, PLACES.tower);
   truck(ctx, g.truck.x, g);
   rocketOnSite(ctx, g);
@@ -122,7 +123,10 @@ function dugout(ctx, p) {
   ctx.fillStyle = '#4b3b2b'; ctx.fillRect(p.x + 36, GROUND - 26, 16, 26);
 }
 
-function blockhouse(ctx, p) {
+function blockhouse(ctx, p, g) {
+  const state = blockhouseState(g.day);
+  if (state.built) return newBlockhouse(ctx, p);
+  if (state.progress > 0) building(ctx, p.x - 160, state.progress);
   ctx.fillStyle = '#a7a196'; ctx.fillRect(p.x, GROUND - p.h, p.w, p.h);
   ctx.fillStyle = '#918b80'; ctx.fillRect(p.x - 10, GROUND - p.h - 12, p.w + 20, 14);
   // Cutaway with the firing panel and periscope.
@@ -131,6 +135,30 @@ function blockhouse(ctx, p) {
   ctx.fillStyle = '#c94'; for (let i = 0; i < 6; i++) ctx.fillRect(p.x + 36 + i * 12, GROUND - 30, 5, 5);
   ctx.fillStyle = '#6c6'; ctx.fillRect(p.x + 36, GROUND - 22, 5, 5);
   ctx.fillStyle = '#555'; ctx.fillRect(p.x + 140, GROUND - p.h - 26, 6, 26); ctx.fillRect(p.x + 140, GROUND - p.h - 26, 14, 5);
+}
+
+// The new blockhouse going up beside the old one: footings, then walls rising inside scaffolding, then the roof slab.
+function building(ctx, x, k) {
+  const w = 150, h = 90, wall = Math.min(1, k / 0.8) * h;
+  ctx.fillStyle = '#8f8a80'; ctx.fillRect(x - 6, GROUND - 6, w + 12, 6);
+  ctx.fillStyle = '#b9b3a6'; ctx.fillRect(x, GROUND - wall, w, wall);
+  if (k > 0.8) { ctx.fillStyle = '#a49e92'; ctx.fillRect(x - 8, GROUND - h - 14, (w + 16) * Math.min(1, (k - 0.8) / 0.2), 14); }
+  ctx.strokeStyle = '#7b6a52'; ctx.lineWidth = 2;
+  for (let sx = x - 10; sx <= x + w + 10; sx += 32) { ctx.beginPath(); ctx.moveTo(sx, GROUND); ctx.lineTo(sx, GROUND - h - 20); ctx.stroke(); }
+  for (let sy = 24; sy < h + 20; sy += 24) { ctx.beginPath(); ctx.moveTo(x - 10, GROUND - sy); ctx.lineTo(x + w + 10, GROUND - sy); ctx.stroke(); }
+}
+
+// The new blockhouse: bigger and squatter, with a heavy roof, two periscopes and a cutaway firing room with more panels.
+function newBlockhouse(ctx, p) {
+  const w = p.w + 140, h = 92, x = p.x - 150;
+  ctx.fillStyle = '#b3ad9f'; ctx.fillRect(x, GROUND - h, w, h);
+  ctx.fillStyle = '#9b9588'; ctx.fillRect(x - 14, GROUND - h - 18, w + 28, 20);
+  ctx.fillStyle = '#4c4f46'; ctx.fillRect(x + 16, GROUND - h + 18, w - 32, h - 18);
+  ctx.fillStyle = '#2f3a2c'; ctx.fillRect(x + 28, GROUND - 38, 90, 26); ctx.fillRect(x + 130, GROUND - 38, 70, 26);
+  ctx.fillStyle = '#c94'; for (let i = 0; i < 7; i++) ctx.fillRect(x + 34 + i * 12, GROUND - 33, 5, 5);
+  ctx.fillStyle = '#6c6'; for (let i = 0; i < 5; i++) ctx.fillRect(x + 136 + i * 12, GROUND - 25, 5, 5);
+  ctx.fillStyle = '#3a3d40'; ctx.fillRect(x + w - 40, GROUND - h + 22, 18, 50); // the telemetry rack
+  ctx.fillStyle = '#555'; for (const px of [x + 40, x + w - 60]) { ctx.fillRect(px, GROUND - h - 44, 6, 26); ctx.fillRect(px, GROUND - h - 44, 14, 5); }
 }
 
 function tower(ctx, p) {
@@ -159,7 +187,7 @@ function truck(ctx, x, g) {
 function rocketOnSite(ctx, g) {
   const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
-  const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
+  const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
   if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
   else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
   else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
@@ -176,6 +204,16 @@ function rocketOnSite(ctx, g) {
 function trailer(ctx, x) {
   ctx.fillStyle = '#4d5b3a'; ctx.fillRect(x - 10, GROUND - 22, 120, 6);
   ctx.fillStyle = '#1e1e1e'; for (const wx of [x, x + 96]) { ctx.beginPath(); ctx.arc(wx, GROUND - 6, 6, 0, 7); ctx.fill(); }
+}
+
+// The Navy's Viking: long, slim and white, with small swept fins and a gimballed engine under the tail.
+export function vikingShape(ctx, x, y, angle) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.fillStyle = '#f1efe8'; ctx.fillRect(-5, -100, 10, 100);
+  ctx.fillStyle = '#f1efe8'; ctx.beginPath(); ctx.moveTo(-5, -100); ctx.quadraticCurveTo(-4, -112, 0, -118); ctx.quadraticCurveTo(4, -112, 5, -100); ctx.fill();
+  ctx.fillStyle = '#2b3f6b'; ctx.fillRect(-5, -60, 10, 3); ctx.fillRect(-5, -30, 10, 3);
+  ctx.fillStyle = '#9aa0a8'; ctx.beginPath(); ctx.moveTo(-5, -14); ctx.lineTo(-13, 0); ctx.lineTo(-5, 0); ctx.fill(); ctx.beginPath(); ctx.moveTo(5, -14); ctx.lineTo(13, 0); ctx.lineTo(5, 0); ctx.fill();
+  ctx.restore();
 }
 
 // A captured V-2, black-and-white checked as at White Sands, drawn from its tail at (x, y) along angle (0 = straight up),

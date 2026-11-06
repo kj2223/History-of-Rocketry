@@ -16,7 +16,19 @@ export const SEASON = [
   { id: 'aerobee-1', vehicle: 'aerobee', start: dayOf(1949, 6, 7), name: 'an Aerobee round for the Navy' }, // Provisional
   { id: 'aerobee-2', vehicle: 'aerobee', start: dayOf(1949, 11, 15), name: 'an autumn 1949 Aerobee round' }, // Provisional
   { id: 'aerobee-3', vehicle: 'aerobee', start: dayOf(1950, 5, 9), name: 'a spring 1950 Aerobee round', turningPoint: true }, // Provisional
+  // The Navy's Viking, built by Martin for the Naval Research Laboratory: a gimballed engine where the V-2 had vanes.
+  { id: 'viking-5', vehicle: 'viking', start: dayOf(1950, 11, 19), name: 'Viking 5' }, // flew 21 November 1950
+  { id: 'viking-7', vehicle: 'viking', start: dayOf(1951, 8, 5), name: 'Viking 7' }, // flew 7 August 1951
+  { id: 'viking-9', vehicle: 'viking', start: dayOf(1952, 12, 13), name: 'Viking 9' }, // flew 15 December 1952
 ];
+
+// The site changes over the years. The new blockhouse goes up beside the old one over the winter of 1950-51 (Provisional
+// dates); from the spring the count is run from there.
+export const SITE_CHANGES = { newBlockhouse: { start: dayOf(1950, 9, 1), done: dayOf(1951, 4, 1) } };
+export const blockhouseState = day => {
+  const b = SITE_CHANGES.newBlockhouse;
+  return day >= b.done ? { built: true, progress: 1 } : { built: false, progress: Math.max(0, Math.min(1, (day - b.start) / (b.done - b.start))) };
+};
 
 // What went on at White Sands while the player had no round to work. Shown on arrival at the next round.
 // Lines about other people's flights follow the record: the player was not on those rounds.
@@ -51,6 +63,19 @@ export const BETWEEN = {
   ],
   'aerobee-2': ['The summer\'s other Aerobee firings went ahead without you: scientists\' instruments in the nose, cosmic rays and the upper air.'],
   'aerobee-3': ['Winter on the range. Up at the north end, the Navy\'s Viking team is getting its own rocket ready.'],
+  'viking-5': [
+    'The Navy\'s Viking has flown four times. Vikings 1 and 2, in May and September 1949, cut off early with steam leaking from the turbine. Viking 3 veered west and the range cut it down. Viking 4 flew from the deck of USS Norton Sound in the Pacific in May 1950, to about 170 km.',
+    'Brandt has the Viking firings at White Sands now, and you go with them.',
+    'Beside the old blockhouse the range has started a new one: bigger, with thicker walls. You can watch it go up.',
+  ],
+  'viking-7': [
+    'Viking 6, in December 1950, lost a fin and its attitude and came down from about 64 km. You were not on it.',
+    'The new blockhouse is finished: a bigger firing room, periscopes, and a telemetry rack. This round is counted from there.',
+  ],
+  'viking-9': [
+    'Viking 8, in June 1952, broke loose from its moorings during a static firing and flew. The range cut its engine at 55 seconds and it came down a few miles to the southeast.',
+    'Martin has improved the airframe for the later Vikings: lighter, and carrying more propellant.',
+  ],
 };
 
 // The test conductor's offer, made at a turning point (Bumper 5, and again after the Aerobee rounds if you are still a

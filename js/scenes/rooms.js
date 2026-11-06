@@ -2,8 +2,9 @@
 // render() rebuilds a panel when the game says the room changed; live() updates its gauges every frame.
 import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHold, standLeakCheck, standTank, standDecide,
   countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway, nextRound, kit, answerFirstOffer,
-  conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY } from '../game.js';
-import { SEASON, FIRST_OFFER } from '../data/campaign.js';
+  conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY, onBudget, budgetLine } from '../game.js';
+import { COSTS, planCost, dollars } from '../world/budget.js';
+import { SEASON, FIRST_OFFER, blockhouseState } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
 import { SEATS, pendingOffer } from '../career/record.js';
 import { PLACES } from '../data/white-sands.js';
@@ -141,6 +142,7 @@ const ROOMS = {
         <label><input type="checkbox" data-choice="leak"> Leak-check the feed system (2 hours)</label>
         <button class="primary" data-act="stand-decide">${conducting() ? 'Make it so' : 'Give your decision to Ellis'}</button>`,
       decided: '<p class="muted">Done. The crew is taking the stage back to the hangar.</p>',
+      loose: '<p class="danger-text">She broke loose from the stand.</p>',
     }[p];
     return `<h2>Test stand dugout</h2>
       <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. You're running this one. Watch the tank pressure while the stage is
@@ -164,7 +166,7 @@ const ROOMS = {
     return `<h2>Blockhouse: the count</h2>
       <p>${conductor ? 'You are the test conductor: you run the count from the centre console. Delgado has PRESS, Morgan the range, Vega the pad and the firing switch. The tank gauge is repeated on your console.'
         : 'You\'re on the pressurisation panel (PRESS). Ellis runs the count; Vega has the firing switch.'}
-      You can call a hold at any time.</p>
+      You can call a hold at any time.</p>${blockhouseState(g.day).built ? '<p class="muted">The new blockhouse: thick walls, periscopes on the pad, and a telemetry rack along the back wall.</p>' : ''}
       <div class="clock" data-live="countclock">T-10:00</div><p class="center" data-live="countstate"></p>
       <div class="gauges">${gaugeHTML('ctank', 'Tank pressure', 'bar')}<div class="lamp on">IGNITER CIRCUIT<br>CONTINUITY</div></div>
       <p class="muted">Normal tank pressure: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar.</p>
@@ -181,9 +183,10 @@ const ROOMS = {
       ${Object.entries(INSPECTORS).map(([id, p]) => opt('inspector', id, id === 'you' ? 'You, yourself' : `${esc(p.name)} (usually takes about ${p.hours} hours)`)).join('<br>')}
       <h3>The firing on the stand</h3>
       ${opt('burn', 'short', 'A short start-up firing, 8 seconds. Shows a rough start or a leak.')}<br>
-      ${opt('burn', 'long', 'A full-duration firing, 30 seconds, with thermocouples on the chamber. Shows the wall temperature, but the chamber must be pulled and checked afterwards: the launch slips a day.')}
+      ${opt('burn', 'long', `A full-duration firing, 30 seconds, ${kit().stand.long} The engine must be pulled and checked afterwards: the launch slips a day.`)}
       <h3>Before rollout</h3>
       <label><input type="checkbox" data-plan="leak" ${plan.leak ? 'checked' : ''}> A leak check of the whole feed system (2 hours on rollout day)</label>
+      ${onBudget() ? budgetBlock() : ''}
       <p><button class="primary" data-act="plan-done">Put the plan on the board</button></p>`;
   },
   // The review as test conductor: the team's readings, and the call is yours.
@@ -232,12 +235,12 @@ const ROOMS = {
     const backed = n => n === 0 ? 'Ellis never went with your reading.' : `Ellis went with your reading ${n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`}.`;
     const rec = g.record, rs = rec.rounds, good = rs.filter(r => !/^Lost/.test(r.flight)).length;
     const o = rec.offers[rec.offers.length - 1], offer = o && o.day >= rs[rs.length - 1].day ? offerCard(o) : '';
-    return `<h2>Your years on the range, 1945 to 1950</h2>
+    return `<h2>Your years on the range, 1945 to ${new Date(Date.UTC(1945, 0, 1) + rs[rs.length - 1].day * 86400000).getUTCFullYear()}</h2>
       <p>You are now ${esc(SEATS[rec.seat].toLowerCase())}.</p>
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
       ${offer}
-      <p class="muted">Next on the range: the blockhouse is rebuilt, and the Navy's Viking arrives. That comes in the next build.</p>
+      <p class="muted">Next: the satellite proposals, Vanguard, Explorer and Sputnik. That comes in the next build.</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
       <button data-act="again">Start again from 1945</button>`;
   },
@@ -253,6 +256,15 @@ const ROOMS = {
       <button class="primary" data-act="debrief-done">Back</button>`;
   },
 };
+
+// Your budget line for the Viking firings: what is left this fiscal year, and what the plan will cost.
+function budgetBlock() {
+  const b = budgetLine(), cost = planCost(plan), left = b.line - b.spent;
+  return `<div class="budget" data-live="budget"><h3>Your budget line, fiscal ${b.fy}</h3>
+    <p>${dollars(b.line)} for your Viking firings this year; ${dollars(b.spent)} spent, ${dollars(left)} left. This plan: <strong>${dollars(cost)}</strong>.</p>
+    <p class="muted">Crew inspection: Kowalski ${dollars(COSTS.inspect.kowalski)}, Delgado ${dollars(COSTS.inspect.delgado)}. Full-duration firing ${dollars(COSTS.long)}. Leak check ${dollars(COSTS.leak)}.
+    A rework on the stand ${dollars(COSTS.rework)}. Each day of range time lost ${dollars(COSTS.slipDay)}. Going over the line is allowed, but it goes on your record.</p></div>`;
+}
 
 // A turning point's offer, or the news that you were passed over, with the buttons to answer it.
 function offerCard(o) {
@@ -270,7 +282,8 @@ function recordLine(r, inline = false) {
   const ellis = r.yourCall === 'unknown' ? 'Ellis made no call' : r.agreed ? 'Ellis agreed' : r.wentWithYou ? `Ellis read ${call[r.ellisView ?? r.ellis]} differently but went with you` : `Ellis overruled you: ${call[r.ellis]}`;
   const text = r.chaired ? `${r.flight} You chaired the review and ${r.yourCall === 'unknown' ? 'left the cause open' : `concluded ${call[r.yourCall]}`}.${r.slipDays ? ` The launch slipped ${r.slipDays === 1 ? 'a day' : `${r.slipDays} days`}.` : ''}${r.fix ? ` ${r.fix}` : ''}`
     : `${r.flight} You called ${call[r.yourCall]}. ${ellis}.${r.fix ? ` ${r.fix}` : ''}`;
-  return inline ? esc(text) : `<p>${esc(text)}</p>`;
+  const money = r.budget ? ` Budget, fiscal ${r.budget.fy}: ${dollars(r.budget.spent)} of ${dollars(r.budget.line)}.` : '';
+  return inline ? esc(text + money) : `<p>${esc(text + money)}</p>`;
 }
 
 // Clicks and changes inside the panel.
@@ -304,6 +317,7 @@ export function bindRoom(handlers) {
     if (e.target.dataset.flag) flags[e.target.dataset.flag] = e.target.checked;
     if (e.target.dataset.plan) plan[e.target.dataset.plan] = e.target.checked;
     if (e.target.type === 'radio' && e.target.name in plan) plan[e.target.name] = e.target.value;
+    if ((e.target.dataset.plan || e.target.type === 'radio') && onBudget()) { const b = el.querySelector('[data-live=budget]'); if (b) b.outerHTML = budgetBlock(); }
   });
   el.addEventListener('input', e => {
     if (e.target.dataset.act !== 'load') return;

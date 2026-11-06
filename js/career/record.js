@@ -14,7 +14,8 @@ export const shiftTrust = (record, by) => { record.trust = Math.max(TRUST.min, M
 // Whether your boss will put your name forward: her trust in your calls, and how the last rounds you worked went.
 export function standing(record) {
   const recent = record.rounds.slice(-3), good = recent.filter(r => !/^Lost/.test(r.flight)).length;
-  return record.trust + (good >= 2 ? 1 : 0);
+  // Each fiscal year you ran over your budget line counts against you.
+  return record.trust + (good >= 2 ? 1 : 0) - (record.overspent || 0);
 }
 export const OFFER_STANDING = 1;
 
