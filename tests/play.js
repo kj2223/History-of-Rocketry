@@ -58,7 +58,7 @@ export function advance(take = false) {
 
 
 // ---- Mercury rounds, worked from the Retrofire officer's console ----
-import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, simStart, simClose, toReview, consoleInsertion, consolePack, consoleRetro } from '../js/mercury.js';
+import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, missionPresent, simStart, simClose, toReview, consoleInsertion, consolePack, consoleRetro, consoleDecide } from '../js/mercury.js';
 import { SEASON } from '../js/data/campaign.js';
 
 // Play rounds, taking every offer and making sure it is made, until the round with this id.
@@ -73,8 +73,10 @@ export function toRoundId(id, call = () => 'nominal') {
 }
 
 // One console decision point at a time: a poll, the climb (abort or not), the impact points, the pad.
-const waiting = () => g.beat !== 'mFlight' || (g.console && g.console.auto ? ['pack', 'retro'].includes(g.console.phase) : g.console && (g.console.poll || g.console.phase === 'poll' || g.console.phase === 'ip' || ['pad', 'ascent', 'insertion', 'pack', 'retro'].includes(g.console.phase)));
+const asked = c => c && c.phase === 'mission' && c.flight?.decision?.mine;
+const waiting = () => g.beat !== 'mFlight' || asked(g.console) || (g.console && g.console.auto ? ['pack', 'retro'].includes(g.console.phase) : g.console && (g.console.poll || g.console.phase === 'poll' || g.console.phase === 'ip' || ['pad', 'ascent', 'insertion', 'pack', 'retro'].includes(g.console.phase)));
 function work(c, opts) {
+  if (asked(c)) return consoleDecide(opts.decide(c.flight.decision, c));
   if (c.poll || c.phase === 'poll') return consolePoll(opts.poll(c));
   if (c.phase === 'ip') return consoleAim(opts.aim(c));
   if (c.phase === 'pad') return padChoose(opts.pad);
@@ -94,6 +96,8 @@ export const MERCURY_DEFAULTS = {
   packCall: () => 'keep',
   retro: c => (c.status.window && /off|odd/.test(c.status.window) ? 'manual' : 'auto'),
   pad: 'wait',
+  // A long flight's questions: the first option, unless the test says otherwise.
+  decide: d => Object.keys(d.options)[0],
   call: () => 'unknown',
   sims: 0,
 };

@@ -67,7 +67,7 @@ test('the helicopters find her fast at the right point, slowly at the wrong one,
 test('after Pioneer 4 the paths split: Mercury Control if you take the offer, Ranger 7 if you stay with JPL', () => {
   const p4 = SEASON.findIndex(r => r.id === 'pioneer-4');
   assert.equal(SEASON[p4].turningPoint, 'nasa');
-  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-5), ['pioneer-4', 'mr-1', 'mr-3', 'ma-6', 'ma-7']);
+  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-7), ['pioneer-4', 'mr-1', 'mr-3', 'ma-6', 'ma-7', 'gem-4', 'gem-5']);
   assert.deepEqual(SEASON.filter(r => onPath(r, 'jpl')).map(r => r.id).slice(-2), ['pioneer-4', 'ranger-7']);
   assert.ok(SEASON.find(r => r.id === 'mr-1').start > SEASON[p4].start);
 });
@@ -255,8 +255,8 @@ test('after MR-3 come the orbital flights: MA-6 and MA-7 play from the count thr
   assert.equal(g.beat, 'sRoute');
   assert.doesNotThrow(() => checkCheckpoint(checkpoint()));
   routeArgue('lor'); routeDone();
-  assert.equal(g.beat, 'seasonEnd');
-  assert.equal(nextIndex(), null);
+  assert.equal(g.beat, 'roundEnd');
+  assert.equal(SEASON[nextIndex()].id, 'gem-4');
 });
 
 test('the route to the Moon, June 1962: you argue a mode once, NASA chooses lunar-orbit rendezvous, and your flights count', () => {
@@ -272,7 +272,7 @@ test('the route to the Moon, June 1962: you argue a mode once, NASA chooses luna
   assert.ok(g.notes.some(n => /announced it on 11 July 1962/.test(n.text)));
   assert.equal(routeArgue('eor'), null, 'one say only');
   routeDone();
-  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(g.beat, 'roundEnd');
 });
 
 test('an orbital flight reaches every call: insertion, the orbits, retrofire and the splashdown point', () => {

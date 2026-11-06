@@ -39,9 +39,19 @@ export const SEASON = [
   // Into orbit on the Atlas. orbital: the flight is worked through orbit, retrofire and entry. risk: what is likelier on this
   // flight than the programme's usual odds (the hidden layer still decides).
   { id: 'ma-6', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['okafor'], risk: { seg51Risk: 0.6 }, path: 'nasa', pressure: true, start: dayOf(1962, 2, 19), name: 'Mercury-Atlas 6, the first American in orbit' }, // 20 February 1962
-  { id: 'ma-7', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['lindqvist'], risk: { scannerRisk: 0.7 }, after: 'route', path: 'nasa', start: dayOf(1962, 5, 23), name: 'Mercury-Atlas 7' }, // 24 May 1962
+  { id: 'ma-7', vehicle: 'atlas', site: 'cape', crewed: 'mercury', orbital: true, crew: ['lindqvist'], risk: { scannerRisk: 0.7 }, after: 'route', turningPoint: 'flight', path: 'nasa', start: dayOf(1962, 5, 23), name: 'Mercury-Atlas 7' }, // 24 May 1962
+  // Gemini, from the new Mission Control in Houston: two-man flights of days, worked in shifts (houston.js). crew: the
+  // commander first.
+  { id: 'gem-4', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['boateng', 'nakamura'], risk: { hatchRisk: 0.6, computerRisk: 0.6 }, path: 'nasa', pressure: true, start: dayOf(1965, 6, 2), name: 'Gemini 4, the first flight from Houston' }, // 3 June 1965
+  { id: 'gem-5', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['whitcomb', 'castellano'], risk: { fuelcellRisk: 0.75, navRisk: 0.7 }, path: 'nasa', start: dayOf(1965, 8, 20), name: 'Gemini 5, eight days' }, // 21 August 1965
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
+
+// The last word on the season-end page: what came after the last round you worked, and where this build stops.
+export const LAST_WORD = {
+  'ranger-7': 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.',
+  'gem-5': 'In December 1965 Gemini 6A and Gemini 7 met in orbit, a foot apart. That is as far as Gemini goes in this build.',
+};
 
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
 export const SITES = {
@@ -160,6 +170,17 @@ export const BETWEEN = {
     'Henry Lindqvist has the next one, three orbits again, with experiments to do: a balloon to trail, flares to watch, the horizon to photograph. A busy man uses fuel.',
     'Hangar S reports trouble with the horizon scanners on the bench. They have been changed, and the new ones checked as well as anyone can check them.',
   ],
+  'gem-4': [
+    'Mercury-Atlas 8 flew six orbits in October 1962. In May 1963 Mercury-Atlas 9 flew twenty-two; when its automatic system failed, its pilot flew the entry by hand. Mercury was over.',
+    'In September 1962 NASA chose nine more astronauts for Gemini and Apollo. In June 1963 Valentina Tereshkova flew Vostok 6, the first woman in space.',
+    'The Manned Spacecraft Center has moved to Houston, and so has Mission Control: three shifts of flight controllers, a flight director for each, and back rooms full of engineers. The Cape only launches now.',
+    'On 23 March 1965 Gemini 3 flew three orbits with Earl Whitcomb in command. Five days earlier Alexei Leonov had stepped outside Voskhod 2 for twelve minutes: the first spacewalk.',
+    'Gemini 4 is the first flight run from Houston: four days, and a spacewalk if the spacecraft is good for it. Every slip is reported to Washington.',
+  ],
+  'gem-5': [
+    'Gemini 4 is home. Gemini 5 is meant to stay up eight days, as long as a trip to the Moon and back. It is the first to fly fuel cells instead of batteries.',
+    'Nobody knows yet what eight days of weightlessness does to a man. The flight surgeons want to find out before anyone goes to the Moon.',
+  ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',
     'In April 1961 Yuri Gagarin orbited the Earth, and in May Alan Shepard flew from the Cape. On 25 May President Kennedy asked Congress to land a man on the Moon before the decade was out. Apollo needs to know what the Moon\'s surface is like.',
@@ -206,8 +227,20 @@ export const ENGINEER_OFFER = {
   declineNote: 'You stay the Retrofire officer.',
 };
 
+// The fourth, at the end of Mercury: Houston needs flight directors for Gemini.
+export const FD_OFFER = {
+  seat: 'flight',
+  title: 'Flight director, Gemini',
+  from: 'hollis',
+  text: 'Mercury\'s done, and Houston needs flight directors for Gemini: three shifts, days at a time, and the call on everything on your shift. I\'m going upstairs to run flight operations. I want you on one of those shifts.',
+  sidelined: 'Houston named its Gemini flight directors. Your name wasn\'t on my list this time.',
+  again: 'Houston needs another flight director.',
+  takeNote: 'From now on you run a shift in Mission Control, Houston: the polls, the holds, the aborts and the mission rules. When a sick spacecraft stays up, it\'s your call.',
+  declineNote: 'You keep your seat for Gemini; another flight director has the room.',
+};
+
 // Which offer a turning point brings: turningPoint true is the test conductor's, 'nasa' is Mercury Control's, 'engineer'
 // the Mercury project office's.
-export const offerFor = turningPoint => (turningPoint === 'nasa' ? NASA_OFFER : turningPoint === 'engineer' ? ENGINEER_OFFER : FIRST_OFFER);
+export const offerFor = turningPoint => ({ nasa: NASA_OFFER, engineer: ENGINEER_OFFER, flight: FD_OFFER })[turningPoint] || FIRST_OFFER;
 // The offer behind an entry in your record, by the seat it offered.
-export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;
+export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;

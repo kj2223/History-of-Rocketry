@@ -6,7 +6,7 @@ import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHol
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
-import { SEASON, offerFor, offerBySeat, blockhouseState, SITES } from '../data/campaign.js';
+import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
 import { PLACES } from '../data/white-sands.js';
@@ -256,8 +256,7 @@ const ROOMS = {
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
       ${offer}
-      <p class="muted">${rec.path === 'nasa' ? 'Mercury-Atlas 8 flew six orbits that October, and in May 1963 Mercury-Atlas 9 flew twenty-two; its pilot flew the entry by hand when the automatic system failed. That is as far as Mercury goes in this build.'
-        : 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.'}</p>
+      <p class="muted">${esc(LAST_WORD[rs[rs.length - 1].id] || '')}</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
       <button data-act="again">Start again from 1945</button>`;
   },

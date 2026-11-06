@@ -234,7 +234,7 @@ function truck(ctx, x, g) {
 function rocketOnSite(ctx, g) {
   const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
-  const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, r.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
+  const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, r.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
   if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
   else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
   else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
@@ -313,6 +313,19 @@ export function mercuryAtlasShape(ctx, x, y, angle) {
   ctx.fillStyle = '#3e4652'; ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('UNITED STATES', 100, 3); ctx.restore();
   ctx.fillStyle = '#d8d4c8'; ctx.beginPath(); ctx.moveTo(-14, -170); ctx.lineTo(-9, -180); ctx.lineTo(9, -180); ctx.lineTo(14, -170); ctx.fill();
   capsuleShape(ctx, 0, -180, true);
+  ctx.restore();
+}
+
+// Gemini-Titan II: the Titan's two stages in white and black, the adapter, and the dark Gemini spacecraft on top. No
+// escape tower: Gemini's crew had ejection seats.
+export function geminiTitanShape(ctx, x, y, angle) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.fillStyle = '#e9e7e0'; ctx.fillRect(-15, -150, 30, 150); // first stage
+  ctx.fillStyle = '#2b2d31'; ctx.fillRect(-15, -150, 30, 8); ctx.fillRect(-15, -60, 30, 5);
+  ctx.fillStyle = '#e9e7e0'; ctx.fillRect(-15, -200, 30, 50); // second stage
+  ctx.fillStyle = '#d9d6cc'; ctx.beginPath(); ctx.moveTo(-15, -200); ctx.lineTo(-12, -222); ctx.lineTo(12, -222); ctx.lineTo(15, -200); ctx.fill(); // adapter
+  ctx.fillStyle = '#26282c'; ctx.beginPath(); ctx.moveTo(-12, -222); ctx.lineTo(-6, -246); ctx.lineTo(-4, -258); ctx.lineTo(4, -258); ctx.lineTo(6, -246); ctx.lineTo(12, -222); ctx.fill(); // spacecraft
+  ctx.fillStyle = '#3e4652'; ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('UNITED STATES', 90, 3); ctx.restore();
   ctx.restore();
 }
 

@@ -10,6 +10,7 @@ import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
 import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
+import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
 import { ASTRONAUTS } from './data/crew.js';
 import { LUNAR_BEATS, tickLunar, lunarRoom } from './lunar.js';
 import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview } from './mercury.js';
@@ -34,8 +35,12 @@ const PEOPLE = {
   brandt: { name: 'Lt. Cmdr. Paul Brandt', role: 'Navy project officer', color: '#2f3f66', hat: '#e9e9e4', x: 405 },
   // In Mercury Control, from 1960.
   ...MERCURY_PEOPLE,
-  // The astronaut flying this round, if anyone is: his name comes from the round.
+  // In Mission Control, Houston, from 1965.
+  ...GEMINI_PEOPLE,
+  // The astronaut flying this round, if anyone is: his name comes from the round. crew2 is the second crewman: a voice on
+  // the loop, never on the site.
   pilot: { name: 'The astronaut', role: 'Astronaut', color: '#dcdad2', x: 560 },
+  crew2: { name: 'The pilot', role: 'Astronaut', color: '#dcdad2', x: 600 },
 };
 const ROLES = Object.fromEntries(Object.entries(PEOPLE).map(([id, p]) => [id, p.role]));
 
@@ -91,22 +96,28 @@ function resetRound() {
 function setVehicle() {
   g.vehicle = SEASON[g.roundIndex].vehicle;
   g.people.hoyt.hidden = !['v2', 'bumper'].includes(g.vehicle);
-  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger', 'redstone', 'atlas'].includes(g.vehicle);
+  g.people.brandt.hidden = !['aerobee', 'viking', 'vanguard', 'juno', 'ranger', 'redstone', 'atlas', 'titan'].includes(g.vehicle);
   g.site = SEASON[g.roundIndex].site || 'white-sands';
   // A Mercury round: Mercury Control's people are on site, Ellis is back at JPL, and the others have Mercury jobs.
   g.crewed = !!SEASON[g.roundIndex].crewed;
   for (const id of Object.keys(MERCURY_PEOPLE)) g.people[id].hidden = !g.crewed;
-  g.people.tate.hidden = !(g.crewed && g.record.seat === 'engineer');
+  g.program = (g.crewed && SEASON[g.roundIndex].crewed) || null;
+  const houston = g.crewed && g.program !== 'mercury';
+  g.people.tate.hidden = !(g.crewed && (g.record.seat === 'engineer' || (houston && g.record.seat !== 'retro')));
+  for (const id of Object.keys(GEMINI_PEOPLE)) g.people[id].hidden = !houston;
+  g.people.crew2.hidden = true;
+  if (SEASON[g.roundIndex].crew?.[1]) g.people.crew2.name = ASTRONAUTS[SEASON[g.roundIndex].crew[1]].name;
   g.people.ellis.hidden = g.crewed;
   const pilot = SEASON[g.roundIndex].crew?.[0];
   g.people.pilot.hidden = !pilot;
   if (pilot) Object.assign(g.people.pilot, { name: ASTRONAUTS[pilot].name, crewId: pilot });
-  for (const [id, role] of Object.entries(ROLES)) if (g.people[id]) g.people[id].role = g.crewed && MERCURY_ROLES[id] ? MERCURY_ROLES[id] : role;
+  for (const [id, role] of Object.entries(ROLES)) if (g.people[id]) g.people[id].role = houston && GEMINI_ROLES[id] ? GEMINI_ROLES[id] : g.crewed && MERCURY_ROLES[id] ? MERCURY_ROLES[id] : role;
+  if (houston && g.record.seat === 'retro') g.people.tate.role = 'Retrofire officer, back room';
   g.people.you.role = SEATS[g.record.seat];
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
 }
 // What a building is called now: the Cape's Mercury buildings stand where the old ones did.
-export const placeName = id => (g.crewed && MERCURY_PLACES[id]) || PLACES[id]?.name;
+export const placeName = id => (g.crewed && g.program !== 'mercury' && GEMINI_PLACES[id]) || (g.crewed && MERCURY_PLACES[id]) || PLACES[id]?.name;
 
 // Round i: a fresh round built the way the team now builds them.
 function startRound(i) {
@@ -715,7 +726,7 @@ export function answerFirstOffer(take) {
   if (!o) return;
   const line = take ? 'Good. They\'ll be glad of you. Come and see me when you need a second opinion.' : 'Your seat here is yours as long as you want it. They may ask again.';
   if (!g.people.ellis.hidden) say('ellis', line, take ? 'go' : '', 8);
-  else if (g.crewed) say('hollis', take ? 'Good luck in Hangar S. I\'ll want straight answers from you on flight day.' : 'Glad to keep you, Retro.', take ? 'go' : '', 8);
+  else if (g.crewed) say('hollis', o.seat === 'flight' ? (take ? 'Good. Houston\'s yours on your shift, Flight. Know your rules.' : 'Then keep your seat. Somebody has to.') : take ? 'Good luck in Hangar S. I\'ll want straight answers from you on flight day.' : 'Glad to keep you, Retro.', take ? 'go' : '', 8);
   g.people.you.role = SEATS[g.record.seat];
   note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay ${/^[aeiou]/i.test(SEATS[g.record.seat]) ? 'an' : 'a'} ${SEATS[g.record.seat].toLowerCase()}.`);
   morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');

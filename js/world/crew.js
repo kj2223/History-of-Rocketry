@@ -10,6 +10,12 @@ export const CREW_TRAITS = {
   price: { risk: 0.45, candour: 0.6, independence: 0.25 },
   achterberg: { risk: 0.7, candour: 0.7, independence: 0.75 },
   moreau: { risk: 0.25, candour: 0.65, independence: 0.6 },
+  boateng: { risk: 0.3, candour: 0.75, independence: 0.5 },
+  nakamura: { risk: 0.8, candour: 0.5, independence: 0.7 },
+  castellano: { risk: 0.65, candour: 0.3, independence: 0.75 },
+  kowalczyk: { risk: 0.45, candour: 0.7, independence: 0.65 },
+  fairbanks: { risk: 0.55, candour: 0.55, independence: 0.6 },
+  szabo: { risk: 0.75, candour: 0.8, independence: 0.6 },
 };
 
 // Whether he consents to go, from his own reading of the recovery board and the count. Binding: no consent, no launch.

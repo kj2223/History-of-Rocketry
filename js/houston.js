@@ -1,0 +1,162 @@
+// MISSION CONTROL, HOUSTON: a Gemini or Apollo flight once she is in orbit. No DOM, no drawing.
+// The climb is worked on the same console as Mercury (mercury.js). From insertion on, a long flight is worked the way
+// Houston worked it: in shifts. The flight plan's steps (data/flights.js) come up one at a time; the calendar jumps over
+// the hours between them, with a handover note for what happened while your team was off. When a step asks a question,
+// whoever's seat owns it answers: you, if it is yours (the flight director owns them all), otherwise the flight director
+// on the other shift, who makes the call Houston made.
+//
+// The truth behind each answer is in truth/flights.js. What the rooms read is g.console.flight, never the round.
+import { g, note, roomChanged } from './game.js';
+import { FLIGHTS, DECISIONS, CAPABILITIES } from './data/flights.js';
+import { flightTruth, flag, resolve, geminiEntry, lunarEntry } from './truth/flights.js';
+import { SEASON } from './data/campaign.js';
+import { ASTRONAUTS } from './data/crew.js';
+import { shiftTrust } from './career/record.js';
+
+// Real seconds between one step and the next, and the hours of quiet after which the handover note is written.
+export const STEP_SECONDS = 1.6, SHIFT_HOURS = 8;
+export const flightOf = (id = SEASON[g.roundIndex].id) => FLIGHTS[id] || null;
+// Whose seat answers a question. The flight director owns every call; the others own their own.
+export const owns = (seat, decision) => seat === 'flight' || seat === (DECISIONS[decision].owner || 'flight');
+// The second crewman, by name, for the loop.
+const crewName = i => ASTRONAUTS[SEASON[g.roundIndex].crew?.[i]]?.name;
+
+// Into the flight proper: the console's phase becomes 'mission'.
+export function startFlight(c) {
+  const id = c.flightId, plan = FLIGHTS[id];
+  if (c.kind === 'flight') flightTruth(c.round, id);
+  c.flight = { id, craft: plan.craft, at: 0.2, step: 0, wait: STEP_SECONDS, state: {}, status: { ...(plan.status || {}) }, decision: null, decisions: [], capabilities: [], phase: plan.steps[0]?.phase || 'Earth orbit', phaseNo: 1 };
+  c.phase = 'mission';
+  if (g.people.crew2 && crewName(1)) g.people.crew2.name = crewName(1);
+  note(`${plan.craft} is in orbit. The flight plan: ${plan.objective}. The mission rules: ${plan.rules.join(' ')}`);
+  roomChanged();
+}
+
+// The flight plan, a step at a time.
+export function tickFlight(c, dt, speak) {
+  const f = c.flight;
+  if (f.decision) return;
+  f.wait -= dt * Math.min(4, g.speed);
+  if (f.wait > 0) return;
+  const plan = FLIGHTS[f.id];
+  while (f.step < plan.steps.length) {
+    const s = plan.steps[f.step];
+    if (!applies(c, s)) { f.step++; continue; }
+    // Coming home early: the rest of the plan goes, except the last checks before retrofire and retrofire itself.
+    const at = f.endAt != null && s.at > f.endAt ? f.endAt : s.at;
+    if (f.endAt != null && s.at > f.endAt && !s.retro && s.decide !== 'navcheck') { f.step++; continue; }
+    advanceTo(c, at, s);
+    f.step++;
+    f.wait = STEP_SECONDS;
+    return runStep(c, s, speak);
+  }
+}
+
+function applies(c, s) {
+  if (s.if && !(c.kind === 'flight' ? flag(c.round, s.if) : (c.simFlags || {})[s.if])) return false;
+  if (s.unless && (c.kind === 'flight' ? flag(c.round, s.unless) : (c.simFlags || {})[s.unless])) return false;
+  return true;
+}
+
+// The calendar jumps to the step. A long quiet stretch is the other shifts': a handover note says what they saw.
+function advanceTo(c, at, s) {
+  const f = c.flight, gap = at - f.at;
+  if (gap <= 0) return;
+  f.at = at;
+  if (c.kind !== 'flight') return;
+  g.clock += Math.round(gap * 60);
+  g.day = Math.floor(g.clock / 1440);
+  if (gap >= SHIFT_HOURS) note(`Handover, ${Math.round(at)} hours into the flight: ${s.offShift || 'the other shifts had a quiet flight. Nothing for your team.'}`);
+}
+
+function runStep(c, s, speak) {
+  const f = c.flight;
+  if (s.phase && s.phase !== f.phase) { f.phase = s.phase; f.phaseNo += 1; }
+  if (s.show) for (const [k, v] of Object.entries(s.show)) f.status[k] = v;
+  for (const [who, text, tone] of s.say || []) speak(c, who, text, tone || '', 6);
+  if (s.note && c.kind === 'flight') note(s.note);
+  if (s.offShift && !s.say) speak(c, 'morgan', `Handover. ${s.offShift}`, '', 5);
+  if (s.decide) return ask(c, s.decide, speak);
+  if (s.retro) return retrofire(c, speak);
+  roomChanged();
+}
+
+// A question. Yours, if your seat owns it; otherwise the other flight director answers it.
+function ask(c, id, speak) {
+  const D = DECISIONS[id], plan = FLIGHTS[c.flight.id];
+  c.flight.decision = { id, q: D.q, options: D.options, rule: D.rule != null ? plan.rules[D.rule] : null, mine: c.kind !== 'flight' || owns(g.record.seat, id) };
+  if (!c.flight.decision.mine) {
+    speak(c, 'dorsey', `${D.q} ${D.options[D.auto]}`, 'warn', 6);
+    return answer(c, D.auto, speak);
+  }
+  speak(c, c.kind === 'flight' && g.record.seat !== 'flight' ? 'dorsey' : 'kessler', g.record.seat === 'flight' ? `Flight: ${D.q}` : `${D.q} Your call.`, 'warn', 6);
+  roomChanged();
+}
+
+// The answer to the open question: yours from the console, or the other flight director's.
+export function answer(c, choice, speak) {
+  const f = c.flight, d = f.decision;
+  if (!d || !d.options[choice]) return;
+  f.decision = null;
+  const r = resolve(c.round, d.id, choice, f.state);
+  if (d.mine) speak(c, 'you', d.options[choice], '', 5);
+  for (const [who, text, tone] of r.lines) speak(c, who, text, tone || '', 6);
+  Object.assign(f.state, r.set);
+  if (r.hurt) f.state.hurt = Math.max(f.state.hurt || 0, r.hurt);
+  if (r.endAt != null) f.endAt = Math.min(f.endAt ?? Infinity, r.endAt);
+  if (r.capability) f.capabilities.push(r.capability);
+  if (r.set.computer) f.status.COMPUTER = [r.set.computer, r.set.computer === 'down'];
+  f.decisions.push({ id: d.id, choice, mine: d.mine, verdict: r.verdict, judge: r.judge, rule: d.rule, against: d.rule ? againstRule(d.id, choice) : false });
+  if (c.kind === 'flight') {
+    note(`${d.mine ? 'You' : 'Dorsey'} decided: ${d.options[choice]}${r.note ? ` ${r.note}` : ''}`);
+    if (r.endAt != null) note(`${c.flight.craft} comes home early, at about ${Math.round(f.endAt)} hours.`);
+  }
+  roomChanged();
+}
+// Whether an answer went against the flight's own mission rule. The review asks why.
+const AGAINST = { fuelcell1: 'drift' };
+const againstRule = (id, choice) => AGAINST[id] === choice;
+
+// Retrofire, or entry interface coming home from the Moon. Sets the round's end; the console carries on through the
+// blackout and the recovery as for Mercury.
+function retrofire(c, speak) {
+  const f = c.flight, plan = FLIGHTS[f.id];
+  if (!f.state.short && plan.completes) f.capabilities.push(plan.completes);
+  if (c.kind !== 'flight') return roomChanged();
+  const e = plan.entry === 'lunar' ? lunarEntry(c.round, f.state) : geminiEntry(c.round, f.state);
+  speak(c, 'tate', plan.entry === 'lunar' ? 'Flight, Retro: entry interface. She is in the corridor we gave her.' : `Retrofire on time${e.secondary ? ', into the secondary area' : ''}${e.ballistic ? ', rolling entry' : ''}. Four, three, two, one, fire.`, 'go', 6);
+  speak(c, 'morgan', 'Blackout. We have lost her signal.', 'warn');
+  note(`${plan.entry === 'lunar' ? 'Entry interface' : 'Retrofire'} at ${Math.round(f.at)} hours${e.secondary ? ', one orbit late into the secondary area' : ''}${e.ballistic ? ', on a rolling entry with no computer' : ''}.`);
+  c.phase = 'entry'; c.coastLeft = 3;
+  roomChanged();
+}
+
+// After the flight: what it showed, on your record as scoped evidence, and the calls as the review will judge them.
+export function recordCapabilities(c) {
+  const f = c.flight;
+  if (!f || c.kind !== 'flight') return [];
+  const list = (g.record.capabilities = g.record.capabilities || []);
+  for (const id of f.capabilities) if (!list.some(x => x.id === id)) list.push({ id, text: CAPABILITIES[id], flight: f.craft, day: g.day });
+  return f.capabilities.map(id => CAPABILITIES[id]);
+}
+// Hollis on the calls that were yours. Another flight director's calls are his, not yours.
+export function flightJudgement(decisions) {
+  const out = [];
+  for (const d of decisions || []) {
+    if (!d.mine || !d.judge) continue;
+    if (d.verdict === 'good') shiftTrust(g.record, 1);
+    if (d.verdict === 'bad') shiftTrust(g.record, -1);
+    out.push(`Hollis on ${DECISION_NAMES[d.id] || d.id}: "${d.judge}"${d.against ? ' He adds: "And you went against the mission rule. Write down why."' : ''}`);
+  }
+  return out;
+}
+export const DECISION_NAMES = { eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers' };
+// What the flight's own troubles were, in flight-plan order, for the review: the first one that showed.
+export function flightCause(round) {
+  const t = round.flightTruth;
+  if (!t) return null;
+  const plan = FLIGHTS[t.id], shown = new Set(plan.steps.filter(s => s.if).map(s => s.if));
+  for (const k of plan.steps.filter(s => s.if).map(s => s.if)) if (shown.has(k) && t.flags[k]) return k;
+  if (t.flags.navdata && round.end && round.end.nav) return 'navdata';
+  return null;
+}

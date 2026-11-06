@@ -1,0 +1,158 @@
+// Houston: the flight director's offer at the end of Mercury, Gemini 4 and 5 worked in shifts, the mission rules, and
+// the entry physics coming home short (Gemini 5) and from the Moon.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { g, newGame, checkpoint, checkCheckpoint } from '../js/game.js';
+import { SEASON } from '../js/data/campaign.js';
+import { FLIGHTS, DECISIONS } from '../js/data/flights.js';
+import { newRound } from '../js/truth/round.js';
+import { initProgramme } from '../js/world/programme.js';
+import { flightTruth, resolve, geminiEntry, NAV_ERROR_KM } from '../js/truth/flights.js';
+import { flyLunarEntry, LUNAR_ENTRY, KM_PER_MILE } from '../js/truth/entry.js';
+import { owns } from '../js/houston.js';
+import { toRoundId, playMission, advance } from './play.js';
+import { routeArgue, routeDone } from '../js/mercury.js';
+import { pendingOffer } from '../js/career/record.js';
+
+// Play to Gemini 4: the Mercury flights from the Retrofire console, then the flight director's offer (take: whether to take it).
+export function toGemini(seed, take = true, opts = {}) {
+  newGame(seed);
+  toRoundId('mr-1');
+  playMission(); advance(true); g.room = null; // MR-1
+  playMission();
+  if (opts.engineer) { const e = g.record.offers.at(-1); if (!e.made) { e.made = true; e.answer = null; } }
+  advance(!!opts.engineer); g.room = null; // MR-3: stay on the console, or go to the project office
+  playMission(); advance(false); g.room = null; // MA-6
+  playMission(); routeArgue('lor'); routeDone(); // MA-7 and the route meeting
+  const o = g.record.offers.at(-1);
+  if (o.seat === 'flight' && !o.made) { o.made = true; o.answer = null; }
+  assert.ok(pendingOffer(g.record));
+  advance(take); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'gem-4');
+  return g;
+}
+
+const titan = (s, p = initProgramme()) => newRound(s, p, 'titan');
+
+test('the end of Mercury brings the flight director\'s offer, and Gemini 4 is flown from Houston', () => {
+  toGemini(8);
+  assert.equal(g.record.seat, 'flight');
+  assert.equal(g.program, 'gemini');
+  assert.equal(g.people.kessler.hidden, false);
+  assert.match(g.people.pilot.name, /Boateng/);
+  assert.doesNotThrow(() => checkCheckpoint(checkpoint()));
+});
+
+test('Gemini 4 and 5 play from the count through the shifts, retrofire and recovery to the review, with every call yours', () => {
+  toGemini(8);
+  const asked = [];
+  playMission({ sims: 1, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  let e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'gem-4');
+  assert.match(e.flight, /Gemini 4|Lost/);
+  if (!/^Lost/.test(e.flight)) assert.ok(asked.includes('eva') && asked.includes('navcheck'), asked.join());
+  advance(true); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'gem-5');
+  assert.doesNotThrow(() => checkCheckpoint(checkpoint()));
+  playMission({ sims: 0 });
+  e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'gem-5');
+  assert.equal(typeof e.flight, 'string');
+});
+
+test('a long flight jumps the calendar over the days, with handover notes for the other shifts', () => {
+  toGemini(8);
+  const day0 = g.day;
+  playMission({ sims: 0 });
+  if (/^Lost/.test(g.record.rounds.at(-1).flight)) return;
+  assert.ok(g.day >= day0 + 4, `four days up: ${g.day - day0}`);
+  assert.ok(g.notes.some(n => /^Handover/.test(n.text)));
+});
+
+test('turn the offer down and you keep the Retrofire console: Dorsey makes the flight director\'s calls, and the retrofire numbers are yours', () => {
+  toGemini(8, false);
+  assert.equal(g.record.seat, 'retro');
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return 'send'; } });
+  const e = g.record.rounds.at(-1);
+  if (!/^Lost/.test(e.flight)) assert.deepEqual(asked, ['navcheck']);
+  assert.ok(owns('flight', 'eva') && owns('retro', 'navcheck') && !owns('retro', 'eva') && owns('engineer', 'computer'));
+});
+
+test('every flight plan step asks only questions that exist, and each flight ends on retrofire', () => {
+  for (const [id, f] of Object.entries(FLIGHTS)) {
+    for (const s of f.steps) if (s.decide) assert.ok(DECISIONS[s.decide], `${id}: ${s.decide}`);
+    assert.ok(f.steps.at(-1).retro, id);
+    for (const s of f.steps) if (s.decide && DECISIONS[s.decide].rule != null) assert.ok(f.rules[DECISIONS[s.decide].rule], `${id}: rule for ${s.decide}`);
+  }
+});
+
+test('Gemini 5\'s wrong number from the ground brings her down about 80 miles short; a back-room check catches it', () => {
+  const r = titan(3);
+  r.navdata = true;
+  flightTruth(r, 'gem-5');
+  const sent = geminiEntry(r, {});
+  assert.ok(Math.abs(sent.miss / KM_PER_MILE + 80) < 12, `${(sent.miss / KM_PER_MILE).toFixed(0)} miles`);
+  assert.equal(NAV_ERROR_KM, -129);
+  const state = {};
+  Object.assign(state, resolve(r, 'navcheck', 'check', state).set);
+  const checked = geminiEntry(r, state);
+  assert.ok(Math.abs(checked.miss) < 30, `${checked.miss.toFixed(0)} km`);
+  assert.ok(checked.secondary);
+});
+
+test('falling fuel-cell pressure: come home on the rule, or drift and see. The truth decides which was right', () => {
+  let recovered = 0, died = 0;
+  for (let s = 1; s <= 40; s++) {
+    const r = titan(s);
+    r.faults = { 'fuel-cells': 'fuelcell' };
+    const t = flightTruth(r, 'gem-5');
+    const drift = resolve(r, 'fuelcell1', 'drift', {});
+    if (t.fuelcellRecovers) { recovered++; assert.equal(drift.endAt, undefined); assert.notEqual(drift.verdict, 'bad'); }
+    else { died++; assert.equal(drift.verdict, 'bad'); assert.ok(drift.endAt < 30); }
+    const home = resolve(r, 'fuelcell1', 'home', {});
+    assert.equal(home.endAt, 7);
+  }
+  assert.ok(recovered > died && died > 0, `${recovered} settled, ${died} failed`);
+});
+
+test('a spacewalk on a bad hatch can go wrong; held for an orbit it mostly comes good', () => {
+  let jammedGo = 0, jammedDelay = 0;
+  for (let s = 1; s <= 60; s++) {
+    const r = titan(s);
+    r.faults = { hatch: 'hatch' };
+    flightTruth(r, 'gem-4');
+    if (resolve(r, 'eva', 'go', {}).verdict === 'bad') jammedGo++;
+    if (resolve(r, 'eva', 'delay', {}).verdict === 'bad') jammedDelay++;
+    assert.equal(resolve(r, 'eva', 'cancel', {}).capability, undefined);
+  }
+  assert.ok(jammedGo > jammedDelay, `${jammedGo} against ${jammedDelay}`);
+});
+
+test('coming home from the Moon: the entry corridor. Too shallow skips out, too steep crushes, the middle lands on the point', () => {
+  const mid = flyLunarEntry(LUNAR_ENTRY, 0, 0);
+  assert.ok(mid.peakG > 5 && mid.peakG < 9, `${mid.peakG.toFixed(1)} g`);
+  assert.ok(Math.abs(mid.miss) < 5000);
+  assert.ok(flyLunarEntry(LUNAR_ENTRY, 0.8, 0).skip);
+  assert.ok(flyLunarEntry(LUNAR_ENTRY, -1.4, 0).peakG > 12);
+});
+
+test('the Gemini launch can still go wrong on the Titan: a hidden fault in the autopilot or second stage', () => {
+  const p = { ...initProgramme(), titanctlRisk: 1, stage2Risk: 1 };
+  const r = newRound(5, p, 'titan');
+  const kinds = Object.values(r.faults);
+  assert.ok(kinds.includes('titanctl') && kinds.includes('stage2'));
+});
+
+test('a project engineer who stays in the back room answers for the spacecraft\'s hardware on Gemini, and checks it out first', async () => {
+  const { lookSpot, runQual, capsuleSpots } = await import('../js/mercury.js');
+  toGemini(8, false, { engineer: true });
+  assert.equal(g.record.seat, 'engineer');
+  assert.deepEqual(capsuleSpots(), ['fuel-cells', 'hatch', 'computer']);
+  lookSpot('hatch'); runQual('computer');
+  assert.ok(g.mission.checkout.hatch && g.mission.quals.computer);
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  assert.ok(asked.every(id => ['computer', 'fuelcell1'].includes(id)), asked.join());
+  assert.equal(g.record.rounds.at(-1).id, 'gem-4');
+});
