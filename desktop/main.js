@@ -1,14 +1,13 @@
 // THE DESKTOP SHELL: opens the game in its own Electron window instead of a browser tab.
-// The games themselves are unchanged. This file only makes the window and serves the game's files to it.
+// The game itself is unchanged. This file only makes the window and serves the game's files to it.
 // Files are served under app://game/ rather than file:// so ES modules load and the saves (localStorage) have a fixed home.
-// V1 and V2 share that one origin on purpose: V2 offers to continue from the V1 save stored beside it.
 import { app, BrowserWindow, Menu, protocol, net, session } from 'electron';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const GAME_FOLDER = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORIGIN = 'app://game';
-const LAUNCHER = `${ORIGIN}/desktop/launcher.html`;
+const START = `${ORIGIN}/index.html`;
 
 // Only the game's own files may load. Inline style attributes are allowed (the progress bars use them); no inline script runs.
 const CSP = [
@@ -20,7 +19,7 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
-// app://game/v1/index.html -> <game folder>/v1/index.html. Anything outside the folder (including look-alike sibling folders) is refused.
+// app://game/js/game.js -> <game folder>/js/game.js. Anything outside the folder (including look-alike sibling folders) is refused.
 function resolveGameFile(url) {
   const { host, pathname } = new URL(url);
   if (host !== 'game') return null;
@@ -47,12 +46,11 @@ function openWindow() {
   });
   // Keep the version in the title bar (the page's own <title> would replace it), so testers can say which build they played.
   window.on('page-title-updated', (event) => event.preventDefault());
-  window.loadURL(LAUNCHER);
+  window.loadURL(START);
 }
 
 const menu = Menu.buildFromTemplate([
   { label: 'Game', submenu: [
-    { label: 'Back to the launcher', accelerator: 'CmdOrCtrl+L', click: (_, window) => window?.loadURL(LAUNCHER) },
     { role: 'reload' }, { type: 'separator' }, { role: 'quit' },
   ] },
   { label: 'View', submenu: [{ role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }, { role: 'toggleDevTools' }] },
