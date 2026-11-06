@@ -1,33 +1,75 @@
 // THE DESKTOP SHELL: opens the game in its own Electron window instead of a browser tab.
-// The game itself is unchanged. This file only makes the window and serves the game's files to it.
-// Files are served under app://game/ rather than file:// so ES modules load and the save (localStorage) has a fixed home.
-import { app, BrowserWindow, protocol, net } from 'electron';
+// The games themselves are unchanged. This file only makes the window and serves the game's files to it.
+// Files are served under app://game/ rather than file:// so ES modules load and the saves (localStorage) have a fixed home.
+// V1 and V2 share that one origin on purpose: V2 offers to continue from the V1 save stored beside it.
+import { app, BrowserWindow, Menu, protocol, net, session } from 'electron';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const GAME_FOLDER = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ORIGIN = 'app://game';
+const LAUNCHER = `${ORIGIN}/desktop/launcher.html`;
+
+// Only the game's own files may load. Inline style attributes are allowed (the progress bars use them); no inline script runs.
+const CSP = [
+  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
+  "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
+].join('; ');
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
+// app://game/v1/index.html -> <game folder>/v1/index.html. Anything outside the folder (including look-alike sibling folders) is refused.
+function resolveGameFile(url) {
+  const { host, pathname } = new URL(url);
+  if (host !== 'game') return null;
+  const filePath = path.join(GAME_FOLDER, decodeURIComponent(pathname));
+  const relative = path.relative(GAME_FOLDER, filePath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  return filePath;
+}
+
+async function serve(request) {
+  const filePath = resolveGameFile(request.url);
+  if (!filePath) return new Response('Not found', { status: 404 });
+  const response = await net.fetch(pathToFileURL(filePath).toString());
+  const headers = new Headers(response.headers);
+  headers.set('Content-Security-Policy', CSP);
+  return new Response(response.body, { status: response.status, headers });
+}
+
 function openWindow() {
   const window = new BrowserWindow({
     width: 1600, height: 900, minWidth: 1280, minHeight: 720,
-    backgroundColor: '#000000', title: `Project Vanguard v${app.getVersion()}`, autoHideMenuBar: true,
+    backgroundColor: '#000000', title: `Per Aspera v${app.getVersion()}`, autoHideMenuBar: true,
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
   // Keep the version in the title bar (the page's own <title> would replace it), so testers can say which build they played.
   window.on('page-title-updated', (event) => event.preventDefault());
-  window.loadURL('app://game/index.html');
+  window.loadURL(LAUNCHER);
 }
 
+const menu = Menu.buildFromTemplate([
+  { label: 'Game', submenu: [
+    { label: 'Back to the launcher', accelerator: 'CmdOrCtrl+L', click: (_, window) => window?.loadURL(LAUNCHER) },
+    { role: 'reload' }, { type: 'separator' }, { role: 'quit' },
+  ] },
+  { label: 'View', submenu: [{ role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }, { role: 'toggleDevTools' }] },
+]);
+
+// No page may leave the game, open new windows, or ask for device permissions.
+app.on('web-contents-created', (_, contents) => {
+  contents.on('will-navigate', (event, url) => { if (!url.startsWith(`${ORIGIN}/`)) event.preventDefault(); });
+  contents.on('will-redirect', (event, url) => { if (!url.startsWith(`${ORIGIN}/`)) event.preventDefault(); });
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  contents.on('will-attach-webview', (event) => event.preventDefault());
+});
+
 app.whenReady().then(() => {
-  // app://game/js/main.js -> <game folder>/js/main.js. Anything that tries to step outside the folder is refused.
-  protocol.handle('app', (request) => {
-    const filePath = path.join(GAME_FOLDER, decodeURIComponent(new URL(request.url).pathname));
-    if (!filePath.startsWith(GAME_FOLDER)) return new Response('Not found', { status: 404 });
-    return net.fetch(pathToFileURL(filePath).toString());
-  });
+  session.defaultSession.setPermissionRequestHandler((_, __, allow) => allow(false));
+  protocol.handle('app', serve);
+  Menu.setApplicationMenu(menu);
   openWindow();
 });
 
