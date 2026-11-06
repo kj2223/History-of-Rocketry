@@ -1,12 +1,14 @@
-// THE GAME STATE: a season of WAC Corporal rounds, each from the hangar to the review. No DOM, no drawing.
+// THE GAME STATE: the player's years on the range, round after round (WAC Corporal, V-2, Bumper), each from the hangar to
+// the review, and the turning point where the first promotion offer comes. No DOM, no drawing.
 // The player is one junior engineer on the site. Everyone else gets on with their own work, and the player can watch them.
 // The story runs in beats; each beat says what the player is asked to do and where the others go.
 import { PLACES, WORLD_W } from './data/white-sands.js';
 import { dayOf, dateLabel, weekday } from './core/calendar.js';
-import { newRound, SPOTS, flagSpots, staticFire, reworkIgniter, leakCheck, tankGauge, fly, wreckage, EXPLANATIONS, hasLeak, hasWeldFault, hasIgniterFault, ellisReading } from './truth/round.js';
-import { SEASON, BETWEEN } from './data/wac-season.js';
-import { initProgramme, adopt, recordFlight, estimate } from './world/programme.js';
-import { initRecord, addRound, shiftTrust, TRUST } from './career/record.js';
+import { newRound, flagSpots, staticFire, standRework, leakCheck, tankGauge, fly, wreckage, hasIgniterFault, hasPumpFault, causesPresent, ellisReading } from './truth/round.js';
+import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
+import { SEASON, BETWEEN, FIRST_OFFER } from './data/campaign.js';
+import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
+import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer } from './career/record.js';
 
 // g.day is the campaign day (0 is 1 January 1945). Each round starts on its SEASON date and plans to fly two days later.
 export const START_MINUTE = 7 * 60 + 30, PLANNED_LAUNCH_DAY = 2;
@@ -20,14 +22,19 @@ const PEOPLE = {
   morgan: { name: 'Samuel Morgan', role: 'Range and tracking', color: '#3f6b5a', x: 1630 },
   kowalski: { name: 'Sgt. Kowalski', role: 'Ordnance crew', color: '#5d6a43', hat: '#3e4a2c', x: 650 },
   delgado: { name: 'Pvt. Delgado', role: 'Ordnance crew', color: '#5d6a43', hat: '#3e4a2c', x: 780 },
+  // On the V-2 and Bumper rounds only.
+  hoyt: { name: 'Walt Hoyt', role: 'V-2 crew chief, General Electric', color: '#6b4f6f', hat: '#2f3540', x: 840 },
 };
+
+// What the player can see and say about the current kind of round (data/kits.js).
+export const kit = () => KITS[g.vehicle];
 
 export let g;
 
 // A new season, or the morning a checkpoint was saved at (see checkpoint()).
 export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
   g = {
-    seed, roundIndex: 0, roundStart: SEASON[0].start, programme: initProgramme(), record: initRecord(),
+    seed, roundIndex: 0, vehicle: SEASON[0].vehicle, roundStart: SEASON[0].start, programme: initProgramme(), record: initRecord(),
     round: null, day: SEASON[0].start, clock: 0, time: 0, speed: 1, paused: false,
     cam: { x: 0, freeUntil: 0 }, people: {}, jobs: [], pending: null, marker: null, hover: null,
     beat: '', objective: '', dayDone: false, notes: [], loop: [], standFlame: 0, fade: 0, fading: null,
@@ -39,6 +46,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
   Object.assign(g, structuredClone({ seed: from.seed, roundIndex: from.roundIndex, roundStart: SEASON[from.roundIndex].start, programme: from.programme, record: from.record,
     round: from.round, day: from.day, clock: from.clock, notes: from.notes, slipDays: from.slipDays, offDays: from.offDays,
     looked: from.looked, flagged: from.flagged, decided: from.decided, away: from.away, review: from.review, launchDay: from.launchDay ?? null }));
+  setVehicle();
   if (g.away) g.room = 'away';
   morning(from.beat);
   return g;
@@ -55,15 +63,22 @@ function resetRound() {
   for (const [id, p] of Object.entries(PEOPLE)) Object.assign(g.people[id], { x: p.x, target: p.x, bubble: null, working: false, hidden: false });
 }
 
-// Round i of the season: a fresh WAC round built the way the team now builds them.
+// The kind of round the current one is, and who is on site for it.
+function setVehicle() {
+  g.vehicle = SEASON[g.roundIndex].vehicle;
+  g.people.hoyt.hidden = g.vehicle === 'wac';
+}
+
+// Round i: a fresh round built the way the team now builds them.
 function startRound(i) {
   resetRound();
   g.roundIndex = i;
+  setVehicle();
   g.roundStart = g.day = SEASON[i].start;
   g.clock = g.day * 1440 + START_MINUTE;
-  const round = newRound(g.seed + i * 7919, g.programme);
-  round.initial = { faults: { ...round.faults }, igniter: hasIgniterFault(round) };
-  round.estimate = estimate(g.programme, 1);
+  const round = newRound(g.seed + i * 7919, g.programme, g.vehicle);
+  round.initial = { faults: { ...round.faults }, igniter: hasIgniterFault(round), pump: hasPumpFault(round) };
+  round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
   morning('brief');
 }
@@ -135,16 +150,17 @@ function setBeat(name, objective) {
 
 const BEATS = {
   brief() {
-    g.objective = 'Go to the assembly hangar and look the WAC upper stage over before tomorrow\'s static fire.';
+    g.objective = kit().inspect.objective;
     const line = briefLine();
     say('ellis', line, '', 8);
     note(`${SEASON[g.roundIndex].name[0].toUpperCase()}${SEASON[g.roundIndex].name.slice(1)}. Ellis: ${line}`);
     g.people.kowalski.working = g.people.delgado.working = true;
+    if (!g.people.hoyt.hidden) { g.people.hoyt.working = true; say('hoyt', 'She\'s all yours. Mind the vanes, they crack if you look at them wrong.', '', 6); }
   },
   board() { g.objective = 'Set the propellant load at the drawing board in the technical office.'; walk('ellis', 240); },
   evening1() { g.objective = 'Your work for today is done. Watch the crew, or end the day.'; g.dayDone = true; },
   staticPrep() {
-    g.objective = 'The crew is moving the upper stage to the test stand. Go to the dugout for the static fire.';
+    g.objective = `The crew is moving the ${kit().stand.thing} to the test stand. Go to the dugout for the static fire.`;
     place('you', PLACES.office.door); place('ellis', 230);
     g.rocket.where = 'carried';
     g.people.kowalski.working = g.people.delgado.working = false;
@@ -167,7 +183,7 @@ const BEATS = {
     place('you', PLACES.office.door); place('ellis', 250);
     g.rocket.where = 'hangar';
     place('kowalski', 650); place('delgado', 780);
-    addJob({ label: 'Mating the booster', at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: 60, then: () => {
+    addJob({ label: { wac: 'Mating the booster', v2: 'Readying the V-2', bumper: 'Mating the WAC to the V-2' }[g.vehicle], at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: 60, then: () => {
       g.rocket.mated = true;
       g.truck.target = PLACES.hangar.x + 130;
       g.truck.then = () => {
@@ -177,7 +193,7 @@ const BEATS = {
         walk('kowalski', PLACES.tower.x - 40); walk('delgado', PLACES.tower.x - 70);
         g.truck.then = () => {
           g.truck.dust = false;
-          addJob({ label: 'Raising into the tower', at: PLACES.tower.x + 25, who: ['kowalski', 'delgado', 'vega'], minutes: 45, then: () => {
+          addJob({ label: 'Raising into the tower', at: PLACES.tower.x + 25, who: ['kowalski', 'delgado', 'vega', ...(g.people.hoyt.hidden ? [] : ['hoyt'])], minutes: 45, then: () => {
             g.rocket.where = 'tower';
             g.truck.target = PLACES.truck.x;
             say('vega', 'Round is in the tower. Blockhouse, she\'s yours when you\'re ready.', 'go');
@@ -201,7 +217,7 @@ const BEATS = {
     place('you', PLACES.truck.door);
   },
   roundEnd() { g.objective = 'The round is written up. Carry on to the next round from the office when you are ready.'; if (!g.away) g.room = 'roundEnd'; },
-  seasonEnd() { g.objective = 'The WAC season is over. Your record is in the office.'; if (!g.away) g.room = 'seasonEnd'; },
+  seasonEnd() { g.objective = 'Your years on the range are written up. Your record, and what comes next, are in the office.'; if (!g.away) g.room = 'seasonEnd'; },
 };
 
 // ---- Rooms: what each building offers right now ----
@@ -219,7 +235,8 @@ export function lookAt(id) {
   if (g.looked[id] != null) return;
   g.looked[id] = g.round.cues[id];
   g.clock += 15;
-  note(`${SPOTS[id].name}: ${g.round.cues[id] ? SPOTS[id].cue : SPOTS[id].sound}`);
+  const spot = kit().spots[id];
+  note(`${spot.name}: ${g.round.cues[id] ? spot.cue : spot.sound}`);
   roomChanged();
 }
 export function finishInspection(flags) {
@@ -227,7 +244,7 @@ export function finishInspection(flags) {
   g.flagged = { ...flags };
   const hours = flagSpots(g.round, ids);
   if (ids.length) {
-    note(`You flagged: ${ids.map(id => SPOTS[id].name.toLowerCase()).join(', ')}.`);
+    note(`You flagged: ${ids.map(id => kit().spots[id].name.toLowerCase()).join(', ')}.`);
     addJob({ label: 'Working your flags', at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: hours * 60, then: () => {
       g.people.kowalski.working = g.people.delgado.working = false;
       say('kowalski', reportOnFlags(ids), '', 6);
@@ -245,7 +262,7 @@ function reportOnFlags(ids) {
 // ---- The drawing board ----
 export function setLoad(load) {
   g.round.propellantLoad = load;
-  g.round.estimate = estimate(g.programme, load);
+  g.round.estimate = estimate(g.programme, g.vehicle, load);
 }
 export function finishBoard() {
   note(`Propellant load set to ${Math.round(g.round.propellantLoad * 100)}%. Drawing office estimate: ${g.round.estimate.low}–${g.round.estimate.high} km.`);
@@ -277,7 +294,8 @@ export function standDecide(choices) {
   const s = g.stand;
   g.decided = { ...choices };
   let hours = 0;
-  if (choices.rework) { reworkIgniter(g.round); hours += 8; note('You asked for the igniter to be reworked.'); }
+  const st = kit().stand;
+  if (choices.rework) { standRework(g.round); hours += 8; note(`You asked for this: ${st.rework.toLowerCase()}.`); }
   if (choices.leak) { const r = leakCheck(g.round); hours += r.hours; note(r.found ? `Leak check after the firing: leak at the ${r.found.toLowerCase()}, fixed.` : 'Leak check after the firing: nothing found.'); }
   if (!choices.rework && !choices.leak) note('You cleared the stage for flight.');
   s.phase = 'decided';
@@ -285,12 +303,12 @@ export function standDecide(choices) {
   addJob({ label: 'Back to the hangar', at: PLACES.hangar.x + 160, who: ['kowalski', 'delgado'], then: () => {
     g.rocket.where = 'hangar';
     // A rework fills the next day, which is told as a day away; a leak check alone is done overnight.
-    if (hours) addJob({ label: choices.rework ? 'Reworking the igniter' : 'Leak check', at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: hours * 60, quiet: hours >= 8, then: () => {} });
+    if (hours) addJob({ label: choices.rework ? st.reworkJob : 'Leak check', at: PLACES.hangar.x + 190, who: ['kowalski', 'delgado'], minutes: hours * 60, quiet: hours >= 8, then: () => {} });
   } });
   if (hours >= 8) {
     g.slipDays += 1;
-    g.offDays[g.day + 1] = 'The crew spent the day reworking the igniter in the hangar.';
-    say('ellis', 'An igniter rework. That puts the launch back a day.', 'warn', 6);
+    g.offDays[g.day + 1] = st.reworkDay;
+    say('ellis', st.reworkSay, 'warn', 6);
   }
   else say('ellis', 'Good. Let\'s get her ready for the tower.');
   setBeat('afterStatic');
@@ -381,16 +399,18 @@ function launch() {
 }
 
 function flightCalls(r) {
-  const peakAt = r.path.reduce((best, p) => (p.h > best.h ? p : best), r.path[0]).t, end = r.path[r.path.length - 1].t, calls = [];
-  calls.push({ t: 0, who: 'vega', text: 'Liftoff! She\'s off the tower.', tone: 'go' });
-  if (r.failure === 'ignition') calls.push({ t: 2, who: 'morgan', text: 'No sustainer light! She\'s going over!', tone: 'bad' });
-  else {
-    calls.push({ t: 1, who: 'morgan', text: 'Booster burnout. Sustainer lit.', tone: 'go' });
-    if (r.failure === 'weld') calls.push({ t: 14, who: 'morgan', text: 'A flash! Pieces coming off her!', tone: 'bad' });
-    else if (r.failure === 'leak') { calls.push({ t: 10, who: 'morgan', text: 'Sustainer burning. Track is good.' }); calls.push({ t: 24, who: 'morgan', text: 'Flame\'s out early! Burnout at 24 seconds.', tone: 'bad' }); }
-    else { calls.push({ t: 10, who: 'morgan', text: 'Sustainer burning steady. Track is good.' }); calls.push({ t: r.burn, who: 'morgan', text: `Burnout at ${r.burn} seconds. Coasting.`, tone: 'go' }); }
+  const k = kit().calls, peakAt = r.path.reduce((best, p) => (p.h > best.h ? p : best), r.path[0]).t, end = r.path[r.path.length - 1].t, calls = [];
+  calls.push({ t: 0, who: 'vega', text: k.lift, tone: 'go' });
+  if (r.failure) {
+    const lines = k.fail[r.failure];
+    lines.forEach((c, i) => calls.push({ t: c.t, who: 'morgan', text: c.text, tone: i === lines.length - 1 ? 'bad' : c.tone || '' }));
+  } else {
+    for (const c of k.steady) calls.push({ t: c.t, who: 'morgan', text: c.text, tone: c.tone || '' });
+    calls.push({ t: r.burn, who: 'morgan', text: k.burnout(r.burn), tone: 'go' });
   }
-  calls.push({ t: peakAt, who: 'morgan', text: `Radar has the peak at about ${r.radar.toFixed(0)} kilometres${r.radar > 60 ? '. Higher than anything we\'ve flown!' : '.'}`, tone: r.radar > 60 ? 'go' : '' });
+  // Higher than the range has ever tracked: the radar's peak against every good flight before it.
+  const best = Math.max(60, rangeRecord(g.programme)), high = r.radar > best;
+  calls.push({ t: peakAt, who: 'morgan', text: `Radar has the peak at about ${r.radar.toFixed(0)} kilometres${high ? '. Higher than anything we\'ve flown!' : '.'}`, tone: high ? 'go' : '' });
   calls.push({ t: end, who: 'morgan', text: `Impact about ${r.range.toFixed(0)} kilometres downrange.` });
   return calls.sort((a, b) => a.t - b.t);
 }
@@ -437,7 +457,7 @@ export function returnFromRecovery() {
 // ---- The review ----
 // Ellis judges by her own reading of the wreck and the traces, not by the truth, and she can be wrong. If you differ, she
 // goes with her reading unless your record has earned her trust. Whatever she concludes becomes the fix, right or wrong.
-const short = { nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a tank weld letting go', leak: 'a leak starving the motor' };
+const short = SHORT;
 export function present(key) {
   const view = ellisReading(g.round);
   let decision, reply, tone, agree;
@@ -456,29 +476,37 @@ export function present(key) {
   }
   const fix = decision ? adopt(g.programme, decision) : null;
   const f = g.round.flight, seen = f.failure ? null : f.radar;
-  recordFlight(g.programme, { load: g.round.propellantLoad, apogee: seen, failure: f.failure });
+  recordFlight(g.programme, { vehicle: g.vehicle, load: g.round.propellantLoad, apogee: seen, failure: f.failure });
   g.review = { key, view, agree, decision, fix };
-  addRound(g.record, { id: SEASON[g.roundIndex].id, name: SEASON[g.roundIndex].name, day: g.launchDay ?? g.day,
+  addRound(g.record, { id: SEASON[g.roundIndex].id, vehicle: g.vehicle, name: SEASON[g.roundIndex].name, day: g.launchDay ?? g.day,
     flight: f.failure ? `Lost at ${f.failAt} seconds.` : `Radar peak about ${seen.toFixed(0)} km.`, load: g.round.propellantLoad,
-    yourCall: key, ellis: decision ?? view, agreed: agree, wentWithYou: !agree && decision === key, fix });
+    yourCall: key, ellis: decision ?? view, ellisView: view, agreed: agree, wentWithYou: !agree && decision === key, fix });
   say('ellis', reply, tone, 8);
-  note(`Review: you said "${EXPLANATIONS[key]}" Ellis: ${reply}${fix ? ` ${fix}` : ''}`);
+  note(`Review: you said "${kit().explanations[key]}" Ellis: ${reply}${fix ? ` ${fix}` : ''}`);
   g.room = null;
-  morning(g.roundIndex + 1 < SEASON.length ? 'roundEnd' : 'seasonEnd');
+  const last = g.roundIndex + 1 >= SEASON.length;
+  if (last) {
+    const o = turningPoint(g.record, FIRST_OFFER, g.day);
+    note(o.made ? `Ellis put your name forward: ${FIRST_OFFER.title.toLowerCase()}.` : 'Aerojet wanted a test conductor for the Aerobee firings. Ellis did not put your name forward.');
+  }
+  morning(last ? 'seasonEnd' : 'roundEnd');
 }
 
 // Ellis's opening line for a round: what the team changed since the last one, then the job.
 function briefLine() {
   const last = g.record.rounds[g.record.rounds.length - 1];
   const lead = !last ? '' : last.fix ? `${last.fix} ` : last.ellis === 'nominal' ? 'Last round flew well. ' : 'We never pinned down what went wrong last time, so keep your eyes open. ';
-  return `${lead}Static fire tomorrow. Check the tank welds first, would you?`;
+  return `${lead}${kit().brief}`;
 }
 
 // Carry on to the next round of the season: the calendar jumps to its first day and tells you what happened meanwhile.
 export function nextRound() {
   if (g.beat !== 'roundEnd' || g.roundIndex + 1 >= SEASON.length) return;
   const from = g.day, next = SEASON[g.roundIndex + 1];
-  const lines = [...(BETWEEN[next.id] || []), `The crew built ${next.name} in the hangar.`];
+  const lines = [...(BETWEEN[next.id] || [])];
+  // The first Bumper's WAC is built to the standard the WAC rounds left behind, and the V-2s to what the V-2 round taught.
+  if (next.vehicle !== SEASON[g.roundIndex].vehicle && g.programme.adopted.length) lines.push(`Everything the reviews decided so far goes into the build: ${fixesInForce(g.programme).join(' ')}`);
+  lines.push(`The crew built ${next.name} in the hangar.`);
   g.away = { from: dateText(from), to: dateText(next.start), lines };
   startRound(g.roundIndex + 1);
   g.room = 'away';
@@ -486,18 +514,29 @@ export function nextRound() {
 
 // The prototype's own debrief: the hidden truth laid open, for testing whether the round felt fair.
 export function debrief() {
-  const r = g.round, f = r.flight, initial = r.initial;
+  const r = g.round, f = r.flight, initial = r.initial, spots = kit().spots;
   const planned = dateText(g.roundStart + PLANNED_LAUNCH_DAY), flown = dateText(g.launchDay);
-  const faults = Object.entries(initial.faults).map(([id, kind]) => `${kind === 'weld' ? 'A bad weld' : 'A leak'} at the ${SPOTS[id].name.toLowerCase()}`);
-  if (initial.igniter) faults.push('An igniter prone to hang-fire (the rough start on the stand)');
+  const faults = Object.entries(initial.faults).map(([id, kind]) => `${FAULT_AT_SPOT[kind]} at the ${spots[id].name.toLowerCase()}`);
+  if (initial.igniter) faults.push('A WAC igniter prone to hang-fire (on a WAC, the rough start on the stand)');
+  if (initial.pump) faults.push('A worn V-2 turbopump and steam generator (the low, rough start on the stand)');
   return {
-    outcome: f.failure ? `Failed: ${{ ignition: 'the sustainer did not light properly', weld: 'a tank weld let go', leak: 'a leak starved the motor' }[f.failure]}.` : `Flew to ${f.apogee.toFixed(0)} km.`,
+    outcome: f.failure ? `Failed: ${FAILED_BECAUSE[f.failure]}.` : `Flew to ${f.apogee.toFixed(0)} km.`,
     dates: flown === planned ? `Flown on ${flown}, on schedule.` : `Flown on ${flown}; the plan was ${planned}.`,
     faults: faults.length ? faults : ['None. This round was sound from the start.'],
     caught: r.events,
-    stillThere: [hasWeldFault(r) && 'a bad weld', hasLeak(r) && 'a leak', hasIgniterFault(r) && 'the igniter fault'].filter(Boolean),
+    stillThere: causesPresent(r).map(c => SHORT[c]),
     review: g.review,
   };
+}
+
+// The first promotion offer: take the seat, or turn it down and keep your own.
+export function answerFirstOffer(take) {
+  const o = answerOffer(g.record, take);
+  if (!o) return;
+  const line = take ? 'Good. They\'ll be glad of you. Come and see me when you need a second opinion.' : 'Your seat here is yours as long as you want it. They may ask again.';
+  say('ellis', line, take ? 'go' : '', 8);
+  note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay a junior engineer.`);
+  morning('seasonEnd');
 }
 
 // ---- Ending the day ----

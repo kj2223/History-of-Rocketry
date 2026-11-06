@@ -2,6 +2,7 @@
 // World units: 1 unit is about a third of a foot (the launch tower is 102 ft, 300 units). The ground is at y = GROUND.
 import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
+import { KITS } from '../data/kits.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -96,7 +97,11 @@ function hangar(ctx, p, g) {
   ctx.fillStyle = '#f3dd8a'; for (let i = 1; i < 4; i++) ctx.fillRect(p.x + (p.w * i) / 4 - 5, GROUND - p.h + 40, 10, 4);
   // Work benches and the booster on its rack.
   ctx.fillStyle = '#6a5a44'; ctx.fillRect(p.x + 30, GROUND - 22, 70, 4); ctx.fillRect(p.x + 34, GROUND - 18, 3, 18); ctx.fillRect(p.x + 94, GROUND - 18, 3, 18);
-  if (!g.rocket.mated && g.rocket.where !== 'gone') boosterShape(ctx, p.x + p.w - 90, GROUND - 14, 0);
+  // What waits on the rack to be mated: the WAC's Tiny Tim booster, or the WAC that rides on a Bumper's nose.
+  if (!g.rocket.mated && g.rocket.where !== 'gone') {
+    if (g.vehicle === 'wac') boosterShape(ctx, p.x + p.w - 90, GROUND - 14, 0);
+    else if (g.vehicle === 'bumper') wacShape(ctx, p.x + p.w - 30, GROUND - 26, -Math.PI / 2, false);
+  }
   ctx.fillStyle = '#d9c39a'; ctx.fillRect(p.x + 12, GROUND - 2, p.w - 24, 2);
 }
 
@@ -152,18 +157,37 @@ function truck(ctx, x, g) {
 
 // The rocket wherever it is on the site: in pieces in the hangar, carried, on the stand, on the truck, in the tower.
 function rocketOnSite(ctx, g) {
-  const r = g.rocket;
-  if (r.where === 'hangar') { wacShape(ctx, PLACES.hangar.x + 160, GROUND - 26, -Math.PI / 2, r.mated); cradle(ctx, PLACES.hangar.x + 160, r.mated); }
-  else if (r.where === 'carried') wacShape(ctx, r.x - 24, GROUND - 22, -Math.PI / 2, false);
-  else if (r.where === 'stand') wacShape(ctx, PLACES.stand.x + 60, GROUND - 40, 0, false);
-  else if (r.where === 'truck') { wacShape(ctx, g.truck.x + 2, GROUND - 10, -Math.PI / 2, true); }
-  else if (r.where === 'tower') wacShape(ctx, PLACES.tower.x + 25, GROUND - 8, 0, true);
+  const r = g.rocket, wac = g.vehicle === 'wac', len = wac ? 24 : 50;
+  // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
+  const shape = (x, y, angle, mated) => (wac ? wacShape(ctx, x, y, angle, mated) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
+  if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
+  else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
+  else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
+  else if (r.where === 'truck') shape(g.truck.x + (wac ? 2 : 90), GROUND - 10, -Math.PI / 2, true);
+  else if (r.where === 'tower') shape(PLACES.tower.x + 25, GROUND - 8, 0, true);
   else if (r.where === 'flying') {
-    wacShape(ctx, PLACES.tower.x + 25, GROUND - 8 - r.rise, 0, r.rise < 40);
-    flame(ctx, PLACES.tower.x + 25, GROUND - 8 - r.rise, 1, Math.PI / 2, g.time, 1.6);
+    shape(PLACES.tower.x + 25, GROUND - 8 - r.rise, 0, wac ? r.rise < 40 : true);
+    flame(ctx, PLACES.tower.x + 25, GROUND - 8 - r.rise, 1, Math.PI / 2, g.time, wac ? 1.6 : 2.4);
     ctx.fillStyle = 'rgba(235,230,220,.6)';
     for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(PLACES.tower.x + 25 + (i - 4) * 12, GROUND - 6 - (i % 3) * 6, 10 + i, 0, 7); ctx.fill(); }
   }
+}
+
+function trailer(ctx, x) {
+  ctx.fillStyle = '#4d5b3a'; ctx.fillRect(x - 10, GROUND - 22, 120, 6);
+  ctx.fillStyle = '#1e1e1e'; for (const wx of [x, x + 96]) { ctx.beginPath(); ctx.arc(wx, GROUND - 6, 6, 0, 7); ctx.fill(); }
+}
+
+// A captured V-2, black-and-white checked as at White Sands, drawn from its tail at (x, y) along angle (0 = straight up),
+// with a WAC Corporal on its nose when it is a Bumper.
+export function v2Shape(ctx, x, y, angle, withWac) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.fillStyle = '#ece8dc'; ctx.fillRect(-7, -84, 14, 84);
+  ctx.fillStyle = '#1d1f24'; ctx.fillRect(0, -84, 7, 21); ctx.fillRect(-7, -63, 7, 21); ctx.fillRect(0, -42, 7, 21); ctx.fillRect(-7, -21, 7, 21);
+  ctx.fillStyle = '#ece8dc'; ctx.beginPath(); ctx.moveTo(-7, -84); ctx.quadraticCurveTo(-6, -98, 0, -104); ctx.quadraticCurveTo(6, -98, 7, -84); ctx.fill();
+  ctx.fillStyle = '#1d1f24'; ctx.beginPath(); ctx.moveTo(-7, -20); ctx.lineTo(-16, 2); ctx.lineTo(-7, 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(7, -20); ctx.lineTo(16, 2); ctx.lineTo(7, 2); ctx.fill();
+  ctx.restore();
+  if (withWac) { ctx.save(); ctx.translate(x, y); ctx.rotate(angle); wacShape(ctx, 0, -100, 0, false); ctx.restore(); }
 }
 
 function cradle(ctx, x, mated) {
@@ -246,15 +270,18 @@ function wrap(ctx, text, width) {
 export function drawTracking(ctx, g, view) {
   const { w, h } = view, f = g.flight, path = f.result.path, upto = Math.min(path.length - 1, Math.floor(f.t));
   ctx.fillStyle = '#0d1a14'; ctx.fillRect(0, 0, w, h);
-  const pad = 70, maxH = 80, maxX = Math.max(30, Math.ceil(f.result.range / 5) * 5 + 5);
+  // The plot's scale grows with the round: a WAC peaks near 70 km, a V-2 over 150, a Bumper several hundred.
+  const top = Math.max(80, g.round.estimate.high * 1.15, f.result.apogee * 1.1), hStep = top <= 100 ? 10 : top <= 250 ? 25 : 50;
+  const maxH = Math.ceil(top / hStep) * hStep, xStep = f.result.range <= 40 ? 5 : f.result.range <= 120 ? 10 : 25;
+  const pad = 70, maxX = Math.max(30, Math.ceil(f.result.range / xStep) * xStep + xStep);
   const px = x => pad + (x / maxX) * (w - pad * 2), py = km => h - pad - (km / maxH) * (h - pad * 2);
   ctx.strokeStyle = '#1f3b2d'; ctx.lineWidth = 1; ctx.font = '12px monospace'; ctx.fillStyle = '#5fae7f'; ctx.textAlign = 'right';
-  for (let k = 0; k <= maxH; k += 10) { ctx.beginPath(); ctx.moveTo(pad, py(k)); ctx.lineTo(w - pad, py(k)); ctx.stroke(); ctx.fillText(`${k} km`, pad - 8, py(k) + 4); }
+  for (let k = 0; k <= maxH; k += hStep) { ctx.beginPath(); ctx.moveTo(pad, py(k)); ctx.lineTo(w - pad, py(k)); ctx.stroke(); ctx.fillText(`${k} km`, pad - 8, py(k) + 4); }
   ctx.textAlign = 'center';
-  for (let k = 0; k <= maxX; k += 5) { ctx.beginPath(); ctx.moveTo(px(k), py(0)); ctx.lineTo(px(k), py(maxH)); ctx.stroke(); ctx.fillText(`${k}`, px(k), h - pad + 18); }
+  for (let k = 0; k <= maxX; k += xStep) { ctx.beginPath(); ctx.moveTo(px(k), py(0)); ctx.lineTo(px(k), py(maxH)); ctx.stroke(); ctx.fillText(`${k}`, px(k), h - pad + 18); }
   ctx.fillText('km downrange', w / 2, h - pad + 36);
   ctx.textAlign = 'left'; ctx.fillStyle = '#8fd6a8'; ctx.font = '14px monospace';
-  ctx.fillText('WHITE SANDS PROVING GROUND · RANGE PLOT · WAC CORPORAL', pad, 32);
+  ctx.fillText(`WHITE SANDS PROVING GROUND · RANGE PLOT · ${KITS[g.vehicle].range}`, pad, 32);
   // The drawing office's estimate, faint.
   ctx.strokeStyle = 'rgba(232,198,106,.35)'; ctx.setLineDash([6, 6]);
   ctx.beginPath(); ctx.moveTo(px(0), py(g.round.estimate.low)); ctx.lineTo(w - pad, py(g.round.estimate.low)); ctx.moveTo(px(0), py(g.round.estimate.high)); ctx.lineTo(w - pad, py(g.round.estimate.high)); ctx.stroke();

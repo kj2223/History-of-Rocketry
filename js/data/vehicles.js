@@ -16,6 +16,7 @@ export const STAGES = {
 export const VEHICLES = {
   wac: { name: 'WAC Corporal', stages: ['tiny-tim', 'wac-upper'], crewed: false },
   aerobee: { name: 'Aerobee', stages: ['aerobee-booster', 'aerobee-sustainer'], crewed: false },
+  v2: { name: 'V-2', stages: ['v2'], crewed: false },
   bumper: { name: 'Bumper', stages: ['v2', 'wac-upper'], crewed: false },
   viking: { name: 'Viking', stages: ['viking'], crewed: false },
 };
@@ -36,6 +37,7 @@ export const QUANTITIES = {
 export const VEHICLE_QUANTITIES = {
   wac: ['wac-upper.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   aerobee: ['aerobee-sustainer.wall-temp', 'aerobee-sustainer.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
+  v2: ['v2.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   bumper: ['v2.chamber-pressure', 'wac-upper.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee', 'vehicle.deviation'],
   viking: ['viking.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
 };
@@ -86,6 +88,7 @@ export const REVISIONS = {
 export const BASELINE = {
   wac: { 'tiny-tim': 'tiny-tim/r1', 'wac-upper': 'wac-upper/r1' },
   aerobee: { 'aerobee-booster': 'aerobee-booster/r1', 'aerobee-sustainer': 'aerobee-sustainer/r1' },
+  v2: { 'v2': 'v2/r1' },
   bumper: { 'v2': 'v2/r1', 'wac-upper': 'wac-upper/r1' },
   viking: { viking: 'viking/r1' },
 };
