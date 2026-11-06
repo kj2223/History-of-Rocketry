@@ -47,7 +47,7 @@ export function live() {
     gauge('tank', tank, 0, 30, NORMAL_TANK);
     const pc = s.trace && s.shown > 0 ? s.trace[Math.max(0, Math.floor(s.shown) - 1)].pc : 0;
     gauge('pc', pc, 0, 30, kit().stand.pc);
-    if (s.burn === 'long') gauge('wall', s.trace && s.shown > 0 ? s.trace[Math.max(0, Math.floor(s.shown) - 1)].wall ?? 300 : 300, 0, 1000, kit().stand.wall);
+    if (s.burn === 'long' && kit().stand.wall) gauge('wall', s.trace && s.shown > 0 ? s.trace[Math.max(0, Math.floor(s.shown) - 1)].wall ?? 300 : 300, 0, 1000, kit().stand.wall);
     if (s.trace) drawTrace(panel().querySelector('canvas'), s.trace, Math.floor(s.shown), kit().stand.pc);
   }
   if (g.room === 'count' && g.count) {
@@ -137,7 +137,7 @@ const ROOMS = {
       <button class="primary" data-act="board-done">Sign the figure and send it to the range</button>`;
   },
   static() {
-    const s = g.stand, p = s.phase;
+    const s = g.stand, p = s.phase, walled = s.burn === 'long' && !!kit().stand.wall;
     const buttons = {
       ready: `<button class="primary" data-act="stand-start">Start the firing count</button><button data-act="stand-leak">Send the crew to leak-check first (2 h)</button>`,
       count: `<button class="danger" data-act="stand-hold">HOLD</button>`,
@@ -155,8 +155,8 @@ const ROOMS = {
       <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. You're running this one. Watch the tank pressure while the stage is
       pressurised, hold if it looks wrong, then fire, and read the trace afterwards.</p>
       <div class="clock" data-live="standclock">—</div>
-      <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${s.burn === 'long' ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
-      <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${s.burn === 'long' ? ` Chamber wall: below ${kit().stand.wall[1]} K. This is a full-duration firing: 30 seconds.` : ''}</p>
+      <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
+      <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is a full-duration firing: 30 seconds.' : ''}</p>
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
       <div class="actions">${buttons}</div>`;
   },
