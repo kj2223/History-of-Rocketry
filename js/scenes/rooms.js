@@ -1,7 +1,8 @@
 // THE ROOMS: what the player sees and does inside a building, as a panel over the site. The site keeps going behind it.
 // render() rebuilds a panel when the game says the room changed; live() updates its gauges every frame.
 import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHold, standLeakCheck, standTank, standDecide,
-  countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway } from '../game.js';
+  countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway, nextRound } from '../game.js';
+import { SEASON } from '../data/wac-season.js';
 import { SPOTS, EXPLANATIONS } from '../data/wac-round.js';
 import { PLACES } from '../data/white-sands.js';
 
@@ -15,7 +16,7 @@ export function openRoom(building) {
   if (g.room === 'count' || g.room === 'static') g.speed = 1;
 }
 export function closeRoom() {
-  if (['recovery', 'debrief'].includes(g.room)) return; // these close through their own buttons
+  if (['recovery'].includes(g.room)) return; // this closes through its own button
   if (g.room === 'away') return closeAway();
   g.room = null;
 }
@@ -28,7 +29,7 @@ export function render() {
   el.hidden = false;
   const [kind, building] = g.room.split(':');
   const body = kind === 'watch' ? watch(building) : ROOMS[kind]();
-  const closable = !['recovery', 'debrief'].includes(kind);
+  const closable = kind !== 'recovery';
   el.innerHTML = `${closable ? '<button class="close" data-act="close" title="Back to the site (Esc)">✕</button>' : ''}${body}`;
 }
 
@@ -175,6 +176,24 @@ const ROOMS = {
       <ul>${a.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
       <button class="primary" data-act="away-done">Carry on</button>`;
   },
+  // The round is over: what you said, what Ellis concluded and what changes. Only what you could know.
+  roundEnd() {
+    const r = g.record.rounds[g.record.rounds.length - 1], next = SEASON[g.roundIndex + 1];
+    return `<h2>Written up: ${esc(r.name)}</h2>${recordLine(r)}
+      ${next ? `<p>Next: ${esc(next.name)}, from ${esc(dateText(next.start))}.</p><button class="primary" data-act="next-round">Carry on to the next round</button>` : ''}
+      <button data-act="show-debrief">What was really wrong? (for testing)</button>`;
+  },
+  seasonEnd() {
+    const cap = t => t[0].toUpperCase() + t.slice(1);
+    const backed = n => n === 0 ? 'Ellis never went with your reading.' : `Ellis went with your reading ${n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`}.`;
+    const rs = g.record.rounds, good = rs.filter(r => !/Lost/.test(r.flight)).length;
+    return `<h2>The WAC season is over</h2>
+      <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
+      <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
+      <p class="muted">Next on the range: the captured V-2s, and Bumper. That comes in the next build.</p>
+      <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
+      <button class="primary" data-act="again">Start a new season</button>`;
+  },
   debrief() {
     const d = debrief();
     return `<h2>Prototype debrief</h2>
@@ -184,10 +203,17 @@ const ROOMS = {
       <p><strong>What you and the crew did about it:</strong></p><ul>${d.caught.length ? d.caught.map(f => `<li>${esc(f)}</li>`).join('') : '<li>Nothing was changed.</li>'}</ul>
       ${d.stillThere.length ? `<p><strong>Still on the round when it flew:</strong> ${esc(d.stillThere.join(', '))}.</p>` : '<p>The round flew with nothing left wrong on it.</p>'}
       <p><strong>At the review</strong> Ellis ${d.review.agree ? 'agreed with you' : 'overruled you'}.</p>
-      <p>Did it click? Was it clear what to do, and did your calls feel like they mattered? Tell Claude in the project.</p>
-      <button class="primary" data-act="again">Play another round</button>`;
+      <button class="primary" data-act="debrief-done">Back</button>`;
   },
 };
+
+// One round of your record, in words: the flight as the range saw it, your call, Ellis's conclusion and the fix.
+function recordLine(r, inline = false) {
+  const call = { nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', unknown: 'not enough evidence' };
+  const ellis = r.yourCall === 'unknown' ? 'Ellis made no call' : r.agreed ? 'Ellis agreed' : r.wentWithYou ? `Ellis read ${call[r.ellis]} differently but went with you` : `Ellis overruled you: ${call[r.ellis]}`;
+  const text = `${r.flight} You called ${call[r.yourCall]}. ${ellis}.${r.fix ? ` ${r.fix}` : ''}`;
+  return inline ? esc(text) : `<p>${esc(text)}</p>`;
+}
 
 // Clicks and changes inside the panel.
 export function bindRoom(handlers) {
@@ -205,7 +231,10 @@ export function bindRoom(handlers) {
       'stand-decide': () => { const c = {}; el.querySelectorAll('[data-choice]').forEach(n => { c[n.dataset.choice] = n.checked; }); standDecide(c); },
       go: () => countAnswer(true), nogo: () => countAnswer(false), hold: countHold, resume: countResume, 'count-leak': countLeakCheck,
       back: () => returnFromRecovery(),
-      'away-done': () => closeAway(),
+      'away-done': () => { closeAway(); if (['roundEnd', 'seasonEnd'].includes(g.beat)) g.room = g.beat; },
+      'next-round': () => nextRound(),
+      'show-debrief': () => { g.room = 'debrief'; },
+      'debrief-done': () => { g.room = g.beat; },
       present: () => present(id),
       again: () => handlers.again(),
     })[act]?.();

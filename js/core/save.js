@@ -2,7 +2,7 @@
 // morning, as plain JSON. Knows nothing about the rules: the caller passes a check(checkpoint) that throws on a bad shape.
 
 export const FORMAT = 'per-aspera';
-export const CONTENT_VERSION = 1;
+export const CONTENT_VERSION = 2; // 2: a season of rounds (programme, record); version 1 saves held one round
 export const KEYS = { current: 'pa-game', lastGood: 'pa-game-last-good' };
 
 export class SaveError extends Error {}
