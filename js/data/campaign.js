@@ -1,4 +1,5 @@
-// The player's years on the range, 1945–1950: the rounds they work, and what happens at White Sands between them.
+// The player's years on the range, 1945–1958: the rounds they work, and what happens between them. White Sands first; from
+// late 1956 Project Vanguard at Cape Canaveral.
 // WAC Corporal first (first flights 11 October 1945). Then the Army lends JPL hands to the captured V-2 firings, and JPL
 // and General Electric put a WAC on a V-2's nose: Project Bumper. Dates marked Provisional are a plausible round in that
 // stretch; the others are the real flight's date less two days of preparation.
@@ -20,7 +21,19 @@ export const SEASON = [
   { id: 'viking-5', vehicle: 'viking', start: dayOf(1950, 11, 19), name: 'Viking 5' }, // flew 21 November 1950
   { id: 'viking-7', vehicle: 'viking', start: dayOf(1951, 8, 5), name: 'Viking 7' }, // flew 7 August 1951
   { id: 'viking-9', vehicle: 'viking', start: dayOf(1952, 12, 13), name: 'Viking 9' }, // flew 15 December 1952
+  // Project Vanguard, the Navy's satellite for the International Geophysical Year, at Cape Canaveral. Vikings 13 and 14 flew
+  // first as test vehicles TV-0 and TV-1. After Sputnik every slip is watched from Washington (pressure).
+  { id: 'vanguard-tv0', vehicle: 'viking', site: 'cape', start: dayOf(1956, 12, 6), name: 'Vanguard TV-0, Viking 13, the first round at the Cape' }, // flew 8 December 1956
+  { id: 'vanguard-tv3', vehicle: 'vanguard', site: 'cape', pressure: true, start: dayOf(1957, 12, 4), name: 'Vanguard TV-3, the first try for orbit' }, // 6 December 1957
+  { id: 'vanguard-tv4', vehicle: 'vanguard', site: 'cape', pressure: true, start: dayOf(1958, 3, 15), name: 'Vanguard TV-4' }, // flew 17 March 1958, Vanguard 1
 ];
+
+// Where a round is flown, and what the site is called on the range plot and in the rooms.
+export const SITES = {
+  'white-sands': { name: 'White Sands Proving Ground', plot: 'WHITE SANDS PROVING GROUND', truck: 'Recovery truck', recovery: 'The impact area' },
+  cape: { name: 'Cape Canaveral', plot: 'ATLANTIC MISSILE RANGE · CAPE CANAVERAL', truck: 'Range car', recovery: 'The telemetry building' },
+};
+export const siteOf = round => SITES[round.site || 'white-sands'];
 
 // The site changes over the years. The new blockhouse goes up beside the old one over the winter of 1950-51 (Provisional
 // dates); from the spring the count is run from there.
@@ -75,6 +88,23 @@ export const BETWEEN = {
   'viking-9': [
     'Viking 8, in June 1952, broke loose from its moorings during a static firing and flew. The range cut its engine at 55 seconds and it came down a few miles to the southeast.',
     'Martin has improved the airframe for the later Vikings: lighter, and carrying more propellant.',
+  ],
+  'vanguard-tv0': [
+    'Vikings 10, 11 and 12 flew from White Sands without you. Viking 11, in May 1954, reached 254 km, the highest any single-stage rocket had gone.',
+    'In 1955 the satellite proposals went before the Stewart Committee in Washington: the Army\'s Orbiter, a Redstone with clusters of small solid rockets on top, against the Navy\'s Vanguard, a new three-stage rocket built on the Viking. In August the committee chose Vanguard.',
+    'The Navy\'s Vanguard team has moved to Cape Canaveral in Florida, to Launch Complex 18 on the Atlantic Missile Range. Brandt is with the Naval Research Laboratory now, and you have gone with him.',
+    'The first rounds are Vikings, flown as test vehicles. This one, TV-0, carries the Minitrack radio that is meant to follow a satellite. What comes down falls in the Atlantic: the range reads her from telemetry and radar, not from a wreck.',
+  ],
+  'vanguard-tv3': [
+    'Vanguard TV-1, Viking 14, flew in May 1957 and proved the third stage. TV-2, in October, flew the new first stage, with dummy upper stages, and it worked.',
+    'On 4 October 1957 the Soviet Union put Sputnik 1 into orbit. Its beeping could be picked up on any shortwave radio. On 3 November Sputnik 2 followed, with a dog, Laika, aboard.',
+    'The White House has announced that Vanguard will put up an American satellite. This round was meant as a test, and now it carries a 1.5 kg sphere with two radios. The press is camped on the beach.',
+    'Every day this round slips is reported from here to Washington.',
+  ],
+  'vanguard-tv4': [
+    'On 31 January 1958 the Army put Explorer 1 into orbit from the Cape on a Jupiter-C: a Redstone with three upper stages of small solid rockets, clustered in a spinning tub. JPL built the upper stages and the satellite. Ellis\'s people were on it.',
+    'Explorer 1\'s Geiger counter found far more radiation than anyone expected, in belts around the Earth.',
+    'Vanguard TV-3BU, the backup, went up on 5 February. Its steering failed and it broke up at 57 seconds. You were not on it.',
   ],
 };
 

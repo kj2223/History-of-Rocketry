@@ -2,9 +2,9 @@
 // render() rebuilds a panel when the game says the room changed; live() updates its gauges every frame.
 import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHold, standLeakCheck, standTank, standDecide,
   countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway, nextRound, kit, answerFirstOffer,
-  conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY, onBudget, budgetLine } from '../game.js';
+  conducting, finishPlan, chair, INSPECTORS, PLANNED_LAUNCH_DAY, onBudget, budgetLine, atSea } from '../game.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
-import { SEASON, FIRST_OFFER, blockhouseState } from '../data/campaign.js';
+import { SEASON, FIRST_OFFER, blockhouseState, SITES } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
 import { SEATS, pendingOffer } from '../career/record.js';
 import { PLACES } from '../data/white-sands.js';
@@ -97,7 +97,8 @@ function watch(building) {
   const place = PLACES[building];
   const here = Object.values(g.people).filter(p => !p.hidden && Math.abs(p.x - place.door) < place.w / 2 + 40 && p.id !== 'you');
   const busy = g.jobs.filter(j => Math.abs(j.at - place.door) < place.w / 2 + 60).map(j => j.label);
-  return `<h2>${esc(place.name)}</h2><p class="muted">Nothing here needs you right now. You can watch.</p>
+  const name = building === 'truck' ? SITES[g.site || 'white-sands'].truck : place.name;
+  return `<h2>${esc(name)}</h2><p class="muted">Nothing here needs you right now. You can watch.</p>
     ${busy.length ? `<p>Going on here: ${busy.map(esc).join(', ')}.</p>` : ''}
     ${here.length ? `<p>Here: ${here.map(p => `${esc(p.name)} (${esc(p.role)})`).join(', ')}.</p>` : '<p>Nobody is here.</p>'}
     <p class="muted">What you need to do next: ${esc(g.objective)}</p>`;
@@ -121,12 +122,13 @@ const ROOMS = {
   },
   board() {
     const load = g.round.propellantLoad, e = g.round.estimate;
+    const orbital = g.vehicle === 'vanguard';
     return `<h2>Drawing board: propellant load</h2>
-      <p>The range wants a figure for the flight. A fuller tank flies higher, but lands further out, and the range has to clear
-      more ground. ${e.flights ? `The drawing office's estimate is built on ${e.flights === 1 ? 'one good flight' : `${e.flights} good flights`} of this kind so far.` : `The drawing office's estimate has a wide spread: nobody has flown a ${esc(kit().name)} round here before.`}</p>
+      <p>${orbital ? 'The range wants a figure for the flight. Every kilogram short of a full load comes off the orbit: too low a perigee and the sphere will not stay up long. The range clears the sea whatever you sign.'
+        : 'The range wants a figure for the flight. A fuller tank flies higher, but lands further out, and the range has to clear more ground.'} ${e.flights ? `The drawing office's estimate is built on ${e.flights === 1 ? 'one good flight' : `${e.flights} good flights`} of this kind so far.` : `The drawing office's estimate has a wide spread: nobody has flown a ${esc(kit().name)} round here before.`}</p>
       <label class="slider">Propellant load: <strong data-live="load">${Math.round(load * 100)}%</strong>
       <input type="range" min="85" max="100" step="1" value="${Math.round(load * 100)}" data-act="load"></label>
-      <p>Estimated peak: <strong data-live="estimate">${e.low}–${e.high} km</strong>.</p>
+      <p>${orbital ? 'Estimated perigee, if all three stages work' : 'Estimated peak'}: <strong data-live="estimate">${e.low}–${e.high} km</strong>.</p>
       <button class="primary" data-act="board-done">Sign the figure and send it to the range</button>`;
   },
   static() {
@@ -201,10 +203,12 @@ const ROOMS = {
       <div class="choices">${Object.entries(kit().explanations).map(([k, t]) => `<button data-act="chair" data-id="${k}">${esc(t)}</button>`).join('')}</div>`;
   },
   recovery() {
-    return `<h2>The impact area</h2><p>${dateText()}, ${clockText()}. The truck pulls up in the scrub. You walk over with Morgan and Kowalski.</p>
+    const where = atSea() ? `<h2>The telemetry building</h2><p>${dateText()}, ${clockText()}. Morgan spreads the telemetry records and the radar plots on the table. Kowalski reads over your shoulder.</p>`
+      : `<h2>The impact area</h2><p>${dateText()}, ${clockText()}. The truck pulls up in the scrub. You walk over with Morgan and Kowalski.</p>`;
+    return `${where}
       <ul>${g.recovery.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
       <p class="muted">All of this is in your notebook.</p>
-      <button class="primary" data-act="back">Drive back to the site</button>`;
+      <button class="primary" data-act="back">${atSea() ? 'Back to the hangar' : 'Drive back to the site'}</button>`;
   },
   review() {
     return `<h2>Review with Ellis</h2>
@@ -240,7 +244,7 @@ const ROOMS = {
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
       ${offer}
-      <p class="muted">Next: the satellite proposals, Vanguard, Explorer and Sputnik. That comes in the next build.</p>
+      <p class="muted">On 1 October 1958 the National Aeronautics and Space Administration opened its doors, and the Vanguard team went to it. Next: NASA's first probes, Pioneer and Ranger. That comes in the next build.</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
       <button data-act="again">Start again from 1945</button>`;
   },

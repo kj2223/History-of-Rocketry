@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', injector: 'an injector burn-through', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -172,6 +172,60 @@ export const KITS = {
       holddown: ['The Viking came down a few miles southeast of the stand, smashed flat.', 'At the stand, two hold-down fittings are sheared, their pins pulled through.', 'The engine shows a full-power burn to the cutoff.'],
       nominal: ['A deep crater far up the range.', 'The engine shows an even burn, the gimbal free.', 'All four fins accounted for.'],
     },
+    // The same evidence as the range reads it at the Cape, from telemetry and radar, the round lost in the Atlantic.
+    sea: {
+      cutoff: ['Telemetry shows the chamber pressure falling from 42 seconds and the turbine speed with it.', 'Radar has her coming down short, in the Atlantic.', 'The fins and attitude were steady to the end.'],
+      fin: ['Telemetry shows her rolling hard at 30 seconds, then tumbling.', 'One fin\'s strain gauge went dead at the same moment.', 'The engine ran normally until the range cut it.'],
+      leak: ['Telemetry shows the tank pressure bleeding off, and the engine stopping clean at 55 seconds.', 'Radar has her coming down short, in the Atlantic.', 'The fins and attitude were steady.'],
+      holddown: ['The Viking came down offshore, a few miles out.', 'At the stand, two hold-down fittings are sheared, their pins pulled through.', 'The engine shows a full-power burn to the cutoff.'],
+      nominal: ['Telemetry is clean all the way to the peak.', 'Minitrack locked on her radio and followed her up and down.', 'Radar has her falling far out in the Atlantic, on the planned line.'],
+    },
+  },
+
+  // Project Vanguard: Martin's three-stage satellite launcher, built on the Viking. A GE first stage, Aerojet's second
+  // (the WAC's descendant, nitric acid again) and a solid third stage spun up on a turntable. Flown at Cape Canaveral.
+  vanguard: {
+    name: 'Vanguard', range: 'VANGUARD', crew: ['kowalski', 'delgado'],
+    inspect: { title: 'Hangar S: the Vanguard', objective: 'Go to the hangar and look the Vanguard over, all three stages, before the first stage goes on the stand.',
+      intro: 'The three stages lie on their dollies in the Cape\'s hangar: the long first stage, the second with its nitric acid tanks, and the small third stage and its sphere. The air smells of salt.' },
+    brief: 'The Vanguard is in the hangar. Look her over, then the first stage goes on the stand.',
+    stand: { thing: 'Vanguard first stage', pc: [18, 24], long: 'the whole first-stage burn on the stand. The hold-downs take full thrust for the whole firing.', rework: 'Replace the first-stage injector with the reworked design', reworkJob: 'Replacing the injector', reworkDay: 'The crew spent the day pulling the first-stage engine and fitting the reworked injector.', reworkSay: 'A new injector. That puts the launch back a day.' },
+    spots: {
+      'fuel-press': { name: 'First-stage fuel tank pressurisation', fault: 'leak', sound: 'The regulator holds steady on the bench, the lines dry.', cue: 'The regulator creeps down a fraction when the line is charged, then holds.' },
+      'lox-line': { name: 'First-stage oxygen feed line', fault: 'leak', sound: 'Clean and tight, frost-free after the cold-flow.', cue: 'A patch of frost at one flange after the cold-flow.' },
+      interstage: { name: 'Second-stage separation and ignition leads', fault: 'separation', sound: 'Every lead tests good on the bench.', cue: 'One lead reads high on the meter, then normal on the retest.' },
+      'second-stage': { name: 'Second-stage acid tank', fault: null, sound: 'The tank holds pressure, no staining.', cue: 'A faint yellow tinge round one weld. Old, perhaps.' },
+      'spin-table': { name: 'Third-stage spin table', fault: null, sound: 'Spins up smooth and true.', cue: 'A faint wobble at the top of the spin-up.' },
+      sphere: { name: 'The satellite and its Minitrack radio', fault: null, sound: 'Both transmitters on frequency, the batteries charged.', cue: 'One transmitter drifts a little as it warms up.' },
+    },
+    explanations: {
+      nominal: 'She made orbit. Nothing to fix.',
+      injector: 'The first-stage injector burned through and she fell back on the pad. Rework the injector.',
+      leak: 'A leak in the first stage cost it pressure and it cut off early.',
+      separation: 'The second stage never separated or lit properly.',
+      holddown: 'She broke loose from the stand: the hold-down fittings failed.',
+      unknown: 'Not enough evidence. I want a full-duration firing on the stand.',
+    },
+    calls: {
+      lift: 'Ignition. Liftoff!',
+      steady: [{ t: 20, text: 'First stage steady. She\'s pitching over on time.', tone: 'go' }, { t: 145, text: 'First stage burnout. Separation. Second stage has lit!', tone: 'go' }, { t: 420, text: 'Second stage cutoff. Coasting. Third stage is spinning up.', tone: 'go' }],
+      burnout: () => 'Third stage burnout. The sphere is away.',
+      orbit: (perigee, apogee) => `Minitrack has her! Perigee about ${perigee.toFixed(0)} km, apogee about ${apogee.toFixed(0)} km. She's in orbit!`,
+      fail: {
+        injector: [{ t: 1, text: 'She\'s lifting... she\'s settling back!' }, { t: 2, text: 'She\'s down on the pad! Fire on the pad!' }],
+        leak: [{ t: 20, text: 'First stage steady. Pitching over.' }, { t: 60, text: 'First stage chamber pressure falling! Early cutoff!' }],
+        separation: [{ t: 20, text: 'First stage steady. Pitching over.' }, { t: 145, text: 'First stage burnout. No separation signal! No second stage!' }],
+        holddown: [{ t: 2, text: 'She\'s off the stand! She\'s loose!' }, { t: 55, text: 'Range safety has cut her engine. She\'s coming down offshore.' }],
+      },
+    },
+    // At the Cape the range reads a round from telemetry and radar: what falls, falls in the Atlantic.
+    wreck: {
+      injector: ['The pad is blackened and strewn with wreckage. The satellite lies in the scrub nearby, still beeping.', 'The telemetry shows the first-stage fuel tank pressure dropping just before ignition, and the injector temperature climbing.', 'The engine had barely lifted her a metre.'],
+      leak: ['Telemetry shows the first-stage tank pressure bleeding off from liftoff onward.', 'Chamber pressure follows it down until the engine stops at 60 seconds.', 'The upper stages fell into the Atlantic unlit.'],
+      separation: ['The first stage ran its full burn: telemetry is clean to 145 seconds.', 'There is no separation signal on the record, and no second-stage chamber pressure at all.', 'The radar track shows the whole stack falling into the Atlantic together.'],
+      holddown: ['The round came down offshore, a few miles out.', 'At the stand, two hold-down fittings are sheared, their pins pulled through.', 'The engine shows a full-power burn to the cutoff.'],
+      nominal: ['Minitrack stations down the range have her signal, orbit after orbit.', 'Telemetry is clean through all three stages.', 'The sphere is up there, beeping.'],
+    },
   },
 
   bumper: {
@@ -229,5 +283,6 @@ export const FAILED_BECAUSE = {
   turbopump: 'the V-2 turbopump lost power', vanes: 'a jet vane broke and she tumbled', separation: 'the stages never separated',
   liner: 'the chamber liner came away and the wall burned through',
   cutoff: 'the turbine leaked steam and the engine cut off early', fin: 'a fin fitting cracked and a fin came off', holddown: 'the hold-down fittings let go on the stand',
+  injector: 'the first-stage injector burned through and she fell back on the pad',
 };
 export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting' };

@@ -11,6 +11,8 @@ export const STAGES = {
   'wac-upper': { name: 'WAC Corporal upper stage', developable: true },
   // Contractor-built airframe around a motor our own team develops; gimballed for steering.
   viking: { name: 'Viking motor and airframe', developable: true },
+  // Vanguard's first stage, built by General Electric on the Viking's lines: the stage that goes on the stand.
+  'vanguard-1': { name: 'Vanguard first stage', developable: true },
 };
 
 export const VEHICLES = {
@@ -19,6 +21,7 @@ export const VEHICLES = {
   v2: { name: 'V-2', stages: ['v2'], crewed: false },
   bumper: { name: 'Bumper', stages: ['v2', 'wac-upper'], crewed: false },
   viking: { name: 'Viking', stages: ['viking'], crewed: false },
+  vanguard: { name: 'Vanguard', stages: ['vanguard-1'], crewed: false },
 };
 
 // Normal limits teams judge readings against: [low, high].
@@ -28,6 +31,7 @@ export const QUANTITIES = {
   'wac-upper.chamber-pressure': { name: 'Upper stage chamber pressure', unit: 'bar', normal: [17, 23] },
   'v2.chamber-pressure': { name: 'V-2 chamber pressure', unit: 'bar', normal: [13, 18] },
   'viking.chamber-pressure': { name: 'Viking motor chamber pressure', unit: 'bar', normal: [18, 24] },
+  'vanguard-1.chamber-pressure': { name: 'Vanguard first-stage chamber pressure', unit: 'bar', normal: [18, 24] },
   'v2|wac-upper.separation': { name: 'Stage separation timing error', unit: 's', normal: [0, 0.5] },
   'vehicle.apogee': { name: 'Apogee', unit: 'km', normal: [60, Infinity] },
   'vehicle.deviation': { name: 'Trajectory deviation', unit: 'deg', normal: [0, 5] },
@@ -40,6 +44,7 @@ export const VEHICLE_QUANTITIES = {
   v2: ['v2.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   bumper: ['v2.chamber-pressure', 'wac-upper.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee', 'vehicle.deviation'],
   viking: ['viking.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
+  vanguard: ['vanguard-1.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
 };
 
 // Flight channels: tracking always sees the integrated trajectory; telemetry depends on the revisions flown.
@@ -83,6 +88,12 @@ export const REVISIONS = {
     affects: ['viking.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
     remedies: ['viking-steam-generator'], telemetry: ['viking.chamber-pressure'],
   },
+  'vanguard-1/r1': { stage: 'vanguard-1', parent: null, label: 'First Vanguard first stages', affects: [], telemetry: ['vanguard-1.chamber-pressure'] },
+  'vanguard-1/r2': {
+    stage: 'vanguard-1', parent: 'vanguard-1/r1', label: 'Reworked first-stage injector',
+    affects: ['vanguard-1.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
+    remedies: ['vanguard-injector'], telemetry: ['vanguard-1.chamber-pressure'],
+  },
 };
 
 export const BASELINE = {
@@ -91,6 +102,7 @@ export const BASELINE = {
   v2: { 'v2': 'v2/r1' },
   bumper: { 'v2': 'v2/r1', 'wac-upper': 'wac-upper/r1' },
   viking: { viking: 'viking/r1' },
+  vanguard: { 'vanguard-1': 'vanguard-1/r1' },
 };
 
 // A revision and its ancestors, newest first.

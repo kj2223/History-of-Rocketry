@@ -6,6 +6,8 @@ export const BASE = {
   wac: { 'wac-upper.chamber-pressure': 20, 'vehicle.apogee': 70, 'vehicle.deviation': 2.5 },
   aerobee: { 'aerobee-sustainer.wall-temp': 610, 'aerobee-sustainer.chamber-pressure': 20.5, 'vehicle.apogee': 110, 'vehicle.deviation': 1.5 },
   viking: { 'viking.chamber-pressure': 21, 'vehicle.apogee': 170, 'vehicle.deviation': 1 },
+  // Vanguard's apogee here is the perigee of the orbit a good round reaches (Vanguard 1: about 650 km).
+  vanguard: { 'vanguard-1.chamber-pressure': 21, 'vehicle.apogee': 650, 'vehicle.deviation': 1 },
   // A V-2 from White Sands' rebuilt stock on a good day: nominal flights in 1946 reached about 170 km.
   v2: { 'v2.chamber-pressure': 15.5, 'vehicle.apogee': 165, 'vehicle.deviation': 2.5 },
   bumper: { 'v2.chamber-pressure': 15.5, 'wac-upper.chamber-pressure': 20, 'v2|wac-upper.separation': 0.2, 'vehicle.apogee': 390, 'vehicle.deviation': 2 },
@@ -40,6 +42,9 @@ export const MECHANISMS = {
   // Early Vikings lost flights to premature motor cutoff. Only a full-duration stand firing shows it,
   // as chamber pressure sagging late in the burn.
   'pm-19': { stage: 'viking', absentFrom: ['viking/r2'], when: { burn: 'long' }, effects: { 'viking.chamber-pressure': -5 }, flightFailureChance: 0.25 },
+  // Vanguard's first-stage injector could burn through at ignition (TV-3, December 1957). A short stand firing shows it
+  // as a rough, low start.
+  'pm-23': { stage: 'vanguard-1', absentFrom: ['vanguard-1/r2'], when: { burn: 'short' }, effects: { 'vanguard-1.chamber-pressure': -4.5 }, flightFailureChance: 0.4 },
 };
 
 // Mechanisms every new campaign starts with, besides the worked-case defect.
