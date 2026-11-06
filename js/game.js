@@ -156,7 +156,7 @@ function startRound(i) {
 // Each morning with work for the player is saved as a checkpoint before the day begins: plain JSON, no running jobs.
 // Days with nothing for the player's seat are skipped; what happened on them is told on arrival ("while you were away").
 // A finished round is saved too ('roundEnd'), so quitting there resumes at the review's outcome, not before the count.
-const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe', 'sRoute', 'lCruise', 'lEncounter'];
+const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe', 'sRoute', 'sApollo8', 'lCruise', 'lEncounter'];
 export function morning(beat) {
   g.saved = structuredClone({ seed: g.seed, roundIndex: g.roundIndex, programme: g.programme, record: g.record, day: g.day, clock: g.clock, beat,
     round: g.round, notes: g.notes, slipDays: g.slipDays, offDays: g.offDays, looked: g.looked, flagged: g.flagged, decided: g.decided, away: g.away, review: g.review, launchDay: g.launchDay, plan: g.plan, mission: g.mission ?? null });

@@ -8,15 +8,18 @@
 // The truth behind each answer is in truth/flights.js. What the rooms read is g.console.flight, never the round.
 import { g, note, roomChanged } from './game.js';
 import { FLIGHTS, DECISIONS, CAPABILITIES } from './data/flights.js';
-import { flightTruth, flag, resolve, geminiEntry, lunarEntry } from './truth/flights.js';
+import { flightTruth, flag, resolve, geminiEntry, lunarEntry, measure } from './truth/flights.js';
 import { SEASON } from './data/campaign.js';
 import { ASTRONAUTS } from './data/crew.js';
 import { shiftTrust } from './career/record.js';
 import { adopt } from './world/programme.js';
+import { sovietHas } from './world/race.js';
 
 // Real seconds between one step and the next, and the hours of quiet after which the handover note is written.
 export const STEP_SECONDS = 1.6, SHIFT_HOURS = 8;
-export const flightOf = (id = SEASON[g.roundIndex].id) => FLIGHTS[id] || null;
+// The flight plan a round flies. Apollo 8's depends on the August meeting.
+export const flightIdOf = (id = SEASON[g.roundIndex].id) => (id === 'apollo-8' && g.record.apollo8 === 'earth' ? 'apollo-8e' : id);
+export const flightOf = (id = SEASON[g.roundIndex].id) => FLIGHTS[flightIdOf(id)] || null;
 // Whose seat answers a question. The flight director owns every call; the others own their own.
 // The programme's own calls are the programme office's, not the flight director's.
 export const owns = (seat, decision) => { const o = DECISIONS[decision].owner || 'flight'; return seat === o || (seat === 'flight' && o !== 'programme'); };
@@ -46,7 +49,7 @@ export function tickFlight(c, dt, speak) {
     if (!applies(c, s)) { f.step++; continue; }
     // Coming home early: the rest of the plan goes, except the last checks before retrofire and retrofire itself.
     const at = f.endAt != null && s.at > f.endAt ? f.endAt : s.at;
-    if (f.endAt != null && s.at > f.endAt && !s.retro && s.decide !== 'navcheck') { f.step++; continue; }
+    if (f.endAt != null && s.at > f.endAt && !s.retro && !['navcheck', 'mcc'].includes(s.decide) && !s.measure) { f.step++; continue; }
     advanceTo(c, at, s);
     f.step++;
     f.wait = STEP_SECONDS;
@@ -55,6 +58,12 @@ export function tickFlight(c, dt, speak) {
 }
 
 function applies(c, s) {
+  const st = c.flight.state;
+  // Steps at the Moon go if she is not going there; steps beyond Earth orbit go if she never left it.
+  if (s.moon && (st.home || st.earthOnly)) return false;
+  if (s.lunar && st.earthOnly) return false;
+  if (s.when && !st[s.when]) return false;
+  if (s.not && st[s.not]) return false;
   if (s.if && !(c.kind === 'flight' ? flag(c.round, s.if) : (c.simFlags || {})[s.if])) return false;
   if (s.unless && (c.kind === 'flight' ? flag(c.round, s.unless) : (c.simFlags || {})[s.unless])) return false;
   return true;
@@ -75,6 +84,7 @@ function runStep(c, s, speak) {
   const f = c.flight;
   if (s.phase && s.phase !== f.phase) { f.phase = s.phase; f.phaseNo += 1; }
   if (s.where) f.where = { x: s.where[0], label: s.where[1] };
+  if (s.measure && c.kind === 'flight') Object.assign(f.status, measure(c.round, s.measure));
   if (s.show) for (const [k, v] of Object.entries(s.show)) f.status[k] = v;
   for (const [who, text, tone] of s.say || []) speak(c, who, text, tone || '', 6);
   if (s.note && c.kind === 'flight') note(s.note);
@@ -130,6 +140,13 @@ function retrofire(c, speak) {
   const f = c.flight, plan = FLIGHTS[f.id];
   if (!f.state.short && plan.completes) f.capabilities.push(plan.completes);
   if (c.kind !== 'flight') return roomChanged();
+  if (f.state.stranded) {
+    c.round.end = { ...(c.round.end || {}), outcome: 'entry', capsule: 'lost', stranded: true, miss: 0, entryG: 0 };
+    speak(c, 'hollis', 'There is nothing more we can do for them. Keep the line open as long as they want to talk.', 'bad', 8);
+    note(`The service engine never burned again. ${plan.craft} stayed in lunar orbit, and her crew died there when the oxygen ran out.`);
+    c.aim = null; c.phase = 'coast'; c.coastLeft = 2;
+    return roomChanged();
+  }
   const e = plan.entry === 'lunar' && !f.state.earthEntry ? lunarEntry(c.round, f.state) : geminiEntry(c.round, f.state);
   speak(c, 'tate', plan.entry === 'lunar' && !f.state.earthEntry ? 'Flight, Retro: entry interface. She is in the corridor we gave her.' : `Retrofire on time${e.secondary ? ', into the secondary area' : ''}${e.ballistic ? ', rolling entry' : ''}. Four, three, two, one, fire.`, 'go', 6);
   speak(c, 'morgan', 'Blackout. We have lost her signal.', 'warn');
@@ -149,6 +166,13 @@ export function recordCapabilities(c) {
 // Hollis on the calls that were yours. Another flight director's calls are his, not yours.
 export function flightJudgement(decisions) {
   const out = [];
+  // The August meeting, judged against what the other side did by Christmas.
+  if (SEASON[g.roundIndex].id === 'apollo-8' && g.record.apollo8 && !g.record.scenes.apollo8.judged) {
+    g.record.scenes.apollo8.judged = true;
+    const zond = sovietHas(g.seed, 'zond-crewed', g.day);
+    if (g.record.apollo8 === 'earth' && zond) { shiftTrust(g.record, -1); out.push('Hollis on the August meeting: "We waited for the lander, and the Russians went round the Moon first."'); }
+    else if (g.record.apollo8 === 'moon' && g.mission.capabilities?.length) { shiftTrust(g.record, 1); out.push('Hollis on the August meeting: "You said send them round the Moon. They went, and they came home."'); }
+  }
   for (const d of decisions || []) {
     if (!d.mine || !d.judge) continue;
     if (d.verdict === 'good') shiftTrust(g.record, 1);
@@ -157,7 +181,7 @@ export function flightJudgement(decisions) {
   }
   return out;
 }
-export const DECISION_NAMES = { sps6: 'the service engine burn', pogo: 'putting a crew on the next Saturn V', evaplan: 'the spacewalk plan', rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers' };
+export const DECISION_NAMES = { sps6: 'the service engine burn', pogo: 'putting a crew on the next Saturn V', evaplan: 'the spacewalk plan', rdvplan: 'the rendezvous', tumble: 'bringing Gemini 8 home', eva: 'the spacewalk', computer: 'the computer', fuelcell1: 'the fuel cells', fuelcell2: 'eight days', navcheck: 'the retrofire numbers', tli: 'translunar injection', loi: 'lunar orbit insertion', mcc: 'the last midcourse correction', tank: 'the oxygen tank', lowpass: 'the low pass' };
 // What the flight's own troubles were, in flight-plan order, for the review: the first one that showed.
 export function flightCause(round) {
   const t = round.flightTruth;

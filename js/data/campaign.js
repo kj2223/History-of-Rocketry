@@ -48,13 +48,16 @@ export const SEASON = [
   { id: 'gem-8', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['fairbanks', 'nakamura'], risk: { thrusterRisk: 0.7 }, path: 'nasa', start: dayOf(1966, 3, 15), name: 'Gemini 8, the first docking' }, // 16 March 1966
   { id: 'gem-12', vehicle: 'titan', site: 'cape', crewed: 'gemini', orbital: true, crew: ['kowalczyk', 'boateng'], turningPoint: 'programme', path: 'nasa', start: dayOf(1966, 11, 10), name: 'Gemini 12, the last Gemini' }, // 11 November 1966
   // Apollo, on the Saturn V. The first is flown without a crew: the last proving flight before men ride it.
-  { id: 'apollo-6', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: [], risk: { pogoRisk: 0.75, j2Risk: 0.6, relightRisk: 0.5 }, path: 'nasa', start: dayOf(1968, 4, 2), name: 'Apollo 6, the second Saturn V, without a crew' }, // 4 April 1968
+  { id: 'apollo-6', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: [], risk: { pogoRisk: 0.75, j2Risk: 0.6, relightRisk: 0.5 }, after: 'apollo8', path: 'nasa', start: dayOf(1968, 4, 2), name: 'Apollo 6, the second Saturn V, without a crew' }, // 4 April 1968
+  { id: 'apollo-8', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['boateng', 'beckett', 'oyelaran'], path: 'nasa', pressure: true, start: dayOf(1968, 12, 20), name: 'Apollo 8' }, // 21 December 1968
+  { id: 'apollo-10', vehicle: 'saturn5', site: 'cape', crewed: 'apollo', orbital: true, crew: ['szabo', 'reiss', 'kowalczyk'], path: 'nasa', start: dayOf(1969, 5, 17), name: 'Apollo 10, the dress rehearsal' }, // 18 May 1969
   { id: 'ranger-7', vehicle: 'ranger', site: 'cape', path: 'jpl', pressure: true, start: dayOf(1964, 7, 26), name: 'Ranger 7' }, // flew 28 July 1964
 ];
 
 // The last word on the season-end page: what came after the last round you worked, and where this build stops.
 export const LAST_WORD = {
   'ranger-7': 'Ranger 7\'s pictures showed the Moon\'s surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.',
+  'apollo-10': 'Apollo 11 was set for July 1969. That is as far as Apollo goes in this build.',
   'apollo-6': 'In August 1968 Houston began to talk about sending the next Saturn V round the Moon. That is as far as Apollo goes in this build.',
   'gem-12': 'Gemini was over: ten crewed flights in twenty months. Its rendezvous, its dockings, its long flights and its spacewalks went to Apollo as evidence. That is as far as Gemini goes in this build.',
 };
@@ -206,6 +209,14 @@ export const BETWEEN = {
     'Saturn IB flights in 1966 tested the command and service module without a crew: AS-201, AS-202, and AS-203 for the third stage.',
     'On 9 November 1967 Apollo 4, the first Saturn V, flew without a crew and flawlessly. In January 1968 Apollo 5 tested the lunar module\'s engines in Earth orbit, also without a crew.',
     'Apollo 6 is the second Saturn V. If it flies clean, the next one carries men.',
+  ],
+  'apollo-8': [
+    'In October 1968 Apollo 7 flew eleven days in Earth orbit on a Saturn IB, the first crew in the rebuilt command module. It worked, nearly everything of it.',
+    'Apollo 8 is the first crew on a Saturn V. Every slip is reported to Washington.',
+  ],
+  'apollo-10': [
+    'In March 1969 Apollo 9 flew the lander for the first time with a crew, in Earth orbit: undocked, flew it a hundred miles away and brought it back.',
+    'Apollo 10 does everything but land: the lander goes down to fifteen kilometres over the landing site and climbs back.',
   ],
   'ranger-7': [
     'That was the last of the Juno II lunar probes. In September 1959 Luna 2 hit the Moon; in October Luna 3 photographed its far side.',

@@ -309,3 +309,83 @@ test('flying a third empty Saturn V slips every Apollo flight after it', () => {
   assert.equal(resolve(r, 'pogo', 'third', {}).slip, 60);
   assert.equal(resolve(r, 'pogo', 'crew', {}).verdict, 'good');
 });
+
+// ---- A3: the Apollo 8 decision, Apollo 8 and Apollo 10 ----
+const toApollo8 = (seed, takeProgramme = false, choice = 'moon') => {
+  toApollo6(seed, takeProgramme);
+  playMission();
+  assert.equal(g.beat, 'sApollo8');
+  return choice;
+};
+
+test('August 1968: the Apollo 8 meeting decides whether Apollo 8 goes round the Moon, and it is played in phases', async () => {
+  const { apollo8Decide, apollo8Done } = await import('../js/mercury.js');
+  toApollo8(8);
+  apollo8Decide('moon'); apollo8Done();
+  assert.equal(g.beat, 'roundEnd');
+  advance(true); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'apollo-8');
+  const asked = [];
+  let phases = 0;
+  playMission({ sims: 0, decide: (d, c) => { asked.push(d.id); phases = Math.max(phases, c.flight.phaseNo); return Object.keys(d.options)[0]; } });
+  const e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'apollo-8');
+  if (!/^Lost/.test(e.flight)) { assert.deepEqual(asked.filter(x => x !== 'navcheck'), ['tli', 'loi', 'mcc']); assert.ok(phases >= 6, `${phases}`); }
+});
+
+test('kept in Earth orbit, Apollo 8 flies ten days testing the spacecraft', async () => {
+  const { apollo8Decide, apollo8Done } = await import('../js/mercury.js');
+  toApollo8(8);
+  apollo8Decide('earth'); apollo8Done(); advance(true); g.room = null;
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  if (!/^Lost/.test(g.record.rounds.at(-1).flight)) assert.ok(!asked.includes('tli'));
+});
+
+test('a service engine that failed its check, taken into lunar orbit, can strand a crew; the free return brings them home', () => {
+  let stranded = 0;
+  for (let s = 1; s <= 30; s++) {
+    const r = newRound(s, initProgramme(), 'saturn5');
+    r.faults = { sps: 'sps' };
+    flightTruth(r, 'apollo-8');
+    const go = resolve(r, 'loi', 'go', {});
+    if (go.set.stranded) { stranded++; assert.equal(go.verdict, 'bad'); }
+    const no = resolve(r, 'loi', 'nogo', {});
+    assert.ok(no.set.home); assert.equal(no.verdict, 'good');
+  }
+  assert.ok(stranded > 5 && stranded < 25, `${stranded}`);
+});
+
+test('the last midcourse puts her in the corridor; skipping it leaves her where the trans-Earth burn pointed her', async () => {
+  const { lunarEntry, entryAngleError } = await import('../js/truth/flights.js');
+  let bad = 0;
+  for (let s = 1; s <= 30; s++) {
+    const r = newRound(s, initProgramme(), 'saturn5');
+    const t = flightTruth(r, 'apollo-8');
+    const burn = lunarEntry(r, resolve(r, 'mcc', 'burn', {}).set);
+    assert.notEqual(burn.capsule, 'lost');
+    const skip = lunarEntry(r, resolve(r, 'mcc', 'skip', {}).set);
+    if (skip.capsule !== 'safe') bad++;
+    assert.ok(Math.abs(entryAngleError(t)) <= 1.1);
+  }
+  assert.ok(bad > 2, `${bad}`);
+});
+
+test('an oxygen tank fails on the way out: the lander is the lifeboat', () => {
+  const r = newRound(6, initProgramme(), 'saturn5');
+  r.faults = { 'o2-tanks': 'tank' };
+  flightTruth(r, 'apollo-10');
+  const life = resolve(r, 'tank', 'freereturn', {});
+  assert.ok(life.set.home); assert.equal(life.verdict, 'good');
+});
+
+test('Apollo 10 flies the rehearsal down to fifteen kilometres', async () => {
+  const { apollo8Decide, apollo8Done } = await import('../js/mercury.js');
+  toApollo8(8);
+  apollo8Decide('moon'); apollo8Done(); advance(true); g.room = null;
+  playMission({ sims: 0 }); advance(true); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'apollo-10');
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  if (!/^Lost/.test(g.record.rounds.at(-1).flight) && !asked.includes('tank')) assert.ok(asked.includes('lowpass'), asked.join());
+});
