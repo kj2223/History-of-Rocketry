@@ -4,29 +4,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { g, newGame, tick, finishInspection, finishBoard, endDay, standStart, standDecide, countStart, countAnswer, rideOut, returnFromRecovery,
   present, nextRound, closeAway, checkpoint, checkCheckpoint, dateText } from '../js/game.js';
-import { SEASON } from '../js/data/wac-season.js';
+import { SEASON } from '../js/data/campaign.js';
 import { initProgramme, adopt, recordFlight, estimate } from '../js/world/programme.js';
 import { newRound, hasIgniterFault } from '../js/truth/round.js';
 
-const until = (done, limit = 40000) => { for (let i = 0; i < limit && !done(); i++) { g.speed = 16; tick(0.05); } assert.ok(done(), `stuck at beat ${g.beat}`); };
-const nextDay = () => { endDay(); until(() => !g.fading); closeAway(); };
-
-// Play the current round end to end the way a careful but quiet player would, and give `call` at the review.
-// call(g) returns the explanation key, so a test can answer from what the player saw.
-export function playRound(call = () => 'unknown') {
-  closeAway();
-  finishInspection({}); finishBoard(); nextDay();
-  until(() => g.beat === 'static');
-  standStart(); until(() => g.stand.phase === 'read');
-  standDecide({ rework: false, leak: false }); nextDay();
-  until(() => g.beat === 'countReady');
-  countStart();
-  until(() => g.beat === 'recovery' || (g.count && g.count.poll));
-  while (g.count && g.count.poll) { countAnswer(true); until(() => g.beat === 'recovery' || (g.count && g.count.poll)); }
-  rideOut(); until(() => g.room === 'recovery');
-  returnFromRecovery();
-  present(call(g));
-}
+import { playRound } from './play.js';
 
 test('a season runs through every round on its own dates and ends with your record', () => {
   newGame(11);

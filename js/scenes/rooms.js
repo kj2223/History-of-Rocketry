@@ -1,9 +1,10 @@
 // THE ROOMS: what the player sees and does inside a building, as a panel over the site. The site keeps going behind it.
 // render() rebuilds a panel when the game says the room changed; live() updates its gauges every frame.
 import { g, lookAt, finishInspection, setLoad, finishBoard, standStart, standHold, standLeakCheck, standTank, standDecide,
-  countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway, nextRound } from '../game.js';
-import { SEASON } from '../data/wac-season.js';
-import { SPOTS, EXPLANATIONS } from '../data/wac-round.js';
+  countStart, countTank, countAnswer, countHold, countResume, countLeakCheck, NORMAL_TANK, returnFromRecovery, present, debrief, roomFor, dateText, clockText, closeAway, nextRound, kit, answerFirstOffer } from '../game.js';
+import { SEASON, FIRST_OFFER } from '../data/campaign.js';
+import { SHORT } from '../data/kits.js';
+import { SEATS } from '../career/record.js';
 import { PLACES } from '../data/white-sands.js';
 
 const panel = () => document.getElementById('room');
@@ -43,8 +44,8 @@ export function live() {
     const tank = s.phase === 'firing' || s.phase === 'read' ? s.trace[Math.max(0, Math.floor(s.shown) - 1)].tank : standTank();
     gauge('tank', tank, 0, 30, NORMAL_TANK);
     const pc = s.trace && s.shown > 0 ? s.trace[Math.max(0, Math.floor(s.shown) - 1)].pc : 0;
-    gauge('pc', pc, 0, 30, [17, 23]);
-    if (s.trace) drawTrace(panel().querySelector('canvas'), s.trace, Math.floor(s.shown));
+    gauge('pc', pc, 0, 30, kit().stand.pc);
+    if (s.trace) drawTrace(panel().querySelector('canvas'), s.trace, Math.floor(s.shown), kit().stand.pc);
   }
   if (g.room === 'count' && g.count) {
     const c = g.count;
@@ -69,13 +70,13 @@ function gauge(id, value, min, max, normal) {
 }
 const gaugeHTML = (id, label, unit) => `<div class="gauge" data-gauge="${id}"><div class="dial"><div class="band"></div><div class="needle"></div></div><div class="read">0.0</div><div class="lab">${label} (${unit})</div></div>`;
 
-function drawTrace(canvas, trace, upto) {
+function drawTrace(canvas, trace, upto, band) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height, y = v => h - 8 - (v / 30) * (h - 16), x = t => 8 + (t / 8) * (w - 16);
   ctx.fillStyle = '#f6f1e2'; ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = '#d6cdb5'; ctx.lineWidth = 1;
   for (let v = 0; v <= 30; v += 5) { ctx.beginPath(); ctx.moveTo(8, y(v)); ctx.lineTo(w - 8, y(v)); ctx.stroke(); }
-  ctx.fillStyle = 'rgba(110,200,120,.18)'; ctx.fillRect(8, y(23), w - 16, y(17) - y(23));
+  ctx.fillStyle = 'rgba(110,200,120,.18)'; ctx.fillRect(8, y(band[1]), w - 16, y(band[0]) - y(band[1]));
   const line = (key, color) => { ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath(); trace.slice(0, upto).forEach((p, i) => (i ? ctx.lineTo(x(p.t), y(p[key])) : ctx.moveTo(x(p.t), y(p[key])))); ctx.stroke(); };
   line('tank', '#4b6a8a'); line('pc', '#a3321f');
   ctx.fillStyle = '#5b5345'; ctx.font = '11px Georgia, serif'; ctx.fillText('red: chamber pressure · blue: tank pressure · green band: chamber normal', 10, 14);
@@ -93,14 +94,15 @@ function watch(building) {
 
 const ROOMS = {
   inspect() {
-    const rows = Object.entries(SPOTS).map(([id, s]) => {
+    const k = kit();
+    const rows = Object.entries(k.spots).map(([id, s]) => {
       const seen = g.looked[id];
       return `<li><div><strong>${esc(s.name)}</strong><br><span class="${seen == null ? 'muted' : ''}">${seen == null ? 'Not looked at yet.' : esc(seen ? s.cue : s.sound)}</span></div>
         <div class="row">${seen == null ? `<button data-act="look" data-id="${id}">Look closely (15 min)</button>` : ''}
         <label><input type="checkbox" data-flag="${id}" ${flags[id] ? 'checked' : ''}> Flag it</label></div></li>`;
     }).join('');
-    return `<h2>Hangar: the WAC upper stage</h2>
-      <p>The stage lies on its cradle with the panels off. Kowalski hands you a torch. Look over whatever you think matters,
+    return `<h2>${esc(k.inspect.title)}</h2>
+      <p>${esc(k.inspect.intro)} Look over whatever you think matters,
       and flag anything you want the crew to open up. A real fault costs the crew ${2} hours to fix; a false alarm costs ${3} hours
       of taking things apart for nothing. Anything you miss is still there.</p>
       <ul class="spots">${rows}</ul>
@@ -110,7 +112,7 @@ const ROOMS = {
     const load = g.round.propellantLoad, e = g.round.estimate;
     return `<h2>Drawing board: propellant load</h2>
       <p>The range wants a figure for the flight. A fuller tank flies higher, but lands further out, and the range has to clear
-      more ground. The drawing office's estimate has a wide spread: nobody has flown this round before.</p>
+      more ground. ${e.flights ? `The drawing office's estimate is built on ${e.flights === 1 ? 'one good flight' : `${e.flights} good flights`} of this kind so far.` : `The drawing office's estimate has a wide spread: nobody has flown a ${esc(kit().name)} round here before.`}</p>
       <label class="slider">Propellant load: <strong data-live="load">${Math.round(load * 100)}%</strong>
       <input type="range" min="85" max="100" step="1" value="${Math.round(load * 100)}" data-act="load"></label>
       <p>Estimated peak: <strong data-live="estimate">${e.low}–${e.high} km</strong>.</p>
@@ -125,17 +127,17 @@ const ROOMS = {
       leakcheck: '<p class="muted">The crew is on the stand checking every line. Watch them through the slit, or wait.</p>',
       firing: '<p class="muted">Firing…</p>',
       read: `<p>Read the trace. What do you want done before this stage flies?</p>
-        <label><input type="checkbox" data-choice="rework"> Rework the igniter (8 hours: the launch slips a day)</label>
+        <label><input type="checkbox" data-choice="rework"> ${esc(kit().stand.rework)} (8 hours: the launch slips a day)</label>
         <label><input type="checkbox" data-choice="leak"> Leak-check the feed system (2 hours)</label>
         <button class="primary" data-act="stand-decide">Give your decision to Ellis</button>`,
       decided: '<p class="muted">Done. The crew is taking the stage back to the hangar.</p>',
     }[p];
     return `<h2>Test stand dugout</h2>
-      <p>Through the slit you can see the stage in the stand. You're running this one. Watch the tank pressure while the stage is
+      <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. You're running this one. Watch the tank pressure while the stage is
       pressurised, hold if it looks wrong, then fire, and read the trace afterwards.</p>
       <div class="clock" data-live="standclock">—</div>
       <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}</div>
-      <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: 17–23 bar.</p>
+      <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.</p>
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
       <div class="actions">${buttons}</div>`;
   },
@@ -165,7 +167,7 @@ const ROOMS = {
     return `<h2>Review with Ellis</h2>
       <p>Ellis and Morgan are at the table with the range plot pinned up. "Well? What happened to her?"</p>
       <p class="muted">Your notebook has everything you saw. Open it with N or the button at the top.</p>
-      <div class="choices">${Object.entries(EXPLANATIONS).map(([k, t]) => `<button data-act="present" data-id="${k}">${esc(t)}</button>`).join('')}</div>`;
+      <div class="choices">${Object.entries(kit().explanations).map(([k, t]) => `<button data-act="present" data-id="${k}">${esc(t)}</button>`).join('')}</div>`;
   },
   // The calendar jumped past days that needed nobody in your seat, or the crew worked on overnight.
   away() {
@@ -186,13 +188,21 @@ const ROOMS = {
   seasonEnd() {
     const cap = t => t[0].toUpperCase() + t.slice(1);
     const backed = n => n === 0 ? 'Ellis never went with your reading.' : `Ellis went with your reading ${n === 1 ? 'once' : n === 2 ? 'twice' : `${n} times`}.`;
-    const rs = g.record.rounds, good = rs.filter(r => !/Lost/.test(r.flight)).length;
-    return `<h2>The WAC season is over</h2>
+    const rec = g.record, rs = rec.rounds, good = rs.filter(r => !/^Lost/.test(r.flight)).length;
+    const o = rec.offers[rec.offers.length - 1];
+    const offer = !o ? '' : !o.made ? `<div class="offer"><h3>Passed over, this time</h3><p>Ellis: "${esc(FIRST_OFFER.sidelined)}"</p>
+        <p class="muted">You stay a junior engineer, on quieter work for now. A better record brings the offer back.</p></div>`
+      : !o.answer ? `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>Ellis: "${esc(FIRST_OFFER.text)}"</p>
+        <p class="muted">Take it and you run the count and chair the reviews from now on. Turn it down and you keep your seat; they may ask again.</p>
+        <button class="primary" data-act="offer-take">Take the job</button><button data-act="offer-decline">Turn it down, for now</button></div>`
+      : `<div class="offer"><p>${o.answer === 'taken' ? `You are now ${esc(SEATS[rec.seat].toLowerCase())} on the Aerobee firings.` : 'You turned the offer down and kept your seat.'}</p></div>`;
+    return `<h2>Your years on the range, 1945 to 1949</h2>
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
-      <p class="muted">Next on the range: the captured V-2s, and Bumper. That comes in the next build.</p>
+      ${offer}
+      <p class="muted">Next: the Aerobee firings and the test conductor's seat. That comes in the next build.</p>
       <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
-      <button class="primary" data-act="again">Start a new season</button>`;
+      <button data-act="again">Start again from 1945</button>`;
   },
   debrief() {
     const d = debrief();
@@ -209,8 +219,8 @@ const ROOMS = {
 
 // One round of your record, in words: the flight as the range saw it, your call, Ellis's conclusion and the fix.
 function recordLine(r, inline = false) {
-  const call = { nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', unknown: 'not enough evidence' };
-  const ellis = r.yourCall === 'unknown' ? 'Ellis made no call' : r.agreed ? 'Ellis agreed' : r.wentWithYou ? `Ellis read ${call[r.ellis]} differently but went with you` : `Ellis overruled you: ${call[r.ellis]}`;
+  const call = SHORT;
+  const ellis = r.yourCall === 'unknown' ? 'Ellis made no call' : r.agreed ? 'Ellis agreed' : r.wentWithYou ? `Ellis read ${call[r.ellisView ?? r.ellis]} differently but went with you` : `Ellis overruled you: ${call[r.ellis]}`;
   const text = `${r.flight} You called ${call[r.yourCall]}. ${ellis}.${r.fix ? ` ${r.fix}` : ''}`;
   return inline ? esc(text) : `<p>${esc(text)}</p>`;
 }
@@ -236,6 +246,7 @@ export function bindRoom(handlers) {
       'show-debrief': () => { g.room = 'debrief'; },
       'debrief-done': () => { g.room = g.beat; },
       present: () => present(id),
+      'offer-take': () => answerFirstOffer(true), 'offer-decline': () => answerFirstOffer(false),
       again: () => handlers.again(),
     })[act]?.();
   });

@@ -6,6 +6,8 @@ export const BASE = {
   wac: { 'wac-upper.chamber-pressure': 20, 'vehicle.apogee': 70, 'vehicle.deviation': 2.5 },
   aerobee: { 'aerobee-sustainer.wall-temp': 610, 'aerobee-sustainer.chamber-pressure': 20.5, 'vehicle.apogee': 110, 'vehicle.deviation': 1.5 },
   viking: { 'viking.chamber-pressure': 21, 'vehicle.apogee': 170, 'vehicle.deviation': 1 },
+  // A V-2 from White Sands' rebuilt stock on a good day: nominal flights in 1946 reached about 170 km.
+  v2: { 'v2.chamber-pressure': 15.5, 'vehicle.apogee': 165, 'vehicle.deviation': 2.5 },
   bumper: { 'v2.chamber-pressure': 15.5, 'wac-upper.chamber-pressure': 20, 'v2|wac-upper.separation': 0.2, 'vehicle.apogee': 390, 'vehicle.deviation': 2 },
 };
 

@@ -18,7 +18,7 @@ export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions
   const stream = state.rng.physical;
   // shortcut: saves made before latent mechanisms existed get the default set on load.
   const ids = [state.physical.trueDefectMechanism, ...(state.physical.latentMechanisms ?? LATENT)];
-  const mechanisms = ids.map(id => MECHANISMS[id]).filter(m => present(m, stages));
+  const mechanisms = ids.map(id => ({ id, ...MECHANISMS[id] })).filter(m => present(m, stages));
   // One roll decides the flight: each active mechanism brings it down with its own chance, independently.
   const roll = draw(stream);
   let survive = 1, culprit = null;
@@ -27,6 +27,7 @@ export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions
     if (!culprit && roll < 1 - survive) culprit = m;
   }
   const failed = kind === 'flight' && !!culprit;
+  if (kind === 'flight') state.physical.culprit = failed ? culprit.id : null; // which mechanism brought it down, for truth only
   const samples = VEHICLE_QUANTITIES[vehicle].map(quantity => {
     let value = BASE[vehicle][quantity];
     for (const rev of Object.values(stages)) for (const r of lineage(rev)) value += REVISION_EFFECTS[r]?.[quantity] ?? 0;
