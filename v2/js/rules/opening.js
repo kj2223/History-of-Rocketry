@@ -16,6 +16,8 @@ import { openQuestions } from './summary.js';
 import { addV2Mechanisms } from './physics.js';
 import { initCrew } from './crew.js';
 import { initOperations } from './operations.js';
+import { initCapabilities } from './mission.js';
+import { initRace } from './race.js';
 
 // ---- inherited open questions as live items ----
 
@@ -51,6 +53,8 @@ const v2Sections = state => {
   state.military = { flights: [] };
   state.crew = initCrew();
   initOperations(state);
+  state.capabilities = initCapabilities();
+  state.race = initRace();
   state.concluded = false;
 };
 
