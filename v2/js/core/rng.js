@@ -3,10 +3,16 @@
 
 export const ALGORITHM = 'mulberry32-v1';
 
-const SALTS = { physical: 0x9e3779b9, observation: 0x85ebca6b, forecast: 0xc2b2ae35 };
+// V2 adds its own streams (V2 freeze §12): intelligence noise and crew behaviour. Entry errors draw from physical.
+const SALTS = { physical: 0x9e3779b9, observation: 0x85ebca6b, forecast: 0xc2b2ae35, intelligence: 0x27d4eb2f, crew: 0x165667b1 };
+export const STREAMS = Object.keys(SALTS);
 
-export const newStreams = seed => Object.fromEntries(
-  Object.entries(SALTS).map(([name, salt]) => [name, { algorithm: ALGORITHM, state: (seed ^ salt) >>> 0 }]));
+const stream = (seed, name) => ({ algorithm: ALGORITHM, state: (seed ^ SALTS[name]) >>> 0 });
+
+export const newStreams = seed => Object.fromEntries(STREAMS.map(name => [name, stream(seed, name)]));
+
+// Keep the streams a V1 save already has and add any V2 stream it lacks, so imported play continues V1's draws.
+export const withStreams = (rng, seed) => Object.fromEntries(STREAMS.map(name => [name, rng?.[name] ? { ...rng[name] } : stream(seed, name)]));
 
 // A float in [0, 1). Mutates stream.state.
 export const draw = stream => {

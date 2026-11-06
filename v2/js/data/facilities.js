@@ -21,3 +21,21 @@ export const STARTING_UNITS = [
   { id: 'tracking-1', kind: 'tracking', capacity: 1 },
   { id: 'archive-hq', kind: 'archive', capacity: 1 },
 ];
+
+// V2 (V2 freeze §3). NASA formation transfers NACA's laboratory test facilities, whichever way V2 opens.
+export const NACA_TRANSFER = [
+  { id: 'env-1', kind: 'environmental-chamber', capacity: 1, name: 'Langley environmental chamber' },
+  { id: 'struct-1', kind: 'structural-rig', capacity: 1, name: 'Langley structures laboratory' },
+];
+
+// The standard 1958 agency for a fresh start: Cape Canaveral pads, a stand, tracking and records.
+// Unit ids match V1's so the same tools and screens work with either opening.
+export const STARTING_UNITS_1958 = [
+  { id: 'pad-1', kind: 'range', capacity: 1, name: 'Launch Complex 5 (Redstone)' },
+  { id: 'pad-2', kind: 'range', capacity: 1, name: 'Launch Complex 14 (Atlas)' },
+  { id: 'stand-1', kind: 'static-stand', capacity: 1, name: 'Huntsville static test stand' },
+  { id: 'instrument-lab', kind: 'instrumentation-lab', capacity: 2 },
+  { id: 'integration-1', kind: 'integration-space', capacity: 2, name: 'Hangar S' },
+  { id: 'tracking-1', kind: 'tracking', capacity: 1, name: 'Cape tracking station' },
+  { id: 'archive-hq', kind: 'archive', capacity: 1 },
+];

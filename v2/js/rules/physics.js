@@ -1,11 +1,16 @@
 // Physical reality (freeze §4.1). The only module that reads data/physical.js or state.physical.
 // It never reads beliefs, evidence or UI state, and it draws only from the physical stream.
 
-import { BASE, REVISION_EFFECTS, SCATTER, MECHANISMS, LATENT } from '../data/physical.js';
+import { BASE, REVISION_EFFECTS, SCATTER, MECHANISMS, LATENT, LATENT_V2 } from '../data/physical.js';
 import { VEHICLE_QUANTITIES, lineage } from '../data/vehicles.js';
 import { draw, normal } from '../core/rng.js';
 
 export const initPhysical = () => ({ trueDefectMechanism: 'pm-07', latentMechanisms: [...LATENT], traces: {} });
+
+// Mercury and Gemini hardware carries its own mechanisms, whichever way V2 opens.
+export const addV2Mechanisms = state => {
+  state.physical.latentMechanisms = [...new Set([...(state.physical.latentMechanisms ?? LATENT), ...LATENT_V2])];
+};
 
 // A mechanism is present on every article whose stage revision has not removed it; its `effects` show
 // only under its `when` conditions, but it can bring down any flight it is present on.

@@ -1,15 +1,17 @@
-// The V1 playable UI. Mail first. It renders only from project() and changes the game only by dispatching
+// The V2 playable UI, carried from V1 until the control centre era is built (V2 freeze §10). Mail first. It renders only from project() and changes the game only by dispatching
 // commands or advancing days. It never reads game state directly, and imports nothing but the façade,
 // the calendar's date label, the storage fallback and its own side panels.
 
-import { newGame, dispatch, advance, project, saveGame, loadGame, exportGame, importGame, resetGame } from '../js/rules/index.js';
+import { newGame, continueFromV1, dispatch, advance, project, saveGame, loadGame, exportGame, importGame, resetGame } from '../js/rules/index.js';
 import { dateLabel } from '../js/core/calendar.js';
 import { memoryStorage } from '../js/core/save.js';
 import { sidePanels } from './panels.js';
 
 const storage = (() => { try { const s = window.localStorage; s.setItem('pa-probe', '1'); s.removeItem('pa-probe'); return s; } catch { return memoryStorage(); } })();
-const UI_KEY = 'pa-v1-ui';
-const ACTS = { wac: 'WAC at White Sands', 'aerobee-viking': 'Aerobee and Viking', 'vanguard-explorer': 'Vanguard and Explorer', 'nasa-formation': 'NASA formation' };
+const UI_KEY = 'pa-v2-ui';
+// A V1 campaign saved in this browser (V1 and V2 share an origin). Read only, never written (V2 freeze §3).
+const V1_KEY = 'pa-v1';
+const ACTS = { 'nasa-formation': 'NASA formation', mercury: 'Mercury', 'mercury-to-gemini': 'Between Mercury and Gemini', gemini: 'Gemini' };
 const VIEWS = [['mail', 'Mail'], ['programmes', 'Programmes'], ['engineering', 'Engineering'], ['flights', 'Test and flight'], ['production', 'Production and stores'], ['site', 'Site and funds'], ['records', 'Records']];
 
 // ---- game and interface state ----
@@ -560,10 +562,18 @@ const commitmentsView = () => {
 // ---- records (freeze §3.3, §10.2): who decided what, when, on what evidence; and the readings behind it ----
 const READING = { measured: 'Measured', unmeasured: 'Not instrumented', lost: 'Reading lost' };
 const quantityNames = () => new Map(view.programmes.flatMap(p => p.claims.map(c => [c.quantity, c.name])));
+// What the agency inherited at NASA formation (V2 freeze §3), each item live until someone settles it.
+const inheritedView = () => h('section', { class: 'card' }, h('h3', {}, 'Inherited at NASA formation'),
+  h('p', { class: 'muted' }, view.opening?.kind === 'v1-import' ? 'Carried forward from our own records since 1945.' : 'Taken over from the agencies NASA absorbs.'),
+  view.inherited.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Kind', 'What', 'Owner', 'Now'].map(t => h('th', {}, t)))),
+    h('tbody', {}, view.inherited.map(i => h('tr', {}, h('td', {}, cap(words(i.kind))), h('td', {}, i.text), h('td', {}, cap(words(i.owner))), h('td', {}, i.status === 'open' ? 'Still open' : 'Settled or no longer open')))))
+    : h('p', { class: 'muted' }, 'Nothing was left open.'),
+  h('h4', {}, 'Heads'), h('ul', {}, view.people.filter(p => p.kind === 'head').map(p => h('li', {}, `${p.name}, ${words(p.role)}, since ${day(p.record.since)}`))));
+
 const recordsView = () => {
   const closed = view.decisions.filter(d => d.status !== 'open').slice().reverse(), names = quantityNames();
   const jobs = view.workload.filter(j => j.observations > 0).slice().reverse();
-  return h('div', {}, h('h2', {}, 'Records'),
+  return h('div', {}, h('h2', {}, 'Records'), inheritedView(),
     h('section', { class: 'card' }, h('h3', {}, 'Decision record'),
       closed.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Decided', 'Raised by', 'Question', 'Positions', 'Evidence cited', 'Decision'].map(t => h('th', {}, t)))),
         h('tbody', {}, closed.map(d => h('tr', {}, h('td', {}, day(d.decidedDay)), h('td', {}, `${cap(d.raisedBy)}, ${day(d.day)}`), h('td', {}, d.text),
@@ -597,7 +607,7 @@ const openQuestionsView = q => [
 ];
 const summaryView = () => {
   const s = view.summary;
-  return h('div', { class: 'summary' }, h('h2', {}, 'NASA formation: where we stand'), h('p', { class: 'muted' }, `The campaign concluded on ${day(s.day)}. This is a record, not a score.`),
+  return h('div', { class: 'summary' }, h('h2', {}, 'End of Gemini: where we stand'), h('p', { class: 'muted' }, `The campaign concluded on ${day(s.day)}. This is a record, not a score.`),
     s.sections.map((sec, n) => h('section', { class: 'card', 'aria-labelledby': `sum-${sec.id}` }, h('h3', { id: `sum-${sec.id}` }, `${n + 1}. ${sec.title}`),
       sec.placeholder ? h('p', { class: 'placeholder' }, 'Reserved. The content for this section has not been designed yet.')
         : sec.id === 'open-questions' ? openQuestionsView(sec.items)
@@ -630,6 +640,9 @@ const render = () => {
       h('div', { class: 'actions' },
         button('Export save', exportFile, { key: 'save-export' }), button('Import save', () => document.getElementById('import-file').click(), { key: 'save-import' }),
         h('input', { id: 'import-file', type: 'file', accept: '.json,application/json', class: 'sr-only', 'aria-label': 'Choose a save file', onchange: importFile }),
+        button('Continue from a V1 save file', () => document.getElementById('v1-file').click(), { key: 'v1-import' }),
+        h('input', { id: 'v1-file', type: 'file', accept: '.json,application/json', class: 'sr-only', 'aria-label': 'Choose a V1 save file', onchange: v1File }),
+        storage.getItem(V1_KEY) !== null ? button('Continue from the V1 campaign in this browser', () => fromV1(storage.getItem(V1_KEY)), { key: 'v1-browser' }) : null,
         ui.confirmReset ? [h('span', {}, 'Start over and lose this campaign?'), button('Yes, start over', startOver, { danger: true, key: 'reset-yes' }), button('Keep playing', () => { ui.confirmReset = false; render(); }, { key: 'reset-no' })]
           : button('New game', () => { ui.confirmReset = true; render(); setTimeout(() => document.querySelector('[data-key="reset-no"]')?.focus(), 0); }, { key: 'reset-new', danger: true }))))), right));
   const target = focusKey && document.querySelector(`[data-key="${CSS.escape(focusKey)}"]`);
@@ -648,10 +661,15 @@ const importFile = async e => {
   catch (err) { say(err.message, true); }
   render();
 };
-const startOver = () => {
+const begin = (make, message) => {
+  const next = make();
   resetGame(storage); ui.seen.clear(); persistUi(); ui.mailId = null; ui.confirmReset = false; ui.view = 'mail';
-  game = newGame(); refresh(); persist(); say('A new campaign begins on 1 January 1945.'); render();
+  game = next; refresh(); persist(); say(message); render();
 };
+const startOver = () => begin(() => newGame(), 'A fresh campaign begins on 1 October 1958 with the standard 1958 agency.');
+// Continuing from V1 replaces the current V2 campaign; the V1 save itself is only read.
+const fromV1 = text => { try { begin(() => continueFromV1(text), 'The campaign continues from your V1 records at NASA formation, 1 October 1958.'); } catch (err) { say(err.message, true); render(); } };
+const v1File = async e => { const file = e.target.files[0]; if (file) fromV1(await file.text()); };
 
 document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;

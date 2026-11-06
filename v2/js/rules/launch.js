@@ -46,7 +46,8 @@ export const requestLaunch = (state, { id, articleId, pad, tracking, cost, repla
       'ground-technical': position(tech.blockers, tech.gaps.length ? `known gaps: ${tech.gaps.join('; ')}` : 'supported'),
       'ground-operational': { stance: 'approve', reason: 'pad and tracking ready' },
       'ground-executive': { stance: money.affordable ? 'approve' : 'veto', reason: money.text },
-      flight: VEHICLES[a.vehicle].crewed ? { stance: 'pending', reason: 'crew consent' } : { stance: 'inactive', reason: 'uncrewed vehicle' },
+      // shortcut: crew are not aboard any flight until crew selection is built (V2 slice 2), so every V2 flight is uncrewed.
+      flight: { stance: 'inactive', reason: VEHICLES[a.vehicle].crewed ? 'no crew aboard' : 'uncrewed vehicle' },
     },
     reservations: [padRes.id, trackRes.id],
   };

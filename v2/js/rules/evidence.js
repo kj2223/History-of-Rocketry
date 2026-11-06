@@ -37,8 +37,16 @@ const carries = (from, to, quantity) => {
   return at >= 0 && !chain.slice(0, at).some(r => REVISIONS[r].affects.includes(quantity));
 };
 
-export const applies = (obs, vehicle, stages) => obs.vehicle === vehicle
-  && Object.entries(stages).every(([stage, rev]) => carries(obs.stages[stage], rev, obs.quantity));
+// A stage claim ('<stage>.<name>') is about the stage, so it carries across vehicles that fly the same stage
+// revision line (V2: military Atlas engines to the crewed Atlas). Integrated and interface claims stay with
+// the vehicle they were measured on.
+const stageOf = quantity => (quantity.startsWith('vehicle.') || quantity.includes('|') ? null : quantity.split('.')[0]);
+
+export const applies = (obs, vehicle, stages) => {
+  const stage = stageOf(obs.quantity);
+  if (stage && obs.vehicle !== vehicle) return stage in stages && carries(obs.stages[stage], stages[stage], obs.quantity);
+  return obs.vehicle === vehicle && Object.entries(stages).every(([s, rev]) => carries(obs.stages[s], rev, obs.quantity));
+};
 
 const matches = (have, want) => Object.entries(want).every(([k, v]) => have[k] === v);
 

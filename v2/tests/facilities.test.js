@@ -39,11 +39,11 @@ test('§6.1: existence is not readiness; a new facility must be commissioned fir
 
 test('§6.4: a phased pad upgrade keeps the other pad open and is not counted as available', () => {
   const g = game();
-  g.cmd('add-facility', 'administrator', { jobId: 'pad-2-build', id: 'pad-2', kind: 'range' });
-  g.finish('pad-2-build');
+  g.cmd('add-facility', 'administrator', { jobId: 'pad-3-build', id: 'pad-3', kind: 'range' });
+  g.finish('pad-3-build');
   g.cmd('begin-upgrade', 'administrator', { jobId: 'up-1', unitId: 'pad-1', capacityAfter: 1 });
   assert.match(g.try('reserve-facility', 'administrator', { id: 'p', unitId: 'pad-1', programmeId: 'wac', from: g.state.day, to: g.state.day + 1 }).rejection.reason, /upgrading/);
-  assert.ok(res(g, 'p2', 'pad-2', 'wac', g.state.day, g.state.day + 1).reservation);
+  assert.ok(res(g, 'p2', 'pad-3', 'wac', g.state.day, g.state.day + 1).reservation);
   g.finish('up-1');
   assert.equal(g.state.facilities.units['pad-1'].status, 'operational');
 });
@@ -83,12 +83,12 @@ test('§6.4, §7.2: facility work is paid for, a deposit at the start and the ba
 
 test('§3.1, §7.2: a consequential facility commitment waits for a decision before work starts', () => {
   const g = game();
-  const out = g.cmd('add-facility', 'administrator', { jobId: 'big', id: 'pad-2', kind: 'range', capacity: 3 });
+  const out = g.cmd('add-facility', 'administrator', { jobId: 'big', id: 'pad-3', kind: 'range', capacity: 3 });
   assert.ok(out.decision);
-  assert.equal(g.state.facilities.units['pad-2'], undefined, 'nothing is built before approval');
+  assert.equal(g.state.facilities.units['pad-3'], undefined, 'nothing is built before approval');
   assert.equal(g.state.work.some(j => j.id === 'big'), false);
   g.approve(out.decision);
-  assert.equal(g.state.facilities.units['pad-2'].status, 'commissioning');
+  assert.equal(g.state.facilities.units['pad-3'].status, 'commissioning');
   assert.equal(g.state.fiscal.commitments['facility-big'].total, TUNING.facilityBuildCost.range * 3);
 });
 

@@ -21,7 +21,7 @@ export const openQuestions = state => {
       .filter(r => r.restrictions.length || r.assurance.length),
     unsettledObligations: [
       ...state.fiscal.ledger.filter(e => e.status === 'open' || e.status === 'overdue')
-        .map(e => ({ id: e.id, kind: e.kind, amount: e.amount, due: e.due, owner: e.dept, programmeId: e.programmeId, status: e.status })),
+        .map(e => ({ id: e.id, kind: e.kind, text: e.text ?? null, amount: e.amount, due: e.due, owner: e.dept, programmeId: e.programmeId, status: e.status })),
       ...Object.values(state.programmes).filter(p => p.closure).flatMap(p => unresolved(p)
         .filter(o => o.kind !== 'payment')
         .map(o => ({ id: o.id, kind: o.kind, amount: o.amount ?? null, due: null, owner: o.owner, programmeId: p.id, status: o.status }))),

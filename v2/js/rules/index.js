@@ -3,10 +3,10 @@
 
 import { newStreams } from '../core/rng.js';
 import { fiscalQuarter } from '../core/calendar.js';
-import { exportSave, parseSave, writeSave, readSave, importSave, resetSave } from '../core/save.js';
-import { ACTS, ANCHORS } from '../data/scenario.js';
+import { exportSave, parseSave, parseV1Save, writeSave, readSave, importSave, resetSave } from '../core/save.js';
+import { ACTS, ANCHORS, CLOSING_ANCHOR } from '../data/scenario.js';
 import { TUNING } from '../data/tuning.js';
-import { REVISIONS } from '../data/vehicles.js';
+import { REVISIONS, testFacility } from '../data/vehicles.js';
 import { ROLES, Rejection, initAuthority, decide, memo, openDecision, position } from './authority.js';
 import { initPhysical } from './physics.js';
 import { initEvidence } from './evidence.js';
@@ -25,24 +25,57 @@ import { project as projectPublic } from './project.js';
 import { jobReport } from './reports.js';
 import { programmeName, money, unitName } from './reports.js';
 import { initAssurance, assuranceDay, challengeRiskAcceptance, answerChallenge } from './assurance.js';
-import { initStaff, staffDay, approveProposal, declineProposal, quarterReport, openingBriefing } from './staff.js';
+import { initStaff, staffDay, approveProposal, declineProposal, quarterReport } from './staff.js';
+import { openFresh, openFromV1, inheritedStatus } from './opening.js';
+import { militaryDay } from './military.js';
+import { publicPerson } from './people.js';
+import { dateLabel } from '../core/calendar.js';
+import { VEHICLES } from '../data/vehicles.js';
 
 export { Rejection };
 
-export const newGame = (seed = 19451958) => {
-  const state = {
-    day: 0, seed, act: ACTS[0].id, concluded: false, rng: newStreams(seed),
-    physical: initPhysical(), evidence: initEvidence(), beliefs: initBeliefs(),
-    hardware: initHardware(), production: initProduction(), facilities: initFacilities(),
-    fiscal: initFiscal(0), stock: initStock(), programmes: programme.initProgrammes(), delegation: initDelegation(),
-    ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(), assurance: initAssurance(),
-  };
-  startQuarter(state);
+const v1Shape = seed => ({
+  day: 0, seed, act: ACTS[0].id, concluded: false, rng: newStreams(seed),
+  physical: initPhysical(), evidence: initEvidence(), beliefs: initBeliefs(),
+  hardware: initHardware(), production: initProduction(), facilities: initFacilities(),
+  fiscal: initFiscal(0), stock: initStock(), programmes: programme.initProgrammes(), delegation: initDelegation(),
+  ...initAuthority(), work: [], launches: initLaunches(), commands: [], continuation: initContinuation(), staff: initStaff(), assurance: initAssurance(),
+});
+
+// What the administrator hears on the first day, whichever way V2 opens.
+const briefing = state => {
+  const items = inheritedStatus(state).filter(i => i.status === 'open');
+  const heads = Object.values(state.people).filter(p => p.kind === 'head').map(p => p.name);
+  memo(state, { from: 'technical-director', refs: { opening: state.opening.kind },
+    text: `${dateLabel(state.day)}. The National Aeronautics and Space Administration begins operations, and you are its administrator. `
+      + `${state.opening.kind === 'v1-import' ? 'We carry forward everything the agency built, flew and owes since 1945.' : 'We take over the people, sites and obligations of the agencies NASA absorbs.'} `
+      + `Your heads are ${heads.join(', ')}. NACA's laboratories come to us today. `
+      + `${items.length ? `We inherit ${items.length} open question${items.length > 1 ? 's' : ''}: unsettled obligations, disagreements and claims nobody has tested. They are in Records, and they stay open until someone settles them.` : 'We inherit no open questions.'} `
+      + 'A crewed spaceflight programme is coming to you for decision within the week.' });
+};
+
+const begin = state => {
   programme.arrivals(state);
-  openingBriefing(state);
-  quarterReport(state);
+  briefing(state);
+  // A V1 save has already had today's quarter report; a fresh start has not.
+  if (state.opening.kind === 'fresh') quarterReport(state);
   staffDay(state, staffCommand);
   return state;
+};
+
+// A fresh start (V2 freeze §3): the standard, authored 1958 agency.
+export const newGame = (seed = 19581966) => {
+  const state = openFresh(v1Shape(seed), seed);
+  state.act = ACTS[0].id;
+  startQuarter(state);
+  return begin(state);
+};
+
+// Continue from a V1 save that reached NASA formation. Reads the text; never writes V1 storage.
+export const continueFromV1 = (v1Text, seed = 19581966) => {
+  const state = openFromV1(parseV1Save(v1Text), seed);
+  state.act = ACTS[0].id;
+  return begin(state);
 };
 
 const clone = s => structuredClone(s);
@@ -156,7 +189,8 @@ const COMMANDS = {
   'reserve-facility': { roles: ['administrator', 'technical-director'], delegated: TEAM, run: (s, r) => reserve(s, r) },
   'schedule-test': { roles: ['administrator', 'technical-director'], delegated: TEAM, run: (s, { jobId, programmeId, stage, stages, conditions, channels, reservation }) => {
     const r = s.facilities.reservations.find(x => x.id === reservation);
-    if (!r || r.status !== 'held' || r.programmeId !== programmeId || s.facilities.units[r.unitId].kind !== 'static-stand') throw new Rejection('A ground test needs a held static-stand reservation');
+    const kind = testFacility(stage);
+    if (!r || r.status !== 'held' || r.programmeId !== programmeId || s.facilities.units[r.unitId].kind !== kind) throw new Rejection(`A ground test of this stage needs a held ${kind} reservation`);
     const config = configOf(s, programmeId, stages);
     for (const rev of Object.values(config.stages)) if (s.hardware.revisions[rev]?.status !== 'defined') throw new Rejection(`${rev} has no defined prototype`);
     return startJob(s, { id: jobId, kind: 'ground-test', programmeId, reservations: [reservation], plan: { kind: 'ground', ...config, stage, conditions, channels } }).id;
@@ -255,13 +289,14 @@ const oneDay = s => {
   programme.lapseWindows(s);
   for (const j of advanceWork(s)) { COMPLETIONS[j.kind](s, j); jobReport(s, j); }
   payDue(s);
+  militaryDay(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
   assuranceDay(s);
   if (!s.concluded) staffDay(s, staffCommand);
   for (const a of ANCHORS.filter(x => x.day === s.day)) {
     memo(s, { from: 'administrator-office', text: a.text, refs: { anchor: a.id } });
     if (a.supplementary) supplementary(s, a.supplementary, a.id);
-    if (a.id === 'nasa-formation') conclude(s);
+    if (a.id === CLOSING_ANCHOR) conclude(s);
   }
 };
 
@@ -273,7 +308,15 @@ export const advance = (state, days = 1) => {
   return { state: s, events: [...s.memos.slice(memos), ...s.decisions.slice(decisions)] };
 };
 
-export const project = state => { const { physical, ...rest } = state; return projectPublic(clone(rest)); };
+// V2 additions to the projection: people without their traits, the opening, inherited items and military records.
+export const project = state => {
+  const { physical, people = {}, ...rest } = state;
+  return { ...projectPublic(clone(rest)),
+    people: Object.values(people).map(publicPerson),
+    opening: state.opening ? { kind: state.opening.kind, day: state.opening.day, v1Summary: state.opening.v1Summary ?? null } : null,
+    inherited: inheritedStatus(state),
+    military: (state.military?.flights ?? []).map(f => ({ ...f, name: VEHICLES[f.vehicle].name, date: dateLabel(f.day) })) };
+};
 
 // Shape check on load: every section present with the right type, and running tests have their traces.
 export const validateState = s => {
@@ -281,7 +324,9 @@ export const validateState = s => {
   need(s && Number.isInteger(s.day) && s.day >= 0, 'day');
   for (const k of ['physical', 'evidence', 'beliefs', 'hardware', 'production', 'facilities', 'fiscal', 'stock', 'programmes', 'delegation', 'continuation']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
   for (const k of ['decisions', 'memos', 'work', 'launches', 'commands']) need(Array.isArray(s[k]), k);
-  for (const k of ['physical', 'observation', 'forecast']) need(s.rng?.[k]?.algorithm === 'mulberry32-v1' && Number.isInteger(s.rng[k].state), `rng.${k}`);
+  for (const k of ['people', 'military', 'opening']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
+  need(Array.isArray(s.inherited), 'inherited');
+  for (const k of ['physical', 'observation', 'forecast', 'intelligence', 'crew']) need(s.rng?.[k]?.algorithm === 'mulberry32-v1' && Number.isInteger(s.rng[k].state), `rng.${k}`);
   need(Array.isArray(s.evidence.observations), 'evidence.observations');
   for (const j of s.work.filter(x => x.status === 'running' && x.plan)) need(Array.isArray(s.physical.traces[j.id]), `trace for ${j.id}`);
 };

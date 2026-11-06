@@ -1,7 +1,7 @@
-// ACCEPTANCE: plays whole V1 campaigns with the seeded bot and checks what the unit tests cannot reach in a reasonable time.
-//   1. Dead ends: the bot plays each seed from 1945 to NASA formation; any stuck decision, stuck proposal, exception, or a campaign
+// ACCEPTANCE: plays whole V2 campaigns with the seeded bot and checks what the unit tests cannot reach in a reasonable time.
+//   1. Dead ends: the bot plays each seed from NASA formation to the end of Gemini; any stuck decision, stuck proposal, exception, or a campaign
 //      that does not conclude fails the run.
-//   2. Round trip (FRZ-02 / AC07): one seed is saved and reloaded on 1 Jan 1950 (ROUNDTRIP=1 in tools/balance.mjs, through the real
+//   2. Round trip (FRZ-02 / AC07): one seed is saved and reloaded on 1 Jan 1962 (ROUNDTRIP=1 in tools/balance.mjs, through the real
 //      export and parse). The report must equal the report from the same seed played straight through, or the save loses something.
 //   3. Determinism: the same seed played twice gives the same report.
 // Add a seed to DEAD_END_SEEDS whenever the bot finds a new dead end, once it is fixed. Run: node tools/acceptance.mjs
@@ -21,7 +21,7 @@ process.stdout.write(sweep.stdout);
 if (sweep.status !== 0) { failed++; process.stderr.write(sweep.stderr); }
 
 for (const seed of ROUNDTRIP_SEEDS) {
-  console.log(`== save and reload on 1 Jan 1950: seed ${seed}`);
+  console.log(`== save and reload on 1 Jan 1962: seed ${seed}`);
   const straight = run([seed]), reloaded = run([seed], { ROUNDTRIP: '1' }), again = run([seed]);
   if (straight.status !== 0 || reloaded.status !== 0) { failed++; console.log('A comparison run failed.\n' + (straight.stderr || straight.stdout) + '\n' + (reloaded.stderr || reloaded.stdout)); continue; }
   if (straight.stdout !== reloaded.stdout) { failed++; console.log('The campaign played differently after a save and reload. Straight through:\n' + straight.stdout + '\nWith the reload:\n' + reloaded.stdout); }

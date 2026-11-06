@@ -10,7 +10,7 @@ import { dateLabel, dateOf, fiscalQuarter } from '../core/calendar.js';
 import { FLIGHT_CONDITIONS, ANOMALIES, HYPOTHESES } from '../data/engineering.js';
 import { PROGRAMMES } from '../data/scenario.js';
 import { TUNING } from '../data/tuning.js';
-import { QUANTITIES, REVISIONS, STAGES, VEHICLES, VEHICLE_QUANTITIES } from '../data/vehicles.js';
+import { QUANTITIES, REVISIONS, STAGES, VEHICLES, VEHICLE_QUANTITIES, testFacility } from '../data/vehicles.js';
 import { FACILITY_KINDS } from '../data/facilities.js';
 import { Rejection, memo } from './authority.js';
 import { claimStatus } from './evidence.js';
@@ -115,8 +115,9 @@ const describe = (state, p, step) => {
   if (step.kind === 'develop') return `${team(p)} has narrowed the cause to ${HYPOTHESES[step.hypothesis].name.toLowerCase()}. `
     + `The department head proposes the ${REVISIONS[step.rev].label} as the fix: we would define a prototype and then fire it on the stand before asking you for a trial flight.`;
   if (step.kind === 'ground-test') {
-    const stand = pickUnit(state, 'static-stand', state.day, state.day + TUNING.staffTestBookingDays);
-    const what = `a ${step.burn}-burn ground test of the ${step.rev ? `${REVISIONS[step.rev].label} on the ` : ''}${STAGES[step.stage].name} on ${stand ? `static test stand ${stand}` : 'a static test stand'}, reading ${list(step.channels.map(qname))}`;
+    const kind = testFacility(step.stage), where = FACILITY_KINDS[kind].name.toLowerCase();
+    const stand = pickUnit(state, kind, state.day, state.day + TUNING.staffTestBookingDays);
+    const what = `a ${step.burn}-${kind === 'static-stand' ? 'burn' : 'run'} ground test of the ${step.rev ? `${REVISIONS[step.rev].label} on the ` : ''}${STAGES[step.stage].name} in ${stand ? `${where} ${stand}` : `a ${where}`}, reading ${list(step.channels.map(qname))}`;
     const why = { first: 'We have no readings on it yet, so this is where we start.',
       'flight-conditions': 'The short-burn readings are in. Flights run the full burn, so we need readings at full duration before we fly.',
       anomaly: `${ANOMALIES[step.anomaly]?.name ?? 'The anomaly'} has more than one explanation, and this test should tell them apart.`,
@@ -150,7 +151,7 @@ const execute = (state, run, p, step, actor) => {
   if (step.kind === 'trial') return { decision: run(state, 'request-trial', 'department-head', { programmeId: p.id, revId: step.rev }) };
   if (step.kind === 'adopt') return { decision: run(state, 'adopt-revision', 'administrator', { revId: step.rev, programmeIds: [p.id] }) };
   if (step.kind === 'ground-test') {
-    const stand = book('static-stand', TUNING.staffTestBookingDays, `${step.burn}-burn ground test`);
+    const stand = book(testFacility(step.stage), TUNING.staffTestBookingDays, `${step.burn}-burn ground test`);
     if (stand.decision) return stand;
     run(state, 'schedule-test', as('department-head'), { jobId: id(), programmeId: p.id, stage: step.stage, stages: step.rev ? { [step.stage]: step.rev } : {}, conditions: { burn: step.burn }, channels: step.channels, reservation: stand.reservation });
     return {};

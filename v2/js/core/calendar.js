@@ -1,4 +1,5 @@
-// Campaign calendar. Day 0 is 1 January 1945 (UTC); the campaign ends at NASA formation.
+// Campaign calendar. Day 0 is still 1 January 1945 (UTC), as in V1, so records imported from a V1 save keep
+// their dates. V2 opens at NASA formation and the Gemini programme closes by the end of 1966.
 // US fiscal years of the period ran 1 July to 30 June, named for the year they end in.
 
 const MS_PER_DAY = 86400000;
@@ -11,7 +12,8 @@ export const dateOf = day => {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, date: d.getUTCDate() };
 };
 
-export const END_DAY = dayOf(1958, 10, 1);
+export const START_DAY = dayOf(1958, 10, 1);
+export const END_DAY = dayOf(1966, 12, 31);
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const dateLabel = day => { const { year, month, date } = dateOf(day); return `${date} ${MONTHS[month - 1]} ${year}`; };

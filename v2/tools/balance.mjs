@@ -1,5 +1,6 @@
-// Headless bot: plays the V1 rules through the façade from 1945 to NASA formation and prints pacing.
-// Run: node tools/balance.mjs        SEED=1,2,3 picks seeds (default 1..4)    ROUNDTRIP=1 saves and reloads on 1 Jan 1950.
+// Headless bot: plays the V2 rules through the façade from NASA formation (a fresh 1958 start) to the end of
+// Gemini and prints pacing. Carried from V1; the crewed-flight bot arrives with V2 slice 7.
+// Run: node tools/balance.mjs        SEED=1,2,3 picks seeds (default 1..4)    ROUNDTRIP=1 saves and reloads on 1 Jan 1962.
 // It plays by the book: every programme through the four stages, a short ground test and a build before each launch,
 // every open decision answered by its first option and, if a veto refuses that, its last. Seeded, so the same code prints the
 // same report: diff the output before and after a rules or tuning change. Exit code 1 means a dead end (see DEAD ENDS below).
@@ -53,7 +54,8 @@ const play = seed => {
     if (state.day - (lastLaunch[p.id] ?? -LAUNCH_EVERY) < LAUNCH_EVERY) return;
     const stand = book('stand-1', p.id, 6);
     if (stand) {
-      const stages = Object.keys(p.baseline), stage = stages.at(-1);
+      // The booster goes on the firing stand; spacecraft are tested in the environmental chamber.
+      const stage = Object.keys(p.baseline)[0];
       const channels = [`${stage}.chamber-pressure`];
       if (act('schedule-test', 'administrator', { jobId: `gt-${++n}`, programmeId: p.id, stage, stages: {}, conditions: { burn: 'short' }, channels, reservation: stand })) stats.tests++;
     }
@@ -88,7 +90,7 @@ const play = seed => {
       appoint();
       for (const p of Object.values(state.programmes)) fly(p);
       watch();
-      if (ROUNDTRIP && state.day >= dayOf(1950, 1, 1) && !stats.saved) { stats.saved = true; state = checkSave(exportGame(state)); }
+      if (ROUNDTRIP && state.day >= dayOf(1962, 1, 1) && !stats.saved) { stats.saved = true; state = checkSave(exportGame(state)); }
       state = advance(state, STEP).state;
       const year = dateLabel(state.day).slice(-4);
       if (!stats.years[year]) stats.years[year] = { cash: Math.round(state.fiscal.cash), flights: 0, failures: 0 };

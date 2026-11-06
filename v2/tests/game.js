@@ -1,5 +1,8 @@
-// Drive the façade in tests: issue commands that must succeed, and step through the Aerobee worked case.
-import { newGame, dispatch, advance } from '../js/rules/index.js';
+// Drive the façade in tests: issue commands that must succeed. game() is a fresh V2 start on 1 October 1958.
+import assert from 'node:assert/strict';
+import { newGame, dispatch, advance, project } from '../js/rules/index.js';
+import { MECHANISMS } from '../js/data/physical.js';
+import { TUNING } from '../js/data/tuning.js';
 import { dayOf } from '../js/core/calendar.js';
 
 export const game = (seed = 19451958) => {
@@ -42,9 +45,9 @@ export const book = (g, unitId, programmeId, days = 10) => {
 };
 
 let t = 0;
-export const groundTest = (g, programmeId, burn, { stages = {}, channels = ['aerobee-sustainer.wall-temp', 'aerobee-sustainer.chamber-pressure'], stage = 'aerobee-sustainer', actor = 'administrator' } = {}) => {
+export const groundTest = (g, programmeId, burn, { stages = {}, channels = ['aerobee-sustainer.wall-temp', 'aerobee-sustainer.chamber-pressure'], stage = 'aerobee-sustainer', actor = 'administrator', unit = 'stand-1' } = {}) => {
   const jobId = `gt-${++t}`;
-  g.cmd('schedule-test', actor, { jobId, programmeId, stage, stages, conditions: { burn }, channels, reservation: book(g, 'stand-1', programmeId) });
+  g.cmd('schedule-test', actor, { jobId, programmeId, stage, stages, conditions: { burn }, channels, reservation: book(g, unit, programmeId) });
   g.finish(jobId);
   return g.state.work.find(j => j.id === jobId);
 };
@@ -58,3 +61,20 @@ export const fly = (g, programmeId, articleId, { cost = 20000, replacementCost =
   g.finish(`flight-${id}`);
   return g.state.launches.find(l => l.id === id);
 };
+
+// What no projection may ever contain: hidden physical truth and hidden traits.
+const HIDDEN = ['physical', 'trueDefectMechanism', 'latentMechanisms', 'traces', 'traits', 'candour', 'independence', ...Object.keys(MECHANISMS)];
+export const assertNoLeak = s => {
+  const text = JSON.stringify(project(s));
+  for (const word of HIDDEN) assert.equal(text.includes(word), false, `projection leaks "${word}"`);
+};
+
+// Greenlight Mercury-Redstone and wait for its first vehicles.
+export const mercuryRedstone = (seed = 77) => {
+  const g = game(seed);
+  g.days(7);
+  greenlightProgramme(g, 'mercury-redstone');
+  g.days(TUNING.designDays['mercury-redstone']);
+  return g;
+};
+
