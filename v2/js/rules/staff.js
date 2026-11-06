@@ -11,7 +11,6 @@ import { FLIGHT_CONDITIONS, ANOMALIES, HYPOTHESES } from '../data/engineering.js
 import { PROGRAMMES } from '../data/scenario.js';
 import { TUNING } from '../data/tuning.js';
 import { QUANTITIES, REVISIONS, STAGES, VEHICLES, VEHICLE_QUANTITIES, lineage, testFacility } from '../data/vehicles.js';
-import { QUANTITIES, REVISIONS, STAGES, VEHICLES, VEHICLE_QUANTITIES, testFacility, lineage } from '../data/vehicles.js';
 import { MISSIONS, MISSION_LADDER } from '../data/flight.js';
 import { nextMission } from './mission.js';
 import { FACILITY_KINDS } from '../data/facilities.js';
