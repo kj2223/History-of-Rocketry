@@ -55,7 +55,7 @@ const MECHANISM_CAUSE = { 'pm-11': 'ignition', 'pm-03': 'turbopump', 'pm-07': 'l
 export const HIDDEN_FAILURE = { wac: 0.12, v2: 0.3, bumper: 0.3, aerobee: 0.15, viking: 0.15, vanguard: 0.3, juno: 0.3, ranger: 0.35 };
 const usesWac = vehicle => vehicle === 'wac' || vehicle === 'bumper';
 const usesV2 = vehicle => vehicle === 'v2' || vehicle === 'bumper';
-export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, shutdownRisk: 0.05, thrusterRisk: 0.08, weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
+export const DEFAULT_PROGRAMME = { igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, shutdownRisk: 0.05, thrusterRisk: 0.08, saturnctlRisk: 0.05, j2Risk: 0.3, pogoRisk: 0.5, relightRisk: 0.25, spsRisk: 0.05, tankRisk: 0.05, cabinRisk: 0.15, alarmRisk: 0.4, ascentRisk: 0.08, chuteRisk: 0.1, lightningRisk: 0.08, weldRisk: 0.55, finRisk: 0.35, holddownRisk: 0.3, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35 };
 
 // A new round. seed: a whole number; the same seed always makes the same round. programme: how the team builds rounds now
 // (world/programme.js): the chance of each fault, and which igniter and pump standard is in use. vehicle: 'wac', 'v2' or 'bumper'.
@@ -113,6 +113,14 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     put('shutdown', p.shutdownRisk, d[11], d[12]); put('thruster', p.thrusterRisk, d[13], d[14]);
     dustcap = d[15] < 0.5;
   }
+  // Apollo's: the Saturn V's stages and guidance, the spacecraft's engine, tanks, wiring and parachutes, the lander's
+  // computer and ascent engine, and the weather at the pad (no spot: lightning).
+  let lightning = false;
+  if (vehicle === 'saturn5') {
+    const d = [...Array(22)].map(() => draw(rng.physical));
+    ['saturnctl', 'j2', 'pogo', 'relight', 'sps', 'tank', 'cabin', 'alarm', 'ascent', 'chute'].forEach((k, i) => put(k, p[`${k}Risk`], d[2 * i], d[2 * i + 1]));
+    lightning = d[20] < p.lightningRisk;
+  }
   const latent = [igniterFault && usesWac(vehicle) && 'pm-11', pumpFault && usesV2(vehicle) && 'pm-03', linerFault && vehicle === 'aerobee' && 'pm-07', turbineFault && vehicle === 'viking' && 'pm-19', injectorFault && 'pm-23', depletionFault && 'pm-29', agenaFault && 'pm-31'].filter(Boolean);
   // V1's worked-case defect, the Aerobee's debonding liner (pm-07), is a latent fault like the others: some sustainers have it.
   const physical = { ...initPhysical(), latentMechanisms: latent, trueDefectMechanism: null };
@@ -129,6 +137,7 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     propellantLoad: 1,
     ...(vehicle === 'redstone' ? { thrust } : {}),
     ...(vehicle === 'titan' ? { navdata, dustcap } : {}),
+    ...(vehicle === 'saturn5' ? { lightning } : {}),
     events: [], // what happened, for the debrief
   };
 }

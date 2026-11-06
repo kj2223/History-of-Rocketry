@@ -261,3 +261,51 @@ test('between Gemini flights from 1966, the notes carry the Soviet news', () => 
   const soviet = raceNews(g.seed, SEASON.find(r => r.id === 'gem-6').start, SEASON[g.roundIndex].start);
   for (const l of soviet) assert.ok(g.away.lines.includes(l));
 });
+
+// ---- A2: the programme office and Apollo 6 ----
+const toApollo6 = (seed, takeProgramme = true) => {
+  toGem6(seed);
+  playMission(); advance(true); g.room = null; playMission(); advance(true); g.room = null; // Gemini 6A, 8
+  playMission(); // Gemini 12
+  const o = g.record.offers.at(-1); if (!o.made) { o.made = true; o.answer = null; }
+  advance(takeProgramme); g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'apollo-6');
+};
+
+test('the programme office runs Apollo 6: the Saturn V checked out, flight day from the viewing room, the programme\'s call yours', async () => {
+  const { lookSpot, capsuleSpots } = await import('../js/mercury.js');
+  toApollo6(8);
+  assert.equal(g.record.seat, 'programme');
+  assert.equal(g.vehicle, 'saturn5');
+  assert.ok(capsuleSpots().includes('o2-tanks'));
+  lookSpot('f1-engines');
+  assert.ok(g.mission.checkout['f1-engines']);
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  const e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'apollo-6');
+  if (!/^Lost/.test(e.flight)) assert.deepEqual(asked, ['pogo']);
+});
+
+test('as flight director you fly Apollo 6, and the programme\'s call is Hollis\'s', () => {
+  toApollo6(8, false);
+  assert.equal(g.record.seat, 'flight');
+  const asked = [];
+  playMission({ sims: 0, decide: d => { asked.push(d.id); return Object.keys(d.options)[0]; } });
+  assert.ok(!asked.includes('pogo'));
+  assert.equal(g.record.rounds.at(-1).id, 'apollo-6');
+});
+
+test('Apollo 1\'s fire is the hidden layer\'s, not a script: some games have it and some do not, and it brings the cabin fix', async () => {
+  const { apolloFire } = await import('../js/world/race.js');
+  const fires = Array.from({ length: 30 }, (_, i) => apolloFire(i + 1, initProgramme())).filter(Boolean).length;
+  assert.ok(fires > 5 && fires < 25, `${fires}`);
+  assert.equal(apolloFire(3, { ...initProgramme(), cabinRisk: 0 }), false);
+});
+
+test('flying a third empty Saturn V slips every Apollo flight after it', () => {
+  const r = newRound(4, initProgramme(), 'saturn5');
+  flightTruth(r, 'apollo-6');
+  assert.equal(resolve(r, 'pogo', 'third', {}).slip, 60);
+  assert.equal(resolve(r, 'pogo', 'crew', {}).verdict, 'good');
+});

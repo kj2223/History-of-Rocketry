@@ -155,7 +155,7 @@ function flightBoard(c) {
 function flightCall(c) {
   const d = c.flight.decision;
   if (!d) return '<p class="muted">The flight runs. The calendar jumps between the moments your shift is on.</p>';
-  if (!d.mine) return `<p class="muted">${esc(d.q)} Dorsey's call.</p>`;
+  if (!d.mine) return `<p class="muted">${esc(d.q)} ${d.who === 'hollis' ? 'The programme\'s call.' : 'Dorsey\'s call.'}</p>`;
   return `<div class="poll"><p><strong>${esc(d.q)}</strong></p>${d.rule ? `<p class="muted">Mission rule: ${esc(d.rule)}</p>` : ''}
     ${Object.entries(d.options).map(([k, t]) => `<button data-act="m-decide" data-id="${k}">${esc(t)}</button>`).join('')}</div>`;
 }

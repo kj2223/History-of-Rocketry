@@ -168,6 +168,36 @@ const RESOLVE = {
     out.capability = 'evawork'; out.verdict = 'good'; out.judge = 'Two hours outside and he came back fresh. That\'s what Apollo needed to see.';
     return out;
   },
+  sps6(choice, { f, d, out }) {
+    if (choice === 'stay') {
+      out.set.short = true; out.set.earthEntry = true;
+      out.lines.push(['dorsey', 'Bring her home from orbit. We\'ll get the entry test another time.', '']);
+      out.verdict = 'fair'; out.judge = 'No high-speed entry test. The heat shield goes to the Moon on the first flight\'s evidence alone.';
+      return out;
+    }
+    if (f.sps && d[13] < 0.5) {
+      out.set.short = true; out.set.earthEntry = true;
+      out.lines.push(['kessler', 'Flight, EECOM: the service engine shut down early. Chamber pressure fell away. She\'s not going high.', 'bad']);
+      out.verdict = 'fair'; out.judge = 'The service engine failed on the long burn. Better here than behind the Moon.';
+      return out;
+    }
+    out.lines.push(['kessler', 'Flight, EECOM: a long burn on the service engine, and she\'s climbing. She\'ll come in fast.', 'go']);
+    out.verdict = 'good'; out.judge = 'The service engine did a job it was never meant for, and we got the entry test.';
+    return out;
+  },
+  pogo(choice, { f, out }) {
+    const shown = ['pogo', 'j2', 'relight'].filter(k => f[k]);
+    if (choice === 'third') {
+      out.slip = 60;
+      out.lines.push(['hollis', 'A third empty Saturn. That\'s two months, and the Russians are not waiting.', 'warn']);
+      out.verdict = 'fair'; out.judge = shown.length ? 'Caution after a rough flight. It cost us two months.' : 'She flew clean and we flew another empty one. Two months gone for nothing.';
+      return out;
+    }
+    out.lines.push(['hollis', shown.length ? 'Then Marshall fixes every one of those before a crew sits on top of her.' : 'She flew clean. A crew rides the next one.', 'go']);
+    out.verdict = 'good'; out.judge = shown.length ? 'We understood every failure and fixed it. Putting a crew on the next one was the right call.' : 'A clean flight, and a crew on the next one. Right.';
+    out.fixes = shown;
+    return out;
+  },
   navcheck(choice, { f, out }) {
     if (choice === 'check') {
       out.set.secondary = true;

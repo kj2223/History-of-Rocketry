@@ -234,7 +234,7 @@ function truck(ctx, x, g) {
 function rocketOnSite(ctx, g) {
   const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
-  const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, r.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
+  const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, r.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : g.vehicle === 'saturn5' ? saturnVShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
   if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
   else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
   else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
@@ -326,6 +326,24 @@ export function geminiTitanShape(ctx, x, y, angle) {
   ctx.fillStyle = '#d9d6cc'; ctx.beginPath(); ctx.moveTo(-15, -200); ctx.lineTo(-12, -222); ctx.lineTo(12, -222); ctx.lineTo(15, -200); ctx.fill(); // adapter
   ctx.fillStyle = '#26282c'; ctx.beginPath(); ctx.moveTo(-12, -222); ctx.lineTo(-6, -246); ctx.lineTo(-4, -258); ctx.lineTo(4, -258); ctx.lineTo(6, -246); ctx.lineTo(12, -222); ctx.fill(); // spacecraft
   ctx.fillStyle = '#3e4652'; ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('UNITED STATES', 90, 3); ctx.restore();
+  ctx.restore();
+}
+
+// The Saturn V: three white stages with black roll bands, the lander's adapter, the command module and its escape tower.
+export function saturnVShape(ctx, x, y, angle) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.fillStyle = '#f1efe8'; ctx.fillRect(-22, -150, 44, 150); // S-IC
+  ctx.fillStyle = '#26282c'; for (const yy of [-150, -100, -50]) ctx.fillRect(-22, yy, 22, 18); ctx.fillRect(0, -132, 22, 18); ctx.fillRect(0, -82, 22, 18);
+  ctx.fillStyle = '#f1efe8'; ctx.fillRect(-22, -250, 44, 100); // S-II
+  ctx.fillStyle = '#26282c'; ctx.fillRect(-22, -160, 44, 8);
+  ctx.fillStyle = '#f1efe8'; ctx.beginPath(); ctx.moveTo(-22, -250); ctx.lineTo(-15, -262); ctx.lineTo(15, -262); ctx.lineTo(22, -250); ctx.fill();
+  ctx.fillRect(-15, -312, 30, 50); // S-IVB
+  ctx.fillStyle = '#26282c'; ctx.fillRect(-15, -312, 30, 6);
+  ctx.fillStyle = '#e6e3da'; ctx.beginPath(); ctx.moveTo(-15, -312); ctx.lineTo(-11, -340); ctx.lineTo(11, -340); ctx.lineTo(15, -312); ctx.fill(); // lander adapter
+  ctx.fillStyle = '#c9ccd1'; ctx.fillRect(-11, -356, 22, 16); // service module
+  ctx.fillStyle = '#d8d6cf'; ctx.beginPath(); ctx.moveTo(-11, -356); ctx.lineTo(-3, -372); ctx.lineTo(3, -372); ctx.lineTo(11, -356); ctx.fill(); // command module
+  ctx.strokeStyle = '#b33'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -372); ctx.lineTo(0, -398); ctx.stroke(); // escape tower
+  ctx.fillStyle = '#3e4652'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.save(); ctx.rotate(-Math.PI / 2); ctx.fillText('USA', 200, 3); ctx.restore();
   ctx.restore();
 }
 

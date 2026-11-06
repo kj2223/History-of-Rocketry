@@ -4,7 +4,7 @@
 // likely as before.
 
 // How likely each fault is on a new round before any fix (hidden from the player, but the team's fixes move them).
-export const initProgramme = () => ({ igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, shutdownRisk: 0.05, thrusterRisk: 0.08, finRisk: 0.35, holddownRisk: 0.3, weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35, flights: [], adopted: [] });
+export const initProgramme = () => ({ igniter: 'wac-upper/r1', turbopump: 'v2/r1', sustainer: 'aerobee-sustainer/r1', viking: 'viking/r1', vanguard: 'vanguard-1/r1', juno: 'jupiter/r1', ranger: 'agena/r1', cameraRisk: 0.4, plugRisk: 0.5, controlRisk: 0.15, loxRisk: 0.15, thrustRisk: 0.3, guidanceRisk: 0.1, shortburnRisk: 0.1, shieldRisk: 0.12, scannerRisk: 0.25, titanctlRisk: 0.08, stage2Risk: 0.08, fuelcellRisk: 0.2, hatchRisk: 0.2, computerRisk: 0.15, navRisk: 0.1, shutdownRisk: 0.05, thrusterRisk: 0.08, saturnctlRisk: 0.05, j2Risk: 0.3, pogoRisk: 0.5, relightRisk: 0.25, spsRisk: 0.05, tankRisk: 0.05, cabinRisk: 0.15, alarmRisk: 0.4, ascentRisk: 0.08, chuteRisk: 0.1, lightningRisk: 0.08, finRisk: 0.35, holddownRisk: 0.3, weldRisk: 0.55, leakRisk: 0.45, vaneRisk: 0.4, sepRisk: 0.35, flights: [], adopted: [] });
 
 // What the review decided, turned into a standing change to how rounds are built. Returns the line Ellis gives, or null.
 const FIXES = {
@@ -36,6 +36,17 @@ const FIXES = {
   navdata: { text: 'Every number sent up to a spacecraft is now checked independently in the back room before it goes.', apply: p => { p.navRisk *= 0.2; } },
   shutdown: { text: 'The Titan\'s tail plugs are now safety-wired and pull-tested, and every gas generator is borescoped before stacking.', apply: p => { p.shutdownRisk *= 0.3; } },
   thruster: { text: 'Every thruster\'s wiring is now checked for shorts under vibration, and each thruster gets its own circuit breaker.', apply: p => { p.thrusterRisk *= 0.3; } },
+  saturnctl: { text: 'Every instrument unit now runs a full flight on the bench at IBM before it ships.', apply: p => { p.saturnctlRisk *= 0.4; } },
+  j2: { text: 'The J-2 igniter lines are now rigid tubing, not bellows: they cannot crack in vacuum.', apply: p => { p.j2Risk *= 0.2; } },
+  pogo: { text: 'Helium-filled accumulators now damp the first stage\'s propellant lines against pogo.', apply: p => { p.pogoRisk *= 0.15; } },
+  relight: { text: 'The S-IVB restart system is redesigned and every bottle leak-checked twice.', apply: p => { p.relightRisk *= 0.3; } },
+  sps: { text: 'Every service engine valve is now cycled a hundred times on the bench.', apply: p => { p.spsRisk *= 0.4; } },
+  tank: { text: 'The oxygen tanks\' heater switches are rated for the ground supply, and no tank is boiled dry again.', apply: p => { p.tankRisk *= 0.2; } },
+  cabin: { text: 'The command module is rewired, its materials made fireproof, the hatch opens outward, and the cabin holds air, not pure oxygen, on the pad.', apply: p => { p.cabinRisk *= 0.1; } },
+  alarm: { text: 'The rendezvous radar switch goes to a setting that cannot load the lander\'s computer during descent.', apply: p => { p.alarmRisk *= 0.2; } },
+  ascent: { text: 'Every ascent-engine injector now goes under the lens and through a hot firing.', apply: p => { p.ascentRisk *= 0.4; } },
+  chute: { text: 'The reaction control fuel is no longer dumped under the main parachutes.', apply: p => { p.chuteRisk *= 0.3; } },
+  lightning: { text: 'The launch rules now forbid launching through cloud that can carry a charge.', apply: p => { p.lightningRisk *= 0.2; } },
   fin: { text: 'Every Viking fin fitting is now magnafluxed for cracks before the fins go on.', apply: p => { p.finRisk *= 0.4; } },
   holddown: { text: 'The stand\'s hold-down fittings are now proof-loaded before every full-duration firing.', apply: p => { p.holddownRisk *= 0.3; } },
   separation: { text: 'Every separation bolt and firing lead is now tested on the bench before it goes on the stack.', apply: p => { p.sepRisk *= 0.4; } },
@@ -62,7 +73,7 @@ export const rangeRecord = programme => Math.max(0, ...programme.flights.map(f =
 // narrows it.
 const loadFactor = load => (0.55 + 0.45 * load) ** 2;
 // km for a full load: the office's pre-flight figures, a little pessimistic. A Bumper has never flown, so its spread is widest.
-export const PAPER = { wac: { apogee: 62, spread: 0.18 }, v2: { apogee: 140, spread: 0.22 }, bumper: { apogee: 300, spread: 0.3 }, aerobee: { apogee: 95, spread: 0.2 }, viking: { apogee: 150, spread: 0.22 }, vanguard: { apogee: 560, spread: 0.3 }, juno: { apogee: 110000, spread: 0.1 }, ranger: { apogee: 110000, spread: 0.1 }, redstone: { apogee: 187, spread: 0.1 }, atlas: { apogee: 260, spread: 0.1 }, titan: { apogee: 300, spread: 0.1 } };
+export const PAPER = { wac: { apogee: 62, spread: 0.18 }, v2: { apogee: 140, spread: 0.22 }, bumper: { apogee: 300, spread: 0.3 }, aerobee: { apogee: 95, spread: 0.2 }, viking: { apogee: 150, spread: 0.22 }, vanguard: { apogee: 560, spread: 0.3 }, juno: { apogee: 110000, spread: 0.1 }, ranger: { apogee: 110000, spread: 0.1 }, redstone: { apogee: 187, spread: 0.1 }, atlas: { apogee: 260, spread: 0.1 }, titan: { apogee: 300, spread: 0.1 }, saturn5: { apogee: 300, spread: 0.1 } };
 export const PAPER_APOGEE = PAPER.wac.apogee;
 export function estimate(programme, vehicle = 'wac', load = 1) {
   if (typeof vehicle === 'number') { load = vehicle; vehicle = 'wac'; } // estimate(programme, load) means a WAC

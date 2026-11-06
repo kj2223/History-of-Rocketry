@@ -16,6 +16,14 @@ export const ASTRONAUTS = {
   kowalczyk: { name: 'James Kowalczyk', service: 'Air Force test pilot', hours: 3300, note: 'Rendezvous theory is his strength.', color: '#d9d4c7' },
   fairbanks: { name: 'Neil Fairbanks', service: 'Civilian research pilot', hours: 2300, note: 'Unflappable in emergencies.', color: '#d9d4c7' },
   szabo: { name: 'David Szabo', service: 'Marine Corps test pilot', hours: 3400, note: 'Aggressive flyer, honest debriefs.', color: '#d9d4c7' },
+  // The third group, chosen in October 1963: the Apollo crews.
+  harlan: { name: 'Roger Harlan', service: 'Navy test pilot', hours: 2700, note: 'Quick, impatient with paperwork.', color: '#d9d4c7' },
+  oyelaran: { name: 'Michael Oyelaran', service: 'Air Force test pilot', hours: 3000, note: 'A steady hand in the simulator; few words.', color: '#d9d4c7' },
+  beckett: { name: 'Walter Beckett', service: 'Air Force pilot, astronautics doctorate', hours: 2400, note: 'Wrote his thesis on orbital rendezvous.', color: '#d9d4c7' },
+  dumont: { name: 'Eugene Dumont', service: 'Navy test pilot', hours: 3600, note: 'Wants to fly the lander more than anything.', color: '#d9d4c7' },
+  reiss: { name: 'Alan Reiss', service: 'Navy aviator', hours: 2900, note: 'Cheerful and meticulous.', color: '#d9d4c7' },
+  tanaka: { name: 'Stuart Tanaka', service: 'Air Force test pilot', hours: 3200, note: 'Geology is his hobby, and it shows.', color: '#d9d4c7' },
 };
 export const SEVEN = ['rourke', 'okafor', 'whitcomb', 'lindqvist', 'price', 'achterberg', 'moreau'];
 export const NINE = ['boateng', 'nakamura', 'castellano', 'kowalczyk', 'fairbanks', 'szabo'];
+export const FOURTEEN = ['harlan', 'oyelaran', 'beckett', 'dumont', 'reiss', 'tanaka'];
