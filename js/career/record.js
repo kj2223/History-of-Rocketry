@@ -26,6 +26,8 @@ export function turningPoint(record, offer, day) {
   if (!made) record.sidelined = true;
   return entry;
 }
+// An offer made and not yet answered holds the next round until you answer it.
+export const pendingOffer = record => { const o = record.offers[record.offers.length - 1]; return !!o && o.made && !o.answer; };
 export function answerOffer(record, take) {
   const o = record.offers[record.offers.length - 1];
   if (!o || !o.made || o.answer) return null;

@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -93,6 +93,45 @@ export const KITS = {
     },
   },
 
+  aerobee: {
+    name: 'Aerobee', range: 'AEROBEE', crew: ['kowalski', 'delgado'],
+    inspect: { title: 'Hangar: the Aerobee sustainer', objective: 'Go to the assembly hangar and look the Aerobee sustainer over before the static fire.',
+      intro: 'Aerojet\'s sustainer lies on its cradle with the panels off, its solid booster on the rack beside it. Kowalski hands you a torch.' },
+    brief: 'Aerojet\'s sustainer is in the hangar. Look her over, then we fire her on the stand.',
+    stand: { thing: 'Aerobee sustainer', pc: [17, 23], wall: [0, 700], rework: 'Rebond the chamber liner and fit a wall-temperature pickup', reworkJob: 'Rebonding the liner', reworkDay: 'The crew spent the day rebonding the sustainer\'s chamber liner.', reworkSay: 'A liner rebond. That puts the launch back a day.' },
+    spots: {
+      'weld-fwd': { ...WAC_SPOTS['weld-fwd'], name: 'Sustainer forward tank weld' },
+      'weld-aft': { ...WAC_SPOTS['weld-aft'], name: 'Sustainer aft tank weld' },
+      fitting: WAC_SPOTS.fitting,
+      pressure: WAC_SPOTS.pressure,
+      chamber: { name: 'Thrust chamber, outside', fault: null, sound: 'Clean metal, no heat marks from the last firing.', cue: 'A faint ring of discolouration round the chamber. Old, perhaps, or nothing.' },
+      booster: { name: 'Booster attachment', fault: null, sound: 'The booster seats square and the shear pins are new.', cue: 'One shear pin sits a hair proud of the others.' },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      liner: 'The chamber liner came away and the wall burned through. Rebond the liners.',
+      weld: 'A tank weld let go under load.',
+      leak: 'A propellant leak starved the motor.',
+      unknown: 'Not enough evidence. I want a full-duration firing on the stand.',
+    },
+    calls: {
+      lift: 'Liftoff! She\'s off the tower.',
+      steady: [{ t: 2, text: 'Booster burnout. Sustainer lit.', tone: 'go' }, { t: 15, text: 'Sustainer burning steady. Track is good.' }],
+      burnout: burn => `Burnout at ${burn} seconds. Coasting.`,
+      fail: {
+        liner: [{ t: 2, text: 'Booster burnout. Sustainer lit.', tone: 'go' }, { t: 15, text: 'Sustainer burning steady.' }, { t: 31, text: 'A flare at the tail! She\'s yawing off! Thrust\'s gone!' }],
+        weld: [{ t: 2, text: 'Booster burnout. Sustainer lit.', tone: 'go' }, { t: 12, text: 'A flash! Pieces coming off her!' }],
+        leak: [{ t: 2, text: 'Booster burnout. Sustainer lit.', tone: 'go' }, { t: 25, text: 'Flame\'s out early! Burnout at 25 seconds.' }],
+      },
+    },
+    wreck: {
+      liner: ['The sustainer came down short, in one long piece.', 'There is a hole burnt clean through the chamber wall, and inside, the liner has come away from it in a sheet.', 'The feed lines and tanks are intact.'],
+      weld: ['Pieces are spread over a long strip of the range.', 'The propellant tank is torn open along a weld seam, the edges peeled outward.', 'The chamber looks undamaged.'],
+      leak: ['The round came down short of the planned impact.', 'Green acid staining runs back from the feed fitting along the skin.', 'The chamber shows a clean burn that simply stopped.'],
+      nominal: ['The round dug itself a crater well up the range.', 'The chamber shows an even burn, the liner still bonded all round.', 'Nothing unusual on what is left of the tank.'],
+    },
+  },
+
   bumper: {
     name: 'Bumper', range: 'BUMPER (V-2 + WAC)', crew: ['kowalski', 'delgado'],
     inspect: { title: 'Hangar: the Bumper stack', objective: 'Go to the assembly hangar and look over the whole Bumper stack, the V-2 and the WAC on its nose, before tomorrow\'s static fire.',
@@ -146,5 +185,6 @@ export const KITS = {
 export const FAILED_BECAUSE = {
   ignition: 'the WAC motor did not light properly', weld: 'a tank weld let go', leak: 'a leak starved the motor',
   turbopump: 'the V-2 turbopump lost power', vanes: 'a jet vane broke and she tumbled', separation: 'the stages never separated',
+  liner: 'the chamber liner came away and the wall burned through',
 };
 export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead' };
