@@ -14,7 +14,7 @@ import { QUANTITIES, REVISIONS, STAGES, VEHICLES, VEHICLE_QUANTITIES } from '../
 import { FACILITY_KINDS } from '../data/facilities.js';
 import { Rejection, memo } from './authority.js';
 import { claimStatus } from './evidence.js';
-import { openHypotheses } from './belief.js';
+import { openHypotheses, readiness } from './belief.js';
 import { holders } from './facilities.js';
 import { available, capacityRemaining, protectedBaseline } from './fiscal.js';
 import { isDelegated } from './delegation.js';
@@ -45,7 +45,7 @@ const fixStep = (state, p, stage, rev, hypothesis) => {
   if (bad.length) return { kind: 'adverse', stage, quantities: bad, failedFix: rev };
   for (const burn of ['short', 'long']) if (qs.some(q => claimStatus(state, config, q, { burn }).status !== 'measured-normal')) return { kind: 'ground-test', stage, rev, burn, channels: qs, why: 'fix' };
   if (!r.trial) return { kind: 'trial', stage, rev };
-  if (!trialFlown(state, p, stage, rev)) return { kind: 'fly', stage, rev };
+  if (!trialFlown(state, p, stage, rev)) return flyIfReady(state, p, config, rev, stage);
   return { kind: 'adopt', stage, rev };
 };
 
@@ -73,7 +73,23 @@ export const nextStep = (state, p) => {
     const started = qs.some(q => claimStatus(state, config, q).status === 'measured-normal');
     return { kind: 'ground-test', stage, burn: started ? 'long' : 'short', channels: qs, why: started ? 'flight-conditions' : 'first' };
   }
-  return { kind: 'fly' };
+  return flyIfReady(state, p, config);
+};
+
+// Before asking to fly, the team checks what the technical director will check (§4.4): an open finding the
+// administrator has not accepted as a known risk sends it after the cause instead of to the pad.
+const VEHICLE_QUANTITIES_ALL = [...new Set(Object.values(VEHICLE_QUANTITIES).flat())];
+const blockedQuantities = r => VEHICLE_QUANTITIES_ALL.filter(q => r.blockers.some(b => b.startsWith(`${q} `)));
+const flyIfReady = (state, p, config, rev = null, stage = null) => {
+  const r = readiness(state, 'experimental-flight', config, rev);
+  if (r.ready) return rev ? { kind: 'fly', stage, rev } : { kind: 'fly' };
+  for (const st of VEHICLES[p.vehicle].stages) {
+    const anomaly = anomalyOn(state, p, st);
+    if (anomaly?.proposedTests?.length) { const t = anomaly.proposedTests[0]; return { kind: 'ground-test', stage: st, burn: t.conditions.burn, channels: t.channels, why: 'anomaly', anomaly: anomaly.id }; }
+    const leading = anomaly?.status === 'leading' ? openHypotheses(anomaly)[0] : null, fix = leading && remedyFor(st, leading);
+    if (!rev && fix && p.baseline[st] !== fix) return fixStep(state, p, st, fix, leading);
+  }
+  return { kind: 'adverse', stage: null, quantities: blockedQuantities(r), flight: true };
 };
 const keyOf = s => [s.kind, s.stage, s.rev, s.burn, s.channels?.join('+')].filter(Boolean).join(':');
 
@@ -265,6 +281,7 @@ const workRound = (state, run, p) => {
     noteOnce(state, `adverse:${p.id}:${step.stage}:${step.failedFix ?? ''}:${step.quantities.join('+')}`, { from: 'technical-director', kind: 'warning', refs: { programme: p.id },
       text: step.failedFix
         ? `${team(p)} has stopped work on the ${REVISIONS[step.failedFix].label}: ${list(step.quantities.map(qname))} is still outside normal limits with the fix fitted, so it is not the cure. We need your direction before we spend more on it.`
+        : step.flight ? `${team(p)} is not asking to fly again: ${list(step.quantities.map(qname))} has a finding outside normal limits that you have not accepted as a known risk, and we have no test or fix that would clear it. We need your direction before we ask for the pad.`
         : `${team(p)} has stopped new work on the ${STAGES[step.stage].name}: ${list(step.quantities.map(qname))} came back outside normal limits. ${leading ? `Our leading explanation is ${leading}, but we have no fix for it we can develop.` : 'No test we can run would explain it.'} We need your direction before we spend more on it.` });
     return;
   }

@@ -76,3 +76,17 @@ test('a stand fault leads the team through cause, fix, trial and adoption, then 
   assert.ok(g.state.launches.filter(l => l.status === 'flown').length >= 2, 'and it kept flying');
   assert.ok(g.state.memos.some(m => /monthly update/.test(m.text)), 'and it sent monthly updates');
 });
+
+test('a team does not ask for the pad while an unaccepted finding would make the technical director veto it', async () => {
+  const { nextStep } = await import('../js/rules/staff.js');
+  const g = game();
+  const wac = g.state.programmes.wac, stages = { ...wac.baseline };
+  // Pretend the stand work is done and a flight came back off course: the deviation finding is open.
+  for (const [quantity, burn] of [['wac-upper.chamber-pressure', 'short'], ['wac-upper.chamber-pressure', 'long']])
+    g.state.evidence.observations.push({ id: `x-${burn}`, day: 0, workId: `w-${burn}`, kind: 'ground', vehicle: 'wac', stages, conditions: { burn }, quantity, state: 'measured', value: 20, normal: true });
+  assert.equal(nextStep(g.state, wac).kind, 'fly');
+  g.state.evidence.observations.push({ id: 'x-dev', day: 0, workId: 'w-f', kind: 'flight', vehicle: 'wac', stages, conditions: { burn: 'long' }, quantity: 'vehicle.deviation', state: 'measured', value: 9, normal: false });
+  assert.notEqual(nextStep(g.state, wac).kind, 'fly');
+  g.state.beliefs.assessed = ['x-dev'];
+  assert.equal(nextStep(g.state, wac).kind, 'fly', 'once you accept the known risk the team may ask again');
+});
