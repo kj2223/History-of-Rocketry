@@ -1,9 +1,0 @@
-/* Ledger (light): the original white version. */
-:root { --desk: #e9edf2; --paper: #ffffff; --paper-2: #f3f5f8; --raised: #ffffff; --hover: #eef3fb; --ink: #1b2430; --ink-soft: #5d6b7c; --paper-ink: #ffffff;
-  --rule: #d3dae3; --stamp: #b3261e; --ok: #1f7a46; --warn: #8a5a00; --focus: #1558d6;
-  --serif: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --type: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-.case { box-shadow: 0 1px 3px #0002; border-radius: 8px; overflow: hidden; } header.bar { background: var(--paper); border-bottom: 1px solid var(--rule); }
-header.bar h1, h2, h4, th, .date { text-transform: none; letter-spacing: 0; } .stamp { transform: none; border-width: 1px; border-radius: 999px; padding: 0 10px; font-weight: 600; text-transform: none; letter-spacing: 0; }
-button { border-radius: 6px; border-color: var(--rule); } nav.tabs { border-bottom: 1px solid var(--rule); } nav.tabs button { border-radius: 6px 6px 0 0; background: transparent; border-color: transparent; }
-nav.tabs button[aria-current="page"] { border-color: var(--rule); border-bottom: 2px solid var(--focus); }
-.panel { border-radius: 8px; }

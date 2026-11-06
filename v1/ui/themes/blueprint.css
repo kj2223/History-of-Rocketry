@@ -1,5 +1,0 @@
-/* Blueprint: drafting-room navy with pale linework and a faint grid. Technical, calm, a little romantic. */
-:root { --desk: #0b1e3a; --paper: #12305a; --paper-2: #17396b; --raised: #153463; --hover: #1d4580; --ink: #e8f1ff; --ink-soft: #9db8de; --paper-ink: #0b1e3a;
-  --rule: #4f78b3; --stamp: #ffb3a1; --ok: #9de8b4; --warn: #ffd98a; --focus: #ffe27a; --serif: Georgia, "Times New Roman", serif; --type: "Trebuchet MS", "Segoe UI", sans-serif; }
-.case { background-image: linear-gradient(#ffffff12 1px, transparent 1px), linear-gradient(90deg, #ffffff12 1px, transparent 1px); background-size: 24px 24px; border-color: var(--rule); }
-.card, .letter { background: #12305acc; } .stamp { transform: none; border-style: dashed; } button { border-color: var(--rule); border-radius: 0; } nav.tabs button { border-radius: 0; }
