@@ -13,16 +13,19 @@
     "dist": "electron-builder --win --publish never"
   },
   "devDependencies": {
-    "electron": "^38.8.6",
+    "electron": "^45.2.3",
     "electron-builder": "^26.18.0"
   },
   "build": {
     "appId": "com.kj2223.projectvanguard",
     "files": [
       "desktop/**",
-      "js/**",
-      "index.html",
-      "style.css"
+      "v1/index.html",
+      "v1/js/**",
+      "v1/ui/**",
+      "v2/index.html",
+      "v2/js/**",
+      "v2/ui/**"
     ],
     "win": {
       "target": [
