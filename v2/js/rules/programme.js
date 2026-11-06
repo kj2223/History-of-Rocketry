@@ -104,8 +104,12 @@ export const greenlight = (state, { id }) => {
 
 // Design work finishing: the programme gets its vehicle and baseline, and the teams can build, test and fly it.
 export const designsReady = state => {
-  for (const p of Object.values(state.programmes).filter(x => !x.vehicle && x.designReady === state.day)) {
-    const design = PROGRAMMES.find(d => d.id === p.id).design;
+  for (const p of Object.values(state.programmes).filter(x => !x.vehicle && x.stage === 'greenlit')) {
+    const design = PROGRAMMES.find(d => d.id === p.id)?.design;
+    if (!design) continue;
+    // Saves greenlit before design work existed start it on load instead of waiting forever.
+    if (p.designReady == null) { p.designReady = state.day + TUNING.designDays[design]; log(p, state.day, 'design work begins'); }
+    if (p.designReady > state.day) continue;
     Object.assign(p, { vehicle: design, baseline: { ...BASELINE[design] } });
     log(p, state.day, 'first vehicles delivered');
     memo(state, { from: 'technical-director', text: `The first ${p.name} vehicles are delivered. Nothing has been fired or flown on this design yet, so we know nothing for certain about it; the team will propose its first stand firing.`, refs: { programme: p.id } });
