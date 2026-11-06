@@ -19,7 +19,7 @@ const WIRING = { name: 'Control compartment wiring', fault: null, sound: 'Every 
 // The short names for each cause, used in what people say and in your record.
 export const SHORT = {
   nominal: 'a good flight', ignition: 'a rough ignition', weld: 'a weld failure', leak: 'a leak', turbopump: 'a tired turbopump',
-  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', unknown: 'not enough evidence',
+  vanes: 'a broken jet vane', separation: 'a separation failure', liner: 'a liner burn-through', cutoff: 'a turbine steam leak', fin: 'a failed fin', holddown: 'a hold-down failure', unknown: 'not enough evidence',
 };
 
 export const KITS = {
@@ -98,7 +98,7 @@ export const KITS = {
     inspect: { title: 'Hangar: the Aerobee sustainer', objective: 'Go to the assembly hangar and look the Aerobee sustainer over before the static fire.',
       intro: 'Aerojet\'s sustainer lies on its cradle with the panels off, its solid booster on the rack beside it. Kowalski hands you a torch.' },
     brief: 'Aerojet\'s sustainer is in the hangar. Look her over, then we fire her on the stand.',
-    stand: { thing: 'Aerobee sustainer', pc: [17, 23], wall: [0, 700], rework: 'Rebond the chamber liner and fit a wall-temperature pickup', reworkJob: 'Rebonding the liner', reworkDay: 'The crew spent the day rebonding the sustainer\'s chamber liner.', reworkSay: 'A liner rebond. That puts the launch back a day.' },
+    stand: { thing: 'Aerobee sustainer', pc: [17, 23], wall: [0, 700], long: 'with thermocouples on the chamber. Shows the wall temperature.', rework: 'Rebond the chamber liner and fit a wall-temperature pickup', reworkJob: 'Rebonding the liner', reworkDay: 'The crew spent the day rebonding the sustainer\'s chamber liner.', reworkSay: 'A liner rebond. That puts the launch back a day.' },
     spots: {
       'weld-fwd': { ...WAC_SPOTS['weld-fwd'], name: 'Sustainer forward tank weld' },
       'weld-aft': { ...WAC_SPOTS['weld-aft'], name: 'Sustainer aft tank weld' },
@@ -129,6 +129,48 @@ export const KITS = {
       weld: ['Pieces are spread over a long strip of the range.', 'The propellant tank is torn open along a weld seam, the edges peeled outward.', 'The chamber looks undamaged.'],
       leak: ['The round came down short of the planned impact.', 'Green acid staining runs back from the feed fitting along the skin.', 'The chamber shows a clean burn that simply stopped.'],
       nominal: ['The round dug itself a crater well up the range.', 'The chamber shows an even burn, the liner still bonded all round.', 'Nothing unusual on what is left of the tank.'],
+    },
+  },
+
+  viking: {
+    name: 'Viking', range: 'VIKING', crew: ['kowalski', 'delgado'],
+    inspect: { title: 'Hangar: the Viking', objective: 'Go to the assembly hangar and look the Viking over before the static firing.',
+      intro: 'Martin\'s Viking lies on its dolly, slimmer and longer than a V-2, its engine swung on a gimbal where a V-2 had vanes. The crew has the access panels off.' },
+    brief: 'The Viking is in the hangar. Look her over, then she goes on the stand.',
+    stand: { thing: 'Viking', pc: [18, 24], long: 'the whole burn on the stand. Shows whether chamber pressure holds up late in the burn. The hold-downs take full thrust for the whole firing.', rework: 'Weld up the turbine casing and rework the steam feed', reworkJob: 'Reworking the turbine', reworkDay: 'The crew spent the day welding up the turbine casing and reworking the steam feed.', reworkSay: 'A turbine rework. That puts the launch back a day.' },
+    spots: {
+      fins: { name: 'Fin attachment fittings', fault: 'fin', sound: 'The fittings are clean, the bolts torqued and marked.', cue: 'A hairline in the paint at the root of one fitting. A crack, or just paint.' },
+      'lox-valve': { name: 'Main oxygen valve', fault: 'leak', sound: 'Seated square, new gaskets.', cue: 'Frost on the flange that shouldn\'t be there after a cold-flow test.' },
+      'alc-valve': { name: 'Alcohol feed line', fault: 'leak', sound: 'Dry, the clamps tight.', cue: 'A damp ring and a smell of alcohol at one joint.' },
+      holddown: { name: 'Stand hold-down fittings', fault: 'holddown', sound: 'The fittings and their pins are bright and true.', cue: 'One hold-down pin shows a faint ridge, as if it had been loaded before.' },
+      turbine: { name: 'Turbine casing', fault: null, sound: 'Casing dry, the seams clean.', cue: 'A brown streak along one seam. Old staining, maybe.' },
+      gimbal: { name: 'Gimbal actuators', fault: null, sound: 'Both actuators sweep smoothly through their travel.', cue: 'One actuator hesitates at the end of its travel, once.' },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      cutoff: 'The turbine leaked steam and the engine cut off early. Weld up the casings.',
+      fin: 'A fin let go and she lost attitude control.',
+      leak: 'A propellant leak starved the engine.',
+      holddown: 'She broke loose from the stand: the hold-down fittings failed.',
+      unknown: 'Not enough evidence. I want a full-duration firing on the stand.',
+    },
+    calls: {
+      lift: 'Liftoff! She\'s climbing clean.',
+      steady: [{ t: 10, text: 'Engine steady. Gimbals are steering her. Track is good.', tone: 'go' }],
+      burnout: burn => `Cutoff at ${burn} seconds, on time. Coasting up.`,
+      fail: {
+        cutoff: [{ t: 10, text: 'Engine steady. Track is good.' }, { t: 42, text: 'Chamber pressure falling! Cutoff at 42 seconds, early!' }],
+        fin: [{ t: 10, text: 'Engine steady.' }, { t: 30, text: 'She\'s rolling! Something came off her! She\'s lost attitude!' }],
+        leak: [{ t: 10, text: 'Engine steady. Track is good.' }, { t: 55, text: 'Early cutoff! The engine stopped at 55 seconds.' }],
+        holddown: [{ t: 2, text: 'She\'s off the stand! She\'s loose and climbing!' }, { t: 55, text: 'Cutoff sent. Engine is out. She\'s coming down to the southeast.' }],
+      },
+    },
+    wreck: {
+      cutoff: ['The Viking came down short of the planned area.', 'The turbine casing is streaked brown along a seam, and the steam lines are scorched.', 'The engine and fins look sound.'],
+      fin: ['Wreckage is spread well off the line of flight.', 'One fin is missing. Its attachment fitting is cracked through at the root.', 'The engine looks sound.'],
+      leak: ['The Viking came down short of the planned area.', 'There is frost-scoured staining round a feed joint, and the engine shows a clean burn that stopped.', 'The fins are all there.'],
+      holddown: ['The Viking came down a few miles southeast of the stand, smashed flat.', 'At the stand, two hold-down fittings are sheared, their pins pulled through.', 'The engine shows a full-power burn to the cutoff.'],
+      nominal: ['A deep crater far up the range.', 'The engine shows an even burn, the gimbal free.', 'All four fins accounted for.'],
     },
   },
 
@@ -186,5 +228,6 @@ export const FAILED_BECAUSE = {
   ignition: 'the WAC motor did not light properly', weld: 'a tank weld let go', leak: 'a leak starved the motor',
   turbopump: 'the V-2 turbopump lost power', vanes: 'a jet vane broke and she tumbled', separation: 'the stages never separated',
   liner: 'the chamber liner came away and the wall burned through',
+  cutoff: 'the turbine leaked steam and the engine cut off early', fin: 'a fin fitting cracked and a fin came off', holddown: 'the hold-down fittings let go on the stand',
 };
-export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead' };
+export const FAULT_AT_SPOT = { weld: 'A bad weld', leak: 'A leak', vanes: 'A cracked jet vane', separation: 'A faulty separation bolt lead', fin: 'A cracked fin fitting', holddown: 'A flawed hold-down fitting' };
