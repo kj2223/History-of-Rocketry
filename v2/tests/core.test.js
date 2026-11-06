@@ -27,8 +27,8 @@ test('rng: streams are independent and resume from saved state', () => {
   assert.equal(draw(a.forecast), draw(saved));
 });
 
-test('rng: V2 adds intelligence and crew streams and keeps the streams a V1 save already has', () => {
-  assert.deepEqual(STREAMS, ['physical', 'observation', 'forecast', 'intelligence', 'crew']);
+test('rng: V2 adds intelligence, crew and operations streams and keeps the streams a V1 save already has', () => {
+  assert.deepEqual(STREAMS, ['physical', 'observation', 'forecast', 'intelligence', 'crew', 'operations']);
   const v1 = { physical: { algorithm: 'mulberry32-v1', state: 42 }, observation: { algorithm: 'mulberry32-v1', state: 43 }, forecast: { algorithm: 'mulberry32-v1', state: 44 } };
   const merged = withStreams(v1, 9);
   assert.equal(merged.physical.state, 42);

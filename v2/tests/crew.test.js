@@ -3,49 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { project } from '../js/rules/index.js';
-import { VEHICLE_QUANTITIES } from '../js/data/vehicles.js';
-import { FLIGHT_CONDITIONS } from '../js/data/engineering.js';
 import { qualified, boardSlate } from '../js/rules/crew.js';
 import { SELECTIONS } from '../js/data/crew.js';
-import { mercuryRedstone, book, assertNoLeak } from './game.js';
+import { mercuryRedstone, book, assertNoLeak, cleanRecord, selected, train, crewedReady, askLaunch } from './game.js';
 
 const MR = 'mercury-redstone';
-
-// Readings that make every claim of this configuration measured-normal on enough distinct tests.
-const cleanRecord = (g, vehicle, stages, tests = 3) => {
-  const obs = g.state.evidence.observations;
-  for (let t = 0; t < tests; t++) for (const quantity of VEHICLE_QUANTITIES[vehicle])
-    obs.push({ id: `seed-${obs.length + 1}`, day: g.state.day, workId: `seed-${vehicle}-${t}`, kind: 'flight', vehicle, stages: { ...stages }, conditions: { ...FLIGHT_CONDITIONS }, quantity, state: 'measured', value: 1, normal: true });
-};
-
-const selected = (g, ids) => {
-  const d = g.state.decisions.find(x => x.type === 'crew-selection' && x.status === 'open');
-  if (ids) g.cmd('select-crew', 'administrator', { group: d.subject, ids });
-  else g.approve(d.id);
-  return g.state;
-};
-
-const train = (g, vehicle, crew) => { const jobId = `train-${crew.join('-')}-${g.state.day}`; g.cmd('train-crew', 'administrator', { jobId, vehicle, crew }); g.finish(jobId); };
-
-// Mercury-Redstone with a clean record, a readiness decision for crewed use and a trained crew.
-const crewedReady = (crew = ['cand-01'], seed = 77) => {
-  const g = mercuryRedstone(seed);
-  selected(g, crew);
-  train(g, MR, crew);
-  cleanRecord(g, MR, g.state.programmes[MR].baseline);
-  g.approve(g.cmd('request-crew-readiness', 'technical-director', { programmeId: MR }));
-  return g;
-};
-
-let n = 0;
-const askLaunch = (g, crew, articleId = `art-${++n}`) => {
-  g.cmd('build-article', 'production', { id: articleId, programmeId: MR });
-  const pad = book(g, 'pad-1', MR, 5), tracking = book(g, 'tracking-1', MR, 5), id = `L-${articleId}`;
-  const r = g.try('request-launch', 'administrator', { id, articleId, pad, tracking, cost: 1, replacementCost: 1, crew });
-  if (r.rejection) return { rejection: r.rejection.reason };
-  g.state = r.state;
-  return { id, decision: r.result.decision };
-};
 
 test('§7: the selection board recommends a slate from records; the administrator approves it or picks from the records', () => {
   const g = mercuryRedstone();

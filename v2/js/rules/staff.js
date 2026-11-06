@@ -32,7 +32,7 @@ const team = p => `The ${p.name} team`;
 
 // ---- what a team would do next on a greenlit programme ----
 
-const stageQuantities = (p, stage) => VEHICLE_QUANTITIES[p.vehicle].filter(q => q.startsWith(`${stage}.`));
+const stageQuantities = (p, stage) => VEHICLE_QUANTITIES[p.vehicle].filter(q => q.startsWith(`${stage}.`) && !QUANTITIES[q].flightOnly);
 const anomalyOn = (state, p, stage) => Object.values(state.beliefs.anomalies).find(a => ANOMALIES[a.id].stage === stage && (!ANOMALIES[a.id].vehicles || ANOMALIES[a.id].vehicles.includes(p.vehicle)));
 // The corrective revision for the leading explanation, if the team has one it can develop (§5.1).
 const remedyFor = (stage, hypothesis) => Object.keys(REVISIONS).find(r => REVISIONS[r].stage === stage && REVISIONS[r].remedies?.includes(hypothesis) && STAGES[stage].developable);

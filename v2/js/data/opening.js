@@ -10,6 +10,9 @@ export const HEADS_1958 = [
   { id: 'head-dh', role: 'department-head', name: 'Ray Delgado', traits: { risk: 0.6, candour: 0.5, independence: 0.6 } },
 ];
 
+// The Retrofire officer Flight Control brings with it (V2 freeze §6.3). Fictional. Skill is hidden like a trait.
+export const RETROFIRE_OFFICER = { id: 'retro-1', role: 'retrofire-officer', name: 'Lou Varga', skill: 0.6, traits: { risk: 0.4, candour: 0.6, independence: 0.5 } };
+
 // Inherited from the satellite programmes NASA absorbs: a settlement still owed to a contractor.
 export const OBLIGATIONS_1958 = [
   { kind: 'contract-settlement', dept: 'financial-officer', programmeId: null, amount: 350000, due: dayOf(1959, 3, 31), text: 'Vanguard contract settlement owed to the Martin Company' },

@@ -3,8 +3,9 @@
 
 export const ALGORITHM = 'mulberry32-v1';
 
-// V2 adds its own streams (V2 freeze §12): intelligence noise and crew behaviour. Entry errors draw from physical.
-const SALTS = { physical: 0x9e3779b9, observation: 0x85ebca6b, forecast: 0xc2b2ae35, intelligence: 0x27d4eb2f, crew: 0x165667b1 };
+// V2 adds its own streams (V2 freeze §12): intelligence noise, crew behaviour and flight operations (the
+// Retrofire officer's errors). Entry errors draw from physical.
+const SALTS = { physical: 0x9e3779b9, observation: 0x85ebca6b, forecast: 0xc2b2ae35, intelligence: 0x27d4eb2f, crew: 0x165667b1, operations: 0xd3a2646c };
 export const STREAMS = Object.keys(SALTS);
 
 const stream = (seed, name) => ({ algorithm: ALGORITHM, state: (seed ^ SALTS[name]) >>> 0 });

@@ -321,14 +321,17 @@ const buildForm = p => {
     'Production builds', v => { const rev = trial.find(r => r.id === v.rev); act('build-article', 'production', { id: nextArticleId(p), programmeId: p.id, stages: rev ? { [rev.stage]: rev.id } : null }, 'Article built.'); });
 };
 
+const comesHome = vehicle => view.operations?.comesHome.includes(vehicle);
+const recoveryOptions = () => view.operations.recoveryForces.map(f => [f.id, `${cap(f.name)}, ${money(f.cost)}`]);
 const launchForm = a => formBox(`ln-${a.id}`, 'Request launch', [
-  { name: 'cost', label: 'Cost of this flight ($)', type: 'number', value: 20000, min: 0 }, { name: 'replacementCost', label: 'Cost to replace the article ($)', type: 'number', value: 20000, min: 0 }],
+  { name: 'cost', label: 'Cost of this flight ($)', type: 'number', value: 20000, min: 0 }, { name: 'replacementCost', label: 'Cost to replace the article ($)', type: 'number', value: 20000, min: 0 },
+  ...(comesHome(a.vehicle) ? [{ name: 'recovery', label: 'Recovery force', value: 'primary', options: recoveryOptions() }] : [])],
 'Request launch', v => {
   const id = uid('launch'), pad = uid('res'), trk = uid('res'), from = view.day;
   chain([
     () => ['reserve-facility', 'administrator', { id: pad, unitId: 'pad-1', programmeId: a.programmeId, from, to: from + 5, purpose: 'launch' }],
     () => ['reserve-facility', 'administrator', { id: trk, unitId: 'tracking-1', programmeId: a.programmeId, from, to: from + 5, purpose: 'tracking' }],
-    () => ['request-launch', 'administrator', { id, articleId: a.id, pad, tracking: trk, cost: v.cost, replacementCost: v.replacementCost }],
+    () => ['request-launch', 'administrator', { id, articleId: a.id, pad, tracking: trk, cost: v.cost, replacementCost: v.replacementCost, ...(v.recovery ? { recovery: v.recovery } : {}) }],
   ], 'Launch raised for your decision.');
 });
 
@@ -522,7 +525,30 @@ const crewView = () => {
           h('td', {}, [...new Set(p.record.training.map(t => t.vehicle))].map(words).join(', ') || '—'),
           h('td', {}, p.record.flights.map(f => `${day(f.day)} ${words(f.vehicle)}: ${words(f.outcome)}${f.abort ? ` (abort: ${f.abort})` : ''}`).join('; ') || '—'),
           h('td', {}, p.record.consents.map(c => `${day(c.day)} ${c.consent ? 'consented' : 'refused'}`).join('; ') || '—')))))
-        : h('p', { class: 'muted' }, 'No astronauts yet. The first selection board sits in April 1959.')));
+        : h('p', { class: 'muted' }, 'No astronauts yet. The first selection board sits in April 1959.')),
+    operationsView());
+};
+
+// Entry and recovery (V2 freeze §6.3, §6.4): you set how retrofire data is checked and where recovery waits.
+// The record shows what tracking, the crew and the ships reported, never the flight path behind it.
+const operationsView = () => {
+  const ops = view.operations;
+  if (!ops) return null;
+  const waiting = view.launches.filter(l => l.status === 'awaiting-decision' && comesHome(l.vehicle));
+  const home = view.launches.filter(l => l.entry).slice().reverse();
+  const e = l => l.entry.contact ? [l.entry.sighting === null ? 'not fixed' : `${Math.round(l.entry.sighting)} km`, `${l.entry.pickupHours} h`, l.entry.crewCondition ? cap(l.entry.crewCondition) : 'Uncrewed', l.entry.capsuleRecovered ? 'Recovered' : 'Sank']
+    : ['No contact after blackout', '—', '—', 'Lost'];
+  return h('section', { class: 'card' }, h('h3', {}, 'Entry and recovery'),
+    h('p', {}, `Retrofire data: ${ops.retrofireChecking === 'independent' ? 'checked by a second analyst before it is sent' : 'sent as the Retrofire officer computes it'}. `,
+      button(ops.retrofireChecking === 'independent' ? 'Stop the second check' : `Check it independently (${money(ops.checkCost)} a flight)`,
+        () => act('set-retrofire-checking', 'administrator', { policy: ops.retrofireChecking === 'independent' ? 'single' : 'independent' }, 'Retrofire checking changed.'), { key: 'retro-check' })),
+    waiting.map(l => formBox(`rec-${l.id}`, `Recovery for ${l.id}: ${view.operations.recoveryForces.find(f => f.id === l.recovery).name}`,
+      [{ name: 'force', label: 'Recovery force', value: l.recovery, options: recoveryOptions() }], 'Position the force',
+      v => act('position-recovery', 'administrator', { launchId: l.id, force: v.force }, 'Recovery force positioned.'))),
+    home.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Launch', 'Landing from the predicted point', 'Pickup', 'Crew', 'Spacecraft', 'Retrofire data'].map(t => h('th', {}, t)))),
+      h('tbody', {}, home.map(l => h('tr', {}, h('td', {}, l.id), ...e(l).map(x => h('td', {}, x)),
+        h('td', {}, !l.retrofire ? 'None needed' : l.retrofire.caught ? 'Error caught by the check' : cap(l.retrofire.review ?? (l.retrofire.checked ? 'checked' : 'unchecked')))))))
+      : h('p', { class: 'muted' }, 'No spacecraft has come home yet.'));
 };
 
 const siteView = () => {

@@ -54,20 +54,35 @@ export const QUANTITIES = {
   'gemini.cabin-pressure': { name: 'Gemini cabin pressure', unit: 'bar', normal: [0.32, 0.42] },
   // Escape coverage on crewed vehicles: how long the abort sensing system takes to call an abort.
   'vehicle.abort-sensing': { name: 'Abort sensing response time', unit: 's', normal: [0, 0.5] },
+  // Entry and recovery (V2 freeze §6.2). Claims about the spacecraft, scoped to the loads their evidence covers.
+  // Only a flight produces them: no ground facility reproduces an entry.
+  'mercury-capsule.heat-load': { name: 'Mercury heat shield heat load', unit: 'MJ/m²', normal: [0, 100], flightOnly: true },
+  'mercury-capsule.entry-g': { name: 'Mercury peak entry deceleration', unit: 'g', normal: [0, 12], flightOnly: true },
+  'mercury-capsule.water-ingress': { name: 'Water in the Mercury capsule at pickup', unit: 'L', normal: [0, 40], flightOnly: true },
+  'gemini.heat-load': { name: 'Gemini heat shield heat load', unit: 'MJ/m²', normal: [0, 140], flightOnly: true },
+  'gemini.entry-g': { name: 'Gemini peak entry deceleration', unit: 'g', normal: [0, 9], flightOnly: true },
+  'gemini.water-ingress': { name: 'Water in the Gemini spacecraft at pickup', unit: 'L', normal: [0, 40], flightOnly: true },
+  // Records of the flight, not claims: where recovery sighted the spacecraft, and how long tracking lost it.
+  'vehicle.landing-miss': { name: 'Landing point from the predicted point', unit: 'km', normal: [-100, 100] },
+  'vehicle.blackout': { name: 'Communications blackout', unit: 's', normal: [0, 400] },
   'v2|wac-upper.separation': { name: 'Stage separation timing error', unit: 's', normal: [0, 0.5] },
   'vehicle.apogee': { name: 'Apogee', unit: 'km', normal: [60, Infinity] },
   'vehicle.deviation': { name: 'Trajectory deviation', unit: 'deg', normal: [0, 5] },
 };
 
-// Quantities each vehicle has, in a fixed order (the physical draw order).
+// Quantities each vehicle has, in a fixed order (the physical draw order). A crewed vehicle's entry claims
+// come last: the entry model produces them, after the ascent.
 export const VEHICLE_QUANTITIES = {
   wac: ['wac-upper.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   aerobee: ['aerobee-sustainer.wall-temp', 'aerobee-sustainer.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   bumper: ['v2.chamber-pressure', 'wac-upper.chamber-pressure', 'v2|wac-upper.separation', 'vehicle.apogee', 'vehicle.deviation'],
   viking: ['viking.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
-  'mercury-redstone': ['redstone.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing'],
-  'mercury-atlas': ['atlas.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing'],
-  'gemini-titan': ['titan-ii.chamber-pressure', 'gemini.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing'],
+  'mercury-redstone': ['redstone.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing',
+    'mercury-capsule.heat-load', 'mercury-capsule.entry-g', 'mercury-capsule.water-ingress'],
+  'mercury-atlas': ['atlas.chamber-pressure', 'mercury-capsule.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing',
+    'mercury-capsule.heat-load', 'mercury-capsule.entry-g', 'mercury-capsule.water-ingress'],
+  'gemini-titan': ['titan-ii.chamber-pressure', 'gemini.cabin-pressure', 'vehicle.apogee', 'vehicle.deviation', 'vehicle.abort-sensing',
+    'gemini.heat-load', 'gemini.entry-g', 'gemini.water-ingress'],
   'atlas-icbm': ['atlas.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
   'titan-icbm': ['titan-ii.chamber-pressure', 'vehicle.apogee', 'vehicle.deviation'],
 };

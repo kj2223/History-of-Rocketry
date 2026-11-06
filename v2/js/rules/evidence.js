@@ -19,6 +19,7 @@ export const observe = (state, job, sample) => {
     vehicle: plan.vehicle, stages: { ...plan.stages }, conditions: { ...plan.conditions }, quantity: sample.quantity,
   };
   if (!plan.channels.includes(sample.quantity)) obs.state = 'unmeasured';
+  else if (sample.unrecoverable) obs.state = 'lost';
   else if (draw(state.rng.observation) < TUNING.lossChance[plan.kind]) obs.state = 'lost';
   else {
     const [low, high] = QUANTITIES[sample.quantity].normal;
@@ -65,3 +66,8 @@ export const claimStatus = (state, config, quantity, conditions = {}) => {
     : found.length ? 'unmeasured' : 'unknown';
   return { quantity, conditions, status, tests, observations: found.map(o => o.id) };
 };
+
+// The load envelope a claim's evidence covers (V2 freeze §6.2): the highest normal reading on record for this
+// configuration, or 0 if there is none. Readings beyond it are outside what the evidence says.
+export const envelope = (state, config, quantity, conditions = {}) =>
+  Math.max(0, ...evidenceFor(state, config, quantity, conditions).filter(o => o.state === 'measured' && o.normal).map(o => o.value));

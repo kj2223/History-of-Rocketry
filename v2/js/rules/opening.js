@@ -15,6 +15,7 @@ import { initPeople, addPerson, transmit } from './people.js';
 import { openQuestions } from './summary.js';
 import { addV2Mechanisms } from './physics.js';
 import { initCrew } from './crew.js';
+import { initOperations } from './operations.js';
 
 // ---- inherited open questions as live items ----
 
@@ -49,6 +50,7 @@ const v2Sections = state => {
   for (const rev of Object.values(BASELINE).flatMap(b => Object.values(b))) state.hardware.revisions[rev] ??= { id: rev, status: 'defined', trial: false, adoptedFor: ['baseline'] };
   state.military = { flights: [] };
   state.crew = initCrew();
+  initOperations(state);
   state.concluded = false;
 };
 
