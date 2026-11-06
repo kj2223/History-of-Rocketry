@@ -3,7 +3,7 @@
 
 import { newStreams } from '../core/rng.js';
 import { fiscalQuarter } from '../core/calendar.js';
-import { exportSave, parseSave, parseV1Save, writeSave, readSave, importSave, resetSave } from '../core/save.js';
+import { exportSave, parseSave, parseV1Save, writeSave, readSave, importSave, resetSave, SaveError } from '../core/save.js';
 import { ACTS, ANCHORS, CLOSING_ANCHOR } from '../data/scenario.js';
 import { TUNING } from '../data/tuning.js';
 import { REVISIONS, testFacility } from '../data/vehicles.js';
@@ -75,7 +75,9 @@ export const newGame = (seed = 19581966) => {
 export const continueFromV1 = (v1Text, seed = 19581966) => {
   const state = openFromV1(parseV1Save(v1Text), seed);
   state.act = ACTS[0].id;
-  return begin(state);
+  const opened = begin(state);
+  try { validateState(opened); } catch (e) { throw new SaveError(`The V1 save is damaged: ${e.message}`); }
+  return opened;
 };
 
 const clone = s => structuredClone(s);
@@ -331,6 +333,8 @@ export const validateState = s => {
   for (const k of ['physical', 'observation', 'forecast', 'intelligence', 'crew']) need(s.rng?.[k]?.algorithm === 'mulberry32-v1' && Number.isInteger(s.rng[k].state), `rng.${k}`);
   need(Array.isArray(s.evidence.observations), 'evidence.observations');
   for (const j of s.work.filter(x => x.status === 'running' && x.plan)) need(Array.isArray(s.physical.traces[j.id]), `trace for ${j.id}`);
+  // The shape check cannot see every record, so make sure the save can actually be shown before it is accepted.
+  try { project(s); } catch { throw new Error('its records cannot be shown'); }
 };
 
 export const saveGame = (state, storage) => writeSave(storage, state);
