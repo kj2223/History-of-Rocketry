@@ -321,17 +321,30 @@ const buildForm = p => {
     'Production builds', v => { const rev = trial.find(r => r.id === v.rev); act('build-article', 'production', { id: nextArticleId(p), programmeId: p.id, stages: rev ? { [rev.stage]: rev.id } : null }, 'Article built.'); });
 };
 
+// The planned mission (V2 freeze §5): its length and, for Gemini, its objectives.
+const OBJECTIVE_LABELS = { eva: 'Spacewalk', rendezvous: 'Rendezvous', docking: 'Docking (needs a rendezvous)' };
+const missionFields = vehicle => {
+  const m = view.operations?.missions[vehicle];
+  if (!m || !m.maxDays) return [];
+  return [{ name: 'days', label: `Planned days in orbit (up to ${m.maxDays})`, type: 'number', value: Math.min(1, m.maxDays) },
+    ...m.objectives.map(o => ({ name: o, label: OBJECTIVE_LABELS[o], type: 'checkbox', value: false }))];
+};
+const missionOf = (vehicle, v) => {
+  const m = view.operations?.missions[vehicle];
+  return m && m.maxDays ? { mission: { days: v.days, ...Object.fromEntries(m.objectives.map(o => [o, v[o]])) } } : {};
+};
 const comesHome = vehicle => view.operations?.comesHome.includes(vehicle);
 const recoveryOptions = () => view.operations.recoveryForces.map(f => [f.id, `${cap(f.name)}, ${money(f.cost)}`]);
 const launchForm = a => formBox(`ln-${a.id}`, 'Request launch', [
   { name: 'cost', label: 'Cost of this flight ($)', type: 'number', value: 20000, min: 0 }, { name: 'replacementCost', label: 'Cost to replace the article ($)', type: 'number', value: 20000, min: 0 },
-  ...(comesHome(a.vehicle) ? [{ name: 'recovery', label: 'Recovery force', value: 'primary', options: recoveryOptions() }] : [])],
+  ...(comesHome(a.vehicle) ? [{ name: 'recovery', label: 'Recovery force', value: 'primary', options: recoveryOptions() }] : []),
+  ...missionFields(a.vehicle)],
 'Request launch', v => {
   const id = uid('launch'), pad = uid('res'), trk = uid('res'), from = view.day;
   chain([
     () => ['reserve-facility', 'administrator', { id: pad, unitId: 'pad-1', programmeId: a.programmeId, from, to: from + 5, purpose: 'launch' }],
     () => ['reserve-facility', 'administrator', { id: trk, unitId: 'tracking-1', programmeId: a.programmeId, from, to: from + 5, purpose: 'tracking' }],
-    () => ['request-launch', 'administrator', { id, articleId: a.id, pad, tracking: trk, cost: v.cost, replacementCost: v.replacementCost, ...(v.recovery ? { recovery: v.recovery } : {}) }],
+    () => ['request-launch', 'administrator', { id, articleId: a.id, pad, tracking: trk, cost: v.cost, replacementCost: v.replacementCost, ...(v.recovery ? { recovery: v.recovery } : {}), ...missionOf(a.vehicle, v) }],
   ], 'Launch raised for your decision.');
 });
 
@@ -622,10 +635,26 @@ const inheritedView = () => h('section', { class: 'card' }, h('h3', {}, 'Inherit
     : h('p', { class: 'muted' }, 'Nothing was left open.'),
   h('h4', {}, 'Heads'), h('ul', {}, view.people.filter(p => p.kind === 'head').map(p => h('li', {}, `${p.name}, ${words(p.role)}, since ${day(p.record.since)}`))));
 
+// What the agency can now do (V2 freeze §5): each capability with the configuration it was shown on and what
+// is still unresolved. It certifies nothing else.
+const capabilitiesView = () => !view.capabilities ? null : h('section', { class: 'card' }, h('h3', {}, 'Demonstrated capabilities'),
+  view.capabilities.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Shown', 'Capability', 'Vehicle and configuration', 'Conditions', 'Status', 'Unresolved'].map(t => h('th', {}, t)))),
+    h('tbody', {}, view.capabilities.slice().reverse().map(c => h('tr', {}, h('td', {}, day(c.day)), h('td', {}, cap(c.kind)), h('td', {}, `${words(c.vehicle)} (${Object.values(c.stages).map(words).join(', ')})`),
+      h('td', {}, [c.conditions.crew ? `crew of ${c.conditions.crew}` : 'uncrewed', c.conditions.days !== undefined ? `${c.conditions.days} days` : null].filter(Boolean).join(', ')),
+      h('td', {}, cap(c.status)), h('td', {}, c.unresolved.join('; ') || '—')))))
+    : h('p', { class: 'muted' }, 'Nothing demonstrated yet. A capability counts only for the configuration that showed it.'));
+
+// The race (V2 freeze §8): only what intelligence and Moscow have told us, revisions included.
+const raceView = () => !view.race ? null : h('section', { class: 'card' }, h('h3', {}, 'The race'),
+  view.race.firsts.length ? h('ul', {}, view.race.firsts.map(f => h('li', {}, `${cap(f.first)}: ${f.firstBy === 'agency' ? `ours, ${day(f.agencyDay)}` : `Soviet, ${day(f.sovietDay)}`}${f.firstBy === 'soviet' && f.agencyDay ? `; we matched it ${day(f.agencyDay)}` : ''}.`)))
+    : h('p', { class: 'muted' }, 'No first has been made yet.'),
+  view.race.reports.length ? [h('h4', {}, 'Intelligence and announcements'), h('ul', {}, view.race.reports.slice().reverse().map(r => h('li', {},
+    `${day(r.day)}, ${{ rumour: 'rumour', report: 'intelligence report', revision: 'revised report', announcement: 'Soviet announcement' }[r.kind]}: ${cap(r.text)}${r.revisedBy ? ' (since revised)' : ''}`)))] : null);
+
 const recordsView = () => {
   const closed = view.decisions.filter(d => d.status !== 'open').slice().reverse(), names = quantityNames();
   const jobs = view.workload.filter(j => j.observations > 0).slice().reverse();
-  return h('div', {}, h('h2', {}, 'Records'), inheritedView(),
+  return h('div', {}, h('h2', {}, 'Records'), inheritedView(), capabilitiesView(), raceView(),
     h('section', { class: 'card' }, h('h3', {}, 'Decision record'),
       closed.length ? h('table', {}, h('thead', {}, h('tr', {}, ['Decided', 'Raised by', 'Question', 'Positions', 'Evidence cited', 'Decision'].map(t => h('th', {}, t)))),
         h('tbody', {}, closed.map(d => h('tr', {}, h('td', {}, day(d.decidedDay)), h('td', {}, `${cap(d.raisedBy)}, ${day(d.day)}`), h('td', {}, d.text),

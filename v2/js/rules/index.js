@@ -30,8 +30,10 @@ import { initStaff, staffDay, approveProposal, declineProposal, quarterReport } 
 import { openFresh, openFromV1, inheritedStatus } from './opening.js';
 import { militaryDay } from './military.js';
 import { setChecking, positionRecovery } from './operations.js';
+import { scopeInFlight, cutShort } from './mission.js';
+import { raceDay, projectRace } from './race.js';
 import { STREAMS } from '../core/rng.js';
-import { RECOVERY_FORCES, ENTRY_DESIGN, RETROFIRE } from '../data/flight.js';
+import { RECOVERY_FORCES, ENTRY_DESIGN, RETROFIRE, MISSIONS } from '../data/flight.js';
 import { publicPerson } from './people.js';
 import { dateLabel } from '../core/calendar.js';
 import { VEHICLES } from '../data/vehicles.js';
@@ -107,6 +109,7 @@ const EFFECTS = {
   'facility-work': startFacilityWork,
   'select-crew': selectCrew,
   'crew-ready': declareReady,
+  'cut-short': cutShort,
 };
 
 // Facility work is paid for (freeze §6.4, §7.2): a deposit when it starts and the balance due at completion.
@@ -323,6 +326,8 @@ const crewInFlight = (s, before) => {
     if (!fresh.length) continue;
     const by = l.crew.find(pid => abortCall(s, s.people[pid], fresh));
     if (by) staffCommand(s, 'crew-abort', 'crew', { launchId: l.id, by });
+    // Otherwise the crew's view on the mission's scope is advice (V2 freeze §4).
+    else if (l.mission) scopeInFlight(s, l, j, fresh, cutShort);
   }
 };
 
@@ -341,6 +346,7 @@ const oneDay = s => {
   standDown(s);
   militaryDay(s);
   crewDay(s);
+  raceDay(s);
   for (const p of Object.values(s.programmes)) if (p.vehicle && p.stage === 'greenlit') checkDelegation(s, p.id);
   assuranceDay(s);
   if (!s.concluded) staffDay(s, staffCommand);
@@ -362,13 +368,17 @@ export const advance = (state, days = 1) => {
 // V2 additions to the projection: people without their traits, the opening, inherited items and military records.
 export const project = state => {
   const { physical, people = {}, ...rest } = state;
-  return { ...projectPublic(clone(rest)),
+  // Teams' status reads the astronaut office to say what they would do next; the projection itself never copies people.
+  return { ...projectPublic(clone({ ...rest, people })),
     people: Object.values(people).map(publicPerson),
     opening: state.opening ? { kind: state.opening.kind, day: state.opening.day, v1Summary: state.opening.v1Summary ?? null } : null,
     inherited: inheritedStatus(state),
     operations: state.operations ? { retrofireChecking: state.operations.retrofireChecking,
       recoveryForces: Object.entries(RECOVERY_FORCES).map(([id, f]) => ({ id, name: f.name, cost: f.cost })), comesHome: Object.keys(ENTRY_DESIGN),
-      checkCost: RETROFIRE.independentCheckCost } : null,
+      checkCost: RETROFIRE.independentCheckCost, missions: structuredClone(MISSIONS) } : null,
+    // Demonstrated capabilities with their scope (V2 freeze §5), and what the agency knows of the race (§8).
+    capabilities: structuredClone(state.capabilities ?? []),
+    race: state.race ? projectRace(state.race) : null,
     military: (state.military?.flights ?? []).map(f => ({ ...f, name: VEHICLES[f.vehicle].name, date: dateLabel(f.day) })),
     // An open selection shows every applicant's record, never their traits.
     selection: state.decisions.filter(d => d.type === 'crew-selection' && d.status === 'open').map(d => ({ decisionId: d.id, group: d.subject,
@@ -383,8 +393,9 @@ export const validateState = s => {
   need(s && Number.isInteger(s.day) && s.day >= 0, 'day');
   for (const k of ['physical', 'evidence', 'beliefs', 'hardware', 'production', 'facilities', 'fiscal', 'stock', 'programmes', 'delegation', 'continuation']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
   for (const k of ['decisions', 'memos', 'work', 'launches', 'commands']) need(Array.isArray(s[k]), k);
-  for (const k of ['people', 'military', 'opening', 'crew', 'operations']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
+  for (const k of ['people', 'military', 'opening', 'crew', 'operations', 'race']) need(s[k] && typeof s[k] === 'object' && !Array.isArray(s[k]), k);
   need(Array.isArray(s.inherited), 'inherited');
+  need(Array.isArray(s.capabilities), 'capabilities');
   for (const k of STREAMS) need(s.rng?.[k]?.algorithm === 'mulberry32-v1' && Number.isInteger(s.rng[k].state), `rng.${k}`);
   need(Array.isArray(s.evidence.observations), 'evidence.observations');
   for (const j of s.work.filter(x => x.status === 'running' && x.plan)) need(Array.isArray(s.physical.traces[j.id]), `trace for ${j.id}`);

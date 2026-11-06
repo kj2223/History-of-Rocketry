@@ -1,6 +1,7 @@
 // The 1958–1966 scenario (V2 freeze §2): acts, the programmes that arrive and the anchor events.
 // V2 opens at NASA formation, either from a V1 save or from the standard 1958 agency (data/opening.js).
 import { dayOf, START_DAY, END_DAY } from '../core/calendar.js';
+import { RACE_CONDITIONS } from './race.js';
 
 export const ACTS = [
   { id: 'nasa-formation', name: 'NASA formation', from: START_DAY },
@@ -22,7 +23,7 @@ export const PROGRAMMES = [
     terms: { cost: 18000000, contribution: 'Titan II launch vehicles through the Air Force', timeline: '48 months', requirements: 'two-person flights of up to two weeks, spacewalks, rendezvous and docking' } },
 ];
 
-// Soviet firsts arrive with the race (slice 4). The close of Gemini ends the campaign.
+// Soviet firsts are in data/race.js. The close of Gemini ends the campaign.
 export const ANCHORS = [
   { id: 'gemini-close', day: END_DAY, text: 'The Gemini programme is closed. The agency takes stock of what it can now do.' },
 ];
@@ -37,5 +38,5 @@ export const MILITARY_FLIGHTS = [
     .map(([y, m, d], i) => ({ id: `titan-ii-${i + 1}`, vehicle: 'titan-icbm', day: dayOf(y, m, d) })),
 ];
 
-// Conditions attached to an annual award, checked when the fiscal year closes. V2 adds its own with the race.
-export const AWARD_CONDITIONS = {};
+// Conditions attached to an annual award, checked when the fiscal year closes. V2's come with the race.
+export const AWARD_CONDITIONS = RACE_CONDITIONS;

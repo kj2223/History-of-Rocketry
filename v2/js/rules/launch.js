@@ -16,6 +16,7 @@ import { flyAndLand, entryEvents } from './physics.js';
 import { observe } from './evidence.js';
 import { updateBeliefs } from './belief.js';
 import { ENTRY_CLAIMS, ENTRY_DESIGN, ENTRY_RECORDS, RECOVERY_FORCES } from '../data/flight.js';
+import { planMission, describeMission, recordCapabilities, closeScope } from './mission.js';
 
 export const initLaunches = () => [];
 
@@ -31,9 +32,11 @@ const heldBy = (state, id, programmeId) => {
 // decision records each tier's position.
 // `crew` names the people aboard (V2 freeze §4): none for an uncrewed flight.
 // `recovery` names the recovery force for a vehicle that comes home (V2 freeze §6.4); its cost is part of the launch.
-export const requestLaunch = (state, { id, articleId, pad, tracking, cost, replacementCost, crew = [], recovery = 'primary' }) => {
+// `mission` is the planned mission (V2 freeze §5): its duration and objectives.
+export const requestLaunch = (state, { id, articleId, pad, tracking, cost, replacementCost, crew = [], recovery = 'primary', mission = {} }) => {
   const a = article(state, articleId);
   if (flies(a.vehicle)) checkRecovery(recovery);
+  const plan = planMission(a.vehicle, mission);
   if (crew.length) {
     if (!VEHICLES[a.vehicle].crewed) throw new Rejection(`${VEHICLES[a.vehicle].name} carries no crew`);
     // V2-04: no crewed launch without a readiness decision for this configuration and crewed use.
@@ -68,11 +71,12 @@ export const requestLaunch = (state, { id, articleId, pad, tracking, cost, repla
     },
     crew: [...crew], abort: null,
     ...(flies(a.vehicle) ? { recovery, operationsCost: ops, retrofire: null, entry: null } : {}),
+    ...(plan ? { mission: plan } : {}),
     reservations: [padRes.id, trackRes.id],
   };
   state.launches.push(launch);
   const d = openDecision(state, { type: 'launch', subject: id, raisedBy: 'flight-control', vetoable: true,
-    text: `Launch ${VEHICLES[a.vehicle].name} ${articleId}${programmeName(state, a.programmeId) === VEHICLES[a.vehicle].name ? '' : ` for ${programmeName(state, a.programmeId)}`} (${experimental ? 'experimental' : 'routine'} flight, costing ${dollars(cost)}${ops ? `, and ${dollars(ops)} for recovery by ${RECOVERY_FORCES[recovery].name}` : ''}). ${money.text}`,
+    text: `Launch ${VEHICLES[a.vehicle].name} ${articleId}${programmeName(state, a.programmeId) === VEHICLES[a.vehicle].name ? '' : ` for ${programmeName(state, a.programmeId)}`} (${experimental ? 'experimental' : 'routine'} flight${plan ? `, ${describeMission(a.vehicle, plan)}` : ''}, costing ${dollars(cost)}${ops ? `, and ${dollars(ops)} for recovery by ${RECOVERY_FORCES[recovery].name}` : ''}). ${money.text}`,
     finance: launch.tiers['ground-executive'], technical: launch.tiers['ground-technical'], effect: { kind: 'launch', payload: { id } } });
   // Launch needs both chains (V2 freeze §4): the crew's position sits beside the ground's, and a refusal is a veto.
   if (crew.length) d.positions.crew = launch.tiers.flight;
@@ -119,7 +123,7 @@ export const executeLaunch = (state, { id }) => {
   const data = flies(l.vehicle) ? retrofireData(state, l) : null;
   if (data) l.retrofire = data.sent;
   const plan = { kind: 'flight', vehicle: l.vehicle, stages: l.stages, conditions: { ...FLIGHT_CONDITIONS }, channels: [...TRACKING_CHANNELS, ...telemetry, ...entry],
-    ...(data ? { entry: { recovery: l.recovery, ground: data.ground } } : {}) };
+    ...(data ? { entry: { recovery: l.recovery, ground: data.ground } } : {}), ...(l.mission ? { mission: { ...l.mission } } : {}) };
   const j = startJob(state, { id: `flight-${id}`, kind: 'flight', programmeId: l.programmeId, reservations: l.reservations, plan });
   // Whatever was wrong in the data sent is now in the flight itself; nobody knows it until the post-flight review.
   if (data) delete j.plan.entry.ground;
@@ -144,6 +148,7 @@ const logCrew = (state, l) => {
 export const abortFlight = (state, l, j, { by, mode, evidence, early = false }) => {
   Object.assign(l, { status: 'flown', outcome: 'crew-abort', abort: { by, mode, day: state.day, evidence } });
   // After the launch phase the spacecraft still has to come home: an early retrofire, wherever it is (V2 freeze §4).
+  if (l.mission) closeScope(state, l);
   if (early && flies(l.vehicle)) {
     const obs = flyAndLand(state, j.id, { vehicle: l.vehicle, recovery: l.recovery, early: ENTRY_DESIGN[l.vehicle].retro }).map(s => observe(state, j, s));
     j.observations.push(...obs.map(o => o.id));
@@ -188,6 +193,7 @@ export const completeFlight = (state, j) => {
   l.outcome = l.rangeAction ? 'failure' : apogee.state === 'measured' && apogee.normal ? 'success' : apogee.state === 'measured' ? 'failure' : 'indeterminate';
   l.status = 'flown';
   if (l.outcome !== 'failure' && flies(l.vehicle)) land(state, l, obs, j.id);
+  if (l.mission) { closeScope(state, l); recordCapabilities(state, l, obs); }
   if (l.invitation === 'open') l.invitation = 'lapsed';
   article(state, l.articleId).status = l.outcome === 'failure' ? 'lost' : 'expended';
   resolveExposure(state, l.id, l.outcome);

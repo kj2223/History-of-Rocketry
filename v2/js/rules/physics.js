@@ -1,9 +1,10 @@
 // Physical reality (freeze §4.1). The only module that reads data/physical.js or state.physical.
 // It never reads beliefs, evidence or UI state, and it draws only from the physical stream.
 
-import { BASE, REVISION_EFFECTS, SCATTER, MECHANISMS, LATENT, LATENT_V2, ENTRY_VEHICLES, RETRO_ERRORS, SPACECRAFT_TRUTH, BURN_THROUGH } from '../data/physical.js';
+import { BASE, REVISION_EFFECTS, SCATTER, MECHANISMS, LATENT, LATENT_V2, ENTRY_VEHICLES, RETRO_ERRORS, SPACECRAFT_TRUTH, BURN_THROUGH,
+  OBJECTIVE_TRUTH, OBJECTIVE_REVISION_EFFECTS, OBJECTIVE_SCATTER } from '../data/physical.js';
 import { VEHICLE_QUANTITIES, lineage } from '../data/vehicles.js';
-import { ENTRY_DESIGN, ENTRY_CLAIMS, CONTINGENCY_AREAS, pickupHours, crewCondition } from '../data/flight.js';
+import { ENTRY_DESIGN, ENTRY_CLAIMS, CONTINGENCY_AREAS, MISSIONS, OBJECTIVE_READINGS, FUEL_CELL, pickupHours, crewCondition } from '../data/flight.js';
 import { draw, normal } from '../core/rng.js';
 import { flyEntry } from './entry-model.js';
 
@@ -46,6 +47,11 @@ export const runTest = (state, jobId, plan) => {
     if (failed && quantity === 'vehicle.deviation') value += 40;
     return { quantity, value };
   });
+  // A mission's objectives come between the ascent and the entry, in a fixed order with a fixed draw count.
+  if (kind === 'flight' && MISSIONS[vehicle]?.objectives.length) {
+    const objectives = objectiveSamples(stream, stages, plan.mission ?? {});
+    if (!failed) samples.push(...objectives);
+  }
   // A crewed vehicle's flight ends in an entry. Its draws are always taken, so the stream does not depend
   // on the outcome; a vehicle lost on the way up has no entry to record.
   if (kind === 'flight' && ENTRY_VEHICLES[vehicle]) {
@@ -54,6 +60,38 @@ export const runTest = (state, jobId, plan) => {
   }
   // A stand firing produces readings only for the stage on the stand.
   state.physical.traces[jobId] = kind === 'ground' ? samples.filter(s => s.quantity.startsWith(`${stage}.`)) : samples;
+  return state.physical.traces[jobId].length;
+};
+
+// ---- Gemini mission objectives (V2 freeze §5) ----
+
+const objectiveTruth = (stages, quantity) => {
+  const t = { ...OBJECTIVE_TRUTH[quantity] };
+  const rev = stages[quantity.split('.')[0]];
+  for (const r of lineage(rev).reverse()) Object.assign(t, OBJECTIVE_REVISION_EFFECTS[r]?.[quantity] ?? {});
+  return t;
+};
+
+// Eight draws whatever the mission: two for each objective reading, used only where the mission attempts it.
+const objectiveSamples = (stream, stages, mission) => {
+  const out = [];
+  const attempt = { [FUEL_CELL.reading]: (mission.days ?? 0) >= FUEL_CELL.fromDays && 'duration',
+    ...Object.fromEntries(Object.entries(OBJECTIVE_READINGS).map(([o, q]) => [q, !!mission[o] && o])) };
+  for (const quantity of [FUEL_CELL.reading, ...Object.values(OBJECTIVE_READINGS)]) {
+    const n = normal(stream), t = objectiveTruth(stages, quantity);
+    const value = quantity === FUEL_CELL.reading ? t.base - t.sagPerDay * mission.days * (1 + OBJECTIVE_SCATTER * n) : t.base * (1 + OBJECTIVE_SCATTER * n);
+    normal(stream); // reserved, so a later objective model can vary a second factor without moving the stream
+    if (attempt[quantity]) out.push({ quantity, value: Math.max(0, value), objective: attempt[quantity] });
+  }
+  return out;
+};
+
+// Cutting a mission short (V2 freeze §4): the objectives not yet reached are never attempted. The entry stays.
+// Returns the trace's new length.
+export const dropObjectives = (state, jobId, fromIndex) => {
+  const trace = state.physical.traces[jobId];
+  if (!trace) return 0;
+  state.physical.traces[jobId] = trace.filter((x, i) => i < fromIndex || !x.objective);
   return state.physical.traces[jobId].length;
 };
 
