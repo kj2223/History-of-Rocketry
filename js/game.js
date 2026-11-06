@@ -744,7 +744,7 @@ export function answerFirstOffer(take) {
   if (!o) return;
   const line = take ? 'Good. They\'ll be glad of you. Come and see me when you need a second opinion.' : 'Your seat here is yours as long as you want it. They may ask again.';
   if (!g.people.ellis.hidden) say('ellis', line, take ? 'go' : '', 8);
-  else if (g.crewed) say('hollis', o.seat === 'programme' ? (take ? 'Off the console, then. Get them their hardware on time, and get it right.' : 'Good. I need flight directors more than I need schedulers.') : o.seat === 'flight' ? (take ? 'Good. Houston\'s yours on your shift, Flight. Know your rules.' : 'Then keep your seat. Somebody has to.') : take ? 'Good luck in Hangar S. I\'ll want straight answers from you on flight day.' : 'Glad to keep you, Retro.', take ? 'go' : '', 8);
+  else if (g.crewed) say('hollis', o.seat === 'director' ? (take ? 'Good. Now it\'s your budget they\'ll cut.' : 'Then fly the last of them. I\'ll tell them to ask again.') : o.seat === 'programme' ? (take ? 'Off the console, then. Get them their hardware on time, and get it right.' : 'Good. I need flight directors more than I need schedulers.') : o.seat === 'flight' ? (take ? 'Good. Houston\'s yours on your shift, Flight. Know your rules.' : 'Then keep your seat. Somebody has to.') : take ? 'Good luck in Hangar S. I\'ll want straight answers from you on flight day.' : 'Glad to keep you, Retro.', take ? 'go' : '', 8);
   g.people.you.role = SEATS[g.record.seat];
   note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay ${/^[aeiou]/i.test(SEATS[g.record.seat]) ? 'an' : 'a'} ${SEATS[g.record.seat].toLowerCase()}.`);
   morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');

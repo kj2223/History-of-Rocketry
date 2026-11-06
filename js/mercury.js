@@ -937,6 +937,7 @@ function splashOrbit(c, end, trained, lines) {
   else if (end.outcome === 'decay') lines.push(`She came down within the first orbit, about ${Math.round(end.landing / 100) * 100} km downrange of the Cape, far from any recovery ship.`);
   else lines.push(`She came down in the Atlantic abort area, about ${Math.round(end.landing / 10) * 10} km downrange of the Cape.`);
   lines.push(c.hours > 3 ? `She was picked up ${(c.hours).toFixed(1)} hours after splashdown.` : `She was picked up ${mins} minutes after splashdown.`);
+  if (end.chute) lines.push('One of her three main parachutes collapsed on the way down. She came down on two, harder than she was meant to.');
   if (c.sank) lines.push('She took on water and sank before she was reached.');
   else if (end.capsule === 'damaged') lines.push(end.oscillated ? 'She swung through the entry with no fuel to damp her, and came back scorched and battered.' : 'The capsule came back scorched and damaged: she took more than she was built for.');
   else lines.push(c.flightId ? 'The spacecraft came back whole.' : 'The capsule came back whole.');
