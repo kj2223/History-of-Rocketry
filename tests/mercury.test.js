@@ -64,7 +64,7 @@ test('the helicopters find her fast at the right point, slowly at the wrong one,
 test('after Pioneer 4 the paths split: Mercury Control if you take the offer, Ranger 7 if you stay with JPL', () => {
   const p4 = SEASON.findIndex(r => r.id === 'pioneer-4');
   assert.equal(SEASON[p4].turningPoint, 'nasa');
-  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-2), ['pioneer-4', 'mr-1']);
+  assert.deepEqual(SEASON.filter(r => onPath(r, 'nasa')).map(r => r.id).slice(-3), ['pioneer-4', 'mr-1', 'mr-3']);
   assert.deepEqual(SEASON.filter(r => onPath(r, 'jpl')).map(r => r.id).slice(-2), ['pioneer-4', 'ranger-7']);
   assert.ok(SEASON.find(r => r.id === 'mr-1').start > SEASON[p4].start);
 });
@@ -78,11 +78,10 @@ test('take the Space Task Group\'s offer and the next round is Mercury-Redstone 
   assert.ok(g.crewed && !g.people.hollis.hidden && g.people.ellis.hidden);
   assert.doesNotThrow(() => checkCheckpoint(checkpoint()));
   playMission({ sims: 2 });
-  assert.equal(g.beat, 'seasonEnd');
   const e = g.record.rounds.at(-1);
   assert.equal(e.id, 'mr-1');
   assert.ok(e.boss === 'hollis' && typeof e.flight === 'string');
-  assert.equal(nextIndex(), null);
+  assert.equal(SEASON[nextIndex()].id, 'mr-3');
 });
 
 test('turn it down and you stay at JPL for Ranger 7', () => {
@@ -120,4 +119,72 @@ test('the simulator is a training tool: no risk to the real round, and a good si
   const good = g.record.sims.slice(-3).every(s => s.right === s.of);
   assert.equal(standing(g.record), base + (good ? 1 : 0));
   assert.ok(g.mission.trained);
+});
+
+// ---- M2: the astronauts, and Mercury-Redstone 3 ----
+import { crewFate, DROWN_AFTER } from '../js/truth/capsule.js';
+import { CREW_TRAITS, consents, ownAbortAt } from '../js/world/crew.js';
+import { ASTRONAUTS, SEVEN } from '../js/data/crew.js';
+import { finishReview } from '../js/game.js';
+
+const toMR3 = seed => { newGame(seed); toRoundId('mr-1'); playMission(); finishReview(); advance(true); closeAwayIfAny(); };
+const closeAwayIfAny = () => { g.room = null; };
+
+test('seven astronauts, each with a hidden way of flying that only shows in what he does', () => {
+  assert.equal(SEVEN.length, 7);
+  for (const id of SEVEN) assert.ok(CREW_TRAITS[id] && ASTRONAUTS[id].name);
+  assert.equal(consents(CREW_TRAITS.moreau, { sea: 3, late: null }), true);
+  assert.equal(consents(CREW_TRAITS.moreau, { sea: 3, late: 'uprange' }), false);
+  assert.equal(consents(CREW_TRAITS.whitcomb, { sea: 3, late: 'uprange' }), true);
+  assert.ok(ownAbortAt(CREW_TRAITS.whitcomb) < ownAbortAt(CREW_TRAITS.price));
+});
+
+test('a man can die: lost with the capsule, or drowned after a long wait in the water; never scripted', () => {
+  const r = redstone(5);
+  assert.equal(crewFate(r, { capsule: 'lost' }, 0, false), 'killed');
+  assert.equal(crewFate(redstone(6), { capsule: 'ok', entryG: 11 }, 0.5, false), 'safe');
+  assert.equal(crewFate(redstone(7), { capsule: 'damaged', entryG: 11 }, 0.5, false), 'hurt');
+  let drowned = 0, n = 300;
+  for (let s = 1; s <= n; s++) if (crewFate(redstone(s), { capsule: 'ok', entryG: 11 }, DROWN_AFTER + 1, true) === 'killed') drowned++;
+  assert.ok(drowned > n * 0.15 && drowned < n * 0.45, `drowned ${drowned}`);
+});
+
+test('after MR-1 comes Mercury-Redstone 3, with Rourke on top; the flight record says how he came home', () => {
+  toMR3(8);
+  assert.equal(SEASON[g.roundIndex].id, 'mr-3');
+  assert.equal(g.beat, 'mBrief');
+  assert.ok(!g.people.pilot.hidden && g.people.pilot.name === 'Thomas Rourke');
+  assert.doesNotThrow(() => checkCheckpoint(checkpoint()));
+  playMission({ sims: 1 });
+  const e = g.record.rounds.at(-1);
+  assert.equal(e.id, 'mr-3');
+  assert.match(e.flight, /Rourke (was killed|was hurt|came home safe)|Lost/);
+  finishReview();
+  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(nextIndex(), null);
+});
+
+test('with a ship off station and Retro calling GO, a cautious pilot can refuse at the final poll, and his no holds the count', () => {
+  let seen = false;
+  for (let s = 1; s < 120 && !seen; s++) {
+    toMR3(s);
+    const crew = SEASON[g.roundIndex].crew;
+    const was = crew[0]; crew[0] = 'moreau';
+    try {
+      playMission({ poll: () => true });
+      seen = !!g.mission.calls?.pilotRefused;
+    } finally { crew[0] = was; }
+  }
+  assert.ok(seen, 'never saw a refusal');
+});
+
+test('if the booster walks off her line and nobody calls it, the pilot pulls the handle himself', () => {
+  let seen = false;
+  for (let s = 1; s < 200 && !seen; s++) {
+    toMR3(s);
+    if (!Object.values(g.round.faults || {}).includes('control')) continue;
+    playMission({ abort: () => false });
+    seen = !!g.mission.calls?.pilotAbort;
+  }
+  assert.ok(seen, 'never saw a pilot abort');
 });

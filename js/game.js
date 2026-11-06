@@ -10,6 +10,7 @@ import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
 import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
+import { ASTRONAUTS } from './data/crew.js';
 import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive } from './mercury.js';
 import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer, pendingOffer, SEATS } from './career/record.js';
@@ -32,6 +33,8 @@ const PEOPLE = {
   brandt: { name: 'Lt. Cmdr. Paul Brandt', role: 'Navy project officer', color: '#2f3f66', hat: '#e9e9e4', x: 405 },
   // In Mercury Control, from 1960.
   ...MERCURY_PEOPLE,
+  // The astronaut flying this round, if anyone is: his name comes from the round.
+  pilot: { name: 'The astronaut', role: 'Astronaut', color: '#dcdad2', x: 560 },
 };
 const ROLES = Object.fromEntries(Object.entries(PEOPLE).map(([id, p]) => [id, p.role]));
 
@@ -93,7 +96,10 @@ function setVehicle() {
   g.crewed = !!SEASON[g.roundIndex].crewed;
   for (const id of Object.keys(MERCURY_PEOPLE)) g.people[id].hidden = !g.crewed;
   g.people.ellis.hidden = g.crewed;
-  for (const [id, role] of Object.entries(ROLES)) g.people[id].role = g.crewed && MERCURY_ROLES[id] ? MERCURY_ROLES[id] : role;
+  const pilot = SEASON[g.roundIndex].crew?.[0];
+  g.people.pilot.hidden = !pilot;
+  if (pilot) Object.assign(g.people.pilot, { name: ASTRONAUTS[pilot].name, crewId: pilot });
+  for (const [id, role] of Object.entries(ROLES)) if (g.people[id]) g.people[id].role = g.crewed && MERCURY_ROLES[id] ? MERCURY_ROLES[id] : role;
   g.people.you.role = SEATS[g.record.seat];
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
 }
@@ -107,6 +113,8 @@ function startRound(i) {
   setVehicle();
   g.roundStart = g.day = SEASON[i].start;
   g.clock = g.day * 1440 + START_MINUTE;
+  // Fixes made between flights whatever the reviews said (Marshall's after MR-1 and Ham's flight).
+  for (const cause of SEASON[i].adopt || []) adopt(g.programme, cause);
   const round = newRound(g.seed + i * 7919, g.programme, g.vehicle);
   round.initial = { faults: { ...round.faults }, igniter: hasIgniterFault(round), pump: hasPumpFault(round), liner: hasLinerFault(round), injector: hasInjectorFault(round) };
   round.estimate = estimate(g.programme, g.vehicle, 1);

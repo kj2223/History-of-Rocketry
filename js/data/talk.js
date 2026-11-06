@@ -11,9 +11,10 @@ export function talk(id, beat) {
     // Mercury Control, from 1960.
     hollis: { mBrief: 'Get in the simulator, Retro. I want you to have seen every bad day before you see a real one.', mLaunch: 'On your console. We pick up at fifteen.', mScrub: 'Better a scrub than a capsule nobody can reach. Get some sleep.', mPadNight: 'Nobody goes near that pad tonight.', mReview: 'In here. Bring your plot.' },
     reyes: { mBrief: 'The ships sail tonight. Tell me where she\'ll come down and I\'ll have a helicopter over her.', mLaunch: 'Recovery forces are moving out to station.', mRecovery: 'Reports are coming in from the ships.' },
+    pilot: { mBrief: 'Put me through the bad ones, Retro. I would rather meet them in here.', mLaunch: 'Get me a good splashdown point.', mScrub: 'Another day. They do not get easier.', mReview: 'Tell me straight what she did. I was riding it.' },
     albrecht: { mBrief: 'Marshall has checked her out from nose to tail. She is a good rocket.', mLaunch: 'Booster is ready. Huntsville is listening.', mReview: 'Huntsville has the tapes. Tell me what you saw.' },
   };
-  const idle = { ellis: 'Busy, busy.', vega: 'Morning.', morgan: 'Clear skies today.', kowalski: 'Sir.', delgado: 'Morning, sir.', hoyt: 'Morning.', brandt: 'Conductor.', hollis: 'Retro.', reyes: 'Morning.', albrecht: 'Guten Morgen.' };
+  const idle = { ellis: 'Busy, busy.', vega: 'Morning.', morgan: 'Clear skies today.', kowalski: 'Sir.', delgado: 'Morning, sir.', hoyt: 'Morning.', brandt: 'Conductor.', hollis: 'Retro.', reyes: 'Morning.', albrecht: 'Guten Morgen.', pilot: 'Retro.' };
   return lines[id]?.[beat] || idle[id] || 'Morning.';
 }
 
