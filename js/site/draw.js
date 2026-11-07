@@ -96,6 +96,7 @@ export function drawSite(ctx, g, view) {
   // (nearer the camera than the people, so it paints over them), and finally smoke and dust over everything they cover.
   hangarRack(ctx, g);
   if (!g.crewed && g.standFlame > 0) flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
+  if (g.crewed) controlScreens(ctx, g);
   rocketOnSite(ctx, g);
   for (const p of Object.values(g.people)) if (!p.hidden) person(ctx, p, g.time);
   truck(ctx, g.truck.x, g);
@@ -164,16 +165,20 @@ function office(ctx, p, g) {
   ctx.fillStyle = '#b7a487'; ctx.fillRect(p.x, GROUND - 4, p.w, 4);
 }
 
-// Mercury Control, cut away: the world map on the far wall with the capsule's track, and a row of consoles.
+// Mercury Control, cut away: the world map on the far wall with the capsule's track, a television beside it showing the
+// pad, and a row of consoles. The map and the TV's picture are drawn live over this frame when a flight is flying.
 function mercuryControl(ctx, p) {
   ctx.fillStyle = '#d6d1c4'; ctx.fillRect(p.x, GROUND - p.h, p.w, p.h);
   ctx.fillStyle = '#a7a194'; ctx.fillRect(p.x - 8, GROUND - p.h - 8, p.w + 16, 10);
   ctx.fillStyle = '#22272e'; ctx.fillRect(p.x + 10, GROUND - p.h + 12, p.w - 20, p.h - 12);
-  ctx.fillStyle = '#2f4f6a'; ctx.fillRect(p.x + 30, GROUND - p.h + 20, p.w - 60, 44);
-  ctx.fillStyle = '#5d7d52'; for (const [dx, dy, w, h] of [[16, 8, 30, 14], [60, 14, 22, 20], [104, 6, 40, 16], [150, 18, 18, 12]]) ctx.fillRect(p.x + 30 + dx, GROUND - p.h + 20 + dy, w, h);
+  ctx.fillStyle = '#2f4f6a'; ctx.fillRect(p.x + 30, GROUND - p.h + 20, p.w - 134, 44);
+  ctx.fillStyle = '#5d7d52'; for (const [dx, dy, w, h] of [[10, 8, 22, 12], [38, 14, 16, 18], [66, 6, 28, 14], [92, 16, 14, 10]]) ctx.fillRect(p.x + 30 + dx, GROUND - p.h + 20 + dy, w, h);
   ctx.strokeStyle = '#f2e3a0'; ctx.lineWidth = 1; ctx.beginPath();
-  for (let i = 0; i <= 40; i++) { const x = p.x + 34 + i * (p.w - 68) / 40, y = GROUND - p.h + 42 + 14 * Math.sin(i / 40 * Math.PI * 2); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+  for (let i = 0; i <= 40; i++) { const x = p.x + 34 + i * (p.w - 142) / 40, y = GROUND - p.h + 42 + 12 * Math.sin(i / 40 * Math.PI * 2); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
   ctx.stroke();
+  // The television, wall-mounted beside the map. The picture is drawn live over the dark tube.
+  ctx.fillStyle = '#181b1f'; ctx.fillRect(p.x + p.w - 92, GROUND - p.h + 14, 62, 54);
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(p.x + p.w - 88, GROUND - p.h + 18, 54, 46);
   ctx.fillStyle = '#4b5258'; ctx.fillRect(p.x + 20, GROUND - 26, p.w - 40, 16);
   ctx.fillStyle = '#9fdc9a'; for (let i = 0; i < 6; i++) ctx.fillRect(p.x + 28 + i * 34, GROUND - 23, 20, 6);
 }
@@ -328,31 +333,99 @@ function truck(ctx, x, g) {
 // The truck-borne round is drawn with the truck (it rides the bed); the rest draw behind the people.
 function rocketOnSite(ctx, g) {
   if (g.rocket.where === 'truck') return;
-  const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
+  const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
-  const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, r.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : g.vehicle === 'saturn5' ? saturnVShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
-  if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
-  else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
-  else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
-  else if (r.where === 'tower') shape(PLACES.tower.x + 25, GROUND - 8, 0, true);
+  if (r.where === 'hangar') { roundShape(ctx, g, PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
+  else if (r.where === 'carried') roundShape(ctx, g, r.x + (wac ? -24 : 50), GROUND - 22, -Math.PI / 2, false);
+  else if (r.where === 'stand') roundShape(ctx, g, PLACES.stand.x + 60, GROUND - 40, 0, false);
+  else if (r.where === 'tower') roundShape(ctx, g, PLACES.tower.x + 25, GROUND - 8, 0, true);
   else if (r.where === 'flying') {
-    shape(PLACES.tower.x + 25, GROUND - 8 - r.rise, 0, wac ? r.rise < 40 : true);
-    flame(ctx, PLACES.tower.x + 25, GROUND - 8 - r.rise, 1, Math.PI / 2, g.time, wac ? 1.6 : 2.4);
+    const rise = flyingRise(g);
+    roundShape(ctx, g, PLACES.tower.x + 25, GROUND - 8 - rise, 0, wac ? rise < 40 : true);
+    flame(ctx, PLACES.tower.x + 25, GROUND - 8 - rise, 1, Math.PI / 2, g.time, wac ? 1.6 : 2.4);
   }
 }
 
 // The round riding the truck's bed, drawn after the truck so it sits on it.
 function rocketOnTruck(ctx, g) {
-  const wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
-  const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, g.rocket.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : g.vehicle === 'saturn5' ? saturnVShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
-  shape(g.truck.x + (wac ? 2 : 90), GROUND - 10, -Math.PI / 2, true);
+  roundShape(ctx, g, g.truck.x + (g.vehicle === 'wac' || g.vehicle === 'aerobee' ? 2 : 90), GROUND - 10, -Math.PI / 2, true);
 }
 
-// The launch smoke, drawn over the site: it hangs where it was made and obscures whatever is behind it.
+// The shape of the current vehicle, drawn from its tail at (x, y) along angle (0 = straight up). One dispatch, shared by
+// the site, the truck and the television in Mercury Control.
+function roundShape(ctx, g, x, y, angle, mated) {
+  const wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
+  return g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, g.rocket.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : g.vehicle === 'saturn5' ? saturnVShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper');
+}
+
+// The launch smoke, drawn over the site while she is still low enough to be in it.
 function launchSmoke(ctx, g) {
-  if (g.rocket.where !== 'flying') return;
+  if (g.rocket.where !== 'flying' || flyingRise(g) > 120) return;
   ctx.fillStyle = 'rgba(235,230,220,.6)';
   for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(PLACES.tower.x + 25 + (i - 4) * 12, GROUND - 6 - (i % 3) * 6, 10 + i, 0, 7); ctx.fill(); }
+}
+
+// How high the flying rocket has visibly climbed. Uncrewed flights rise through tickFlight; a crewed ascent climbs with
+// the console's clock, which is the only clock the site has for her.
+function flyingRise(g) {
+  if (g.rocket.where !== 'flying') return 0;
+  return g.console && g.console.phase === 'ascent' ? Math.min(g.console.t * 30, 700) : g.rocket.rise || 0;
+}
+
+// ---- The screens in Mercury Control: the television's live picture of the pad, and, once she flies, the map that
+// takes the whole wall with the capsule riding the track. Drawn over the baked cutaway in world coordinates.
+function controlScreens(ctx, g) {
+  const p = PLACES.office, wall = GROUND - p.h;
+  const c = g.console;
+  if (g.rocket.where === 'flying') {
+    // The map fills the wall: the track runs across it, and the capsule rides it as the consoles call her progress.
+    const mx = p.x + 30, mw = p.w - 56, my = wall + 18, mh = 48;
+    ctx.fillStyle = '#22272e'; ctx.fillRect(mx - 4, my - 4, mw + 8, mh + 8);
+    ctx.fillStyle = '#2f4f6a'; ctx.fillRect(mx, my, mw, mh);
+    ctx.fillStyle = '#5d7d52';
+    for (const [dx, dy, w, h] of [[mw * 0.06, 8, 24, 12], [mw * 0.24, 14, 18, 18], [mw * 0.44, 6, 30, 14], [mw * 0.64, 16, 16, 10], [mw * 0.82, 9, 22, 13]]) ctx.fillRect(mx + dx, my + dy, w, h);
+    const sx = mx + 6, span = mw - 12, mid = my + mh - 14;
+    ctx.strokeStyle = '#f2e3a0'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i <= 60; i++) { const x = sx + i * span / 60, y = mid - 10 * Math.sin(i / 60 * Math.PI); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+    ctx.stroke();
+    if (c && c.burn) {
+      const f = Math.max(0, Math.min(1, c.t / c.burn));
+      ctx.strokeStyle = '#fff8d8'; ctx.lineWidth = 2; ctx.beginPath();
+      const from = Math.max(0, f - 0.12);
+      for (let i = 0; i <= 24; i++) { const q = from + (f - from) * i / 24, x = sx + q * span, y = mid - 10 * Math.sin(q * Math.PI); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx + f * span, mid - 10 * Math.sin(f * Math.PI), 3, 0, 7); ctx.fill();
+    }
+    return;
+  }
+  // Before she flies: the television shows the pad, live — the gantry, the round on it, and the launch when it comes.
+  const tvX = p.x + p.w - 88, tvY = wall + 18, tvW = 54, tvH = 46;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(tvX, tvY, tvW, tvH); ctx.clip();
+  const sky = skyFor(g.clock % 1440);
+  const grad = ctx.createLinearGradient(0, tvY, 0, tvY + tvH);
+  grad.addColorStop(0, sky[0]); grad.addColorStop(1, sky[2]);
+  ctx.fillStyle = grad; ctx.fillRect(tvX, tvY, tvW, tvH);
+  const k = tvH / 400, cx = PLACES.tower.x + 25;
+  ctx.translate(tvX + tvW / 2 - cx * k, tvY - (GROUND - 370) * k);
+  ctx.scale(k, k);
+  if (g.site === 'cape') {
+    ctx.fillStyle = '#3f6f8f'; ctx.fillRect(cx - 400, 440, 800, 48);
+    ctx.fillStyle = '#5b7a3c'; ctx.fillRect(cx - 400, 488, 800, GROUND - 488);
+  }
+  ctx.fillStyle = '#e4d8b4'; ctx.fillRect(cx - 400, GROUND, 800, 80);
+  tower(ctx, PLACES.tower);
+  if (g.rocket.where === 'tower') roundShape(ctx, g, cx, GROUND - 8, 0, true);
+  else if (g.rocket.where === 'flying') {
+    const wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', rise = flyingRise(g);
+    roundShape(ctx, g, cx, GROUND - 8 - rise, 0, wac ? rise < 40 : true);
+    flame(ctx, cx, GROUND - 8 - rise, 1, Math.PI / 2, g.time, wac ? 1.6 : 2.4);
+    launchSmoke(ctx, g);
+  }
+  ctx.restore();
+  // It is a picture of a picture: faint scanlines over the tube.
+  ctx.fillStyle = 'rgba(0,0,0,.18)';
+  for (let y = tvY + 3; y < tvY + tvH; y += 4) ctx.fillRect(tvX, y, tvW, 1);
 }
 
 // The dust the truck kicks up, drawn over anyone in it.

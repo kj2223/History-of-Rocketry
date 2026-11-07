@@ -365,6 +365,7 @@ function flutter(seed, t) {
 function liftoff(c) {
   if (c.kind === 'flight' && c.round.vehicle === 'titan' && Object.values(c.round.faults).includes('shutdown')) return titanShutdown(c);
   const a = c.orbital ? atlasAscent(c.round, c.kind === 'sim' ? orbitSimFailure(c) : null, boosterOf(c).names) : ascent(c.round, c.kind === 'sim' ? simFailure(c.scenario) : null);
+  c.burn = a.burn; // the planned burn, from the flight plan: player-visible, and all the wall map needs
   if (c.kind === 'flight') { g.launchDay = g.day; g.rocket.where = 'flying'; g.rocket.rise = 0; }
   if (a.padAbort) {
     outcome(c.round);
