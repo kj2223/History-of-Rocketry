@@ -498,7 +498,7 @@ function stationReadout(duty, c) {
   if (lamp) return [lamp.a, lamp.b, lamp.tone]; // a lamp lit on this station overrides the routine readout
   const last = c && c.trace ? c.trace[c.trace.length - 1] : null;
   const climbing = last && (c.phase === 'ascent' || c.phase === 'insertion');
-  const clock = controlReadout(c)[0], word = (c ? PHASE_SHORT[c.phase] : '') || '';
+  const clock = controlReadout(c)[0], word = (c ? (c.poll ? 'POLL' : PHASE_SHORT[c.phase]) : '') || '';
   switch (duty) {
     case 'booster': return climbing ? [`${last.v.toFixed(2)} km/s`, `${last.acc.toFixed(1)} g`] : [clock, word];
     case 'retro': case 'fido': return climbing ? [`${last.gamma.toFixed(1)}°`, `${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)}°`] : [clock, word];
@@ -581,8 +581,7 @@ function consolePanelModel(c) {
   const btn = (act, id, label, tone) => P.buttons.push({ act, id, label, tone });
   const last = c.trace ? c.trace[c.trace.length - 1] : null;
   const km = x => `${Math.round(Math.abs(x))} km ${x >= 0 ? 'long' : 'short'}`;
-  if (c.phase === 'count' || c.phase === 'hold') return P;
-  if (c.poll || c.phase === 'poll') {
+  if (c.poll || c.phase === 'poll') { // a pending poll outranks the count: it is the call the room is waiting on
     P.state = c.poll === 'final' ? 'FINAL STATUS CHECK' : 'RECOVERY POLL';
     if (c.cond) {
       P.lines.push(`Sea state: ${c.cond.seaState}`);
@@ -592,6 +591,7 @@ function consolePanelModel(c) {
     if (!auto) { btn('m-go', null, 'GO', 'go'); btn('m-nogo', null, 'NO-GO', 'danger'); }
     return P;
   }
+  if (c.phase === 'count' || c.phase === 'hold') return P;
   if (c.phase === 'ascent') {
     P.state = c.abortAt != null ? 'ABORT' : 'POWERED FLIGHT';
     if (last) P.lines.push(`${last.v.toFixed(2)} km/s`, `${last.gamma.toFixed(1)} degrees`, `${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)} off plan`, `${last.acc.toFixed(1)} g`);
