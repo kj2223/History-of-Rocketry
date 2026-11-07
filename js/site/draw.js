@@ -494,6 +494,8 @@ const SEAT_DUTY = { retro: 'retro', flight: 'flight', engineer: 'eecom', 'test-c
 
 function stationReadout(duty, c) {
   const [clock, word] = controlReadout(c); // the room's readout, as the flight console carries it
+  const lamp = c && c.lamps && c.lamps[duty.toUpperCase()];
+  if (lamp) return [lamp.a, lamp.b, lamp.tone]; // a lamp lit on this station overrides the routine readout
   const last = c && c.trace ? c.trace[c.trace.length - 1] : null;
   const climbing = last && (c.phase === 'ascent' || c.phase === 'insertion');
   if (duty === 'booster') return climbing ? [`${last.v.toFixed(2)} km/s`, `${last.acc.toFixed(1)} g`] : [clock, word];
@@ -664,8 +666,9 @@ function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
   ctx.fillStyle = '#565d66'; ctx.fillRect(x, y, dw, 10 * k);
   shadeRight(ctx, x, y, dw, dh, 0.08);
   ctx.fillStyle = '#0d1117'; ctx.fillRect(x + 12 * k, y + 16 * k, 64 * k, 30 * k); ctx.fillRect(x + 86 * k, y + 16 * k, 64 * k, 30 * k);
-  const [a, b] = duty ? stationReadout(duty, c) : controlReadout(c);
-  ctx.fillStyle = '#9fdc9a'; ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`; ctx.textAlign = 'left';
+  const [a, b, tone] = duty ? stationReadout(duty, c) : controlReadout(c);
+  ctx.fillStyle = tone === 'bad' ? '#d0634f' : tone === 'warn' ? '#e8c66a' : '#9fdc9a';
+  ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`; ctx.textAlign = 'left';
   ctx.fillText(a, x + 16 * k, y + 28 * k); ctx.fillText(b, x + 16 * k, y + 40 * k);
   ctx.fillStyle = '#c9d2da'; ctx.font = `${Math.max(7, Math.round(8 * k))}px sans-serif`;
   ctx.fillText(label, x + 10 * k, y + dh - 6 * k);
