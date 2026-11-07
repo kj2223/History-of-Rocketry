@@ -2,11 +2,12 @@
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel, dragging the
 // site, or Shift with A/D or the arrow keys looks along it.
 import { drawSite, drawTracking, PLACES, VIEW_H, GROUND } from './draw.js';
-import { g, newGame, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, clearNotes, placeName } from '../game.js';
+import { g, newGame, roundIndexOf, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, clearNotes, placeName } from '../game.js';
 import { consoleLocked } from '../mercury.js';
 import { talk } from '../data/talk.js';
-import { writeSave, readSave, clearSave } from '../core/save.js';
-import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom, openWhenReady } from '../scenes/rooms.js';
+import { SEASON } from '../data/campaign.js';
+import { writeSave, readSave, startOver, readBackup, swapBackup } from '../core/save.js';
+import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom, openWhenReady, openGameRoom } from '../scenes/rooms.js';
 
 const canvas = document.getElementById('site'), ctx = canvas.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -109,7 +110,9 @@ document.querySelector('header').addEventListener('click', e => {
   if (b.id === 'pause') g.paused = !g.paused;
   if (b.id === 'endday') endDay();
   if (b.id === 'notes') toggleNotebook();
+  if (b.id === 'game') openGameMenu();
 });
+function openGameMenu() { if (g.room === 'game') { g.room = null; return; } openGameRoom(); }
 function toggleNotebook() {
   const nb = $('notebook');
   nb.hidden = !nb.hidden;
@@ -141,7 +144,15 @@ function hud() {
   $('loop').innerHTML = loop.map(l => `<div class="${l.tone}"><span>${l.at}</span> <b>${l.who}:</b> ${l.text.replace(/[&<>]/g, '')}</div>`).join('');
 }
 
-bindRoom({ again: () => { clearSave(localStorage); newGame(); $('notebook').hidden = true; } });
+// The game menu: start again from 1945, keeping the game you were playing as the backup, or go back to the backup.
+const where = c => `${cap(SEASON[roundIndexOf(c)].name)}, ${dateText(c.day)}`;
+const cap = s => s[0].toUpperCase() + s.slice(1);
+const fresh = () => { $('notebook').hidden = true; savedVersion = -1; };
+bindRoom({
+  again: () => { startOver(localStorage); newGame(); fresh(); },
+  backup: () => { const c = readBackup(localStorage, checkCheckpoint); return c ? where(c) : null; },
+  restore: () => { if (!swapBackup(localStorage)) return; const c = readSave(localStorage, checkCheckpoint); if (c) newGame(c.seed, c); else newGame(); fresh(); },
+});
 
 // Save each checkpoint as it is made: every work morning, and each round's outcome.
 let savedVersion = -1;

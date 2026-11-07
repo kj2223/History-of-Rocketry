@@ -13,7 +13,7 @@ import { PLACES } from '../data/white-sands.js';
 
 const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-let shown = { room: null, version: -1 }, flags = {}, plan = { inspector: 'you', burn: 'short', leak: false };
+let shown = { room: null, version: -1 }, hooks = {}, confirmNew = false, flags = {}, plan = { inspector: 'you', burn: 'short', leak: false };
 
 export function openRoom(building) {
   g.room = building === 'truck' && roomFor('truck') !== 'recovery' ? null : roomFor(building) === 'watch' ? `watch:${building}` : roomFor(building);
@@ -126,7 +126,21 @@ function watch(building) {
     <p class="muted">What you need to do next: ${esc(g.objective)}</p>`;
 }
 
+// The game menu, from the bar along the top.
+export function openGameRoom() { confirmNew = false; g.room = 'game'; g.roomVersion++; }
+
 const ROOMS = {
+  game() {
+    const here = `${SEASON[g.roundIndex].name[0].toUpperCase()}${SEASON[g.roundIndex].name.slice(1)}, ${dateText()}`, backup = hooks.backup?.();
+    if (confirmNew) return `<h2>Start again from 1945?</h2>
+      <p>You go back to the first WAC Corporal round at White Sands. The game you are playing now (${esc(here)}) is kept as your backup,
+      and you can come back to it from this menu${backup ? `. It takes the place of the backup you have now (${esc(backup)})` : ''}.</p>
+      <button class="danger" data-act="game-new-go">Start again from 1945</button> <button data-act="game-cancel">Keep playing</button>`;
+    return `<h2>Game</h2>
+      <p>Playing now: ${esc(here)}. The game saves itself every working morning.</p>
+      <p><button data-act="game-new">Start a new game from 1945</button></p>
+      ${backup ? `<p>Your backup: ${esc(backup)}.</p><p><button data-act="game-restore">Go back to the backup</button> <span class="muted">The game you are playing now becomes the backup.</span></p>` : '<p class="muted">No backup yet. Starting a new game keeps this one as the backup.</p>'}`;
+  },
   inspect() {
     const k = kit();
     const rows = Object.entries(k.spots).map(([id, s]) => {
@@ -323,6 +337,7 @@ function recordLine(r, inline = false) {
 
 // Clicks and changes inside the panel.
 export function bindRoom(handlers) {
+  hooks = handlers;
   const el = panel();
   el.addEventListener('click', e => {
     const b = e.target.closest('[data-act]');
@@ -346,6 +361,10 @@ export function bindRoom(handlers) {
       chair: () => chair(id),
       'offer-take': () => answerFirstOffer(true), 'offer-decline': () => answerFirstOffer(false),
       again: () => handlers.again(),
+      'game-new': () => { confirmNew = true; g.roomVersion++; },
+      'game-cancel': () => { confirmNew = false; g.room = null; },
+      'game-new-go': () => { confirmNew = false; handlers.again(); },
+      'game-restore': () => handlers.restore(),
     })[act]?.() ?? (CONTROL_ACTS[act] || LUNAR_ACTS[act])?.(id);
   });
   el.addEventListener('change', e => {

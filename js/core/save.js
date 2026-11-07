@@ -3,7 +3,7 @@
 
 export const FORMAT = 'per-aspera';
 export const CONTENT_VERSION = 3; // 3: V-2 and Bumper rounds, seats and offers; 2: a season of rounds; 1: one round
-export const KEYS = { current: 'pa-game', lastGood: 'pa-game-last-good' };
+export const KEYS = { current: 'pa-game', lastGood: 'pa-game-last-good', backup: 'pa-game-backup' };
 
 export class SaveError extends Error {}
 
@@ -32,6 +32,28 @@ export const readSave = (storage, check) => {
     try { return parseSave(text, check); } catch { /* try the next one */ }
   }
   return null;
+};
+
+// Starting a new game keeps the one you were playing as the backup, so starting over never loses a game.
+export const startOver = storage => {
+  const text = storage.getItem(KEYS.current) ?? storage.getItem(KEYS.lastGood);
+  if (text !== null) storage.setItem(KEYS.backup, text);
+  storage.removeItem(KEYS.current); storage.removeItem(KEYS.lastGood);
+};
+// The backup, if there is one this version can carry on; null otherwise.
+export const readBackup = (storage, check) => {
+  const text = storage.getItem(KEYS.backup);
+  if (text === null) return null;
+  try { return parseSave(text, check); } catch { return null; }
+};
+// Go back to the backup: it becomes the current game, and the current game becomes the backup.
+export const swapBackup = storage => {
+  const backup = storage.getItem(KEYS.backup);
+  if (backup === null) return false;
+  const current = storage.getItem(KEYS.current) ?? storage.getItem(KEYS.lastGood);
+  if (current !== null) storage.setItem(KEYS.backup, current); else storage.removeItem(KEYS.backup);
+  storage.setItem(KEYS.current, backup); storage.setItem(KEYS.lastGood, backup);
+  return true;
 };
 
 export const clearSave = storage => Object.values(KEYS).forEach(k => storage.removeItem(k));
