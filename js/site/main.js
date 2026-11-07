@@ -46,8 +46,14 @@ function goTo(x, then) {
 canvas.addEventListener('click', e => {
   if (drag?.moved) { drag = null; canvas.style.cursor = 'default'; return; } // the end of a drag, not a click
   drag = null;
-  // In launch control the buttons are drawn on the room itself; they are the only things to click.
-  if (g.room === 'console') { const hit = controlButtonAt(e.offsetX, e.offsetY); if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id); return; }
+  // In launch control the buttons are drawn on the room itself; they are the only things to click. The canvas is
+  // device-pixel scaled, so the click is brought into the same coordinates the painter drew with.
+  if (g.room === 'console') {
+    const ratio = window.devicePixelRatio || 1;
+    const hit = controlButtonAt(e.offsetX * ratio, e.offsetY * ratio);
+    if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id);
+    return;
+  }
   if (locked()) return;
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p.id, g.beat)); });
