@@ -400,14 +400,23 @@ function controlScreens(ctx, g) {
   }
   // Before she flies: the television shows the pad, live — the gantry, the round on it, and the launch when it comes.
   const tvX = p.x + p.w - 88, tvY = wall + 18, tvW = 54, tvH = 46;
+  padPicture(ctx, g, tvX, tvY, tvW, tvH);
+  // It is a picture of a picture: faint scanlines over the tube.
+  ctx.fillStyle = 'rgba(0,0,0,.18)';
+  for (let y = tvY + 3; y < tvY + tvH; y += 4) ctx.fillRect(tvX, y, tvW, 1);
+}
+
+// The live pad picture: sky and sea in the day's light, the gantry, the round on it, flame and smoke when she flies.
+// Drawn clipped into the rectangle given, wherever it is wanted — the wall television, or the console scene's inset.
+export function padPicture(ctx, g, x, y, w, h) {
   ctx.save();
-  ctx.beginPath(); ctx.rect(tvX, tvY, tvW, tvH); ctx.clip();
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
   const sky = skyFor(g.clock % 1440);
-  const grad = ctx.createLinearGradient(0, tvY, 0, tvY + tvH);
+  const grad = ctx.createLinearGradient(0, y, 0, y + h);
   grad.addColorStop(0, sky[0]); grad.addColorStop(1, sky[2]);
-  ctx.fillStyle = grad; ctx.fillRect(tvX, tvY, tvW, tvH);
-  const k = tvH / 400, cx = PLACES.tower.x + 25;
-  ctx.translate(tvX + tvW / 2 - cx * k, tvY - (GROUND - 370) * k);
+  ctx.fillStyle = grad; ctx.fillRect(x, y, w, h);
+  const k = h / 400, cx = PLACES.tower.x + 25;
+  ctx.translate(x + w / 2 - cx * k, y - (GROUND - 370) * k);
   ctx.scale(k, k);
   if (g.site === 'cape') {
     ctx.fillStyle = '#3f6f8f'; ctx.fillRect(cx - 400, 440, 800, 48);
@@ -423,9 +432,6 @@ function controlScreens(ctx, g) {
     launchSmoke(ctx, g);
   }
   ctx.restore();
-  // It is a picture of a picture: faint scanlines over the tube.
-  ctx.fillStyle = 'rgba(0,0,0,.18)';
-  for (let y = tvY + 3; y < tvY + tvH; y += 4) ctx.fillRect(tvX, y, tvW, 1);
 }
 
 // The dust the truck kicks up, drawn over anyone in it.
