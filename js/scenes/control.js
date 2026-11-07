@@ -22,6 +22,13 @@ export const CONTROL_ROOMS = {
       : `<h2>Mercury Control: the Retrofire officer's console</h2>
       <p>Hollis is in the middle of the row with his headset on. Albrecht has the booster, Morgan the network, Reyes the recovery forces. Your
       console has the trajectory plot and the impact computers, and the recovery board is on the wall.</p>`;
+    // The room stands on its own while there is nothing to press: the panel is your console, and it comes forward only
+    // when the room needs you - a poll, the abort call, the insertion decision, the splashdown point.
+    const interactive = !!c.poll || !['count', 'hold', 'entry', 'coast', 'done'].includes(c.phase);
+    if (!interactive) {
+      if (c.introShown) return ''; // the painted room alone until your call is needed
+      c.introShown = true;
+    }
     return intro + consoleBody(c, !!c.auto);
   },
   sim() {

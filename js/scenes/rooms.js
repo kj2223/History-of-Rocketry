@@ -54,6 +54,7 @@ export function render() {
   // Your console in launch control sits in the corner of the room, not the middle of the wall.
   el.classList.toggle('drawer', kind === 'console');
   const body = kind === 'watch' ? watch(building) : (ROOMS[kind] || CONTROL_ROOMS[kind] || LUNAR_ROOMS[kind])();
+  if (!body) { el.hidden = true; return; } // a room with nothing to show leaves the scene alone
   const closable = !['recovery', 'splash'].includes(kind);
   el.innerHTML = `${closable ? '<button class="close" data-act="close" title="Back to the site (Esc)">✕</button>' : ''}${body}`;
 }
