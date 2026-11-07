@@ -8,7 +8,7 @@ import { flyLoose, newRound, flagSpots, staticFire, standRework, leakCheck, tank
 import { TRAITS } from './world/people.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
 import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
-import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath } from './data/campaign.js';
+import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
 import { APOLLO_PLACES } from './data/apollo.js';
@@ -16,8 +16,8 @@ import { ASTRONAUTS } from './data/crew.js';
 import { LUNAR_BEATS, tickLunar, lunarRoom } from './lunar.js';
 import { MERCURY_BEATS, startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview } from './mercury.js';
 import { raceNews, RACE_FROM, apolloFire } from './world/race.js';
-import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 import { initRecord, addRound, shiftTrust, TRUST, turningPoint, answerOffer, pendingOffer, SEATS } from './career/record.js';
+import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
 
 // g.day is the campaign day (0 is 1 January 1945). Each round starts on its SEASON date and plans to fly two days later.
 export const START_MINUTE = 7 * 60 + 30, PLANNED_LAUNCH_DAY = 2;
@@ -341,7 +341,16 @@ const BEATS = {
     place('you', PLACES.truck.door);
   },
   roundEnd() { g.objective = 'The round is written up. Carry on to the next round from the office when you are ready.'; if (!g.away) g.room = 'roundEnd'; },
-  seasonEnd() { g.objective = 'Your years on the range are written up. Your record, and what comes next, are in the office.'; if (!g.away) g.room = 'seasonEnd'; },
+  seasonEnd() {
+    // The way back from the uncrewed years (C1): Houston staffs Gemini and asks JPL for its range man. Made here, at the
+    // branch's last round, for a player who declined the 1959 offer or was passed over — and for a save written before
+    // this existed, which lands here on load. Never remade once answered or made.
+    if (nextIndex() == null && g.record.path !== 'nasa' && !g.record.offers.some(o => o.seat === 'flight')) {
+      turningPoint(g.record, GEMINI_OFFER, g.day);
+      note('Houston is staffing Gemini. Ellis put your name forward.');
+    }
+    g.objective = 'Your years on the range are written up. Your record, and what comes next, are in the office.'; if (!g.away) g.room = 'seasonEnd';
+  },
 };
 
 // ---- Rooms: what each building offers right now ----
@@ -730,6 +739,11 @@ function briefLine() {
 export function nextRound() {
   const i = nextIndex();
   if (g.beat !== 'roundEnd' || i == null || pendingOffer(g.record)) return;
+  jumpTo(i);
+}
+
+// The calendar jump to round i: what happened meanwhile, then the round's first morning.
+function jumpTo(i) {
   const from = g.day, next = SEASON[i];
   const lines = [...(BETWEEN[next.id] || [])];
   // The first Bumper's WAC is built to the standard the WAC rounds left behind, and the V-2s to what the V-2 round taught.
@@ -741,6 +755,13 @@ export function nextRound() {
   g.away = { from: dateText(from), to: dateText(roundStartOf(i)), lines };
   startRound(i);
   g.room = 'away';
+}
+
+// After taking an offer that switches paths (the Gemini offer from the uncrewed years): the first round on the new path
+// that starts after today and was not flown. The season array runs White Sands to Apollo with Ranger last, so the jump
+// is backwards in the array and forward in the calendar.
+export function rejoinIndex(path, day = g.day) {
+  return SEASON.findIndex(r => onPath(r, path) && r.start > day && !g.record.rounds.some(flown => flown.id === r.id));
 }
 
 // The prototype's own debrief: the hidden truth laid open, for testing whether the round felt fair.
@@ -762,15 +783,22 @@ export function debrief() {
   };
 }
 
-// The first promotion offer: take the seat, or turn it down and keep your own.
+// The first promotion offer: take the seat, or turn it down and keep your own. Taking one that switches paths (the
+// Gemini offer from the uncrewed years) jumps the calendar to the first round on the new path.
 export function answerFirstOffer(take) {
+  const before = g.record.path;
   const o = answerOffer(g.record, take);
   if (!o) return;
-  const line = take ? 'Good. They\'ll be glad of you. Come and see me when you need a second opinion.' : 'Your seat here is yours as long as you want it. They may ask again.';
+  const stranded = nextIndex() == null;
+  const line = take ? 'Good. They\'ll be glad of you. Come and see me when you need a second opinion.' : stranded ? 'Then JPL keeps you, and the uncrewed years are yours to finish. It\'s been a pleasure.' : 'Your seat here is yours as long as you want it. They may ask again.';
   if (!g.people.ellis.hidden) say('ellis', line, take ? 'go' : '', 8);
   else if (g.crewed) say('hollis', o.seat === 'director' ? (take ? 'Good. Now it\'s your budget they\'ll cut.' : 'Then fly the last of them. I\'ll tell them to ask again.') : o.seat === 'programme' ? (take ? 'Off the console, then. Get them their hardware on time, and get it right.' : 'Good. I need flight directors more than I need schedulers.') : o.seat === 'flight' ? (take ? 'Good. Houston\'s yours on your shift, Flight. Know your rules.' : 'Then keep your seat. Somebody has to.') : take ? 'Good luck in Hangar S. I\'ll want straight answers from you on flight day.' : 'Glad to keep you, Retro.', take ? 'go' : '', 8);
   g.people.you.role = SEATS[g.record.seat];
   note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay ${/^[aeiou]/i.test(SEATS[g.record.seat]) ? 'an' : 'a'} ${SEATS[g.record.seat].toLowerCase()}.`);
+  if (take && o.path && o.path !== before) {
+    const i = rejoinIndex(o.path);
+    if (i != null) { jumpTo(i); return; }
+  }
   morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');
 }
 

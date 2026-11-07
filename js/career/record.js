@@ -27,10 +27,13 @@ export function simStanding(record) {
 export function addSim(record, sim) { (record.sims = record.sims || []).push(sim); }
 export const OFFER_STANDING = 1;
 
-// A turning point: an offer if your standing is good enough, otherwise you are passed over this time.
+// A turning point: an offer if your standing is good enough, otherwise you are passed over this time. An offer marked
+// always is made whatever the standing: it comes at a branch's last round, where not making it would strand the player.
+// The entry carries the offer's own words and sender, so a card renders rightly whatever path the player came from.
 export function turningPoint(record, offer, day) {
-  const made = standing(record) >= OFFER_STANDING;
-  const entry = { seat: offer.seat, title: offer.title, day, made, answer: null, ...(offer.path ? { path: offer.path } : {}) };
+  const made = offer.always || standing(record) >= OFFER_STANDING;
+  const entry = { seat: offer.seat, title: offer.title, day, made, answer: null, text: offer.text, from: offer.from,
+    takeNote: offer.takeNote, declineNote: offer.declineNote, ...(offer.path ? { path: offer.path } : {}) };
   record.offers.push(entry);
   if (!made) record.sidelined = true;
   return entry;

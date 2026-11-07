@@ -320,8 +320,23 @@ export const DIRECTOR_OFFER = {
   declineNote: 'You keep your seat for the last of Apollo.',
 };
 
+// The way back from the uncrewed years: after Ranger 7, Houston staffs Gemini and asks JPL for its range man. Always
+// made: it is the branch's last round, and a sidelined player must have the chance C1 promised.
+export const GEMINI_OFFER = {
+  seat: 'flight',
+  title: 'Flight director, Gemini',
+  from: 'ellis',
+  text: 'Houston is staffing Gemini, and they want people who have run rounds from the ground. You know the range: the counts, the slips, and what a fault looks like from the blockhouse. I put your name forward for a flight-director shift. It means leaving JPL.',
+  sidelined: 'Houston staffed Gemini from the Mercury cadre. There was no room for a JPL man this time.',
+  again: 'Houston asks again: they still want you on a Gemini shift.',
+  takeNote: 'From now on you run a shift in Mission Control, Houston: the polls, the holds, the aborts and the mission rules. When a sick spacecraft stays up, it\'s your call.',
+  declineNote: 'You keep your seat at JPL. The uncrewed years carry on without you.',
+  path: 'nasa',
+  always: true,
+};
+
 // Which offer a turning point brings: turningPoint true is the test conductor's, 'nasa' is Mercury Control's, 'engineer'
-// the Mercury project office's.
-export const offerFor = turningPoint => ({ nasa: NASA_OFFER, engineer: ENGINEER_OFFER, flight: FD_OFFER, programme: PROGRAMME_OFFER, director: DIRECTOR_OFFER })[turningPoint] || FIRST_OFFER;
+// the Mercury project office's, 'gemini' Houston's way back from the uncrewed years.
+export const offerFor = turningPoint => ({ nasa: NASA_OFFER, engineer: ENGINEER_OFFER, flight: FD_OFFER, programme: PROGRAMME_OFFER, director: DIRECTOR_OFFER, gemini: GEMINI_OFFER })[turningPoint] || FIRST_OFFER;
 // The offer behind an entry in your record, by the seat it offered.
 export const offerBySeat = seat => [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, PROGRAMME_OFFER, DIRECTOR_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;

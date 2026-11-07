@@ -314,13 +314,15 @@ function budgetBlock() {
     A rework on the stand ${dollars(COSTS.rework)}. Each day of range time lost ${dollars(COSTS.slipDay)}. Going over the line is allowed, but it goes on your record.</p></div>`;
 }
 
-// A turning point's offer, or the news that you were passed over, with the buttons to answer it.
+// A turning point's offer, or the news that you were passed over, with the buttons to answer it. The entry carries its
+// own words when it has them (the way back from the uncrewed years speaks from JPL, not Houston); older saves fall back
+// to the offer the seat names.
 function offerCard(o) {
-  const offer = offerBySeat(o.seat), from = g.people[offer.from || 'ellis'].name.split(' ').pop();
+  const offer = offerBySeat(o.seat), from = g.people[o.from || offer.from || 'ellis'].name.split(' ').pop();
   if (!o.made) return `<div class="offer"><h3>Passed over, this time</h3><p>${esc(from)}: "${esc(offer.sidelined)}"</p>
     <p class="muted">You stay ${esc(SEATS[g.record.seat].toLowerCase())}, on quieter work for now. A better record brings the offer back.</p></div>`;
-  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>${esc(from)}: "${esc(o.again ? offer.again : offer.text)}"</p>
-    <p class="muted">${esc(offer.takeNote)} ${esc(offer.declineNote)}</p>
+  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>${esc(from)}: "${esc(o.again ? offer.again : (o.text || offer.text))}"</p>
+    <p class="muted">${esc(o.takeNote || offer.takeNote)} ${esc(o.declineNote || offer.declineNote)}</p>
     <button class="primary" data-act="offer-take">Take the job</button><button data-act="offer-decline">Turn it down, for now</button></div>`;
   return `<div class="offer"><p>${o.answer === 'taken' ? `You took the job: ${esc(o.title)}.` : 'You turned the offer down and kept your seat.'}</p></div>`;
 }
