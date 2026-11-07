@@ -69,6 +69,13 @@ canvas.addEventListener('click', e => {
   goTo(Math.max(20, Math.min(2960, w.x)));
 });
 canvas.addEventListener('mousemove', e => {
+  // In launch control the cursor answers to the drawn buttons, not the site.
+  if (g.room === 'console') {
+    const ratio = window.devicePixelRatio || 1;
+    canvas.style.cursor = controlButtonAt(e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
+    g.hover = null; canvas.title = '';
+    return;
+  }
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   g.hover = !p && pl ? { ...pl[1], name: placeName(pl[0]), x: pl[0] === 'truck' ? g.truck.x : pl[1].x } : null;
   canvas.title = p ? `${p.name}, ${p.role}` : '';
