@@ -7,6 +7,7 @@ import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
+import { UNITS, ORBIT_UNITS } from '../data/mercury.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -486,6 +487,32 @@ function controlReadout(c) {
   return ['—', PHASE_WORD[c.phase] || ''];
 }
 
+// Each station watches its own duties: Booster the booster's numbers, Retro the trajectory, Recovery the area, and so
+// on. All of it is what the room could see: the console's own telemetry, the recovery board, and the planned clock.
+const STATION_DUTY = { hollis: 'flight', albrecht: 'booster', morgan: 'network', reyes: 'recovery', vega: 'pad', kessler: 'eecom', tate: 'retro', dorsey: 'flight' };
+const SEAT_DUTY = { retro: 'retro', flight: 'flight', engineer: 'eecom', 'test-conductor': 'booster', programme: 'flight', director: 'flight', junior: 'retro' };
+
+function stationReadout(duty, c) {
+  const [clock, word] = controlReadout(c); // the room's readout, as the flight console carries it
+  const last = c && c.trace ? c.trace[c.trace.length - 1] : null;
+  const climbing = last && (c.phase === 'ascent' || c.phase === 'insertion');
+  if (duty === 'booster') return climbing ? [`${last.v.toFixed(2)} km/s`, `${last.acc.toFixed(1)} g`] : [clock, word];
+  if (duty === 'retro') return climbing ? [`${last.gamma.toFixed(1)}°`, `${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)}° OFF`] : [clock, word];
+  if (duty === 'eecom') return climbing ? [`${last.acc.toFixed(1)} g`, 'TELEMETRY'] : [clock, word];
+  if (duty === 'network') return climbing ? [`${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)}° OFF`, 'TRACKING'] : [clock, 'TRACKING'];
+  if (duty === 'recovery') {
+    if (c && c.phase === 'ip' && c.ip) return [`${Math.round(c.ip.radar)} km`, 'RADAR POINT'];
+    if (c && c.cond) {
+      const units = c.orbital ? ORBIT_UNITS : UNITS, all = Object.keys(units);
+      const on = all.filter(id => c.cond.late !== id).length;
+      return [`SEA ${c.cond.seaState}`, `${on}/${all.length} SHIPS`];
+    }
+    return [clock, word];
+  }
+  if (duty === 'pad') return c && (c.phase === 'count' || c.poll) ? [clock, 'STANDING BY'] : [clock, word];
+  return [clock, word]; // the flight director's: the clock and the state of the flight
+}
+
 export function drawControlRoom(ctx, g, view) {
   const { w, h } = view, c = g.console;
   const wallH = Math.round(h * 0.56);
@@ -514,13 +541,14 @@ export function drawControlRoom(ctx, g, view) {
   const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2;
   const back = ['albrecht', 'morgan', 'reyes', 'vega', 'kessler', 'tate', 'dorsey'].filter(id => g.people[id] && !g.people[id].hidden);
   const dw = 170 * 0.82, gap = 26, span = back.length * dw + (back.length - 1) * gap;
-  back.forEach((id, i) => consoleDesk(ctx, rowMid - span / 2 + i * (dw + gap), wallH + floor * 0.24, 0.82, g.people[id], ROOM_SEATS[id], c, false));
+  back.forEach((id, i) => consoleDesk(ctx, rowMid - span / 2 + i * (dw + gap), wallH + floor * 0.24, 0.82, g.people[id], ROOM_SEATS[id], c, false, STATION_DUTY[id]));
   const front = [['hollis', 'FLIGHT DIR.'], [null, null], [g.people.dorsey && !g.people.dorsey.hidden ? 'dorsey' : null, 'FLIGHT DIR.']];
   if (g.people.hollis.hidden) front[0] = [null, 'FLIGHT DIR.'];
   const fw = 170 * 1.1, fgap = 30, fspan = front.length * fw + (front.length - 1) * fgap;
   front.forEach(([id, label], i) => {
     const yours = i === 1; // the middle console of the front row is yours, and only yours
-    consoleDesk(ctx, rowMid - fspan / 2 + i * (fw + fgap), wallH + floor * 0.6, 1.1, yours ? g.people.you : (id ? g.people[id] : null), yours ? 'YOU · ' + (g.people.you.role || '').toUpperCase() : label, c, yours);
+    const duty = yours ? (SEAT_DUTY[g.record.seat] || 'flight') : STATION_DUTY[id] || 'flight';
+    consoleDesk(ctx, rowMid - fspan / 2 + i * (fw + fgap), wallH + floor * 0.6, 1.1, yours ? g.people.you : (id ? g.people[id] : null), yours ? 'YOU · ' + (g.people.you.role || '').toUpperCase() : label, c, yours, duty);
   });
   ctx.textAlign = 'left';
 }
@@ -568,17 +596,17 @@ function monitorScreen(ctx, g, x, y, w, h) {
   ctx.fillStyle = '#181b1f'; ctx.fillRect(x - 6, y - 6, w + 12, h + 12);
   ctx.fillStyle = '#0d1117'; ctx.fillRect(x, y, w, h);
   const c = g.console, trace = c && c.trace;
-  const maxT = c && c.burn ? c.burn : 1, maxD = 20;
-  const px = t => x + 6 + (t / maxT) * (w - 12), py = d => y + h / 2 - (d / maxD) * (h / 2 - 6);
+  const maxT = c && c.burn ? c.burn : 1, limit = 6; // Mercury's abort rule: six degrees off the planned line
+  const px = t => x + 6 + (t / maxT) * (w - 12), py = d => y + h / 2 - (d / limit) * (h / 2 - 6);
   ctx.strokeStyle = '#31413a'; ctx.lineWidth = 1;
-  for (const d of [-10, 10]) { ctx.beginPath(); ctx.moveTo(x + 4, py(d)); ctx.lineTo(x + w - 4, py(d)); ctx.stroke(); }
+  for (const d of [limit, -limit]) { ctx.beginPath(); ctx.moveTo(x + 4, py(d)); ctx.lineTo(x + w - 4, py(d)); ctx.stroke(); }
   ctx.beginPath(); ctx.moveTo(x + 4, py(0)); ctx.lineTo(x + w - 4, py(0)); ctx.stroke();
   if (trace && trace.length) {
     ctx.strokeStyle = '#9fdc9a'; ctx.lineWidth = 1.5; ctx.beginPath();
-    trace.forEach((p, i) => { const X = px(p.t), Y = py(Math.max(-maxD, Math.min(maxD, p.gamma * 57.3 - 90))); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
+    trace.forEach((p, i) => { const X = px(p.t), Y = py(Math.max(-limit, Math.min(limit, p.off))); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
     ctx.stroke();
     const last = trace[trace.length - 1];
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px(last.t), py(Math.max(-maxD, Math.min(maxD, last.gamma * 57.3 - 90))), 2.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px(last.t), py(Math.max(-limit, Math.min(limit, last.off))), 2.5, 0, 7); ctx.fill();
   } else {
     ctx.fillStyle = '#5a6a60'; ctx.font = `${Math.max(8, Math.round(w / 22))}px monospace`; ctx.textAlign = 'center';
     ctx.fillText('STANDBY', x + w / 2, y + h / 2);
@@ -624,7 +652,7 @@ function siteClock(g) {
 
 
 // A console desk with its seated controller, its role on the front, and two live screens. Yours carries the mark.
-function consoleDesk(ctx, x, y, k, who, label, c, yours) {
+function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
   const dw = 170 * k, dh = 58 * k;
   if (who) { // seated behind the desk: shoulders and head above the desktop
     const px = x + dw / 2, py = y + 2;
@@ -636,7 +664,7 @@ function consoleDesk(ctx, x, y, k, who, label, c, yours) {
   ctx.fillStyle = '#565d66'; ctx.fillRect(x, y, dw, 10 * k);
   shadeRight(ctx, x, y, dw, dh, 0.08);
   ctx.fillStyle = '#0d1117'; ctx.fillRect(x + 12 * k, y + 16 * k, 64 * k, 30 * k); ctx.fillRect(x + 86 * k, y + 16 * k, 64 * k, 30 * k);
-  const [a, b] = controlReadout(c);
+  const [a, b] = duty ? stationReadout(duty, c) : controlReadout(c);
   ctx.fillStyle = '#9fdc9a'; ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`; ctx.textAlign = 'left';
   ctx.fillText(a, x + 16 * k, y + 28 * k); ctx.fillText(b, x + 16 * k, y + 40 * k);
   ctx.fillStyle = '#c9d2da'; ctx.font = `${Math.max(7, Math.round(8 * k))}px sans-serif`;
