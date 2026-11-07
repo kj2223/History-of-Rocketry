@@ -63,3 +63,19 @@ test('a watch panel open on the blockhouse switches to the count when the round 
   assert.equal(g.room, 'count');
   assert.ok(g.count);
 });
+
+test('starting a new game keeps the old one as the backup, and going back swaps them', async () => {
+  const { writeSave, readSave, startOver, readBackup, swapBackup, memoryStorage } = await import('../js/core/save.js');
+  const { checkCheckpoint } = await import('../js/game.js');
+  const storage = memoryStorage();
+  newGame(5); playRound(); advance(false);
+  const later = structuredClone(g.saved);
+  writeSave(storage, later);
+  startOver(storage);
+  assert.equal(readSave(storage, checkCheckpoint), null);
+  assert.equal(readBackup(storage, checkCheckpoint).roundIndex, later.roundIndex);
+  newGame(6); writeSave(storage, g.saved);
+  assert.ok(swapBackup(storage));
+  assert.equal(readSave(storage, checkCheckpoint).seed, 5);
+  assert.equal(readBackup(storage, checkCheckpoint).seed, 6);
+});
