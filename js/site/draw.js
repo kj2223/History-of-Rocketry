@@ -391,23 +391,48 @@ function controlScreens(ctx, g) {
 
 // A wall map: the frame and the land, the planned track across it, and — when she flies — the capsule on it with a short
 // bright trail, paced by the console's clock. Sized to the wall that asks for it.
+// The wall map is the range chart of the real Atlantic downrange: the Florida coast with the Cape at its tip, Cuba and
+// the islands, Bermuda, the Azores and Canaries, and the bulge of West Africa on the right edge. Coastlines are
+// simplified but placed as the charts placed them; the planned track leaves the Cape and arcs downrange past Bermuda.
+const WALL_LAND = [
+  // The American coast, from off the top of the chart down to the tip of Cape Canaveral and back.
+  [[0, 0.03], [0.05, 0.09], [0.10, 0.14], [0.15, 0.20], [0.18, 0.27], [0.20, 0.33], [0.225, 0.38], [0.24, 0.415], [0.255, 0.375], [0.27, 0.31], [0.295, 0.25], [0.33, 0.19], [0.37, 0.13], [0.39, 0.08], [0.40, 0]],
+  // Cuba, thin along the bottom left; Hispaniola and Puerto Rico further east.
+  [[0.21, 0.47], [0.26, 0.49], [0.31, 0.515], [0.35, 0.53], [0.345, 0.55], [0.30, 0.535], [0.25, 0.51], [0.21, 0.49]],
+  [[0.375, 0.565], [0.40, 0.575], [0.415, 0.59], [0.39, 0.595], [0.372, 0.585]],
+  [[0.435, 0.60], [0.455, 0.605], [0.45, 0.615], [0.435, 0.61]],
+  // The bulge of West Africa, in from the right edge, from Morocco down past Senegal.
+  [[0.88, 0], [0.87, 0.08], [0.855, 0.16], [0.84, 0.24], [0.815, 0.31], [0.795, 0.37], [0.78, 0.42], [0.775, 0.47], [0.79, 0.53], [0.815, 0.58], [0.85, 0.63], [0.89, 0.67], [0.93, 0.70], [1, 0.73], [1, 0]],
+  // The shoulder of Brazil, bottom right.
+  [[0.60, 1], [0.63, 0.93], [0.68, 0.88], [0.73, 0.86], [0.77, 0.87], [0.79, 0.91], [0.775, 0.96], [0.75, 1]],
+];
+// Small islands: the Bahamas, Bermuda, the Azores, the Canaries, the Lesser Antilles.
+const WALL_DOTS = [[0.29, 0.415], [0.315, 0.43], [0.34, 0.445], [0.44, 0.27], [0.66, 0.235], [0.675, 0.25], [0.72, 0.40], [0.735, 0.415], [0.475, 0.615], [0.487, 0.65], [0.495, 0.685], [0.50, 0.72]];
+// The planned track: up from the Cape, out over the Bermuda line, and on toward the African coast for the orbital shots.
+const WALL_TRACK = [[0.245, 0.40], [0.28, 0.35], [0.33, 0.31], [0.39, 0.285], [0.45, 0.275], [0.52, 0.28], [0.59, 0.30], [0.66, 0.335], [0.72, 0.375], [0.77, 0.42]];
+
 function drawWallMap(ctx, g, x, y, w, h) {
   ctx.fillStyle = '#22272e'; ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
   ctx.fillStyle = '#2f4f6a'; ctx.fillRect(x, y, w, h);
   ctx.fillStyle = '#5d7d52';
-  for (const [dx, dy, mw, mh] of [[w * 0.06, h * 0.17, w * 0.09, h * 0.25], [w * 0.24, h * 0.29, w * 0.07, h * 0.38], [w * 0.44, h * 0.13, w * 0.12, h * 0.29], [w * 0.64, h * 0.33, w * 0.065, h * 0.21], [w * 0.82, h * 0.19, w * 0.09, h * 0.27]]) ctx.fillRect(x + dx, y + dy, mw, mh);
-  const sx = x + w * 0.03, span = w * 0.94, mid = y + h * 0.72, amp = h * 0.24;
-  ctx.strokeStyle = '#f2e3a0'; ctx.lineWidth = Math.max(1, w / 400); ctx.beginPath();
-  for (let i = 0; i <= 60; i++) { const px = sx + i * span / 60, py = mid - amp * Math.sin(i / 60 * Math.PI); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
-  ctx.stroke();
+  for (const poly of WALL_LAND) { ctx.beginPath(); poly.forEach(([fx, fy], i) => { const X = x + fx * w, Y = y + fy * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); ctx.fill(); }
+  for (const [fx, fy] of WALL_DOTS) { ctx.beginPath(); ctx.arc(x + fx * w, y + fy * h, Math.max(1.5, w / 220), 0, 7); ctx.fill(); }
+  const at = f => { const i = Math.min(WALL_TRACK.length - 2, Math.floor(f * (WALL_TRACK.length - 1))), q = f * (WALL_TRACK.length - 1) - i;
+    const [ax, ay] = WALL_TRACK[i], [bx, by] = WALL_TRACK[i + 1]; return [x + (ax + (bx - ax) * q) * w, y + (ay + (by - ay) * q) * h]; };
+  // The planned track: a gold line leaving the Cape, with the Cape itself marked.
+  ctx.strokeStyle = '#f2e3a0'; ctx.lineWidth = Math.max(1, w / 400); ctx.setLineDash([5, 4]); ctx.beginPath();
+  WALL_TRACK.forEach(([fx, fy], i) => { const X = x + fx * w, Y = y + fy * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+  ctx.stroke(); ctx.setLineDash([]);
+  const [cx0, cy0] = at(0); ctx.fillStyle = '#e8c66a'; ctx.beginPath(); ctx.arc(cx0, cy0, Math.max(2, w / 150), 0, 7); ctx.fill();
   const c = g.console;
   if (g.rocket.where === 'flying' && c && c.burn) {
     const f = Math.max(0, Math.min(1, c.t / c.burn));
     ctx.strokeStyle = '#fff8d8'; ctx.lineWidth = Math.max(2, w / 200); ctx.beginPath();
-    const from = Math.max(0, f - 0.12);
-    for (let i = 0; i <= 24; i++) { const q = from + (f - from) * i / 24, px = sx + q * span, py = mid - amp * Math.sin(q * Math.PI); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+    const from = Math.max(0, f - 0.18);
+    let started = false;
+    for (let i = 0; i <= 24; i++) { const q = from + (f - from) * i / 24, [px, py] = at(q); started ? ctx.lineTo(px, py) : (ctx.moveTo(px, py), started = true); }
     ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx + f * span, mid - amp * Math.sin(f * Math.PI), Math.max(3, w / 130), 0, 7); ctx.fill();
+    const [px, py] = at(f); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py, Math.max(3, w / 130), 0, 7); ctx.fill();
   }
 }
 
@@ -448,13 +473,13 @@ function truckDust(ctx, g) {
 }
 
 // ---- Inside Mercury Control: the launch-control scene. You are in the room; the wall and the rows fill the screen. ----
-const ROOM_SEATS = { hollis: 'FLIGHT DIRECTOR', albrecht: 'BOOSTER', morgan: 'NETWORK', reyes: 'RECOVERY', vega: 'PAD', kessler: 'EECOM', tate: 'RETROFIRE', dorsey: 'FLIGHT, HOUSTON' };
+const ROOM_SEATS = { hollis: 'FLIGHT DIR.', albrecht: 'BOOSTER', morgan: 'NETWORK', reyes: 'RECOVERY', vega: 'PAD', kessler: 'EECOM', tate: 'RETRO', dorsey: 'FLIGHT DIR.' };
 const PHASE_WORD = { count: 'COUNTING', hold: 'HOLDING', poll: 'STATUS POLL', ascent: 'POWERED FLIGHT', insertion: 'GO / NO-GO FOR ORBIT', ip: 'SPLASHDOWN POINT', coast: 'COASTING', orbit: 'IN ORBIT', pack: 'COMING UP ON RETROFIRE', retro: 'RETROFIRE', entry: 'BLACKOUT', pad: 'SHUTDOWN ON THE PAD', shutdown: 'SHUTDOWN' };
 
 // The room's clock and the word for what is happening, as the player-visible console reports them.
 function controlReadout(c) {
   if (!c) return ['—', ''];
-  if (c.phase === 'count' || c.poll || c.phase === 'hold') return [`T-${Math.floor(Math.ceil(c.clock) / 60)}:${String(Math.ceil(c.clock) % 60).padStart(2, '0')}`, PHASE_WORD[c.poll ? 'poll' : c.phase]];
+  if (c.phase === 'count' || c.poll || c.phase === 'hold') return ['—', 'MISSION BEGINS'];
   if (c.phase === 'ascent' || c.phase === 'insertion') { const last = c.trace[c.trace.length - 1]; return last ? [`${last.v.toFixed(2)} km/s`, PHASE_WORD[c.phase]] : ['—', PHASE_WORD[c.phase]]; }
   if (c.orbitT != null) return [`T+${Math.floor(c.orbitT / 60)}:${String(Math.floor(c.orbitT % 60)).padStart(2, '0')}`, PHASE_WORD[c.phase] || c.phase.toUpperCase()];
   if (c.flight) return [`GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`, (c.flight.phase || '').toUpperCase() || PHASE_WORD[c.phase] || ''];
@@ -485,14 +510,14 @@ export function drawControlRoom(ctx, g, view) {
   viewingGallery(ctx, galleryX, 0, w - galleryX, wallH, g);
   // Two rows of stations on the floor, centred between the side walls and clear of the console panel.
   const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2;
-  const back = ['hollis', 'albrecht', 'morgan', 'reyes', 'vega', 'kessler', 'tate', 'dorsey'].filter(id => g.people[id] && !g.people[id].hidden);
+  const back = ['albrecht', 'morgan', 'reyes', 'vega', 'kessler', 'tate', 'dorsey'].filter(id => g.people[id] && !g.people[id].hidden);
   const dw = 170 * 0.82, gap = 26, span = back.length * dw + (back.length - 1) * gap;
   back.forEach((id, i) => consoleDesk(ctx, rowMid - span / 2 + i * (dw + gap), wallH + floor * 0.24, 0.82, g.people[id], ROOM_SEATS[id], c, false));
-  const front = [['hollis', 'FLIGHT DIRECTOR'], [null, 'FLIGHT DIRECTOR'], [null, 'FLIGHT DIRECTOR']];
-  if (g.people.hollis.hidden) front[0] = [null, 'FLIGHT DIRECTOR'];
+  const front = [['hollis', 'FLIGHT DIR.'], [null, null], [g.people.dorsey && !g.people.dorsey.hidden ? 'dorsey' : null, 'FLIGHT DIR.']];
+  if (g.people.hollis.hidden) front[0] = [null, 'FLIGHT DIR.'];
   const fw = 170 * 1.1, fgap = 30, fspan = front.length * fw + (front.length - 1) * fgap;
   front.forEach(([id, label], i) => {
-    const yours = id === null; // the middle console of the front row is yours
+    const yours = i === 1; // the middle console of the front row is yours, and only yours
     consoleDesk(ctx, rowMid - fspan / 2 + i * (fw + fgap), wallH + floor * 0.6, 1.1, yours ? g.people.you : (id ? g.people[id] : null), yours ? 'YOU · ' + (g.people.you.role || '').toUpperCase() : label, c, yours);
   });
   ctx.textAlign = 'left';
@@ -518,17 +543,19 @@ function serverBank(ctx, x, y, w, h, g) {
 // The viewing gallery along the right wall: glass, a rail, and the heads of the people watching you work.
 function viewingGallery(ctx, x, y, w, h) {
   ctx.fillStyle = '#4a4640'; ctx.fillRect(x, y, w, h);
-  const glass = Math.max(8, w * 0.55), gx = x + (w - glass) / 2;
-  ctx.fillStyle = '#5d8fc4'; ctx.fillRect(gx, y + h * 0.08, glass, h * 0.62);
-  ctx.fillStyle = 'rgba(255,255,255,.12)'; for (let i = 0; i < 3; i++) ctx.fillRect(gx + 8 + i * (glass / 3), y + h * 0.12, glass / 9, h * 0.5);
-  // Heads behind the glass, placed from i so they never shuffle.
-  for (let i = 0; i < 7; i++) {
-    const hx = gx + 10 + i * (glass - 20) / 6, hy = y + h * 0.52 + ((i * 17) % 9);
-    ctx.fillStyle = i % 2 ? '#e2b993' : '#c99b76';
-    ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, w * 0.06), 0, 7); ctx.fill();
+  const winW = Math.max(10, w * 0.62), winH = h * 0.5, gap = 10;
+  for (const wx of [x + (w - 2 * winW - gap) / 2, x + (w + gap) / 2]) {
+    ctx.fillStyle = '#5d8fc4'; ctx.fillRect(wx, y + h * 0.08, winW, winH);
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(wx + winW * 0.1, y + h * 0.12, winW * 0.08, winH * 0.8);
+    // Heads behind the glass, placed from i so they never shuffle.
+    for (let i = 0; i < 4; i++) {
+      const hx = wx + 8 + i * (winW - 16) / 3, hy = y + h * 0.08 + winH * 0.78 + ((i * 17) % 5);
+      ctx.fillStyle = i % 2 ? '#e2b993' : '#c99b76';
+      ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, w * 0.09), 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = '#33302b'; ctx.fillRect(wx - 2, y + h * 0.08 + winH * 0.86, winW + 4, Math.max(3, h * 0.05)); // the rail
   }
-  ctx.fillStyle = '#33302b'; ctx.fillRect(gx - 3, y + h * 0.58, glass + 6, Math.max(4, h * 0.06)); // the rail
-  ctx.fillStyle = '#2a2723'; ctx.fillRect(x + 3, y + h * 0.7, w - 6, h * 0.28); // the gallery floor below
+  ctx.fillStyle = '#2a2723'; ctx.fillRect(x + 3, y + h * 0.72, w - 6, h * 0.26); // the gallery floor below
 }
 
 // The monitoring screen: the flight-path angle as she climbs, second by second, with her position on it.
@@ -547,6 +574,10 @@ function monitorScreen(ctx, g, x, y, w, h) {
     ctx.stroke();
     const last = trace[trace.length - 1];
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px(last.t), py(Math.max(-maxD, Math.min(maxD, last.gamma * 57.3 - 90))), 2.5, 0, 7); ctx.fill();
+  } else {
+    ctx.fillStyle = '#5a6a60'; ctx.font = `${Math.max(8, Math.round(w / 22))}px monospace`; ctx.textAlign = 'center';
+    ctx.fillText('STANDBY', x + w / 2, y + h / 2);
+    ctx.textAlign = 'left';
   }
   ctx.fillStyle = '#5a6a60'; ctx.font = `${Math.max(7, Math.round(w / 26))}px monospace`; ctx.textAlign = 'left';
   ctx.fillText('FLIGHT-PATH ANGLE', x + 6, y + 12);
@@ -576,7 +607,7 @@ function missionClock(c) {
   if (c.flight) return `GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`;
   if (c.orbitT != null) return `T+${Math.floor(c.orbitT / 60)}:${String(Math.floor(c.orbitT % 60)).padStart(2, '0')}`;
   if (c.phase === 'ascent' || c.phase === 'insertion') return `T+${Math.floor(c.t)} s`;
-  if (c.phase === 'count' || c.poll || c.phase === 'hold') return `T-${Math.floor(Math.ceil(c.clock) / 60)}:${String(Math.ceil(c.clock) % 60).padStart(2, '0')}`;
+  if (c.phase === 'count' || c.poll || c.phase === 'hold') return '—';
   return '—';
 }
 
@@ -602,7 +633,7 @@ function consoleDesk(ctx, x, y, k, who, label, c, yours) {
   ctx.fillStyle = '#0d1117'; ctx.fillRect(x + 12 * k, y + 16 * k, 64 * k, 30 * k); ctx.fillRect(x + 86 * k, y + 16 * k, 64 * k, 30 * k);
   const [a, b] = controlReadout(c);
   ctx.fillStyle = '#9fdc9a'; ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`; ctx.textAlign = 'left';
-  ctx.fillText(a, x + 16 * k, y + 28 * k); ctx.fillText(yours ? b : (label || '').slice(0, 12), x + 16 * k, y + 40 * k);
+  ctx.fillText(a, x + 16 * k, y + 28 * k); ctx.fillText(b, x + 16 * k, y + 40 * k);
   ctx.fillStyle = '#c9d2da'; ctx.font = `${Math.max(7, Math.round(8 * k))}px sans-serif`;
   ctx.fillText(label, x + 10 * k, y + dh - 6 * k);
   if (yours) { // your mark: the gold chevron, like the one you wear on the site
