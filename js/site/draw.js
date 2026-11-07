@@ -544,21 +544,18 @@ export function drawControlRoom(ctx, g, view) {
   // The side walls: racks of equipment, and the gallery beyond the glass.
   serverBank(ctx, 0, 0, leftW, h, g);
   viewingGallery(ctx, galleryX, 0, w - galleryX, h, g);
-  // Two rows of stations on the floor, centred between the side walls and clear of the console panel.
+  // Three rows fill the floor, sized to the room and clear of your panel: the named controllers at the back, the
+  // working stations across the middle, and your wide console at the front.
   const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2, availW = rowRight - leftW - 40;
-  // The back row: the named controllers on duty this programme.
   const back = ['hollis', 'dorsey', 'albrecht', 'tate', 'morgan', 'reyes', 'vega', 'kessler'].filter(id => g.people[id] && !g.people[id].hidden);
-  const backK = Math.max(0.6, Math.min(1.05, (availW - (back.length - 1) * 26) / (back.length * 190)));
-  const bSpan = back.length * 190 * backK + (back.length - 1) * 26;
-  back.forEach((id, i) => consoleDesk(ctx, rowMid - bSpan / 2 + i * (190 * backK + 26), wallH + floor * 0.22, backK, g.people[id], ROOM_SEATS[id], c, false, STATION_DUTY[id]));
-  // The front row: the working stations, with yours in the middle under your chevron.
-  const front = [['capcom', 'CAPCOM'], ['fido', 'FIDO'], ['you', null], ['surgeon', 'SURGEON'], ['guidance', 'GUIDANCE']];
-  const frontK = Math.max(0.7, Math.min(1.25, (availW - 4 * 30) / (5 * 190)));
-  const fSpan = 5 * 190 * frontK + 4 * 30;
-  front.forEach(([duty, label], i) => {
-    const yours = duty === 'you';
-    consoleDesk(ctx, rowMid - fSpan / 2 + i * (190 * frontK + 30), wallH + floor * 0.6, frontK, yours ? g.people.you : { color: '#4a5568' }, yours ? 'YOU · ' + (g.people.you.role || '').toUpperCase() : label, c, yours, yours ? (SEAT_DUTY[g.record.seat] || 'flight') : duty);
-  });
+  const backK = Math.max(0.55, Math.min(1.1, (availW - (back.length - 1) * 24) / (back.length * 190)));
+  const bSpan = back.length * 190 * backK + (back.length - 1) * 24;
+  back.forEach((id, i) => consoleDesk(ctx, rowMid - bSpan / 2 + i * (190 * backK + 24), wallH + floor * 0.08, backK, g.people[id], ROOM_SEATS[id], c, false, STATION_DUTY[id]));
+  const mid = ['capcom', 'fido', 'surgeon', 'guidance'];
+  const midK = Math.min(1.15, (availW - 3 * 30) / (4 * 190));
+  const mSpan = 4 * 190 * midK + 3 * 30;
+  mid.forEach((duty, i) => consoleDesk(ctx, rowMid - mSpan / 2 + i * (190 * midK + 30), wallH + floor * 0.38, midK, { color: '#4a5568' }, duty.toUpperCase(), c, false, duty));
+  consoleDesk(ctx, rowMid - 230 * 1.3, wallH + floor * 0.78, 1.3, g.people.you, 'YOU · ' + (g.people.you.role || '').toUpperCase(), c, true, SEAT_DUTY[g.record.seat] || 'flight');
     ctx.textAlign = 'left';
 }
 
