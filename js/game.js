@@ -73,13 +73,37 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
   for (const [id, p] of Object.entries(PEOPLE)) g.people[id] = { id, ...p, target: p.x, face: 1, bubble: null, working: false, hidden: false };
   if (!from) { startRound(0); return g; }
   resetRound();
-  Object.assign(g, structuredClone({ seed: from.seed, roundIndex: from.roundIndex, roundStart: SEASON[from.roundIndex].start, programme: from.programme, record: from.record,
+  const at = roundIndexOf(from);
+  Object.assign(g, structuredClone({ seed: from.seed, roundIndex: at, roundStart: SEASON[at].start, programme: from.programme, record: from.record,
     round: from.round, day: from.day, clock: from.clock, notes: from.notes, slipDays: from.slipDays, offDays: from.offDays,
     looked: from.looked, flagged: from.flagged, decided: from.decided, away: from.away, review: from.review, launchDay: from.launchDay ?? null, plan: from.plan ?? null, mission: from.mission ?? null }));
   setVehicle();
   if (g.away) g.room = 'away';
+  if (from.beat === 'roundEnd') catchUpOffer();
   morning(from.beat);
   return g;
+}
+
+// Which round a checkpoint is on. Saves carry the round's id. Older ones carry only its place in the season, and the
+// places moved when the Mercury, Gemini and Apollo rounds went in (Ranger 7 was round 18; it now comes after Apollo), so
+// a round that does not match its place is found by its vehicle and the date.
+export function roundIndexOf(c) {
+  if (c.roundId) { const i = SEASON.findIndex(r => r.id === c.roundId); if (i >= 0) return i; }
+  const vehicle = c.round?.vehicle;
+  if (!vehicle || SEASON[c.roundIndex]?.vehicle === vehicle) return c.roundIndex;
+  const fits = SEASON.map((r, i) => [r, i]).filter(([r]) => r.vehicle === vehicle && r.start <= c.day);
+  return fits.length ? fits[fits.length - 1][1] : c.roundIndex;
+}
+
+// A round written up in a build before its turning point existed (Pioneer 4's NASA offer came in with Mercury): the
+// offer is put to you now, as the review would have.
+function catchUpOffer() {
+  const round = SEASON[g.roundIndex], offer = round.turningPoint && offerFor(round.turningPoint);
+  if (!offer || g.record.seat === offer.seat || g.record.offers.some(o => o.seat === offer.seat)) return;
+  if (g.record.rounds[g.record.rounds.length - 1]?.id !== round.id) return;
+  const o = turningPoint(g.record, offer, g.day);
+  const by = g.people[offer.from || 'ellis'].name.split(' ').pop();
+  note(o.made ? `${by} put your name forward: ${offer.title.toLowerCase()}.` : `${offer.title} was on offer. ${by} did not put your name forward.`);
 }
 
 // The parts of the game that belong to one round, cleared before each.
@@ -158,7 +182,7 @@ function startRound(i) {
 // A finished round is saved too ('roundEnd'), so quitting there resumes at the review's outcome, not before the count.
 const MORNING_BEATS = ['brief', 'staticPrep', 'rollout', 'roundEnd', 'seasonEnd', 'mBrief', 'mLaunch', 'mPadSafe', 'sRoute', 'sApollo8', 'lCruise', 'lEncounter'];
 export function morning(beat) {
-  g.saved = structuredClone({ seed: g.seed, roundIndex: g.roundIndex, programme: g.programme, record: g.record, day: g.day, clock: g.clock, beat,
+  g.saved = structuredClone({ seed: g.seed, roundIndex: g.roundIndex, roundId: SEASON[g.roundIndex].id, programme: g.programme, record: g.record, day: g.day, clock: g.clock, beat,
     round: g.round, notes: g.notes, slipDays: g.slipDays, offDays: g.offDays, looked: g.looked, flagged: g.flagged, decided: g.decided, away: g.away, review: g.review, launchDay: g.launchDay, plan: g.plan, mission: g.mission ?? null });
   g.savedVersion++;
   setBeat(beat);

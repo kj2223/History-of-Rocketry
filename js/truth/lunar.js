@@ -80,7 +80,7 @@ export function encounter(round, lead = 17) {
     d.lead = lead;
     if (off > MOON_RADIUS) { failure = 'miss'; d.pictures = 0; say = `She missed the Moon by about ${km(off - MOON_RADIUS).toLocaleString('en-US')} km and went on past it into orbit round the Sun.`; }
     else if (arc) { failure = 'camera'; say = 'She hit the Moon, but the cameras never sent a picture: the high-voltage supply had failed.'; }
-    else say = `Hit the Moon about ${km(off).toLocaleString('en-US')} km from the aim point, sending ${d.pictures.toLocaleString('en-US')} pictures in the last ${lead} minutes.`;
+    else say = `Hit the Moon ${off < 100 ? 'within 100 km of' : `about ${km(off).toLocaleString('en-US')} km from`} the aim point, sending ${d.pictures.toLocaleString('en-US')} pictures in the last ${lead} minutes.`;
   }
   f.failure = failure;
   f.failAt = failure ? Math.round(CRUISE_HOURS[d.vehicle] * 3600) : null;
