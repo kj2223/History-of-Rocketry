@@ -50,7 +50,7 @@ canvas.addEventListener('click', e => {
   // device-pixel scaled, so the click is brought into the same coordinates the painter drew with.
   if (g.room === 'console') {
     const ratio = window.devicePixelRatio || 1;
-    const hit = controlButtonAt(e.offsetX * ratio, e.offsetY * ratio);
+    const hit = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio);
     if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id);
     return;
   }

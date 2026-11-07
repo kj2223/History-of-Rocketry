@@ -566,8 +566,8 @@ export function drawControlRoom(ctx, g, view) {
 // viewing gallery. The buttons are part of the scene: the click handler finds them through controlButtonAt. ----
 let controlHits = [];
 
-export function controlButtonAt(x, y) {
-  if (g.room !== 'console') return null;
+export function controlButtonAt(g, x, y) {
+  if (!g || g.room !== 'console') return null;
   for (const b of controlHits) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
   return null;
 }
