@@ -52,3 +52,10 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 
 /* In launch control, your console sits in the corner of the room. */
 #room.drawer { top: auto; bottom: 16px; right: 16px; width: 400px; max-height: 46%; }
+
+/* In launch control, your console belongs to the room: the panel takes the wall's colours and frame. */
+#room.drawer { top: auto; bottom: 16px; right: 16px; width: 430px; max-height: 46%; background: #262a31; border: 1px solid #4b5258; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+#room.drawer h2 { color: #e8c66a; }
+#room.drawer .clock { background: #0d1117; border: 1px solid #3a4452; color: #e8c66a; font-family: monospace; text-align: center; }
+#room.drawer .lamp { background: #0d1117; border: 1px solid #3a4452; }
+#room.drawer canvas[data-plot] { background: #10161c; border: 1px solid #3a4452; }

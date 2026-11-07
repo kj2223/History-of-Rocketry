@@ -475,6 +475,7 @@ function truckDust(ctx, g) {
 
 // ---- Inside Mercury Control: the launch-control scene. You are in the room; the wall and the rows fill the screen. ----
 const ROOM_SEATS = { hollis: 'FLIGHT DIR.', albrecht: 'BOOSTER', morgan: 'NETWORK', reyes: 'RECOVERY', vega: 'PAD', kessler: 'EECOM', tate: 'RETRO', dorsey: 'FLIGHT DIR.' };
+const PHASE_SHORT = { count: 'COUNT', hold: 'HOLD', poll: 'POLL', ascent: 'CLIMB', insertion: 'CUTOFF', ip: 'SPLASH', coast: 'COAST', orbit: 'ORBIT', pack: 'PACK', retro: 'RETRO', entry: 'BLACKOUT', pad: 'PAD', shutdown: 'SAFE' };
 const PHASE_WORD = { count: 'COUNTING', hold: 'HOLDING', poll: 'STATUS POLL', ascent: 'POWERED FLIGHT', insertion: 'GO / NO-GO FOR ORBIT', ip: 'SPLASHDOWN POINT', coast: 'COASTING', orbit: 'IN ORBIT', pack: 'COMING UP ON RETROFIRE', retro: 'RETROFIRE', entry: 'BLACKOUT', pad: 'SHUTDOWN ON THE PAD', shutdown: 'SHUTDOWN' };
 
 // The room's clock and the word for what is happening, as the player-visible console reports them.
@@ -493,26 +494,30 @@ const STATION_DUTY = { hollis: 'flight', albrecht: 'booster', morgan: 'network',
 const SEAT_DUTY = { retro: 'retro', flight: 'flight', engineer: 'eecom', 'test-conductor': 'booster', programme: 'flight', director: 'flight', junior: 'retro' };
 
 function stationReadout(duty, c) {
-  const [clock, word] = controlReadout(c); // the room's readout, as the flight console carries it
   const lamp = c && c.lamps && c.lamps[duty.toUpperCase()];
   if (lamp) return [lamp.a, lamp.b, lamp.tone]; // a lamp lit on this station overrides the routine readout
   const last = c && c.trace ? c.trace[c.trace.length - 1] : null;
   const climbing = last && (c.phase === 'ascent' || c.phase === 'insertion');
-  if (duty === 'booster') return climbing ? [`${last.v.toFixed(2)} km/s`, `${last.acc.toFixed(1)} g`] : [clock, word];
-  if (duty === 'retro') return climbing ? [`${last.gamma.toFixed(1)}°`, `${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)}° OFF`] : [clock, word];
-  if (duty === 'eecom') return climbing ? [`${last.acc.toFixed(1)} g`, 'TELEMETRY'] : [clock, word];
-  if (duty === 'network') return climbing ? [`${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)}° OFF`, 'TRACKING'] : [clock, 'TRACKING'];
-  if (duty === 'recovery') {
-    if (c && c.phase === 'ip' && c.ip) return [`${Math.round(c.ip.radar)} km`, 'RADAR POINT'];
-    if (c && c.cond) {
-      const units = c.orbital ? ORBIT_UNITS : UNITS, all = Object.keys(units);
-      const on = all.filter(id => c.cond.late !== id).length;
-      return [`SEA ${c.cond.seaState}`, `${on}/${all.length} SHIPS`];
+  const clock = controlReadout(c)[0], word = (c ? PHASE_SHORT[c.phase] : '') || '';
+  switch (duty) {
+    case 'booster': return climbing ? [`${last.v.toFixed(2)} km/s`, `${last.acc.toFixed(1)} g`] : [clock, word];
+    case 'retro': case 'fido': return climbing ? [`${last.gamma.toFixed(1)}°`, `${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)}°`] : [clock, word];
+    case 'eecom': return climbing ? [`${last.acc.toFixed(1)} g`, 'TELEM'] : [clock, word];
+    case 'network': return climbing ? [`${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)}°`, 'TRK'] : [clock, 'TRK'];
+    case 'recovery': {
+      if (c && c.phase === 'ip' && c.ip) return [`${Math.round(c.ip.radar)} km`, 'RADAR'];
+      if (c && c.cond) {
+        const units = c.orbital ? ORBIT_UNITS : UNITS, all = Object.keys(units);
+        const on = all.filter(id => c.cond.late !== id).length;
+        return [`SEA ${c.cond.seaState}`, `${on}/${all.length}`];
+      }
+      return [clock, word];
     }
-    return [clock, word];
+    case 'capcom': return [clock, 'UPLINK'];
+    case 'surgeon': return ['CREW', 'GO'];
+    case 'guidance': return c && c.goddard ? [c.goddard.go ? 'GO' : 'NO-GO', 'COMPUTER'] : [clock, 'ALIGN'];
+    default: return [clock, word]; // the flight director's: the clock and the state of the flight
   }
-  if (duty === 'pad') return c && (c.phase === 'count' || c.poll) ? [clock, 'STANDING BY'] : [clock, word];
-  return [clock, word]; // the flight director's: the clock and the state of the flight
 }
 
 export function drawControlRoom(ctx, g, view) {
@@ -540,19 +545,21 @@ export function drawControlRoom(ctx, g, view) {
   serverBank(ctx, 0, 0, leftW, h, g);
   viewingGallery(ctx, galleryX, 0, w - galleryX, h, g);
   // Two rows of stations on the floor, centred between the side walls and clear of the console panel.
-  const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2;
-  const back = ['albrecht', 'morgan', 'reyes', 'vega', 'kessler', 'tate', 'dorsey'].filter(id => g.people[id] && !g.people[id].hidden);
-  const dw = 170 * 0.82, gap = 26, span = back.length * dw + (back.length - 1) * gap;
-  back.forEach((id, i) => consoleDesk(ctx, rowMid - span / 2 + i * (dw + gap), wallH + floor * 0.24, 0.82, g.people[id], ROOM_SEATS[id], c, false, STATION_DUTY[id]));
-  const front = [['hollis', 'FLIGHT DIR.'], [null, null], [g.people.dorsey && !g.people.dorsey.hidden ? 'dorsey' : null, 'FLIGHT DIR.']];
-  if (g.people.hollis.hidden) front[0] = [null, 'FLIGHT DIR.'];
-  const fw = 170 * 1.1, fgap = 30, fspan = front.length * fw + (front.length - 1) * fgap;
-  front.forEach(([id, label], i) => {
-    const yours = i === 1; // the middle console of the front row is yours, and only yours
-    const duty = yours ? (SEAT_DUTY[g.record.seat] || 'flight') : STATION_DUTY[id] || 'flight';
-    consoleDesk(ctx, rowMid - fspan / 2 + i * (fw + fgap), wallH + floor * 0.6, 1.1, yours ? g.people.you : (id ? g.people[id] : null), yours ? 'YOU · ' + (g.people.you.role || '').toUpperCase() : label, c, yours, duty);
+  const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2, availW = rowRight - leftW - 40;
+  // The back row: the named controllers on duty this programme.
+  const back = ['hollis', 'dorsey', 'albrecht', 'tate', 'morgan', 'reyes', 'vega', 'kessler'].filter(id => g.people[id] && !g.people[id].hidden);
+  const backK = Math.max(0.6, Math.min(1.05, (availW - (back.length - 1) * 26) / (back.length * 190)));
+  const bSpan = back.length * 190 * backK + (back.length - 1) * 26;
+  back.forEach((id, i) => consoleDesk(ctx, rowMid - bSpan / 2 + i * (190 * backK + 26), wallH + floor * 0.22, backK, g.people[id], ROOM_SEATS[id], c, false, STATION_DUTY[id]));
+  // The front row: the working stations, with yours in the middle under your chevron.
+  const front = [['capcom', 'CAPCOM'], ['fido', 'FIDO'], ['you', null], ['surgeon', 'SURGEON'], ['guidance', 'GUIDANCE']];
+  const frontK = Math.max(0.7, Math.min(1.25, (availW - 4 * 30) / (5 * 190)));
+  const fSpan = 5 * 190 * frontK + 4 * 30;
+  front.forEach(([duty, label], i) => {
+    const yours = duty === 'you';
+    consoleDesk(ctx, rowMid - fSpan / 2 + i * (190 * frontK + 30), wallH + floor * 0.6, frontK, yours ? g.people.you : { color: '#4a5568' }, yours ? 'YOU · ' + (g.people.you.role || '').toUpperCase() : label, c, yours, yours ? (SEAT_DUTY[g.record.seat] || 'flight') : duty);
   });
-  ctx.textAlign = 'left';
+    ctx.textAlign = 'left';
 }
 
 // A bank of computer racks along the left wall: units, dials and lights that blink with the room.
@@ -574,23 +581,24 @@ function serverBank(ctx, x, y, w, h, g) {
 
 // The viewing gallery along the right wall: two windows up on the wall, a rail under them, and the gallery floor below.
 function viewingGallery(ctx, x, y, w, h) {
+  // The gallery's own wall, two windows on it, and the gallery floor below.
   ctx.fillStyle = '#4a4640'; ctx.fillRect(x, y, w, h);
-  const winW = Math.max(10, w * 0.68), winH = Math.min(h * 0.22, w * 0.5), gap = 12;
-  for (const wx of [x + (w - 2 * winW - gap) / 2, x + (w + gap) / 2]) {
-    const wy = y + h * 0.06;
-    ctx.fillStyle = '#5d8fc4'; ctx.fillRect(wx, wy, winW, winH);
-    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(wx + winW * 0.12, wy + winH * 0.1, winW * 0.07, winH * 0.8);
-    // Heads behind the glass, above the rail, placed from i so they never shuffle.
-    for (let i = 0; i < 4; i++) {
-      const hx = wx + 10 + i * (winW - 20) / 3, hy = wy + winH * 0.82 + ((i * 17) % 4);
+  const winW = Math.min(w * 0.36, 130), winH = h * 0.12, gap = w * 0.08;
+  const gx = x + (w - 2 * winW - gap) / 2, gy = y + h * 0.05;
+  for (const wx of [gx, gx + winW + gap]) {
+    ctx.fillStyle = '#5d8fc4'; ctx.fillRect(wx, gy, winW, winH);
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(wx + winW * 0.12, gy + winH * 0.1, winW * 0.07, winH * 0.8);
+    // The watchers, in the lower half of the glass.
+    for (let i = 0; i < 3; i++) {
+      const hx = wx + winW * (0.22 + i * 0.28), hy = gy + winH * (0.6 + ((i * 13) % 3) * 0.08);
       ctx.fillStyle = i % 2 ? '#e2b993' : '#c99b76';
-      ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, w * 0.055), 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, w * 0.04), 0, 7); ctx.fill();
     }
-    ctx.fillStyle = '#33302b'; ctx.fillRect(wx - 2, wy + winH * 0.94, winW + 4, Math.max(3, h * 0.012)); // the rail
+    ctx.fillStyle = '#33302b'; ctx.fillRect(wx - 2, gy + winH, winW + 4, Math.max(3, h * 0.008)); // the rail under the glass
   }
-  // The gallery floor takes the rest of the strip, down to the bottom of the screen.
-  ctx.fillStyle = '#2a2723'; ctx.fillRect(x + 2, y + h * 0.36, w - 4, h - h * 0.36 - 2);
-  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x + 2, y + h * 0.36, w - 4, 4);
+  // From the rail down, the gallery's own floor to the bottom of the screen.
+  const floorY = gy + winH + Math.max(6, h * 0.015);
+  ctx.fillStyle = '#2a2723'; ctx.fillRect(x + 2, floorY, w - 4, h - floorY - 2);
 }
 
 // The monitoring screen: the flight-path angle as she climbs, second by second, with her position on it.
@@ -655,31 +663,39 @@ function siteClock(g) {
 
 // A console desk with its seated controller, its role on the front, and two live screens. Yours carries the mark.
 function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
-  const dw = 170 * k, dh = 58 * k;
+  const dw = (yours ? 460 : 190) * k, dh = 60 * k;
   if (who) { // seated behind the desk: shoulders and head above the desktop
     const px = x + dw / 2, py = y + 2;
-    ctx.fillStyle = who.color; ctx.fillRect(px - 13 * k, py - 26 * k, 26 * k, 26 * k);
-    ctx.fillStyle = '#e2b993'; ctx.beginPath(); ctx.arc(px, py - 32 * k, 7.5 * k, 0, 7); ctx.fill();
-    if (who.hat) { ctx.fillStyle = who.hat; ctx.fillRect(px - 9 * k, py - 39 * k, 18 * k, 4 * k); }
+    ctx.fillStyle = who.color; ctx.fillRect(px - 14 * k, py - 27 * k, 28 * k, 27 * k);
+    ctx.fillStyle = '#e2b993'; ctx.beginPath(); ctx.arc(px, py - 33 * k, 8 * k, 0, 7); ctx.fill();
+    if (who.hat) { ctx.fillStyle = who.hat; ctx.fillRect(px - 10 * k, py - 40 * k, 20 * k, 4 * k); }
   }
   ctx.fillStyle = '#4b5258'; ctx.fillRect(x, y, dw, dh);
   ctx.fillStyle = '#565d66'; ctx.fillRect(x, y, dw, 10 * k);
   shadeRight(ctx, x, y, dw, dh, 0.08);
-  ctx.fillStyle = '#0d1117'; ctx.fillRect(x + 12 * k, y + 16 * k, 64 * k, 30 * k); ctx.fillRect(x + 86 * k, y + 16 * k, 64 * k, 30 * k);
+  // Two screens, one line each, clipped to the glass so nothing spills off the console. Yours is a wide four-screen desk.
   const [a, b, tone] = duty ? stationReadout(duty, c) : controlReadout(c);
-  ctx.fillStyle = tone === 'bad' ? '#d0634f' : tone === 'warn' ? '#e8c66a' : '#9fdc9a';
-  ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`; ctx.textAlign = 'left';
-  ctx.fillText(a, x + 16 * k, y + 28 * k); ctx.fillText(b, x + 16 * k, y + 40 * k);
+  const ink = tone === 'bad' ? '#d0634f' : tone === 'warn' ? '#e8c66a' : '#9fdc9a';
+  const lastTrace = c && c.trace && c.trace.length ? c.trace[c.trace.length - 1] : null;
+  const lines = yours ? [a, b, lastTrace ? lastTrace.v.toFixed(2) + ' km/s' : '0.00 km/s', lastTrace ? (lastTrace.off >= 0 ? '+' : '') + lastTrace.off.toFixed(1) + '° OFF' : '0.0° OFF'] : [a, b];
+  const screens = yours ? [[10 * k, lines[0]], [125 * k, lines[1]], [240 * k, lines[2]], [355 * k, lines[3]]] : [[12 * k, lines[0]], [100 * k, lines[1]]];
+  for (const [off, text] of screens) {
+    const sx = x + off, sy = y + 16 * k, sw = (yours ? 105 : 74) * k, sh = 30 * k;
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(sx, sy, sw, sh);
+    ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
+    ctx.fillStyle = ink; ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`; ctx.textAlign = 'left';
+    ctx.fillText(text, sx + 5 * k, sy + 19 * k);
+    ctx.restore();
+  }
   ctx.fillStyle = '#c9d2da'; ctx.font = `${Math.max(7, Math.round(8 * k))}px sans-serif`;
   ctx.fillText(label, x + 10 * k, y + dh - 6 * k);
   if (yours) { // your mark: the gold chevron, like the one you wear on the site
-    const px = x + dw / 2, py = y - 42 * k;
+    const px = x + dw / 2, py = y - 44 * k;
     ctx.fillStyle = '#e8c66a'; ctx.beginPath(); ctx.moveTo(px - 7 * k, py); ctx.lineTo(px + 7 * k, py); ctx.lineTo(px, py - 7 * k); ctx.fill();
     ctx.strokeStyle = '#e8c66a'; ctx.lineWidth = 2; ctx.strokeRect(x + 3, y + 1, dw - 6, dh - 4);
   }
 }
 
-// The Mercury capsule: a black cone with its heat shield at the base. tower: the red escape tower on its nose.
 function capsuleShape(ctx, x, y, tower) {
   ctx.fillStyle = '#1d1f22'; ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y); ctx.lineTo(x + 4, y - 14); ctx.lineTo(x - 4, y - 14); ctx.fill();
   ctx.fillRect(x - 3, y - 20, 6, 6);
