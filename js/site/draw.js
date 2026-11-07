@@ -376,26 +376,9 @@ function flyingRise(g) {
 // takes the whole wall with the capsule riding the track. Drawn over the baked cutaway in world coordinates.
 function controlScreens(ctx, g) {
   const p = PLACES.office, wall = GROUND - p.h;
-  const c = g.console;
   if (g.rocket.where === 'flying') {
     // The map fills the wall: the track runs across it, and the capsule rides it as the consoles call her progress.
-    const mx = p.x + 30, mw = p.w - 56, my = wall + 18, mh = 48;
-    ctx.fillStyle = '#22272e'; ctx.fillRect(mx - 4, my - 4, mw + 8, mh + 8);
-    ctx.fillStyle = '#2f4f6a'; ctx.fillRect(mx, my, mw, mh);
-    ctx.fillStyle = '#5d7d52';
-    for (const [dx, dy, w, h] of [[mw * 0.06, 8, 24, 12], [mw * 0.24, 14, 18, 18], [mw * 0.44, 6, 30, 14], [mw * 0.64, 16, 16, 10], [mw * 0.82, 9, 22, 13]]) ctx.fillRect(mx + dx, my + dy, w, h);
-    const sx = mx + 6, span = mw - 12, mid = my + mh - 14;
-    ctx.strokeStyle = '#f2e3a0'; ctx.lineWidth = 1; ctx.beginPath();
-    for (let i = 0; i <= 60; i++) { const x = sx + i * span / 60, y = mid - 10 * Math.sin(i / 60 * Math.PI); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
-    ctx.stroke();
-    if (c && c.burn) {
-      const f = Math.max(0, Math.min(1, c.t / c.burn));
-      ctx.strokeStyle = '#fff8d8'; ctx.lineWidth = 2; ctx.beginPath();
-      const from = Math.max(0, f - 0.12);
-      for (let i = 0; i <= 24; i++) { const q = from + (f - from) * i / 24, x = sx + q * span, y = mid - 10 * Math.sin(q * Math.PI); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
-      ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx + f * span, mid - 10 * Math.sin(f * Math.PI), 3, 0, 7); ctx.fill();
-    }
+    drawWallMap(ctx, g, p.x + 30, wall + 18, p.w - 56, 48);
     return;
   }
   // Before she flies: the television shows the pad, live — the gantry, the round on it, and the launch when it comes.
@@ -404,6 +387,28 @@ function controlScreens(ctx, g) {
   // It is a picture of a picture: faint scanlines over the tube.
   ctx.fillStyle = 'rgba(0,0,0,.18)';
   for (let y = tvY + 3; y < tvY + tvH; y += 4) ctx.fillRect(tvX, y, tvW, 1);
+}
+
+// A wall map: the frame and the land, the planned track across it, and — when she flies — the capsule on it with a short
+// bright trail, paced by the console's clock. Sized to the wall that asks for it.
+function drawWallMap(ctx, g, x, y, w, h) {
+  ctx.fillStyle = '#22272e'; ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+  ctx.fillStyle = '#2f4f6a'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#5d7d52';
+  for (const [dx, dy, mw, mh] of [[w * 0.06, h * 0.17, w * 0.09, h * 0.25], [w * 0.24, h * 0.29, w * 0.07, h * 0.38], [w * 0.44, h * 0.13, w * 0.12, h * 0.29], [w * 0.64, h * 0.33, w * 0.065, h * 0.21], [w * 0.82, h * 0.19, w * 0.09, h * 0.27]]) ctx.fillRect(x + dx, y + dy, mw, mh);
+  const sx = x + w * 0.03, span = w * 0.94, mid = y + h * 0.72, amp = h * 0.24;
+  ctx.strokeStyle = '#f2e3a0'; ctx.lineWidth = Math.max(1, w / 400); ctx.beginPath();
+  for (let i = 0; i <= 60; i++) { const px = sx + i * span / 60, py = mid - amp * Math.sin(i / 60 * Math.PI); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+  ctx.stroke();
+  const c = g.console;
+  if (g.rocket.where === 'flying' && c && c.burn) {
+    const f = Math.max(0, Math.min(1, c.t / c.burn));
+    ctx.strokeStyle = '#fff8d8'; ctx.lineWidth = Math.max(2, w / 200); ctx.beginPath();
+    const from = Math.max(0, f - 0.12);
+    for (let i = 0; i <= 24; i++) { const q = from + (f - from) * i / 24, px = sx + q * span, py = mid - amp * Math.sin(q * Math.PI); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+    ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx + f * span, mid - amp * Math.sin(f * Math.PI), Math.max(3, w / 130), 0, 7); ctx.fill();
+  }
 }
 
 // The live pad picture: sky and sea in the day's light, the gantry, the round on it, flame and smoke when she flies.
@@ -440,6 +445,75 @@ function truckDust(ctx, g) {
   const y = GROUND + 28;
   ctx.fillStyle = 'rgba(210,190,150,.5)';
   for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(g.truck.x - 8 - i * 12, y - 8 - i * 3, 6 + i * 3, 0, 7); ctx.fill(); }
+}
+
+// ---- Inside Mercury Control: the launch-control scene. You are in the room; the wall and the rows fill the screen. ----
+const ROOM_SEATS = { hollis: 'FLIGHT DIRECTOR', albrecht: 'BOOSTER', morgan: 'NETWORK', reyes: 'RECOVERY', vega: 'PAD', kessler: 'EECOM', tate: 'RETROFIRE', dorsey: 'FLIGHT, HOUSTON' };
+const PHASE_WORD = { count: 'COUNTING', hold: 'HOLDING', poll: 'STATUS POLL', ascent: 'POWERED FLIGHT', insertion: 'GO / NO-GO FOR ORBIT', ip: 'SPLASHDOWN POINT', coast: 'COASTING', orbit: 'IN ORBIT', pack: 'COMING UP ON RETROFIRE', retro: 'RETROFIRE', entry: 'BLACKOUT', pad: 'SHUTDOWN ON THE PAD', shutdown: 'SHUTDOWN' };
+
+// The room's clock and the word for what is happening, as the player-visible console reports them.
+function controlReadout(c) {
+  if (!c) return ['—', ''];
+  if (c.phase === 'count' || c.poll || c.phase === 'hold') return [`T-${Math.floor(Math.ceil(c.clock) / 60)}:${String(Math.ceil(c.clock) % 60).padStart(2, '0')}`, PHASE_WORD[c.poll ? 'poll' : c.phase]];
+  if (c.phase === 'ascent' || c.phase === 'insertion') { const last = c.trace[c.trace.length - 1]; return last ? [`${last.v.toFixed(2)} km/s`, PHASE_WORD[c.phase]] : ['—', PHASE_WORD[c.phase]]; }
+  if (c.orbitT != null) return [`T+${Math.floor(c.orbitT / 60)}:${String(Math.floor(c.orbitT % 60)).padStart(2, '0')}`, PHASE_WORD[c.phase] || c.phase.toUpperCase()];
+  if (c.flight) return [`GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`, (c.flight.phase || '').toUpperCase() || PHASE_WORD[c.phase] || ''];
+  return ['—', PHASE_WORD[c.phase] || ''];
+}
+
+export function drawControlRoom(ctx, g, view) {
+  const { w, h } = view, c = g.console;
+  const wallH = Math.round(h * 0.58);
+  // Walls and floor.
+  ctx.fillStyle = '#20242b'; ctx.fillRect(0, 0, w, wallH);
+  ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let x = 0; x < w; x += 90) ctx.fillRect(x, 0, 2, wallH);
+  ctx.fillStyle = '#3d3a33'; ctx.fillRect(0, wallH, w, h - wallH);
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(0, wallH, w, 6);
+  // The wall: the big map, the pad on television, the mission clock where the whole room can see it.
+  drawWallMap(ctx, g, w * 0.05, wallH * 0.1, w * 0.34, wallH * 0.74);
+  const tvX = w * 0.43, tvY = wallH * 0.16, tvW = w * 0.14, tvH = wallH * 0.52;
+  ctx.fillStyle = '#181b1f'; ctx.fillRect(tvX - 6, tvY - 6, tvW + 12, tvH + 12);
+  padPicture(ctx, g, tvX, tvY, tvW, tvH);
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; for (let y = tvY + 4; y < tvY + tvH; y += 5) ctx.fillRect(tvX, y, tvW, 2);
+  const [top, bottom] = controlReadout(c);
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(w * 0.61, wallH * 0.16, w * 0.14, wallH * 0.26);
+  ctx.strokeStyle = '#3a4452'; ctx.strokeRect(w * 0.61, wallH * 0.16, w * 0.14, wallH * 0.26);
+  ctx.fillStyle = '#e8c66a'; ctx.font = `bold ${Math.max(14, Math.round(w * 0.02))}px monospace`; ctx.textAlign = 'center';
+  ctx.fillText(top, w * 0.68, wallH * 0.3);
+  ctx.fillStyle = '#9aa0a8'; ctx.font = `${Math.max(9, Math.round(w * 0.009))}px monospace`;
+  ctx.fillText(bottom, w * 0.68, wallH * 0.38);
+  // The rows: back row first, then the front row with your console, marked.
+  const floor = h - wallH;
+  const back = ['hollis', 'albrecht', 'morgan', 'reyes', 'vega', 'kessler', 'tate', 'dorsey'].filter(id => g.people[id] && !g.people[id].hidden);
+  back.forEach((id, i) => consoleDesk(ctx, w * (0.06 + 0.82 * (i + 0.5) / back.length) - 85 * 0.8, wallH + floor * 0.3, 0.8, g.people[id], ROOM_SEATS[id], c, false));
+  consoleDesk(ctx, w * 0.34 - 100, wallH + floor * 0.64, 1.1, g.people.you, 'YOU · ' + (g.people.you.role || '').toUpperCase(), c, true);
+  consoleDesk(ctx, w * 0.13, wallH + floor * 0.64, 1.1, !g.people.hollis.hidden ? g.people.hollis : null, 'FLIGHT DIRECTOR', c, false);
+  ctx.textAlign = 'left';
+}
+
+// A console desk with its seated controller, its role on the front, and two live screens. Yours carries the mark.
+function consoleDesk(ctx, x, y, k, who, label, c, yours) {
+  const dw = 170 * k, dh = 58 * k;
+  if (who) { // seated behind the desk: shoulders and head above the desktop
+    const px = x + dw / 2, py = y + 2;
+    ctx.fillStyle = who.color; ctx.fillRect(px - 13 * k, py - 26 * k, 26 * k, 26 * k);
+    ctx.fillStyle = '#e2b993'; ctx.beginPath(); ctx.arc(px, py - 32 * k, 7.5 * k, 0, 7); ctx.fill();
+    if (who.hat) { ctx.fillStyle = who.hat; ctx.fillRect(px - 9 * k, py - 39 * k, 18 * k, 4 * k); }
+  }
+  ctx.fillStyle = '#4b5258'; ctx.fillRect(x, y, dw, dh);
+  ctx.fillStyle = '#565d66'; ctx.fillRect(x, y, dw, 10 * k);
+  shadeRight(ctx, x, y, dw, dh, 0.08);
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(x + 12 * k, y + 16 * k, 64 * k, 30 * k); ctx.fillRect(x + 86 * k, y + 16 * k, 64 * k, 30 * k);
+  const [a, b] = controlReadout(c);
+  ctx.fillStyle = '#9fdc9a'; ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`; ctx.textAlign = 'left';
+  ctx.fillText(a, x + 16 * k, y + 28 * k); ctx.fillText(yours ? b : (label || '').slice(0, 12), x + 16 * k, y + 40 * k);
+  ctx.fillStyle = '#c9d2da'; ctx.font = `${Math.max(7, Math.round(8 * k))}px sans-serif`;
+  ctx.fillText(label, x + 10 * k, y + dh - 6 * k);
+  if (yours) { // your mark: the gold chevron, like the one you wear on the site
+    const px = x + dw / 2, py = y - 42 * k;
+    ctx.fillStyle = '#e8c66a'; ctx.beginPath(); ctx.moveTo(px - 7 * k, py); ctx.lineTo(px + 7 * k, py); ctx.lineTo(px, py - 7 * k); ctx.fill();
+    ctx.strokeStyle = '#e8c66a'; ctx.lineWidth = 2; ctx.strokeRect(x + 3, y + 1, dw - 6, dh - 4);
+  }
 }
 
 // The Mercury capsule: a black cone with its heat shield at the base. tower: the red escape tower on its nose.

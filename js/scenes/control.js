@@ -7,7 +7,6 @@ import { consoleStart, consolePoll, consoleAbort, consoleAim, padChoose, mission
 import { KITS } from '../data/kits.js';
 import { ROUTE_MODES } from '../data/route.js';
 import { SEASON } from '../data/campaign.js';
-import { padPicture } from '../site/draw.js';
 
 const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -23,13 +22,7 @@ export const CONTROL_ROOMS = {
       : `<h2>Mercury Control: the Retrofire officer's console</h2>
       <p>Hollis is in the middle of the row with his headset on. Albrecht has the booster, Morgan the network, Reyes the recovery forces. Your
       console has the trajectory plot and the impact computers, and the recovery board is on the wall.</p>`;
-    // Launch control fills the screen: the room's consoles to the left, your console in the middle, the pad on the
-    // television and the loop on the right.
-    return `<div class="stage-grid">
-      <div class="consoles">${consoleCards()}</div>
-      <div class="yours">${intro}${consoleBody(c, !!c.auto)}</div>
-      <div class="side"><canvas data-tv width="216" height="180"></canvas><p class="muted center">The pad, live from the gantry camera.</p><div class="looplog" data-live="looplog"></div></div>
-    </div>`;
+    return intro + consoleBody(c, !!c.auto);
   },
   sim() {
     const c = g.console && g.console.kind === 'sim' ? g.console : null;
@@ -109,13 +102,6 @@ export const CONTROL_ROOMS = {
       <div class="choices">${Object.entries(k.explanations).map(([key, t]) => `<button data-act="m-present" data-id="${key}">${esc(t)}</button>`).join('')}</div>`;
   },
 };
-
-// The room's consoles, one card per controller: role, name, and the latest call on the loop.
-function consoleCards() {
-  const seats = [['hollis', 'Flight director'], ['dorsey', 'Flight, Houston'], ['tate', 'Retrofire'], ['albrecht', 'Booster'], ['morgan', 'Network'], ['vega', 'Pad'], ['reyes', 'Recovery'], ['kessler', 'EECOM']];
-  return seats.filter(([id]) => g.people[id] && !g.people[id].hidden)
-    .map(([id, role]) => `<div class="console-card"><b>${esc(role)}</b><span class="who">${esc(g.people[id].name)}</span><p data-live="card-${id}">—</p></div>`).join('');
-}
 
 // The console itself, at whatever point the count or the flight has reached.
 function consoleBody(c, backRoom = false) {
@@ -225,21 +211,6 @@ function readouts() {
 export function controlLive() {
   const c = g.console;
   if (!c || !['console', 'sim'].includes(g.room)) return;
-  // The controller consoles and the loop, and the pad on the television — in every phase of the flight.
-  for (const n of panel().querySelectorAll('[data-live^=card-]')) {
-    const id = n.dataset.live.slice(5), name = g.people[id] && g.people[id].name;
-    const line = name ? [...g.loop].reverse().find(l => l.who === name) : null;
-    n.textContent = line ? line.text : '—';
-  }
-  const log = panel().querySelector('[data-live=looplog]');
-  if (log) log.innerHTML = g.loop.slice(-12).map(l => `<div class="${l.tone}"><span>${esc(l.at)}</span> <b>${esc(l.who)}:</b> ${esc(l.text)}</div>`).join('');
-  const tv = panel().querySelector('canvas[data-tv]');
-  if (tv) {
-    padPicture(tv.getContext('2d'), g, 0, 0, tv.width, tv.height);
-    const t = tv.getContext('2d');
-    t.fillStyle = 'rgba(0,0,0,.18)';
-    for (let y = 3; y < tv.height; y += 4) t.fillRect(0, y, tv.width, 1);
-  }
   const set = (sel, v) => { const n = panel().querySelector(sel); if (n) n.textContent = v; };
   const orbitClock = m => `T+${Math.floor(m / 60)}:${String(Math.floor(m % 60)).padStart(2, '0')}:00`;
   if (c.flight && ['mission', 'entry', 'ip', 'coast'].includes(c.phase)) { set('[data-live=mclock]', `GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`); set('[data-live=mstate]', c.flight.decision ? 'Waiting on a call' : c.phase === 'mission' ? c.flight.phase : 'Entry and recovery'); return; }

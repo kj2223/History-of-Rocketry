@@ -1,7 +1,7 @@
 // THE SITE PROTOTYPE: the frame loop, the mouse and keys, and the bar along the top.
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel, dragging the
 // site, or Shift with A/D or the arrow keys looks along it.
-import { drawSite, drawTracking, PLACES, VIEW_H, GROUND } from './draw.js';
+import { drawSite, drawTracking, drawControlRoom, PLACES, VIEW_H, GROUND } from './draw.js';
 import { g, newGame, roundIndexOf, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, clearNotes, placeName } from '../game.js';
 import { consoleLocked } from '../mercury.js';
 import { talk } from '../data/talk.js';
@@ -173,6 +173,7 @@ function frame(now) {
     openWhenReady(!!locked());
     updateCamera(view.w / scale(), dt);
     if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
+    else if (g.room === 'console' && g.console) drawControlRoom(ctx, g, view);
     else drawSite(ctx, g, view);
     renderRoom(); liveRoom(); hud(); autosave();
   } catch (e) { console.error('Frame skipped:', e); }

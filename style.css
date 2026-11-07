@@ -49,17 +49,3 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 .loop-in-room div.go { border-color: #6fc88a; } .loop-in-room div.warn { border-color: #e8c66a; } .loop-in-room div.bad { border-color: #d0634f; }
 #help { position: fixed; left: 0; right: 0; bottom: 0; padding: .35rem 1rem; font-size: .8rem; color: #a9b0bb; background: rgba(11,15,20,.8); z-index: 2; }
 
-/* Launch control fills the screen: the room's consoles, your console, and the pad on the television. */
-#room.stage { left: 16px; right: 16px; top: 64px; bottom: 16px; width: auto; max-height: none; display: flex; flex-direction: column; }
-#room.stage .stage-grid { display: grid; grid-template-columns: minmax(260px, 1.1fr) minmax(340px, 1.25fr) 280px; gap: 14px; flex: 1; min-height: 0; overflow: auto; align-items: start; }
-#room.stage .consoles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-content: start; }
-#room.stage .console-card { background: rgba(255,255,255,.04); border: 1px solid #3a4452; border-radius: 6px; padding: .45rem .6rem; }
-#room.stage .console-card b { display: block; font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; color: #9fd0a8; }
-#room.stage .console-card .who { display: block; font-size: .78rem; color: #8a93a0; margin-bottom: .25rem; }
-#room.stage .console-card p { margin: 0; font-size: .86rem; min-height: 2.4em; }
-#room.stage .side { display: flex; flex-direction: column; gap: .5rem; }
-#room.stage .side canvas { width: 100%; border: 1px solid #3a4452; border-radius: 6px; background: #0d1117; }
-#room.stage .looplog { font-size: .8rem; overflow: auto; min-height: 6rem; }
-#room.stage .looplog div { background: rgba(11,15,20,.6); padding: .15rem .45rem; margin-top: 2px; border-left: 3px solid #4a5464; }
-#room.stage .looplog div.go { border-color: #6fc88a; } #room.stage .looplog div.warn { border-color: #e8c66a; } #room.stage .looplog div.bad { border-color: #d0634f; }
-#room.stage .looplog span { color: #8a93a0; font-family: monospace; }
