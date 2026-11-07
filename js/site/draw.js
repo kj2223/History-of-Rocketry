@@ -92,13 +92,17 @@ export function drawSite(ctx, g, view) {
   if (!staticLayer || key !== staticKey) rebuildStatic(g);
   ctx.translate(-camX, 0);
   ctx.drawImage(staticLayer, 0, 0);
-  // Everything that moves or burns, in the same order the single-pass painter used.
+  // Everything that moves or burns, back to front: rack and flame behind, then the grounded rocket, people, the truck
+  // (nearer the camera than the people, so it paints over them), and finally smoke and dust over everything they cover.
   hangarRack(ctx, g);
   if (!g.crewed && g.standFlame > 0) flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
-  truck(ctx, g.truck.x, g);
   rocketOnSite(ctx, g);
-  for (const job of g.jobs) jobBar(ctx, job);
   for (const p of Object.values(g.people)) if (!p.hidden) person(ctx, p, g.time);
+  truck(ctx, g.truck.x, g);
+  if (g.rocket.where === 'truck') rocketOnTruck(ctx, g);
+  for (const job of g.jobs) jobBar(ctx, job);
+  launchSmoke(ctx, g);
+  truckDust(ctx, g);
   for (const p of Object.values(g.people)) if (!p.hidden && p.bubble) bubble(ctx, p.x, GROUND - 44, p.bubble.text, p.bubble.tone);
   if (g.marker != null) { ctx.fillStyle = 'rgba(255,240,180,.8)'; ctx.fillRect(g.marker - 3, GROUND + 2, 6, 3); }
   // Building names on hover.
@@ -318,25 +322,45 @@ function truck(ctx, x, g) {
   ctx.fillStyle = '#1e1e1e'; for (const wx of [x + 14, x + 44, x + 76]) { ctx.beginPath(); ctx.arc(wx, y - 6, 7, 0, 7); ctx.fill(); }
   ctx.fillStyle = '#8a8a8a'; for (const wx of [x + 14, x + 44, x + 76]) { ctx.beginPath(); ctx.arc(wx, y - 6, 3, 0, 7); ctx.fill(); } // hubs
   ctx.fillStyle = '#e8e0c8'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(g.site === 'cape' ? 'U.S. NAVY' : 'U.S. ARMY', x + 8, y - 16);
-  if (g.truck.dust) { ctx.fillStyle = 'rgba(210,190,150,.5)'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(x - 8 - i * 12, y - 8 - i * 3, 6 + i * 3, 0, 7); ctx.fill(); } }
 }
 
 // The rocket wherever it is on the site: in pieces in the hangar, carried, on the stand, on the truck, in the tower.
+// The truck-borne round is drawn with the truck (it rides the bed); the rest draw behind the people.
 function rocketOnSite(ctx, g) {
+  if (g.rocket.where === 'truck') return;
   const r = g.rocket, wac = g.vehicle === 'wac' || g.vehicle === 'aerobee', len = wac ? 24 : 50;
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
   const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, r.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : g.vehicle === 'saturn5' ? saturnVShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
   if (r.where === 'hangar') { shape(PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated); if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated); else trailer(ctx, PLACES.hangar.x + 130); }
   else if (r.where === 'carried') shape(r.x + (wac ? -len : len), GROUND - 22, -Math.PI / 2, false);
   else if (r.where === 'stand') shape(PLACES.stand.x + 60, GROUND - 40, 0, false);
-  else if (r.where === 'truck') shape(g.truck.x + (wac ? 2 : 90), GROUND - 10, -Math.PI / 2, true);
   else if (r.where === 'tower') shape(PLACES.tower.x + 25, GROUND - 8, 0, true);
   else if (r.where === 'flying') {
     shape(PLACES.tower.x + 25, GROUND - 8 - r.rise, 0, wac ? r.rise < 40 : true);
     flame(ctx, PLACES.tower.x + 25, GROUND - 8 - r.rise, 1, Math.PI / 2, g.time, wac ? 1.6 : 2.4);
-    ctx.fillStyle = 'rgba(235,230,220,.6)';
-    for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(PLACES.tower.x + 25 + (i - 4) * 12, GROUND - 6 - (i % 3) * 6, 10 + i, 0, 7); ctx.fill(); }
   }
+}
+
+// The round riding the truck's bed, drawn after the truck so it sits on it.
+function rocketOnTruck(ctx, g) {
+  const wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
+  const shape = (x, y, angle, mated) => (g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, g.rocket.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : g.vehicle === 'saturn5' ? saturnVShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper'));
+  shape(g.truck.x + (wac ? 2 : 90), GROUND - 10, -Math.PI / 2, true);
+}
+
+// The launch smoke, drawn over the site: it hangs where it was made and obscures whatever is behind it.
+function launchSmoke(ctx, g) {
+  if (g.rocket.where !== 'flying') return;
+  ctx.fillStyle = 'rgba(235,230,220,.6)';
+  for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(PLACES.tower.x + 25 + (i - 4) * 12, GROUND - 6 - (i % 3) * 6, 10 + i, 0, 7); ctx.fill(); }
+}
+
+// The dust the truck kicks up, drawn over anyone in it.
+function truckDust(ctx, g) {
+  if (!g.truck.dust) return;
+  const y = GROUND + 28;
+  ctx.fillStyle = 'rgba(210,190,150,.5)';
+  for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(g.truck.x - 8 - i * 12, y - 8 - i * 3, 6 + i * 3, 0, 7); ctx.fill(); }
 }
 
 // The Mercury capsule: a black cone with its heat shield at the base. tower: the red escape tower on its nose.
