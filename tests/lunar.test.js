@@ -41,7 +41,7 @@ test('a good Pioneer passes the Moon and a good Ranger hits it with pictures; th
   for (const v of ['juno', 'ranger']) for (let s = 1; s < 300; s++) {
     const r = round(v, s), f = flyAll(r);
     seen[v].add(f.failure || 'nominal');
-    if (!f.failure) assert.match(f.deep.text, v === 'juno' ? /^Passed the Moon at about [\d,]+ km/ : /^Hit the Moon about [\d,]+ km from the aim point, sending [\d,]+ pictures in the last 17 minutes/);
+    if (!f.failure) assert.match(f.deep.text, v === 'juno' ? /^Passed the Moon at about [\d,]+ km/ : /^Hit the Moon (about [\d,]+ km from|within 100 km of) the aim point, sending [\d,]+ pictures in the last 17 minutes/);
     if (f.failure === 'depletion') assert.match(f.deep.text, /fell back to Earth/);
     if (f.failure === 'camera') assert.match(wreckage(r, true).join(' '), /no video/);
     if (f.failure === 'miss') assert.match(f.deep.text, /^Lost: she missed the Moon/);

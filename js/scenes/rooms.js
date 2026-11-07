@@ -21,6 +21,23 @@ export function openRoom(building) {
   if (g.room === 'console' && !g.console) openConsole();
   if (g.room === 'count' || g.room === 'static') g.speed = 1;
 }
+// When the work at a building becomes ready while you are already there, its room opens on its own: the static fire when
+// the stage is on the stand, the count when the round is in the tower. A watch panel open on a building switches over;
+// standing at the dugout's or the blockhouse's door does too, once, when the beat changes (so closing the room keeps it
+// closed).
+let readyBeat = null;
+export function openWhenReady(locked) {
+  const changed = g.beat !== readyBeat;
+  readyBeat = g.beat;
+  if (locked) return;
+  const [kind, building] = (g.room || '').split(':');
+  if (kind === 'watch' && building && building !== 'truck' && roomFor(building) !== 'watch') return openRoom(building);
+  if (!changed || g.room) return;
+  const you = g.people.you;
+  if (Math.abs(you.x - you.target) > 1) return;
+  const at = ['dugout', 'blockhouse'].find(id => Math.abs(PLACES[id].door - you.x) < 40);
+  if (at && !g.crewed && roomFor(at) !== 'watch') openRoom(at);
+}
 export function closeRoom() {
   if (['recovery', 'splash'].includes(g.room)) return; // these close through their own buttons
   if (g.room === 'away') return closeAway();

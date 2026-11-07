@@ -1,11 +1,12 @@
 // THE SITE PROTOTYPE: the frame loop, the mouse and keys, and the bar along the top.
-// Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel looks along the site.
+// Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel, dragging the
+// site, or Shift with A/D or the arrow keys looks along it.
 import { drawSite, drawTracking, PLACES, VIEW_H, GROUND } from './draw.js';
 import { g, newGame, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, clearNotes, placeName } from '../game.js';
 import { consoleLocked } from '../mercury.js';
 import { talk } from '../data/talk.js';
 import { writeSave, readSave, clearSave } from '../core/save.js';
-import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom } from '../scenes/rooms.js';
+import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom, openWhenReady } from '../scenes/rooms.js';
 
 const canvas = document.getElementById('site'), ctx = canvas.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -41,6 +42,8 @@ function goTo(x, then) {
 }
 
 canvas.addEventListener('click', e => {
+  if (drag?.moved) { drag = null; canvas.style.cursor = 'default'; return; } // the end of a drag, not a click
+  drag = null;
   if (locked()) return;
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p.id, g.beat)); });
@@ -61,11 +64,21 @@ canvas.addEventListener('mousemove', e => {
   canvas.title = p ? `${p.name}, ${p.role}` : '';
   canvas.style.cursor = p || pl ? 'pointer' : 'default';
 });
-canvas.addEventListener('wheel', e => {
-  g.cam.x = Math.max(0, Math.min(3000 - view.w / scale(), g.cam.x + (e.deltaY + e.deltaX) * 0.8));
-  g.cam.freeUntil = g.time + 4;
-  e.preventDefault();
-}, { passive: false });
+// Looking along the site without walking: the wheel, dragging the site, or Shift with A/D or the arrow keys.
+const look = dx => { g.cam.x = Math.max(0, Math.min(3000 - view.w / scale(), g.cam.x + dx)); g.cam.freeUntil = g.time + 4; };
+canvas.addEventListener('wheel', e => { look((e.deltaY + e.deltaX) * 0.8); e.preventDefault(); }, { passive: false });
+// A drag pans the site; a press that hardly moves is still a click.
+let drag = null;
+canvas.addEventListener('pointerdown', e => { if (e.button === 0) drag = { x: e.clientX, moved: false }; });
+window.addEventListener('pointermove', e => {
+  if (!drag || !(e.buttons & 1)) { drag = drag && { ...drag, x: e.clientX }; return; }
+  const dx = e.clientX - drag.x;
+  if (!drag.moved && Math.abs(dx) < 6) return;
+  drag.moved = true; drag.x = e.clientX;
+  look(-dx / scale());
+  canvas.style.cursor = 'grabbing';
+});
+window.addEventListener('pointerup', () => { if (drag && !drag.moved) drag = null; });
 
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
@@ -79,11 +92,12 @@ window.addEventListener('keydown', e => {
   if (e.key === 'e' || e.key === 'E') {
     if (g.crewed && Math.abs(PLACES.stand.door - you().x) < 60 && !locked()) return openRoom('dugout'); const pl = Object.entries(PLACES).find(([, p]) => Math.abs(p.door - you().x) < 40 && p.room); if (pl && !locked()) openRoom(pl[0]); }
 });
-window.addEventListener('keyup', e => { keys[e.key] = false; });
+window.addEventListener('keyup', e => { keys[e.key] = keys[e.key.toLowerCase()] = keys[e.key.toUpperCase()] = false; });
 
 function keyWalk() {
   if (locked()) return;
   const left = keys.a || keys.A || keys.ArrowLeft, right = keys.d || keys.D || keys.ArrowRight;
+  if ((left || right) && keys.Shift) return look(right ? 14 : -14);
   if (left || right) { g.room = null; g.pending = null; g.marker = null; walk('you', Math.max(20, Math.min(2960, you().x + (right ? 40 : -40)))); }
 }
 
@@ -143,6 +157,7 @@ function frame(now) {
   last = now;
   keyWalk();
   tick(dt);
+  openWhenReady(!!locked());
   updateCamera(view.w / scale(), dt);
   if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
   else drawSite(ctx, g, view);
