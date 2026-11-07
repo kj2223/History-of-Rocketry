@@ -481,7 +481,7 @@ const PHASE_WORD = { count: 'COUNTING', hold: 'HOLDING', poll: 'STATUS POLL', as
 // The room's clock and the word for what is happening, as the player-visible console reports them.
 function controlReadout(c) {
   if (!c) return ['—', ''];
-  if (c.phase === 'count' || c.poll || c.phase === 'hold') return ['—', 'MISSION BEGINS'];
+  if (c.phase === 'count' || c.poll || c.phase === 'hold') return [`T-${Math.floor(Math.ceil(c.clock) / 60)}:${String(Math.ceil(c.clock) % 60).padStart(2, '0')}`, c.phase === 'hold' ? 'HOLDING' : c.poll ? 'STATUS POLL' : 'COUNTING'];
   if (c.phase === 'ascent' || c.phase === 'insertion') { const last = c.trace[c.trace.length - 1]; return last ? [`${last.v.toFixed(2)} km/s`, PHASE_WORD[c.phase]] : ['—', PHASE_WORD[c.phase]]; }
   if (c.orbitT != null) return [`T+${Math.floor(c.orbitT / 60)}:${String(Math.floor(c.orbitT % 60)).padStart(2, '0')}`, PHASE_WORD[c.phase] || c.phase.toUpperCase()];
   if (c.flight) return [`GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`, (c.flight.phase || '').toUpperCase() || PHASE_WORD[c.phase] || ''];
