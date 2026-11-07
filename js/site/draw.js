@@ -1,5 +1,8 @@
 // DRAWING: the site side-on, and the range's tracking board during a flight. Reads the game, never changes it.
 // World units: 1 unit is about a third of a foot (the launch tower is 102 ft, 300 units). The ground is at y = GROUND.
+// The static world (terrain, buildings, tower) is painted once into an offscreen layer and blitted each frame; only
+// things that move or burn (people, trucks, the rocket, flames) repaint per frame. Layers redrawn when the site, the
+// crewed era or the blockhouse construction changes.
 import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
@@ -12,11 +15,59 @@ function skyFor(minute) { // minute of the day
   return h > 17.5 || h < 7 ? SKY.dusk : SKY.day;
 }
 
+// ---- The static world layer -------------------------------------------------
+let staticLayer = null, staticKey = '';
+
+const staticSignature = g => {
+  const bs = blockhouseState(g.day);
+  return `${g.site || 'white-sands'}|${g.crewed ? 'crewed' : 'uncrewed'}|${bs.built ? 'built' : bs.progress.toFixed(2)}`;
+};
+
+function rebuildStatic(g) {
+  const width = WORLD_W + 400;
+  if (!staticLayer || staticLayer.width !== width) {
+    staticLayer = document.createElement('canvas');
+    staticLayer.width = width; staticLayer.height = VIEW_H;
+  }
+  const c = staticLayer.getContext('2d');
+  c.clearRect(0, 0, width, VIEW_H);
+  paintGround(c, g);
+  office(c, PLACES.office, g);
+  hangarStructure(c, PLACES.hangar);
+  if (g.crewed) trainer(c, PLACES.stand, PLACES.dugout);
+  else { standStructure(c, PLACES.stand); dugout(c, PLACES.dugout); }
+  blockhouse(c, PLACES.blockhouse, g);
+  tower(c, PLACES.tower);
+  staticKey = staticSignature(g);
+}
+
+// Sunlight from the left: a darker right-edge face on a wall block, so flat rects read as solids.
+function shadeRight(ctx, x, y, w, h, k = 0.1) {
+  const d = Math.max(2, w * k);
+  ctx.fillStyle = 'rgba(40,32,20,.18)'; ctx.fillRect(x + w - d, y, d, h);
+}
+
+function paintGround(c, g) {
+  const cape = g.site === 'cape';
+  // Scrub along the desert floor, or sea grass on the Cape's sand.
+  c.fillStyle = cape ? '#7f9a52' : '#9c9c62';
+  for (let x = 40; x < WORLD_W + 400; x += 97) { const y = GROUND + 12 + ((x * 7) % 50); c.fillRect(x, y, 6, 3); c.fillRect(x + 2, y - 3, 2, 3); }
+  // Stones and pale patches on the sand, placed from x so they never change between frames.
+  c.fillStyle = 'rgba(120,100,70,.3)';
+  for (let x = 60; x < WORLD_W + 400; x += 173) { c.beginPath(); c.arc(x + (x * 13) % 44, GROUND + 16 + (x * 7) % 40, 1.6 + (x % 3), 0, 7); c.fill(); }
+  c.fillStyle = 'rgba(255,244,214,.25)';
+  for (let x = 110; x < WORLD_W + 400; x += 240) c.fillRect(x, GROUND + 8 + (x * 3) % 44, 26 + (x % 20), 3);
+  // The road out to the range, with wheel ruts.
+  c.fillStyle = '#c3a87c'; c.fillRect(0, GROUND + 30, WORLD_W + 400, 8);
+  c.fillStyle = 'rgba(120,100,70,.25)'; c.fillRect(0, GROUND + 32, WORLD_W + 400, 1); c.fillRect(0, GROUND + 35, WORLD_W + 400, 1);
+}
+
 export function drawSite(ctx, g, view) {
   const { w, h } = view, s = h / VIEW_H, camX = g.cam.x;
   ctx.save();
   ctx.scale(s, s);
   const vw = w / s;
+  // Sky and the far parallax layers (ocean, palms, mountains) repaint each frame; they are cheap and move with the camera.
   const sky = skyFor(g.clock % 1440);
   const grad = ctx.createLinearGradient(0, 0, 0, GROUND);
   grad.addColorStop(0, sky[0]); grad.addColorStop(0.7, sky[1]); grad.addColorStop(1, sky[2]);
@@ -28,29 +79,22 @@ export function drawSite(ctx, g, view) {
     ctx.fillStyle = 'rgba(255,255,255,.25)'; for (let x = (-camX * 0.2) % 70; x < vw; x += 70) ctx.fillRect(x, 452 + ((x * 3) % 20), 26, 2);
     ctx.fillStyle = '#5b7a3c'; ctx.fillRect(0, 488, vw, GROUND - 488);
     for (let x = (-camX * 0.4) % 140; x < vw + 140; x += 140) palm(ctx, x, 492);
-    ctx.fillStyle = '#e4d8b4'; ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
-    ctx.fillStyle = '#d3c597'; ctx.fillRect(0, GROUND, vw, 5);
   } else {
     // The Organ Mountains, far off, moving slowly behind the site.
     mountains(ctx, camX * 0.15, vw, '#8d86a0', 380, [0, 60, 30, 120, 70, 150, 40, 90, 20]);
     mountains(ctx, camX * 0.3, vw, '#a99a8c', 440, [10, 40, 25, 60, 15, 50, 35, 20, 45]);
-    ctx.fillStyle = '#d9c39a'; ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
-    ctx.fillStyle = '#cdb489'; ctx.fillRect(0, GROUND, vw, 5);
   }
-
+  // The ground itself reaches past the world edge, so the pan never shows sky underfoot.
+  ctx.fillStyle = cape ? '#e4d8b4' : '#d9c39a'; ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
+  ctx.fillStyle = cape ? '#d3c597' : '#cdb489'; ctx.fillRect(0, GROUND, vw, 5);
+  // The baked static layer, blitted in world space.
+  const key = staticSignature(g);
+  if (!staticLayer || key !== staticKey) rebuildStatic(g);
   ctx.translate(-camX, 0);
-  // Scrub along the desert floor, or sea grass on the Cape's sand.
-  ctx.fillStyle = cape ? '#7f9a52' : '#9c9c62';
-  for (let x = 40; x < WORLD_W + 400; x += 97) { const y = GROUND + 12 + ((x * 7) % 50); ctx.fillRect(x, y, 6, 3); ctx.fillRect(x + 2, y - 3, 2, 3); }
-  // The road out to the range.
-  ctx.fillStyle = '#c3a87c'; ctx.fillRect(0, GROUND + 30, WORLD_W + 400, 8);
-
-  office(ctx, PLACES.office, g);
-  hangar(ctx, PLACES.hangar, g);
-  if (g.crewed) trainer(ctx, PLACES.stand, PLACES.dugout);
-  else { stand(ctx, PLACES.stand, g); dugout(ctx, PLACES.dugout); }
-  blockhouse(ctx, PLACES.blockhouse, g);
-  tower(ctx, PLACES.tower);
+  ctx.drawImage(staticLayer, 0, 0);
+  // Everything that moves or burns, in the same order the single-pass painter used.
+  hangarRack(ctx, g);
+  if (!g.crewed && g.standFlame > 0) flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
   truck(ctx, g.truck.x, g);
   rocketOnSite(ctx, g);
   for (const job of g.jobs) jobBar(ctx, job);
@@ -91,16 +135,29 @@ function label(ctx, place) {
 function office(ctx, p, g) {
   if (g.crewed) return mercuryControl(ctx, p);
   ctx.fillStyle = '#c9b79a'; ctx.fillRect(p.x, GROUND - p.h, p.w, p.h);
+  shadeRight(ctx, p.x, GROUND - p.h, p.w, p.h, 0.07);
   ctx.fillStyle = '#7d6b55'; ctx.fillRect(p.x - 8, GROUND - p.h - 8, p.w + 16, 10);
+  ctx.fillStyle = 'rgba(40,32,20,.15)'; ctx.fillRect(p.x, GROUND - p.h + 2, p.w, 9); // shadow under the eave
   // Cutaway: the inside, with the drawing board and desks.
   ctx.fillStyle = '#efe4cc'; ctx.fillRect(p.x + 10, GROUND - p.h + 12, p.w - 20, p.h - 12);
+  ctx.fillStyle = 'rgba(40,32,20,.08)'; ctx.fillRect(p.x + 10, GROUND - p.h + 12, p.w - 20, 5);
   ctx.fillStyle = '#6b4f35'; ctx.fillRect(p.x + 30, GROUND - 30, 50, 4); ctx.fillRect(p.x + 34, GROUND - 26, 3, 26); ctx.fillRect(p.x + 74, GROUND - 26, 3, 26);
   ctx.save(); ctx.translate(p.x + 150, GROUND - 46); ctx.rotate(-0.35);
   ctx.fillStyle = '#f8f5ea'; ctx.fillRect(-30, -20, 60, 40); ctx.strokeStyle = '#4b6a8a'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(-20, 8); ctx.lineTo(20, 8); ctx.moveTo(-14, 8); ctx.lineTo(-14, -12); ctx.lineTo(-10, -16); ctx.lineTo(-6, -12); ctx.lineTo(-6, 8); ctx.stroke();
   ctx.restore();
   ctx.fillStyle = '#5a4630'; ctx.fillRect(p.x + 148, GROUND - 34, 3, 34);
+  // The door in from the site, and the one window, framed and crossed.
+  ctx.fillStyle = '#6e5a40'; ctx.fillRect(p.x + 100, GROUND - 40, 22, 40);
+  ctx.strokeStyle = '#54432f'; ctx.lineWidth = 1.5; ctx.strokeRect(p.x + 100, GROUND - 40, 22, 40);
+  ctx.fillStyle = '#d8cfa8'; ctx.fillRect(p.x + 109, GROUND - 22, 3, 3); // knob
   ctx.fillStyle = '#6e8fa8'; ctx.fillRect(p.x + 196, GROUND - p.h + 24, 26, 20);
+  ctx.strokeStyle = '#f4efe0'; ctx.lineWidth = 1.5; ctx.strokeRect(p.x + 195, GROUND - p.h + 23, 28, 22);
+  ctx.beginPath(); ctx.moveTo(p.x + 209, GROUND - p.h + 23); ctx.lineTo(p.x + 209, GROUND - p.h + 45); ctx.moveTo(p.x + 195, GROUND - p.h + 34); ctx.lineTo(p.x + 223, GROUND - p.h + 34); ctx.stroke();
+  // A paper and an inkwell on the nearest desk edge, and a base plank.
+  ctx.fillStyle = '#fbf7ec'; ctx.fillRect(p.x + 44, GROUND - 34, 10, 7);
+  ctx.fillStyle = '#232a33'; ctx.fillRect(p.x + 57, GROUND - 35, 3, 4);
+  ctx.fillStyle = '#b7a487'; ctx.fillRect(p.x, GROUND - 4, p.w, 4);
 }
 
 // Mercury Control, cut away: the world map on the far wall with the capsule's track, and a row of consoles.
@@ -117,22 +174,34 @@ function mercuryControl(ctx, p) {
   ctx.fillStyle = '#9fdc9a'; for (let i = 0; i < 6; i++) ctx.fillRect(p.x + 28 + i * 34, GROUND - 23, 20, 6);
 }
 
-function hangar(ctx, p, g) {
+// The hangar's structure is static (baked); what sits on its rack changes with the round and is drawn per frame.
+function hangarStructure(ctx, p) {
   // A quonset-style hangar, cut away to show the floor.
   ctx.fillStyle = '#8c8f93';
   ctx.beginPath(); ctx.moveTo(p.x, GROUND); ctx.lineTo(p.x, GROUND - p.h + 40);
   ctx.quadraticCurveTo(p.x + p.w / 2, GROUND - p.h - 40, p.x + p.w, GROUND - p.h + 40); ctx.lineTo(p.x + p.w, GROUND); ctx.fill();
+  shadeRight(ctx, p.x, GROUND - p.h + 40, p.w, p.h - 40, 0.06);
   ctx.fillStyle = '#3d3f43';
   ctx.beginPath(); ctx.moveTo(p.x + 12, GROUND); ctx.lineTo(p.x + 12, GROUND - p.h + 46);
   ctx.quadraticCurveTo(p.x + p.w / 2, GROUND - p.h - 22, p.x + p.w - 12, GROUND - p.h + 46); ctx.lineTo(p.x + p.w - 12, GROUND); ctx.fill();
   ctx.strokeStyle = '#55585d'; ctx.lineWidth = 2;
   for (let i = 1; i < 6; i++) { const x = p.x + (p.w * i) / 6; ctx.beginPath(); ctx.moveTo(x, GROUND); ctx.lineTo(x, GROUND - p.h + 20); ctx.stroke(); }
-  // Hanging lamps.
+  // A thin highlight along the left of each rib, so the corrugation reads.
+  ctx.strokeStyle = '#83868b'; ctx.lineWidth = 1;
+  for (let i = 1; i < 6; i++) { const x = p.x + (p.w * i) / 6 - 2; ctx.beginPath(); ctx.moveTo(x, GROUND); ctx.lineTo(x, GROUND - p.h + 22); ctx.stroke(); }
+  // Hanging lamps, with a soft cone of light on the floor below each.
   ctx.fillStyle = '#f3dd8a'; for (let i = 1; i < 4; i++) ctx.fillRect(p.x + (p.w * i) / 4 - 5, GROUND - p.h + 40, 10, 4);
+  ctx.fillStyle = 'rgba(243,221,138,.10)';
+  for (let i = 1; i < 4; i++) { const lx = p.x + (p.w * i) / 4; ctx.beginPath(); ctx.moveTo(lx - 5, GROUND - p.h + 44); ctx.lineTo(lx - 26, GROUND - 6); ctx.lineTo(lx + 26, GROUND - 6); ctx.lineTo(lx + 5, GROUND - p.h + 44); ctx.fill(); }
   // Work benches and the booster on its rack.
   ctx.fillStyle = '#6a5a44'; ctx.fillRect(p.x + 30, GROUND - 22, 70, 4); ctx.fillRect(p.x + 34, GROUND - 18, 3, 18); ctx.fillRect(p.x + 94, GROUND - 18, 3, 18);
-  // What waits on the rack to be mated: the WAC's Tiny Tim booster, or the WAC that rides on a Bumper's nose.
-  // Hangar S: the next Mercury capsule on its stand, being checked out.
+  ctx.fillStyle = 'rgba(40,32,20,.2)'; ctx.fillRect(p.x + 12, GROUND - 3, p.w - 24, 3); // shadow along the floor
+}
+
+// What waits on the rack to be mated: the WAC's Tiny Tim booster, or the WAC that rides on a Bumper's nose.
+// Hangar S: the next Mercury capsule on its stand, being checked out. Changes with the round, so it is per-frame.
+function hangarRack(ctx, g) {
+  const p = PLACES.hangar;
   if (g.crewed) { capsuleShape(ctx, p.x + 220, GROUND - 30, false); ctx.fillStyle = '#6a5a44'; ctx.fillRect(p.x + 200, GROUND - 22, 40, 22); }
   if (!g.rocket.mated && g.rocket.where !== 'gone') {
     if (g.vehicle === 'wac' || g.vehicle === 'aerobee') boosterShape(ctx, p.x + p.w - 90, GROUND - 14, 0);
@@ -141,7 +210,7 @@ function hangar(ctx, p, g) {
   ctx.fillStyle = '#d9c39a'; ctx.fillRect(p.x + 12, GROUND - 2, p.w - 24, 2);
 }
 
-function stand(ctx, p, g) {
+function standStructure(ctx, p) {
   // An open steel frame over a flame trench.
   ctx.fillStyle = '#7a6a58'; ctx.fillRect(p.x - 10, GROUND - 4, p.w + 20, 8);
   ctx.fillStyle = '#2a2420'; ctx.fillRect(p.x + 40, GROUND - 2, 40, 6);
@@ -149,7 +218,14 @@ function stand(ctx, p, g) {
   ctx.beginPath(); ctx.moveTo(p.x + 20, GROUND); ctx.lineTo(p.x + 30, GROUND - p.h); ctx.lineTo(p.x + 90, GROUND - p.h); ctx.lineTo(p.x + 100, GROUND); ctx.stroke();
   ctx.lineWidth = 2;
   for (let y = 30; y < p.h; y += 30) { ctx.beginPath(); ctx.moveTo(p.x + 22, GROUND - y); ctx.lineTo(p.x + 98, GROUND - y); ctx.stroke(); }
-  if (g.standFlame > 0) flame(ctx, p.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
+  // Cross-bracing between the horizontals, and concrete footings under the legs.
+  ctx.strokeStyle = '#6b6f76'; ctx.lineWidth = 1.2;
+  for (let y = 30; y < p.h; y += 30) {
+    ctx.beginPath(); ctx.moveTo(p.x + 22, GROUND - y); ctx.lineTo(p.x + 98, GROUND - y - 30); ctx.moveTo(p.x + 98, GROUND - y); ctx.lineTo(p.x + 22, GROUND - y - 30); ctx.stroke();
+  }
+  ctx.fillStyle = '#8a8f96'; ctx.fillRect(p.x + 14, GROUND - 6, 14, 6); ctx.fillRect(p.x + 92, GROUND - 6, 14, 6);
+  // The structure's shadow falls to the right of the trench.
+  ctx.fillStyle = 'rgba(40,32,20,.12)'; ctx.fillRect(p.x + 104, GROUND - 2, 30, 4);
 }
 
 // The training building at the Cape: a low block with a cutaway of the simulator, a copy of a Mercury Control console.
@@ -166,7 +242,11 @@ function trainer(ctx, stand, dug) {
 
 function dugout(ctx, p) {
   ctx.fillStyle = '#9b8a70'; ctx.beginPath(); ctx.moveTo(p.x - 20, GROUND); ctx.quadraticCurveTo(p.x + p.w / 2, GROUND - p.h * 2, p.x + p.w + 20, GROUND); ctx.fill();
+  // Sandbags along the mound, placed from x so they never shift.
+  ctx.fillStyle = '#b3a380';
+  for (let i = 0; i < 9; i++) { const sx = p.x - 12 + i * 9, sy = GROUND - 6 - Math.round(Math.sin((sx - p.x) / (p.w + 24) * Math.PI) * p.h * 1.4); ctx.fillRect(sx, sy, 7, 4); }
   ctx.fillStyle = '#2b2a28'; ctx.fillRect(p.x + 14, GROUND - 20, 22, 6); ctx.fillRect(p.x + 52, GROUND - 20, 22, 6);
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(p.x + 36, GROUND - 24, 18, 4); // shadow over the entrance
   ctx.fillStyle = '#4b3b2b'; ctx.fillRect(p.x + 36, GROUND - 26, 16, 26);
 }
 
@@ -175,7 +255,12 @@ function blockhouse(ctx, p, g) {
   if (state.built) return newBlockhouse(ctx, p);
   if (state.progress > 0) building(ctx, p.x - 160, state.progress);
   ctx.fillStyle = '#a7a196'; ctx.fillRect(p.x, GROUND - p.h, p.w, p.h);
+  shadeRight(ctx, p.x, GROUND - p.h, p.w, p.h, 0.08);
   ctx.fillStyle = '#918b80'; ctx.fillRect(p.x - 10, GROUND - p.h - 12, p.w + 20, 14);
+  ctx.fillStyle = '#b8b2a6'; ctx.fillRect(p.x - 10, GROUND - p.h - 12, p.w + 20, 3); // a lit top edge on the roof
+  // A slit window and a ventilation pipe on the outer wall.
+  ctx.fillStyle = '#5c5f57'; ctx.fillRect(p.x + 6, GROUND - p.h + 24, 5, 14);
+  ctx.fillStyle = '#777'; ctx.fillRect(p.x + p.w - 24, GROUND - p.h - 18, 4, 8);
   // Cutaway with the firing panel and periscope.
   ctx.fillStyle = '#4c4f46'; ctx.fillRect(p.x + 14, GROUND - p.h + 16, p.w - 28, p.h - 16);
   ctx.fillStyle = '#2f3a2c'; ctx.fillRect(p.x + 30, GROUND - 34, 80, 22);
@@ -199,7 +284,10 @@ function building(ctx, x, k) {
 function newBlockhouse(ctx, p) {
   const w = p.w + 140, h = 92, x = p.x - 150;
   ctx.fillStyle = '#b3ad9f'; ctx.fillRect(x, GROUND - h, w, h);
+  shadeRight(ctx, x, GROUND - h, w, h, 0.07);
   ctx.fillStyle = '#9b9588'; ctx.fillRect(x - 14, GROUND - h - 18, w + 28, 20);
+  ctx.fillStyle = '#c4bfb1'; ctx.fillRect(x - 14, GROUND - h - 18, w + 28, 3); // lit roof edge
+  ctx.fillStyle = '#5a5348'; ctx.fillRect(x + w - 66, GROUND - 34, 20, 34); ctx.fillStyle = '#6e6458'; ctx.fillRect(x + w - 63, GROUND - 31, 14, 31); // the door
   ctx.fillStyle = '#4c4f46'; ctx.fillRect(x + 16, GROUND - h + 18, w - 32, h - 18);
   ctx.fillStyle = '#2f3a2c'; ctx.fillRect(x + 28, GROUND - 38, 90, 26); ctx.fillRect(x + 130, GROUND - 38, 70, 26);
   ctx.fillStyle = '#c94'; for (let i = 0; i < 7; i++) ctx.fillRect(x + 34 + i * 12, GROUND - 33, 5, 5);
@@ -224,8 +312,11 @@ function tower(ctx, p) {
 function truck(ctx, x, g) {
   const y = GROUND + 28;
   ctx.fillStyle = '#4d5b3a'; ctx.fillRect(x, y - 30, 64, 22); ctx.fillRect(x + 64, y - 40, 26, 32);
+  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(x, y - 12, 64, 4); // bed shadow line
   ctx.fillStyle = '#9fc0d0'; ctx.fillRect(x + 72, y - 36, 12, 10);
+  ctx.strokeStyle = '#37503f'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 71, y - 37, 14, 12); // window frame
   ctx.fillStyle = '#1e1e1e'; for (const wx of [x + 14, x + 44, x + 76]) { ctx.beginPath(); ctx.arc(wx, y - 6, 7, 0, 7); ctx.fill(); }
+  ctx.fillStyle = '#8a8a8a'; for (const wx of [x + 14, x + 44, x + 76]) { ctx.beginPath(); ctx.arc(wx, y - 6, 3, 0, 7); ctx.fill(); } // hubs
   ctx.fillStyle = '#e8e0c8'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(g.site === 'cape' ? 'U.S. NAVY' : 'U.S. ARMY', x + 8, y - 16);
   if (g.truck.dust) { ctx.fillStyle = 'rgba(210,190,150,.5)'; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(x - 8 - i * 12, y - 8 - i * 3, 6 + i * 3, 0, 7); ctx.fill(); } }
 }
@@ -260,6 +351,7 @@ function capsuleShape(ctx, x, y, tower) {
 export function mercuryRedstoneShape(ctx, x, y, angle, padAbort = false) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
   ctx.fillStyle = '#f1efe8'; ctx.fillRect(-6, -84, 12, 84);
+  ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(-6, -84, 2.5, 84); ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(3.5, -84, 2.5, 84); // cylinder shading
   ctx.fillStyle = '#1d1f22'; ctx.fillRect(-6, -60, 12, 4); ctx.fillRect(-6, -20, 12, 3);
   ctx.fillStyle = '#d8d4c8'; ctx.beginPath(); ctx.moveTo(-6, -12); ctx.lineTo(-12, 0); ctx.lineTo(-6, 0); ctx.fill(); ctx.beginPath(); ctx.moveTo(6, -12); ctx.lineTo(12, 0); ctx.lineTo(6, 0); ctx.fill();
   ctx.fillStyle = '#c7c2b6'; ctx.fillRect(-6, -90, 12, 6);
@@ -277,6 +369,7 @@ function trailer(ctx, x) {
 export function vikingShape(ctx, x, y, angle) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
   ctx.fillStyle = '#f1efe8'; ctx.fillRect(-5, -100, 10, 100);
+  ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(-5, -100, 2, 100); ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(3, -100, 2, 100); // cylinder shading
   ctx.fillStyle = '#f1efe8'; ctx.beginPath(); ctx.moveTo(-5, -100); ctx.quadraticCurveTo(-4, -112, 0, -118); ctx.quadraticCurveTo(4, -112, 5, -100); ctx.fill();
   ctx.fillStyle = '#2b3f6b'; ctx.fillRect(-5, -60, 10, 3); ctx.fillRect(-5, -30, 10, 3);
   ctx.fillStyle = '#9aa0a8'; ctx.beginPath(); ctx.moveTo(-5, -14); ctx.lineTo(-13, 0); ctx.lineTo(-5, 0); ctx.fill(); ctx.beginPath(); ctx.moveTo(5, -14); ctx.lineTo(13, 0); ctx.lineTo(5, 0); ctx.fill();
@@ -288,6 +381,7 @@ export function vikingShape(ctx, x, y, angle) {
 export function junoShape(ctx, x, y, angle) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
   ctx.fillStyle = '#f2f0e9'; ctx.fillRect(-12, -150, 24, 150);
+  ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(-12, -150, 4, 150); ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(8, -150, 4, 150); // cylinder shading
   ctx.fillStyle = '#26272b'; ctx.fillRect(-12, -40, 24, 6); ctx.fillRect(-12, -110, 24, 6); ctx.fillRect(-12, -150, 12, 20);
   ctx.fillStyle = '#d9d6cc'; ctx.beginPath(); ctx.moveTo(-12, -150); ctx.lineTo(-8, -200); ctx.lineTo(8, -200); ctx.lineTo(12, -150); ctx.fill();
   ctx.fillStyle = '#c9a24a'; ctx.beginPath(); ctx.moveTo(-5, -200); ctx.lineTo(0, -218); ctx.lineTo(5, -200); ctx.fill();
@@ -333,6 +427,7 @@ export function geminiTitanShape(ctx, x, y, angle) {
 export function saturnVShape(ctx, x, y, angle) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
   ctx.fillStyle = '#f1efe8'; ctx.fillRect(-22, -150, 44, 150); // S-IC
+  ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(-22, -150, 6, 150); ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(16, -150, 6, 150); // cylinder shading
   ctx.fillStyle = '#26282c'; for (const yy of [-150, -100, -50]) ctx.fillRect(-22, yy, 22, 18); ctx.fillRect(0, -132, 22, 18); ctx.fillRect(0, -82, 22, 18);
   ctx.fillStyle = '#f1efe8'; ctx.fillRect(-22, -250, 44, 100); // S-II
   ctx.fillStyle = '#26282c'; ctx.fillRect(-22, -160, 44, 8);
@@ -363,6 +458,7 @@ export function vanguardShape(ctx, x, y, angle) {
 export function v2Shape(ctx, x, y, angle, withWac) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
   ctx.fillStyle = '#ece8dc'; ctx.fillRect(-7, -84, 14, 84);
+  ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(-7, -84, 3, 84); ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(4, -84, 3, 84); // a lit nose-side edge
   ctx.fillStyle = '#1d1f24'; ctx.fillRect(0, -84, 7, 21); ctx.fillRect(-7, -63, 7, 21); ctx.fillRect(0, -42, 7, 21); ctx.fillRect(-7, -21, 7, 21);
   ctx.fillStyle = '#ece8dc'; ctx.beginPath(); ctx.moveTo(-7, -84); ctx.quadraticCurveTo(-6, -98, 0, -104); ctx.quadraticCurveTo(6, -98, 7, -84); ctx.fill();
   ctx.fillStyle = '#1d1f24'; ctx.beginPath(); ctx.moveTo(-7, -20); ctx.lineTo(-16, 2); ctx.lineTo(-7, 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(7, -20); ctx.lineTo(16, 2); ctx.lineTo(7, 2); ctx.fill();
@@ -416,6 +512,7 @@ function jobBar(ctx, job) {
 // A person: a small figure with legs that move while walking. The player wears a light shirt and is marked.
 function person(ctx, p, time) {
   const x = p.x, y = GROUND, walking = Math.abs(p.target - p.x) > 1, step = walking ? Math.sin(time * 12 + p.x * 0.05) * 4 : 0;
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(x, y + 1, 6, 2, 0, 0, 7); ctx.fill(); // a shadow grounds the figure
   ctx.strokeStyle = '#2b2620'; ctx.lineWidth = 2.4;
   ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.lineTo(x - step, y); ctx.moveTo(x, y - 12); ctx.lineTo(x + step, y); ctx.stroke();
   ctx.fillStyle = p.color; ctx.fillRect(x - 4, y - 26, 8, 15);

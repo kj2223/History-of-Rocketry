@@ -166,13 +166,16 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  keyWalk();
-  tick(dt);
-  openWhenReady(!!locked());
-  updateCamera(view.w / scale(), dt);
-  if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
-  else drawSite(ctx, g, view);
-  renderRoom(); liveRoom(); hud(); autosave();
+  // One bad frame must not kill the loop (a shape-valid save could throw in a room render); report and carry on.
+  try {
+    keyWalk();
+    tick(dt);
+    openWhenReady(!!locked());
+    updateCamera(view.w / scale(), dt);
+    if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
+    else drawSite(ctx, g, view);
+    renderRoom(); liveRoom(); hud(); autosave();
+  } catch (e) { console.error('Frame skipped:', e); }
   requestAnimationFrame(frame);
 }
 
