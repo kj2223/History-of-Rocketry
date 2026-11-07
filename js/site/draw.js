@@ -489,6 +489,8 @@ function controlReadout(c) {
 export function drawControlRoom(ctx, g, view) {
   const { w, h } = view, c = g.console;
   const wallH = Math.round(h * 0.56);
+  // Paint the whole canvas first: no frame of the site may survive behind the room.
+  ctx.fillStyle = '#14171c'; ctx.fillRect(0, 0, w, h);
   // The room between two side walls: the server bank on the left, the viewing gallery on the right.
   const leftW = w * 0.055, galleryX = w * 0.87;
   // The back wall, and the floor.
@@ -507,7 +509,7 @@ export function drawControlRoom(ctx, g, view) {
   clocksStrip(ctx, g, w * 0.085, wallH * 0.86, w * 0.59, wallH * 0.11);
   // The side walls: racks of equipment, and the gallery beyond the glass.
   serverBank(ctx, 0, 0, leftW, h, g);
-  viewingGallery(ctx, galleryX, 0, w - galleryX, wallH, g);
+  viewingGallery(ctx, galleryX, 0, w - galleryX, h, g);
   // Two rows of stations on the floor, centred between the side walls and clear of the console panel.
   const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2;
   const back = ['albrecht', 'morgan', 'reyes', 'vega', 'kessler', 'tate', 'dorsey'].filter(id => g.people[id] && !g.people[id].hidden);
@@ -540,22 +542,25 @@ function serverBank(ctx, x, y, w, h, g) {
   }
 }
 
-// The viewing gallery along the right wall: glass, a rail, and the heads of the people watching you work.
+// The viewing gallery along the right wall: two windows up on the wall, a rail under them, and the gallery floor below.
 function viewingGallery(ctx, x, y, w, h) {
   ctx.fillStyle = '#4a4640'; ctx.fillRect(x, y, w, h);
-  const winW = Math.max(10, w * 0.62), winH = h * 0.5, gap = 10;
+  const winW = Math.max(10, w * 0.68), winH = Math.min(h * 0.22, w * 0.5), gap = 12;
   for (const wx of [x + (w - 2 * winW - gap) / 2, x + (w + gap) / 2]) {
-    ctx.fillStyle = '#5d8fc4'; ctx.fillRect(wx, y + h * 0.08, winW, winH);
-    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(wx + winW * 0.1, y + h * 0.12, winW * 0.08, winH * 0.8);
-    // Heads behind the glass, placed from i so they never shuffle.
+    const wy = y + h * 0.06;
+    ctx.fillStyle = '#5d8fc4'; ctx.fillRect(wx, wy, winW, winH);
+    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(wx + winW * 0.12, wy + winH * 0.1, winW * 0.07, winH * 0.8);
+    // Heads behind the glass, above the rail, placed from i so they never shuffle.
     for (let i = 0; i < 4; i++) {
-      const hx = wx + 8 + i * (winW - 16) / 3, hy = y + h * 0.08 + winH * 0.78 + ((i * 17) % 5);
+      const hx = wx + 10 + i * (winW - 20) / 3, hy = wy + winH * 0.82 + ((i * 17) % 4);
       ctx.fillStyle = i % 2 ? '#e2b993' : '#c99b76';
-      ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, w * 0.09), 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, w * 0.055), 0, 7); ctx.fill();
     }
-    ctx.fillStyle = '#33302b'; ctx.fillRect(wx - 2, y + h * 0.08 + winH * 0.86, winW + 4, Math.max(3, h * 0.05)); // the rail
+    ctx.fillStyle = '#33302b'; ctx.fillRect(wx - 2, wy + winH * 0.94, winW + 4, Math.max(3, h * 0.012)); // the rail
   }
-  ctx.fillStyle = '#2a2723'; ctx.fillRect(x + 3, y + h * 0.72, w - 6, h * 0.26); // the gallery floor below
+  // The gallery floor takes the rest of the strip, down to the bottom of the screen.
+  ctx.fillStyle = '#2a2723'; ctx.fillRect(x + 2, y + h * 0.36, w - 4, h - h * 0.36 - 2);
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x + 2, y + h * 0.36, w - 4, 4);
 }
 
 // The monitoring screen: the flight-path angle as she climbs, second by second, with her position on it.
