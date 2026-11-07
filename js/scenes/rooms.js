@@ -46,11 +46,13 @@ export function closeRoom() {
 
 export function render() {
   const el = panel();
-  if (!g.room) { el.hidden = true; shown.room = null; return; }
+  if (!g.room) { el.hidden = true; el.classList.remove('drawer'); shown.room = null; return; }
   if (shown.room === g.room && shown.version === g.roomVersion) return;
   shown = { room: g.room, version: g.roomVersion };
   el.hidden = false;
   const [kind, building] = g.room.split(':');
+  // Your console in launch control sits in the corner of the room, not the middle of the wall.
+  el.classList.toggle('drawer', kind === 'console');
   const body = kind === 'watch' ? watch(building) : (ROOMS[kind] || CONTROL_ROOMS[kind] || LUNAR_ROOMS[kind])();
   const closable = !['recovery', 'splash'].includes(kind);
   el.innerHTML = `${closable ? '<button class="close" data-act="close" title="Back to the site (Esc)">✕</button>' : ''}${body}`;

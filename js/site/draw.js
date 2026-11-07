@@ -463,33 +463,129 @@ function controlReadout(c) {
 
 export function drawControlRoom(ctx, g, view) {
   const { w, h } = view, c = g.console;
-  const wallH = Math.round(h * 0.58);
-  // Walls and floor.
-  ctx.fillStyle = '#20242b'; ctx.fillRect(0, 0, w, wallH);
-  ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let x = 0; x < w; x += 90) ctx.fillRect(x, 0, 2, wallH);
-  ctx.fillStyle = '#3d3a33'; ctx.fillRect(0, wallH, w, h - wallH);
-  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(0, wallH, w, 6);
-  // The wall: the big map, the pad on television, the mission clock where the whole room can see it.
-  drawWallMap(ctx, g, w * 0.05, wallH * 0.1, w * 0.34, wallH * 0.74);
-  const tvX = w * 0.43, tvY = wallH * 0.16, tvW = w * 0.14, tvH = wallH * 0.52;
+  const wallH = Math.round(h * 0.56);
+  // The room between two side walls: the server bank on the left, the viewing gallery on the right.
+  const leftW = w * 0.055, galleryX = w * 0.87;
+  // The back wall, and the floor.
+  ctx.fillStyle = '#262a31'; ctx.fillRect(leftW, 0, galleryX - leftW, wallH);
+  ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let x = leftW; x < galleryX; x += 90) ctx.fillRect(x, 0, 2, wallH);
+  ctx.fillStyle = '#3d3a33'; ctx.fillRect(leftW, wallH, galleryX - leftW, h - wallH);
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(leftW, wallH, galleryX - leftW, 6);
+  // The big map takes the wall, with the pad on television and the telemetry screen stacked beside it.
+  drawWallMap(ctx, g, w * 0.085, wallH * 0.08, w * 0.4, wallH * 0.72);
+  const tvX = w * 0.525, tvW = w * 0.15, tvY = wallH * 0.08, tvH = wallH * 0.3;
   ctx.fillStyle = '#181b1f'; ctx.fillRect(tvX - 6, tvY - 6, tvW + 12, tvH + 12);
   padPicture(ctx, g, tvX, tvY, tvW, tvH);
-  ctx.fillStyle = 'rgba(0,0,0,.18)'; for (let y = tvY + 4; y < tvY + tvH; y += 5) ctx.fillRect(tvX, y, tvW, 2);
-  const [top, bottom] = controlReadout(c);
-  ctx.fillStyle = '#0d1117'; ctx.fillRect(w * 0.61, wallH * 0.16, w * 0.14, wallH * 0.26);
-  ctx.strokeStyle = '#3a4452'; ctx.strokeRect(w * 0.61, wallH * 0.16, w * 0.14, wallH * 0.26);
-  ctx.fillStyle = '#e8c66a'; ctx.font = `bold ${Math.max(14, Math.round(w * 0.02))}px monospace`; ctx.textAlign = 'center';
-  ctx.fillText(top, w * 0.68, wallH * 0.3);
-  ctx.fillStyle = '#9aa0a8'; ctx.font = `${Math.max(9, Math.round(w * 0.009))}px monospace`;
-  ctx.fillText(bottom, w * 0.68, wallH * 0.38);
-  // The rows: back row first, then the front row with your console, marked.
-  const floor = h - wallH;
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; for (let y = tvY + 5; y < tvY + tvH; y += 6) ctx.fillRect(tvX, y, tvW, 2);
+  monitorScreen(ctx, g, tvX, wallH * 0.46, tvW, wallH * 0.34);
+  // The clocks run along the bottom of the wall: the count, the mission, the site clock.
+  clocksStrip(ctx, g, w * 0.085, wallH * 0.86, w * 0.59, wallH * 0.11);
+  // The side walls: racks of equipment, and the gallery beyond the glass.
+  serverBank(ctx, 0, 0, leftW, h, g);
+  viewingGallery(ctx, galleryX, 0, w - galleryX, wallH, g);
+  // Two rows of stations on the floor, centred between the side walls and clear of the console panel.
+  const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2;
   const back = ['hollis', 'albrecht', 'morgan', 'reyes', 'vega', 'kessler', 'tate', 'dorsey'].filter(id => g.people[id] && !g.people[id].hidden);
-  back.forEach((id, i) => consoleDesk(ctx, w * (0.06 + 0.82 * (i + 0.5) / back.length) - 85 * 0.8, wallH + floor * 0.3, 0.8, g.people[id], ROOM_SEATS[id], c, false));
-  consoleDesk(ctx, w * 0.34 - 100, wallH + floor * 0.64, 1.1, g.people.you, 'YOU · ' + (g.people.you.role || '').toUpperCase(), c, true);
-  consoleDesk(ctx, w * 0.13, wallH + floor * 0.64, 1.1, !g.people.hollis.hidden ? g.people.hollis : null, 'FLIGHT DIRECTOR', c, false);
+  const dw = 170 * 0.82, gap = 26, span = back.length * dw + (back.length - 1) * gap;
+  back.forEach((id, i) => consoleDesk(ctx, rowMid - span / 2 + i * (dw + gap), wallH + floor * 0.24, 0.82, g.people[id], ROOM_SEATS[id], c, false));
+  const front = [['hollis', 'FLIGHT DIRECTOR'], [null, 'FLIGHT DIRECTOR'], [null, 'FLIGHT DIRECTOR']];
+  if (g.people.hollis.hidden) front[0] = [null, 'FLIGHT DIRECTOR'];
+  const fw = 170 * 1.1, fgap = 30, fspan = front.length * fw + (front.length - 1) * fgap;
+  front.forEach(([id, label], i) => {
+    const yours = id === null; // the middle console of the front row is yours
+    consoleDesk(ctx, rowMid - fspan / 2 + i * (fw + fgap), wallH + floor * 0.6, 1.1, yours ? g.people.you : (id ? g.people[id] : null), yours ? 'YOU · ' + (g.people.you.role || '').toUpperCase() : label, c, yours);
+  });
   ctx.textAlign = 'left';
 }
+
+// A bank of computer racks along the left wall: units, dials and lights that blink with the room.
+function serverBank(ctx, x, y, w, h, g) {
+  ctx.fillStyle = '#1d2126'; ctx.fillRect(x, y, w, h);
+  const units = Math.max(4, Math.floor(h / 90));
+  for (let i = 0; i < units; i++) {
+    const uy = y + 10 + i * (h - 20) / units, uh = (h - 20) / units - 8;
+    ctx.fillStyle = '#2c3138'; ctx.fillRect(x + 5, uy, w - 10, uh);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(x + 10, uy + 5, w - 20, uh - 10);
+    for (let l = 0; l < 6; l++) {
+      const on = (i * 13 + l * 7 + Math.floor(g.time * 2)) % 5 < 3;
+      ctx.fillStyle = on ? '#9fdc9a' : '#31413a';
+      ctx.fillRect(x + 14 + l * ((w - 34) / 6), uy + 9, Math.max(3, w / 26), 4);
+    }
+    ctx.fillStyle = '#454c55'; ctx.fillRect(x + w / 2 - 8, uy + uh - 16, 16, 8); // a dial on each rack
+  }
+}
+
+// The viewing gallery along the right wall: glass, a rail, and the heads of the people watching you work.
+function viewingGallery(ctx, x, y, w, h) {
+  ctx.fillStyle = '#4a4640'; ctx.fillRect(x, y, w, h);
+  const glass = Math.max(8, w * 0.55), gx = x + (w - glass) / 2;
+  ctx.fillStyle = '#5d8fc4'; ctx.fillRect(gx, y + h * 0.08, glass, h * 0.62);
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; for (let i = 0; i < 3; i++) ctx.fillRect(gx + 8 + i * (glass / 3), y + h * 0.12, glass / 9, h * 0.5);
+  // Heads behind the glass, placed from i so they never shuffle.
+  for (let i = 0; i < 7; i++) {
+    const hx = gx + 10 + i * (glass - 20) / 6, hy = y + h * 0.52 + ((i * 17) % 9);
+    ctx.fillStyle = i % 2 ? '#e2b993' : '#c99b76';
+    ctx.beginPath(); ctx.arc(hx, hy, Math.max(3, w * 0.06), 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#33302b'; ctx.fillRect(gx - 3, y + h * 0.58, glass + 6, Math.max(4, h * 0.06)); // the rail
+  ctx.fillStyle = '#2a2723'; ctx.fillRect(x + 3, y + h * 0.7, w - 6, h * 0.28); // the gallery floor below
+}
+
+// The monitoring screen: the flight-path angle as she climbs, second by second, with her position on it.
+function monitorScreen(ctx, g, x, y, w, h) {
+  ctx.fillStyle = '#181b1f'; ctx.fillRect(x - 6, y - 6, w + 12, h + 12);
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(x, y, w, h);
+  const c = g.console, trace = c && c.trace;
+  const maxT = c && c.burn ? c.burn : 1, maxD = 20;
+  const px = t => x + 6 + (t / maxT) * (w - 12), py = d => y + h / 2 - (d / maxD) * (h / 2 - 6);
+  ctx.strokeStyle = '#31413a'; ctx.lineWidth = 1;
+  for (const d of [-10, 10]) { ctx.beginPath(); ctx.moveTo(x + 4, py(d)); ctx.lineTo(x + w - 4, py(d)); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x + 4, py(0)); ctx.lineTo(x + w - 4, py(0)); ctx.stroke();
+  if (trace && trace.length) {
+    ctx.strokeStyle = '#9fdc9a'; ctx.lineWidth = 1.5; ctx.beginPath();
+    trace.forEach((p, i) => { const X = px(p.t), Y = py(Math.max(-maxD, Math.min(maxD, p.gamma * 57.3 - 90))); if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
+    ctx.stroke();
+    const last = trace[trace.length - 1];
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px(last.t), py(Math.max(-maxD, Math.min(maxD, last.gamma * 57.3 - 90))), 2.5, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#5a6a60'; ctx.font = `${Math.max(7, Math.round(w / 26))}px monospace`; ctx.textAlign = 'left';
+  ctx.fillText('FLIGHT-PATH ANGLE', x + 6, y + 12);
+}
+
+// The clocks strip: three panels under the map — the count, the mission, the site clock.
+function clocksStrip(ctx, g, x, y, w, h) {
+  const c = g.console;
+  ctx.fillStyle = '#22272e'; ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+  const dash = '—';
+  const panels = [['COUNT', controlReadout(c)[0] || dash], ['MISSION', missionClock(c)], ['SITE', siteClock(g)]];
+  const pw = (w - 16) / 3;
+  panels.forEach(([label, text], i) => {
+    const px = x + 8 + i * pw;
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(px, y, pw - 8, h);
+    ctx.fillStyle = '#e8c66a'; ctx.font = `bold ${Math.max(10, Math.round(h * 0.4))}px monospace`; ctx.textAlign = 'center';
+    ctx.fillText(text, px + (pw - 8) / 2, y + h * 0.58);
+    ctx.fillStyle = '#8a93a0'; ctx.font = `${Math.max(7, Math.round(h * 0.2))}px sans-serif`;
+    ctx.fillText(label, px + (pw - 8) / 2, y + h * 0.92);
+  });
+  ctx.textAlign = 'left';
+}
+
+// The mission clock as the consoles carry it: GET in flight, the orbit clock in orbit, otherwise the count in progress.
+function missionClock(c) {
+  if (!c) return '—';
+  if (c.flight) return `GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`;
+  if (c.orbitT != null) return `T+${Math.floor(c.orbitT / 60)}:${String(Math.floor(c.orbitT % 60)).padStart(2, '0')}`;
+  if (c.phase === 'ascent' || c.phase === 'insertion') return `T+${Math.floor(c.t)} s`;
+  if (c.phase === 'count' || c.poll || c.phase === 'hold') return `T-${Math.floor(Math.ceil(c.clock) / 60)}:${String(Math.ceil(c.clock) % 60).padStart(2, '0')}`;
+  return '—';
+}
+
+// The site clock, as the wall clocks kept local time.
+function siteClock(g) {
+  const m = Math.floor(g.clock % 1440);
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
 
 // A console desk with its seated controller, its role on the front, and two live screens. Yours carries the mark.
 function consoleDesk(ctx, x, y, k, who, label, c, yours) {
