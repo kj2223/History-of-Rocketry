@@ -1,9 +1,10 @@
 // THE SITE PROTOTYPE: the frame loop, the mouse and keys, and the bar along the top.
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel, dragging the
 // site, or Shift with A/D or the arrow keys looks along it.
-import { drawSite, drawTracking, drawControlRoom, PLACES, VIEW_H, GROUND } from './draw.js';
+import { drawSite, drawTracking, drawControlRoom, controlButtonAt, PLACES, VIEW_H, GROUND } from './draw.js';
 import { g, newGame, roundIndexOf, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, clearNotes, placeName } from '../game.js';
 import { consoleLocked } from '../mercury.js';
+import { CONTROL_ACTS } from '../scenes/control.js';
 import { talk } from '../data/talk.js';
 import { SEASON } from '../data/campaign.js';
 import { writeSave, readSave, startOver, readBackup, swapBackup } from '../core/save.js';
@@ -45,6 +46,8 @@ function goTo(x, then) {
 canvas.addEventListener('click', e => {
   if (drag?.moved) { drag = null; canvas.style.cursor = 'default'; return; } // the end of a drag, not a click
   drag = null;
+  // In launch control the buttons are drawn on the room itself; they are the only things to click.
+  if (g.room === 'console') { const hit = controlButtonAt(e.offsetX, e.offsetY); if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id); return; }
   if (locked()) return;
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p.id, g.beat)); });

@@ -7,7 +7,7 @@ import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
-import { UNITS, ORBIT_UNITS } from '../data/mercury.js';
+import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS } from '../data/mercury.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -544,6 +544,9 @@ export function drawControlRoom(ctx, g, view) {
   // The side walls: racks of equipment, and the gallery beyond the glass.
   serverBank(ctx, 0, 0, leftW, h, g);
   viewingGallery(ctx, galleryX, 0, w - galleryX, h, g);
+  // Your console, drawn into the room below the gallery: clocks, readouts, and the calls that are yours.
+  const panelY = h * 0.05 + h * 0.12 + Math.max(10, h * 0.025);
+  drawConsolePanel(ctx, g, galleryX + 6, panelY, w - galleryX - 12, h - panelY - 12);
   // Three rows fill the floor, sized to the room and clear of your panel: the named controllers at the back, the
   // working stations across the middle, and your wide console at the front.
   const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2, availW = rowRight - leftW - 40;
@@ -557,6 +560,150 @@ export function drawControlRoom(ctx, g, view) {
   mid.forEach((duty, i) => consoleDesk(ctx, rowMid - mSpan / 2 + i * (190 * midK + 30), wallH + floor * 0.38, midK, { color: '#4a5568' }, duty.toUpperCase(), c, false, duty));
   consoleDesk(ctx, rowMid - 230 * 1.3, wallH + floor * 0.78, 1.3, g.people.you, 'YOU · ' + (g.people.you.role || '').toUpperCase(), c, true, SEAT_DUTY[g.record.seat] || 'flight');
     ctx.textAlign = 'left';
+}
+
+// ---- Your console, drawn into the room: the clocks, readouts and calls that are yours, on the panel under the
+// viewing gallery. The buttons are part of the scene: the click handler finds them through controlButtonAt. ----
+let controlHits = [];
+
+export function controlButtonAt(x, y) {
+  if (g.room !== 'console') return null;
+  for (const b of controlHits) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
+  return null;
+}
+
+// What your console shows for the flight's phase, mirroring the room's own panels: the clock and state always, the
+// board or readouts when they carry information, and the calls that are yours as buttons.
+function consolePanelModel(c) {
+  const [clock, word] = controlReadout(c);
+  const P = { clock, state: word, lines: [], buttons: [] };
+  const auto = !!c.auto;
+  const btn = (act, id, label, tone) => P.buttons.push({ act, id, label, tone });
+  const last = c.trace ? c.trace[c.trace.length - 1] : null;
+  const km = x => `${Math.round(Math.abs(x))} km ${x >= 0 ? 'long' : 'short'}`;
+  if (c.phase === 'count' || c.phase === 'hold') return P;
+  if (c.poll || c.phase === 'poll') {
+    P.state = c.poll === 'final' ? 'FINAL STATUS CHECK' : 'RECOVERY POLL';
+    if (c.cond) {
+      P.lines.push(`Sea state: ${c.cond.seaState}`);
+      const units = c.orbital ? ORBIT_UNITS : UNITS;
+      for (const [id, text] of Object.entries(units)) P.lines.push(`${id.toUpperCase()}: ${c.cond.late === id ? 'NOT ON STATION' : 'on station'}`);
+    }
+    if (!auto) { btn('m-go', null, 'GO', 'go'); btn('m-nogo', null, 'NO-GO', 'danger'); }
+    return P;
+  }
+  if (c.phase === 'ascent') {
+    P.state = c.abortAt != null ? 'ABORT' : 'POWERED FLIGHT';
+    if (last) P.lines.push(`${last.v.toFixed(2)} km/s`, `${last.gamma.toFixed(1)} degrees`, `${last.off >= 0 ? '+' : ''}${last.off.toFixed(1)} off plan`, `${last.acc.toFixed(1)} g`);
+    if (!auto && c.abortAt == null) btn('m-abort', null, 'ABORT', 'danger');
+    return P;
+  }
+  if (c.phase === 'insertion') {
+    P.state = 'GO / NO-GO FOR ORBIT';
+    if (c.goddard) P.lines.push(`Cutoff: ${c.goddard.v.toFixed(3)} km/s`, `${c.goddard.gammaOff.toFixed(1)} degrees off level`, `Goddard: ${c.goddard.go ? 'GO' : 'NO-GO'}`);
+    if (!auto) { btn('m-insert', 'go', 'GO FOR ORBIT', 'go'); btn('m-insert', 'nogo', 'NO-GO', 'danger'); }
+    return P;
+  }
+  if (c.phase === 'ip') {
+    P.state = 'SPLASHDOWN POINT';
+    if (c.orbital) {
+      P.lines.push(`The spacecraft's computer: ${km(c.ip.retro)} of the planned point`);
+      if (!(auto && g.record.seat !== 'flight')) { btn('m-aim', 'retro', "The computer's point", 'go'); btn('m-aim', 'radar', 'Wait for the radar'); btn('m-aim', 'planned', 'The planned point'); }
+    } else {
+      P.lines.push(`Radar: ${Math.round(c.ip.radar)} km`, `The computers: ${Math.round(c.ip.telemetry)} km`);
+      if (!auto) { btn('m-aim', 'radar', 'THE RADAR', 'go'); btn('m-aim', 'telemetry', 'THE COMPUTER'); btn('m-aim', 'planned', 'THE PLAN'); }
+    }
+    return P;
+  }
+  if (c.phase === 'orbit') {
+    P.state = 'IN ORBIT';
+    const s = c.status || {};
+    P.lines.push(`Orbit ${s.orbit ?? '-'} of 3`, `Over ${s.station ?? '-'}`, `Fuel ${Math.round((s.fuel ?? 1) * 100)}%`, `Seg 51: ${s.seg51 && s.seg51 !== 'off' ? s.seg51 : 'off'}`);
+    return P;
+  }
+  if (c.phase === 'pack') {
+    P.state = 'THE RETRO PACK';
+    P.lines.push('Segment 51 says the landing bag is down.');
+    for (const [id, text] of Object.entries(PACK_OPTIONS)) btn('m-pack', id, id === 'keep' ? 'KEEP THE PACK' : 'JETTISON IT', id === 'keep' ? 'go' : undefined);
+    return P;
+  }
+  if (c.phase === 'retro') {
+    P.state = 'RETROFIRE';
+    P.lines.push(`Fuel left: ${Math.round((c.status?.fuel ?? 1) * 100)}%`);
+    for (const [id] of Object.entries(RETRO_OPTIONS)) btn('m-retro', id, id === 'auto' ? 'FIRE AUTOMATIC' : 'FIRE BY HAND');
+    return P;
+  }
+  if (c.phase === 'mission') {
+    const d = c.flight && c.flight.decision;
+    if (!d) { P.state = 'THE FLIGHT RUNS'; return P; }
+    if (!d.mine) { P.state = 'WAITING'; P.lines.push(d.who === 'hollis' ? "The programme's call." : "Dorsey's call."); return P; }
+    P.state = 'YOUR CALL';
+    P.lines.push(d.q);
+    if (d.rule) P.lines.push('Rule: ' + d.rule);
+    for (const [id, text] of Object.entries(d.options)) btn('m-decide', id, text);
+    return P;
+  }
+  if (c.phase === 'shutdown') {
+    P.state = 'SHUTDOWN ON THE PAD';
+    P.lines.push('How hard do we look before we try again?');
+    btn('m-shutdown', 'plug', 'RE-SEAT AND RECYCLE: A DAY', 'go');
+    btn('m-shutdown', 'teardown', 'TEARDOWN: FIND EVERY CAUSE', 'danger');
+    return P;
+  }
+  if (c.phase === 'pad') {
+    P.state = 'CAPSULE ON THE PAD';
+    P.lines.push('The booster is fuelled and the pyrotechnics are armed.');
+    for (const [id, text] of Object.entries(PAD_OPTIONS)) btn('pad', id, id === 'wait' ? 'LEAVE HER OVERNIGHT' : id === 'now' ? 'SAFE HER NOW' : 'SHOOT THE TANKS');
+    return P;
+  }
+  if (c.phase === 'entry') { P.state = 'BLACKOUT'; return P; }
+  if (c.phase === 'coast') { P.state = 'COASTING'; return P; }
+  P.state = word || 'DONE';
+  return P;
+}
+
+function drawPanelButton(ctx, x, y, w, h, btn) {
+  ctx.fillStyle = btn.tone === 'danger' ? '#7a2e24' : btn.tone === 'go' ? '#2e5c3a' : '#33404d';
+  ctx.strokeStyle = btn.tone === 'danger' ? '#d0634f' : btn.tone === 'go' ? '#6fc88a' : '#8a93a0';
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#f1e6c8';
+  ctx.font = `${Math.max(9, Math.round(h * 0.3))}px sans-serif`; ctx.textAlign = 'center';
+  const lines = wrap(ctx, btn.label, w - 14).slice(0, 2), lh = h * 0.34;
+  lines.forEach((l, i) => ctx.fillText(l, x + w / 2, y + h / 2 + (i - (lines.length - 1) / 2) * lh + 4));
+  ctx.textAlign = 'left';
+}
+
+function drawConsolePanel(ctx, g, x, y, w, h) {
+  controlHits = [];
+  const c = g.console;
+  // The console face, in the room's colours.
+  ctx.fillStyle = '#262a31'; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#4b5258'; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  if (!c) return;
+  const P = consolePanelModel(c);
+  let cy = y + 14;
+  // The clock, as the wall clocks carry it.
+  ctx.fillStyle = '#0d1117'; ctx.fillRect(x + 10, cy, w - 20, 46);
+  ctx.strokeStyle = '#3a4452'; ctx.strokeRect(x + 10.5, cy + 0.5, w - 21, 45);
+  ctx.fillStyle = '#e8c66a'; ctx.font = `bold ${Math.max(15, Math.round(w * 0.085))}px monospace`; ctx.textAlign = 'center';
+  ctx.fillText(P.clock, x + w / 2, cy + 31);
+  cy += 58;
+  if (P.state) { ctx.fillStyle = '#c9d2da'; ctx.font = `${Math.max(9, Math.round(w * 0.042))}px sans-serif`; ctx.fillText(P.state, x + w / 2, cy + 10); cy += 30; }
+  // The room's lines: the board, the readouts, the prompt - as many as fit above the calls.
+  ctx.textAlign = 'left';
+  const bh = Math.max(30, Math.round(h * 0.05)), gap = 8;
+  const buttonsTop = P.buttons.length ? y + h - P.buttons.length * (bh + gap) - 10 : y + h;
+  for (const line of P.lines.slice(0, 9)) {
+    if (cy > buttonsTop - 22) break;
+    for (const l of wrap(ctx, line, w - 20)) { ctx.fillStyle = '#9fdc9a'; ctx.font = `${Math.max(9, Math.round(w * 0.042))}px monospace`; ctx.fillText(l, x + 10, cy + 11); cy += Math.max(15, Math.round(w * 0.05)); }
+    cy += 4;
+  }
+  for (const btn of P.buttons) {
+    drawPanelButton(ctx, x + 10, cy, w - 20, bh, btn);
+    controlHits.push({ act: btn.act, id: btn.id, x: x + 10, y: cy, w: w - 20, h: bh });
+    cy += bh + gap;
+  }
+  ctx.textAlign = 'left';
 }
 
 // A bank of computer racks along the left wall: units, dials and lights that blink with the room.
