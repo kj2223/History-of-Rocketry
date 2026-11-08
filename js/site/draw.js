@@ -6,6 +6,7 @@
 import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
+import { WORLD_LAND } from '../data/world-map.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS } from '../data/mercury.js';
 
@@ -629,51 +630,103 @@ function controlScreens(ctx, g) {
   for (let y = tvY + 3; y < tvY + tvH; y += 4) ctx.fillRect(tvX, y, tvW, 1);
 }
 
-// A wall map: the frame and the land, the planned track across it, and — when she flies — the capsule on it with a short
-// bright trail, paced by the console's clock. Sized to the wall that asks for it.
-// The wall map is the range chart of the real Atlantic downrange: the Florida coast with the Cape at its tip, Cuba and
-// the islands, Bermuda, the Azores and Canaries, and the bulge of West Africa on the right edge. Coastlines are
-// simplified but placed as the charts placed them; the planned track leaves the Cape and arcs downrange past Bermuda.
-const WALL_LAND = [
-  // The American coast, from off the top of the chart down to the tip of Cape Canaveral and back.
-  [[0, 0.03], [0.05, 0.09], [0.10, 0.14], [0.15, 0.20], [0.18, 0.27], [0.20, 0.33], [0.225, 0.38], [0.24, 0.415], [0.255, 0.375], [0.27, 0.31], [0.295, 0.25], [0.33, 0.19], [0.37, 0.13], [0.39, 0.08], [0.40, 0]],
-  // Cuba, thin along the bottom left; Hispaniola and Puerto Rico further east.
-  [[0.21, 0.47], [0.26, 0.49], [0.31, 0.515], [0.35, 0.53], [0.345, 0.55], [0.30, 0.535], [0.25, 0.51], [0.21, 0.49]],
-  [[0.375, 0.565], [0.40, 0.575], [0.415, 0.59], [0.39, 0.595], [0.372, 0.585]],
-  [[0.435, 0.60], [0.455, 0.605], [0.45, 0.615], [0.435, 0.61]],
-  // The bulge of West Africa, in from the right edge, from Morocco down past Senegal.
-  [[0.88, 0], [0.87, 0.08], [0.855, 0.16], [0.84, 0.24], [0.815, 0.31], [0.795, 0.37], [0.78, 0.42], [0.775, 0.47], [0.79, 0.53], [0.815, 0.58], [0.85, 0.63], [0.89, 0.67], [0.93, 0.70], [1, 0.73], [1, 0]],
-  // The shoulder of Brazil, bottom right.
-  [[0.60, 1], [0.63, 0.93], [0.68, 0.88], [0.73, 0.86], [0.77, 0.87], [0.79, 0.91], [0.775, 0.96], [0.75, 1]],
+// THE WALL MAP: the whole world, as Mercury Control's big plotting board showed it. A flat chart of the land under a
+// 15-degree grid, the tracking network marked on it, the Atlantic range picked out from the Cape, and the ground track
+// the capsule will fly drawn over it: three orbits for an orbital shot, the short arc down the range for a Redstone.
+// When she flies, the capsule rides the track with a bright trail, paced by the console's clocks. Sized to the wall.
+const MAP_TOP = 72, MAP_BOTTOM = -62; // latitudes shown; the far south and north are of no use to the network
+const CAPE = [-80.6, 28.5];
+// The Mercury tracking network, as the stations stood in 1961-63 (STATIONS in data/mercury.js names them in pass order).
+const MAP_STATIONS = [
+  ['CNV', -80.6, 28.5, 'Cape'], ['BDA', -64.7, 32.3, 'Bermuda'], ['CYI', -15.6, 27.7, 'Canary Islands'], ['KNO', 8.5, 12.0, 'Kano, Nigeria'],
+  ['ZZB', 39.2, -6.2, 'Zanzibar'], ['IOS', 68.0, -21.0, 'The Indian Ocean ship'], ['MUC', 115.9, -31.6, 'Muchea, Australia'],
+  ['WOM', 136.8, -31.2, 'Woomera'], ['CTN', -171.7, -2.8, 'Canton Island'], ['HAW', -159.7, 22.1, 'Hawaii'],
+  ['CAL', -120.6, 34.6, 'California'], ['GYM', -110.9, 27.9, 'Guaymas, Mexico'], ['TEX', -97.3, 27.7, 'Texas'],
 ];
-// Small islands: the Bahamas, Bermuda, the Azores, the Canaries, the Lesser Antilles.
-const WALL_DOTS = [[0.29, 0.415], [0.315, 0.43], [0.34, 0.445], [0.44, 0.27], [0.66, 0.235], [0.675, 0.25], [0.72, 0.40], [0.735, 0.415], [0.475, 0.615], [0.487, 0.65], [0.495, 0.685], [0.50, 0.72]];
-// The planned track: up from the Cape, out over the Bermuda line, and on toward the African coast for the orbital shots.
-const WALL_TRACK = [[0.245, 0.40], [0.28, 0.35], [0.33, 0.31], [0.39, 0.285], [0.45, 0.275], [0.52, 0.28], [0.59, 0.30], [0.66, 0.335], [0.72, 0.375], [0.77, 0.42]];
+// The Atlantic range: the corridor from the Cape down past the islands to Ascension, where the missiles flew.
+const ATLANTIC_RANGE = [[-81.5, 29.5], [-77, 31.5], [-55, 21], [-13, -5], [-13, -10], [-17, -10], [-60, 15], [-80, 26]];
+const ORBIT = { incl: 32.5, period: 88, earthDay: 1436 }; // degrees, minutes, minutes (a sidereal day)
+const D2R = Math.PI / 180;
+// Each ring drawn where it lies, and again a world over if it runs past the date line.
+const LAND_SHIFTS = new Map(WORLD_LAND.map(r => { let lo = 180, hi = -180; for (let k = 0; k < r.length; k += 2) { lo = Math.min(lo, r[k]); hi = Math.max(hi, r[k]); }
+  return [r, [0, ...(lo < -180 ? [360] : []), ...(hi > 180 ? [-360] : [])]]; }));
+const U0 = Math.asin(Math.sin(CAPE[1] * D2R) / Math.sin(ORBIT.incl * D2R)) / D2R; // the argument of latitude at the Cape
+const NODE = CAPE[0] - Math.atan2(Math.cos(ORBIT.incl * D2R) * Math.sin(U0 * D2R), Math.cos(U0 * D2R)) / D2R;
+// Where she is over the ground, t minutes after leaving the Cape on the planned orbit.
+function groundPoint(t) {
+  const u = (U0 + 360 * t / ORBIT.period) * D2R, i = ORBIT.incl * D2R;
+  const lat = Math.asin(Math.sin(i) * Math.sin(u)) / D2R;
+  let lon = NODE + Math.atan2(Math.cos(i) * Math.sin(u), Math.cos(u)) / D2R - 360 * t / ORBIT.earthDay;
+  lon = ((lon + 540) % 360) - 180;
+  return [lon, lat];
+}
+// The capsule's minutes along the track, from the console: the climb, the orbit clock, or the flight's elapsed time.
+function trackMinutes(c) {
+  if (!c) return null;
+  if (c.orbitT != null) return c.orbitT;
+  if (c.flight && c.flight.at != null) return Math.min(c.flight.at * 60, 3 * ORBIT.period);
+  if ((c.phase === 'ascent' || c.phase === 'insertion') && c.burn) return Math.max(0, Math.min(1, c.t / c.burn)) * (c.orbital ? 5 : 2.5);
+  if (!c.orbital && ['coast', 'ip', 'entry'].includes(c.phase)) return c.phase === 'coast' ? 6 : 8;
+  return null;
+}
 
 function drawWallMap(ctx, g, x, y, w, h) {
+  const c = g.console, orbital = !!(c && (c.orbital || c.flight)) || ['atlas', 'titan', 'saturn5'].includes(g.vehicle);
+  const X = lon => x + ((lon + 180) / 360) * w, Y = lat => y + ((MAP_TOP - lat) / (MAP_TOP - MAP_BOTTOM)) * h;
   ctx.fillStyle = '#22272e'; ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
-  ctx.fillStyle = '#2f4f6a'; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#5d7d52';
-  for (const poly of WALL_LAND) { ctx.beginPath(); poly.forEach(([fx, fy], i) => { const X = x + fx * w, Y = y + fy * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); ctx.fill(); }
-  for (const [fx, fy] of WALL_DOTS) { ctx.beginPath(); ctx.arc(x + fx * w, y + fy * h, Math.max(1.5, w / 220), 0, 7); ctx.fill(); }
-  const at = f => { const i = Math.min(WALL_TRACK.length - 2, Math.floor(f * (WALL_TRACK.length - 1))), q = f * (WALL_TRACK.length - 1) - i;
-    const [ax, ay] = WALL_TRACK[i], [bx, by] = WALL_TRACK[i + 1]; return [x + (ax + (bx - ax) * q) * w, y + (ay + (by - ay) * q) * h]; };
-  // The planned track: a gold line leaving the Cape, with the Cape itself marked.
-  ctx.strokeStyle = '#f2e3a0'; ctx.lineWidth = Math.max(1, w / 400); ctx.setLineDash([5, 4]); ctx.beginPath();
-  WALL_TRACK.forEach(([fx, fy], i) => { const X = x + fx * w, Y = y + fy * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
-  ctx.stroke(); ctx.setLineDash([]);
-  const [cx0, cy0] = at(0); ctx.fillStyle = '#e8c66a'; ctx.beginPath(); ctx.arc(cx0, cy0, Math.max(2, w / 150), 0, 7); ctx.fill();
-  const c = g.console;
-  if (g.rocket.where === 'flying' && c && c.burn) {
-    const f = Math.max(0, Math.min(1, c.t / c.burn));
-    ctx.strokeStyle = '#fff8d8'; ctx.lineWidth = Math.max(2, w / 200); ctx.beginPath();
-    const from = Math.max(0, f - 0.18);
-    let started = false;
-    for (let i = 0; i <= 24; i++) { const q = from + (f - from) * i / 24, [px, py] = at(q); started ? ctx.lineTo(px, py) : (ctx.moveTo(px, py), started = true); }
-    ctx.stroke();
-    const [px, py] = at(f); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py, Math.max(3, w / 130), 0, 7); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  ctx.fillStyle = '#10262f'; ctx.fillRect(x, y, w, h);
+  // The land, from Natural Earth's outlines.
+  ctx.fillStyle = '#2f5a4c'; ctx.strokeStyle = '#5f9a80'; ctx.lineWidth = Math.max(0.5, w / 1400);
+  ctx.beginPath();
+  for (const ring of WORLD_LAND) for (const shift of LAND_SHIFTS.get(ring)) {
+    for (let k = 0; k < ring.length; k += 2) { const px = X(ring[k] + shift), py = Y(ring[k + 1]); k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.closePath();
   }
+  ctx.fill(); if (w > 300) ctx.stroke();
+  // The grid: every fifteen degrees, the equator a touch brighter.
+  ctx.lineWidth = 1;
+  for (let lon = -165; lon < 180; lon += 15) { ctx.strokeStyle = lon === 0 ? 'rgba(160,210,220,.28)' : 'rgba(160,210,220,.13)'; ctx.beginPath(); ctx.moveTo(X(lon), y); ctx.lineTo(X(lon), y + h); ctx.stroke(); }
+  for (let lat = -60; lat <= 70; lat += 15) { ctx.strokeStyle = lat === 0 ? 'rgba(160,210,220,.32)' : 'rgba(160,210,220,.13)'; ctx.beginPath(); ctx.moveTo(x, Y(lat)); ctx.lineTo(x + w, Y(lat)); ctx.stroke(); }
+  const small = Math.max(7, Math.round(w / 120));
+  if (w > 300) {
+    ctx.fillStyle = 'rgba(160,210,220,.45)'; ctx.font = `${small}px monospace`; ctx.textAlign = 'left';
+    for (let lat = -45; lat <= 60; lat += 15) ctx.fillText(`${Math.abs(lat)}${lat > 0 ? 'N' : lat < 0 ? 'S' : ''}`, x + 3, Y(lat) - 2);
+    ctx.textAlign = 'center';
+    for (let lon = -150; lon <= 150; lon += 30) ctx.fillText(`${Math.abs(lon)}${lon > 0 ? 'E' : lon < 0 ? 'W' : ''}`, X(lon), y + h - 3);
+  }
+  // The Atlantic range, picked out while she is on the pad or climbing through it.
+  const onRange = !c || ['count', 'hold', 'poll', 'ascent', 'insertion', 'coast', 'ip'].includes(c.phase) || !!c.poll;
+  ctx.beginPath(); ATLANTIC_RANGE.forEach(([lon, lat], i) => i ? ctx.lineTo(X(lon), Y(lat)) : ctx.moveTo(X(lon), Y(lat))); ctx.closePath();
+  ctx.fillStyle = onRange ? 'rgba(232,198,106,.12)' : 'rgba(232,198,106,.05)'; ctx.fill();
+  ctx.strokeStyle = onRange ? 'rgba(232,198,106,.55)' : 'rgba(232,198,106,.2)'; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+  if (w > 300 && onRange) { ctx.fillStyle = 'rgba(232,198,106,.8)'; ctx.font = `${small}px monospace`; ctx.textAlign = 'left'; ctx.fillText('ATLANTIC RANGE', X(-52), Y(12)); }
+  // The planned ground track: three orbits, or the short arc down the range.
+  const end = orbital ? 3 * ORBIT.period : 8, step = orbital ? 0.5 : 0.1;
+  // A Redstone flies no orbit: 480 km down the range on a bearing of about 105 degrees, splashing near the Bahamas.
+  const point = orbital ? groundPoint : t => [CAPE[0] + 4.3 * t / 8, CAPE[1] - 1.1 * t / 8];
+  const path = (from, to) => { ctx.beginPath(); let last = null;
+    for (let t = from; t <= to + 1e-6; t += step) { const [lon, lat] = point(Math.min(t, to)); const px = X(lon), py = Y(lat);
+      if (last === null || Math.abs(lon - last) > 180) ctx.moveTo(px, py); else ctx.lineTo(px, py); last = lon; }
+    ctx.stroke(); };
+  ctx.strokeStyle = 'rgba(242,227,160,.75)'; ctx.lineWidth = Math.max(1, w / 500); ctx.setLineDash([6, 4]); path(0, end); ctx.setLineDash([]);
+  // The tracking stations: the one she is over lit up.
+  const over = c && c.status && c.status.station;
+  for (const [code, lon, lat, name] of MAP_STATIONS) {
+    const lit = over === name, px = X(lon), py = Y(lat), r = Math.max(2.5, w / 260) * (lit ? 1.5 : 1);
+    ctx.fillStyle = lit ? '#9fdc9a' : '#e8c66a';
+    ctx.beginPath(); ctx.moveTo(px, py - r); ctx.lineTo(px + r, py); ctx.lineTo(px, py + r); ctx.lineTo(px - r, py); ctx.closePath(); ctx.fill();
+    if (lit) { ctx.strokeStyle = 'rgba(159,220,154,.5)'; ctx.beginPath(); ctx.arc(px, py, r * 3, 0, 7); ctx.stroke(); }
+    if (w > 300) { ctx.fillStyle = lit ? '#c8f0c4' : 'rgba(232,226,208,.75)'; ctx.font = `${small}px monospace`; ctx.textAlign = 'left'; ctx.fillText(code, px + r + 2, py - r); }
+  }
+  // The capsule on the track, with a bright trail behind her.
+  const t = trackMinutes(c);
+  if (t != null && (orbital || t <= end)) {
+    ctx.strokeStyle = '#fff8d8'; ctx.lineWidth = Math.max(2, w / 260); path(Math.max(0, t - (orbital ? 12 : 3)), t);
+    const [lon, lat] = point(t);
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(lon), Y(lat), Math.max(3, w / 150), 0, 7); ctx.fill();
+  }
+  ctx.restore(); ctx.textAlign = 'left';
 }
 
 // The live pad picture: sky and sea in the day's light, the gantry, the round on it, flame and smoke when she flies.
