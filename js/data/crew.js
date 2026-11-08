@@ -361,3 +361,14 @@ export const EIGHT = ['carter', 'ellison', 'vasquez', 'winters', 'hobbs', 'nakag
 export const SIXTEEN = ['okeke', 'farrow', 'delacroix', 'quinn', 'hawthorne'];
 // The 2020 class: commercial crew and Artemis.
 export const ARTEMIS = ['sharma', 'larsen', 'vaughn', 'petrossian'];
+// Every group with the year it was selected, oldest first: a lost astronaut's seat goes to someone selected before the
+// flight, from his own group if he can, then from the most recent group before it.
+export const GROUPS = [
+  { year: 1959, ids: SEVEN },
+  { year: 1962, ids: NINE },
+  { year: 1963, ids: FOURTEEN },
+  { year: 1966, ids: ELEVEN },
+  { year: 1978, ids: EIGHT },
+  { year: 1996, ids: SIXTEEN },
+  { year: 2020, ids: ARTEMIS },
+];

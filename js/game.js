@@ -30,7 +30,7 @@ import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
 import { APOLLO_PLACES } from './data/apollo.js';
-import { ASTRONAUTS, SEVEN, NINE, FOURTEEN, ELEVEN, EIGHT, SIXTEEN, ARTEMIS } from './data/crew.js';
+import { ASTRONAUTS, GROUPS } from './data/crew.js';
 import { raceNews, RACE_FROM, apolloFire, skylabShield } from './world/race.js';
 import {
   initRecord,
@@ -216,9 +216,26 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
   );
   setVehicle();
   if (g.away) g.room = 'away';
-  if (from.beat === 'roundEnd') catchUpOffer();
-  morning(from.beat);
+  retireSeats();
+  // A season that ended in an older build (Apollo 15 was the last round in v0.5.2) carries on when this build has more.
+  const beat = from.beat === 'seasonEnd' && nextIndex() != null && !pendingOffer(g.record) ? 'roundEnd' : from.beat;
+  if (beat === 'roundEnd') catchUpOffer();
+  morning(beat);
   return g;
+}
+
+// Seats this build no longer has (Aaron, 8 November 2026: the player stays Flight Director to 2030; the Center director
+// and programme office wait for the management side). A save holding one, or with one of their offers still open, moves
+// to the flight director's shift.
+const RETIRED_SEATS = ['director', 'programme'];
+function retireSeats() {
+  const rec = g.record,
+    open = rec.offers.at(-1);
+  if (open && RETIRED_SEATS.includes(open.seat) && open.made && !open.answer) open.answer = 'withdrawn';
+  if (!RETIRED_SEATS.includes(rec.seat)) return;
+  rec.seat = 'flight';
+  g.people.you.role = SEATS.flight;
+  note('Houston has you back on a flight-director shift: the rest of your career is flown from the console.');
 }
 
 // Which round a checkpoint is on. Saves carry the round's id. Older ones carry only its place in the season, and the
@@ -265,24 +282,46 @@ export function crewOf(i = g.roundIndex) {
   });
 }
 
-// An astronaut (or a whole crew) has died. The record keeps their names; every crew still to come that he was on is
-// re-flown by the living astronaut next in line for the seat. The pick is deterministic: the first living astronaut of
-// his own group (the Mercury seven, the 1962 nine, the 1963 fourteen) who is not already booked beside him.
+// Everyone the game has lost, by id. Older saves kept only the names, so those are read back through the roster.
+export function lostIds(record = g.record) {
+  const byName = Object.fromEntries(Object.entries(ASTRONAUTS).map(([id, a]) => [a.name, id]));
+  return new Set(
+    (record.losses || []).flatMap(
+      l =>
+        l.ids ||
+        l.name
+          .split(', ')
+          .map(n => byName[n])
+          .filter(Boolean),
+    ),
+  );
+}
+
+// The living astronaut who takes a lost man's place, or null if nobody is left. The pick is deterministic: someone from
+// his own group if he can be, otherwise from the most recent group selected before the flight (so the Artemis seats go
+// to the 1996 class before anyone from Mercury), never anyone the game has lost and never anyone already booked beside him.
+function standIn(id, seatDay, gone, booked) {
+  const own = GROUPS.find(gr => gr.ids.includes(id));
+  const before = GROUPS.filter(gr => dayOf(gr.year, 1, 1) <= seatDay).reverse();
+  const order = [...(own ? own.ids : []), ...before.flatMap(gr => gr.ids)];
+  return order.find(who => who !== id && !gone.has(who) && !booked.has(who)) || null;
+}
+
+// An astronaut (or a whole crew) has died. The record keeps their names and ids; every crew still to come that he was
+// on is re-flown by a living stand-in (standIn). Everyone lost in the same accident is gone before any seat is refilled,
+// so a crewmate who died beside him is never picked.
 export function recordDeaths(ids, day = g.day, round = SEASON[g.roundIndex].id) {
   const names = ids.map(id => ASTRONAUTS[id].name).join(', ');
-  (g.record.losses = g.record.losses || []).push({ name: names, day, round });
+  (g.record.losses = g.record.losses || []).push({ name: names, ids: [...ids], day, round });
   g.crewSwaps = g.crewSwaps || {};
+  const gone = lostIds();
   // The rounds still to come: a death changes nobody who has already flown.
-  const ahead = SEASON.map((r, i) => [r, i]).filter(
-    ([r]) => (r.crew || []).length && roundStartOf(SEASON.indexOf(r)) > day,
-  );
+  const ahead = SEASON.map((r, i) => [r, i]).filter(([r, i]) => (r.crew || []).length && roundStartOf(i) > day);
   for (const id of ids) {
     const seats = ahead.filter(([, i]) => crewOf(i).includes(id));
     if (g.crewSwaps[id] || !seats.length) continue;
-    const gone = new Set([...Object.keys(g.crewSwaps), ...Object.values(g.crewSwaps), id]);
     const booked = new Set(seats.flatMap(([, i]) => crewOf(i) || []).filter(who => who !== id));
-    const group = [SEVEN, NINE, FOURTEEN, ELEVEN, EIGHT, SIXTEEN, ARTEMIS].find(list => list.includes(id)) || ELEVEN;
-    const pick = [...group, ...Object.keys(ASTRONAUTS)].find(who => !gone.has(who) && !booked.has(who));
+    const pick = standIn(id, roundStartOf(seats[0][1]), gone, booked);
     if (pick) g.crewSwaps[id] = pick;
   }
 }
@@ -364,15 +403,24 @@ export const placeName = id =>
 export const roundStartOf = i => SEASON[i].start + (SEASON[i].crewed === 'apollo' ? g.programme.apolloSlip || 0 : 0);
 // January 1967: the plugs-out test on the first crewed Apollo, in pure oxygen at full pressure. Whether the wiring
 // sparks is the hidden layer's; nothing is scripted. Either way the next round hears how it went.
-function apolloFireLines() {
+export function apolloFireLines() {
   const fire = apolloFire(g.seed, g.programme);
   if (!fire)
     return [
       'On 27 January 1967 the first Apollo crew ran the plugs-out test on Pad 34 in pure oxygen at full pressure. It went clean. Apollo 1 flew in February: two weeks in Earth orbit with a cabin that hummed and smelled of hot wiring, and came home.',
       'The programme office wants that wiring looked at before anyone goes to the Moon.',
     ];
-  const dead = ['whitcomb', 'castellano', 'harlan'];
-  recordDeaths(dead, dayOf(1967, 1, 27), 'apollo-1');
+  // The first Apollo crew as named in 1966, with anyone already lost replaced the way every later crew is.
+  const day = dayOf(1967, 1, 27),
+    gone = lostIds(),
+    dead = [];
+  for (const id of ['whitcomb', 'castellano', 'harlan']) {
+    let who = id;
+    for (let n = 0; g.crewSwaps?.[who] && n < 50; n++) who = g.crewSwaps[who];
+    if (gone.has(who)) who = standIn(who, day, gone, new Set(dead));
+    if (who) dead.push(who);
+  }
+  recordDeaths(dead, day, 'apollo-1');
   const names = dead.map(id => ASTRONAUTS[id].name).join(', ');
   const fix = adopt(g.programme, 'cabin');
   return [

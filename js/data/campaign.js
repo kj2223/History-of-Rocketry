@@ -181,7 +181,6 @@ export const SEASON = [
     crewed: 'gemini',
     orbital: true,
     crew: ['kowalczyk', 'boateng'],
-    turningPoint: 'programme',
     path: 'nasa',
     start: dayOf(1966, 11, 10),
     name: 'Gemini 12, the last Gemini',
@@ -777,7 +776,9 @@ export const FD_OFFER = {
   declineNote: 'You keep your seat for Gemini; another flight director has the room.',
 };
 
-// The fifth, at the end of Gemini: Apollo's hardware is late and over weight, and the programme office needs people.
+// Parked (Aaron, 8 November 2026): the game is the Flight Director's for now, so no round makes this offer. It stays for
+// the management side, which Aaron is designing; older saves holding this seat move to the flight director's shift.
+// It was the fifth, at the end of Gemini: Apollo's hardware is late and over weight, and the programme office needs people.
 export const PROGRAMME_OFFER = {
   seat: 'programme',
   title: 'Apollo programme office',
