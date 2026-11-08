@@ -15,6 +15,9 @@ const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let shown = { room: null, version: -1 }, hooks = {}, confirmNew = false, flags = {}, plan = { inspector: 'you', burn: 'short', leak: false };
 
+// What you have ticked to flag on the inspection list, so the hangar scene can mark it on the round.
+export const inspectFlags = () => flags;
+
 export function openRoom(building) {
   g.room = building === 'truck' && roomFor('truck') !== 'recovery' ? null : roomFor(building) === 'watch' ? `watch:${building}` : roomFor(building);
   if (building === 'blockhouse' && g.room === 'count' && !g.count) countStart();
@@ -52,6 +55,7 @@ export function render() {
   el.hidden = false;
   const [kind, building] = g.room.split(':');
   const body = kind === 'watch' ? watch(building) : (ROOMS[kind] || CONTROL_ROOMS[kind] || LUNAR_ROOMS[kind])();
+  if (!body) { el.hidden = true; return; } // a room with nothing to show leaves the scene alone
   const closable = !['recovery', 'splash'].includes(kind);
   el.innerHTML = `${closable ? '<button class="close" data-act="close" title="Back to the site (Esc)">✕</button>' : ''}${body}`;
 }
@@ -314,13 +318,15 @@ function budgetBlock() {
     A rework on the stand ${dollars(COSTS.rework)}. Each day of range time lost ${dollars(COSTS.slipDay)}. Going over the line is allowed, but it goes on your record.</p></div>`;
 }
 
-// A turning point's offer, or the news that you were passed over, with the buttons to answer it.
+// A turning point's offer, or the news that you were passed over, with the buttons to answer it. The entry carries its
+// own words when it has them (the way back from the uncrewed years speaks from JPL, not Houston); older saves fall back
+// to the offer the seat names.
 function offerCard(o) {
-  const offer = offerBySeat(o.seat), from = g.people[offer.from || 'ellis'].name.split(' ').pop();
+  const offer = offerBySeat(o.seat), from = g.people[o.from || offer.from || 'ellis'].name.split(' ').pop();
   if (!o.made) return `<div class="offer"><h3>Passed over, this time</h3><p>${esc(from)}: "${esc(offer.sidelined)}"</p>
     <p class="muted">You stay ${esc(SEATS[g.record.seat].toLowerCase())}, on quieter work for now. A better record brings the offer back.</p></div>`;
-  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>${esc(from)}: "${esc(o.again ? offer.again : offer.text)}"</p>
-    <p class="muted">${esc(offer.takeNote)} ${esc(offer.declineNote)}</p>
+  if (!o.answer) return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>${esc(from)}: "${esc(o.again ? offer.again : (o.text || offer.text))}"</p>
+    <p class="muted">${esc(o.takeNote || offer.takeNote)} ${esc(o.declineNote || offer.declineNote)}</p>
     <button class="primary" data-act="offer-take">Take the job</button><button data-act="offer-decline">Turn it down, for now</button></div>`;
   return `<div class="offer"><p>${o.answer === 'taken' ? `You took the job: ${esc(o.title)}.` : 'You turned the offer down and kept your seat.'}</p></div>`;
 }

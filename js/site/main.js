@@ -1,12 +1,15 @@
 // THE SITE PROTOTYPE: the frame loop, the mouse and keys, and the bar along the top.
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel, dragging the
 // site, or Shift with A/D or the arrow keys looks along it.
-import { drawSite, drawTracking, PLACES, VIEW_H, GROUND } from './draw.js';
+import { drawSite, drawTracking, drawControlRoom, controlButtonAt, PLACES, VIEW_H, GROUND } from './draw.js';
 import { g, newGame, roundIndexOf, tick, updateCamera, you, walk, say, endDay, rideOut, dateText, clockText, checkpoint, checkCheckpoint, clearNotes, placeName } from '../game.js';
 import { consoleLocked } from '../mercury.js';
+import { CONTROL_ACTS } from '../scenes/control.js';
 import { talk } from '../data/talk.js';
 import { SEASON } from '../data/campaign.js';
 import { writeSave, readSave, startOver, readBackup, swapBackup } from '../core/save.js';
+import { drawInterior, interiorOf, interiorButtonAt } from './interiors.js';
+import { lookAt } from '../game.js';
 import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom, openWhenReady, openGameRoom } from '../scenes/rooms.js';
 
 const canvas = document.getElementById('site'), ctx = canvas.getContext('2d');
@@ -45,6 +48,20 @@ function goTo(x, then) {
 canvas.addEventListener('click', e => {
   if (drag?.moved) { drag = null; canvas.style.cursor = 'default'; return; } // the end of a drag, not a click
   drag = null;
+  // In launch control the buttons are drawn on the room itself; they are the only things to click. The canvas is
+  // device-pixel scaled, so the click is brought into the same coordinates the painter drew with.
+  if (g.room === 'console') {
+    const ratio = window.devicePixelRatio || 1;
+    const hit = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio);
+    if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id);
+    return;
+  }
+  // Inside a walk-in room the scene's own parts are what can be clicked: the spots on the round, the way out.
+  if (interiorOf(g)) {
+    const ratio = window.devicePixelRatio || 1, hit = interiorButtonAt(g, e.offsetX * ratio, e.offsetY * ratio);
+    if (hit) ({ leave: () => closeRoom(), look: () => lookAt(hit.id) })[hit.act]?.() ?? CONTROL_ACTS[hit.act]?.(hit.id);
+    return;
+  }
   if (locked()) return;
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p.id, g.beat)); });
@@ -60,6 +77,19 @@ canvas.addEventListener('click', e => {
   goTo(Math.max(20, Math.min(2960, w.x)));
 });
 canvas.addEventListener('mousemove', e => {
+  // In launch control the cursor answers to the drawn buttons, not the site.
+  if (g.room === 'console') {
+    const ratio = window.devicePixelRatio || 1;
+    canvas.style.cursor = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
+    g.hover = null; canvas.title = '';
+    return;
+  }
+  if (interiorOf(g)) {
+    const ratio = window.devicePixelRatio || 1;
+    canvas.style.cursor = interiorButtonAt(g, e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
+    g.hover = null; canvas.title = '';
+    return;
+  }
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   g.hover = !p && pl ? { ...pl[1], name: placeName(pl[0]), x: pl[0] === 'truck' ? g.truck.x : pl[1].x } : null;
   canvas.title = p ? `${p.name}, ${p.role}` : '';
@@ -140,6 +170,8 @@ function hud() {
   document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === g.speed && !g.paused));
   $('notes').textContent = `Notebook (${g.notes.length})`;
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
+  $('loop').classList.toggle('in-interior', !!interiorOf(g));
+  $('loop').classList.toggle('in-room', g.room === 'console' && !!g.console && !(g.flight && g.flight.view === 'board')); // on the wall's loop board, clear of the map
   const loop = g.loop.slice(-4);
   $('loop').innerHTML = loop.map(l => `<div class="${l.tone}"><span>${l.at}</span> <b>${l.who}:</b> ${l.text.replace(/[&<>]/g, '')}</div>`).join('');
 }
@@ -162,17 +194,28 @@ function autosave() {
   try { writeSave(localStorage, checkpoint()); } catch { /* storage full or blocked: play on unsaved */ }
 }
 
+// The canvas pixels the room's panel covers on the right, so a walk-in scene keeps its middle clear of it.
+function panelReserve() {
+  const el = $('room');
+  return el.hidden ? 0 : (el.offsetWidth + 24) * (window.devicePixelRatio || 1);
+}
+
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  keyWalk();
-  tick(dt);
-  openWhenReady(!!locked());
-  updateCamera(view.w / scale(), dt);
-  if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
-  else drawSite(ctx, g, view);
-  renderRoom(); liveRoom(); hud(); autosave();
+  // One bad frame must not kill the loop (a shape-valid save could throw in a room render); report and carry on.
+  try {
+    keyWalk();
+    tick(dt);
+    openWhenReady(!!locked());
+    updateCamera(view.w / scale(), dt);
+    if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
+    else if (g.room === 'console' && g.console) drawControlRoom(ctx, g, view);
+    else if (interiorOf(g)) drawInterior(ctx, g, view, panelReserve());
+    else drawSite(ctx, g, view);
+    renderRoom(); liveRoom(); hud(); autosave();
+  } catch (e) { console.error('Frame skipped:', e); }
   requestAnimationFrame(frame);
 }
 

@@ -13,15 +13,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 
 export const CONTROL_ROOMS = {
   console() {
-    const c = g.console;
-    if (!c || c.kind !== 'flight') return `<h2>${esc(placeName('office'))}</h2><p class="muted">Your console is quiet.</p>`;
-    if (programOf() !== 'mercury') return houstonIntro(c) + consoleBody(c, !!c.auto);
-    if (c.auto) return `<h2>Mercury Control: the back room</h2>
-      <p>You are behind the glass with the capsule drawings and a headset on Hollis's loop. Tate has the Retrofire console; he makes the calls on the
-      count, the climb and the splashdown point. When the hardware does something odd, Hollis asks you.</p>${consoleBody(c, true)}`;
-    return `<h2>Mercury Control: the Retrofire officer's console</h2>
-      <p>Hollis is in the middle of the row with his headset on. Albrecht has the booster, Morgan the network, Reyes the recovery forces. Your
-      console has the trajectory plot and the impact computers, and the recovery board is on the wall.</p>${consoleBody(c)}`;
+    return ''; // your console is drawn into the room itself (drawControlRoom); the panel stays out of its way
   },
   sim() {
     const c = g.console && g.console.kind === 'sim' ? g.console : null;
@@ -149,14 +141,6 @@ function consoleView(c) {
   if (c.phase === 'coast') return `${head}${readouts()}<p class="muted">The capsule is coasting. Recovery is on its way.</p>`;
   return `${head}<p class="muted">Done.</p>`;
 }
-// Mission Control, Houston: the room, your seat in it, and the shift.
-function houstonIntro(c) {
-  const seat = g.record.seat;
-  const where = seat === 'flight' ? 'You have the flight director\'s console in the middle row, and the room is yours on your shift. Every call on it is yours: the polls, the climb, and whatever the spacecraft throws at you.'
-    : seat === 'retro' ? 'You have the Retrofire console in the front row, the trench. Dorsey is flight director; the calls on the climb, the splashdown point and the retrofire numbers are yours.'
-    : 'You are in the back room with the spacecraft drawings and a headset on the loop. Tate has Retro and Dorsey is flight director. When the spacecraft does something odd, the call on the hardware is yours.';
-  return `<h2>Mission Control, Houston</h2><p>${where}</p>`;
-}
 // The flight's board: the phase, the elapsed time and the lamps the flight plan has lit.
 function flightBoard(c) {
   const f = c.flight;
@@ -209,7 +193,7 @@ function readouts() {
 // Clocks, readouts and the plot, every frame.
 export function controlLive() {
   const c = g.console;
-  if (!c || !['console', 'sim'].includes(g.room)) return;
+  if (!c || g.room !== 'sim') return;
   const set = (sel, v) => { const n = panel().querySelector(sel); if (n) n.textContent = v; };
   const orbitClock = m => `T+${Math.floor(m / 60)}:${String(Math.floor(m % 60)).padStart(2, '0')}:00`;
   if (c.flight && ['mission', 'entry', 'ip', 'coast'].includes(c.phase)) { set('[data-live=mclock]', `GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`); set('[data-live=mstate]', c.flight.decision ? 'Waiting on a call' : c.phase === 'mission' ? c.flight.phase : 'Entry and recovery'); return; }

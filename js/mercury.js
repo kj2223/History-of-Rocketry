@@ -174,7 +174,7 @@ export function missionRoomFor(id) {
 function newConsole(kind, round, cond, scenario = null, orbital = false) {
   const flightId = flightOf() ? flightIdOf() : null;
   return { kind, round, cond, scenario, orbital, flightId, auto: kind === 'flight' && engineer(), phase: kind === 'sim' ? 'poll' : 'count', clock: kind === 'sim' ? 600 : 900, next: 0, poll: kind === 'sim' ? 'recovery' : null,
-    t: 0, trace: [], abortAt: null, ip: null, aim: null, holds: 0, calls: { poll: [], abort: null, ip: null }, lines: [], chatter: [], live: true };
+    t: 0, trace: [], abortAt: null, ip: null, aim: null, holds: 0, calls: { poll: [], abort: null, ip: null }, lines: [], chatter: [], lamps: {}, live: true };
 }
 // Who says what on the loop. A sim's loop is the simulator's own: nobody on the real site hears it.
 function speak(c, who, text, tone = '', seconds = 4.5) {
@@ -183,6 +183,9 @@ function speak(c, who, text, tone = '', seconds = 4.5) {
   if (c.chatter.length > 6) c.chatter.shift();
   roomChanged();
 }
+// A lamp lit on a station console: what the room saw, in the room own shorthand, in two short lines.
+const lamp = (c, station, a, b, tone) => { (c.lamps = c.lamps || {})[station] = { a, b, tone: tone || 'go' } };
+
 // What the recovery board shows: every unit, on station or not, and the sea state. Visible to everyone.
 const unitsOf = c => (c.orbital ? ORBIT_UNITS : UNITS);
 export const board = c => ({ sea: c.cond.seaState, units: Object.entries(unitsOf(c)).map(([id, text]) => ({ id, text, on: c.cond.late !== id })) });
@@ -229,16 +232,19 @@ export function consolePoll(go) {
   }
   // NO-GO: a ship off station is waited for; a rough sea scrubs the day; a clean board is a hold while Hollis asks why.
   if (c.cond.seaState > SEA_LIMIT) {
+    lamp(c, 'RECOVERY', 'SEA ROUGH', 'SCRUB', 'warn');
     speak(c, retroWho(c), `Retro is no-go. Sea state ${b.sea} in the recovery area. The rule says four.`, 'bad');
     speak(c, 'hollis', 'Agreed. We scrub for today.', 'warn');
     return endCount('scrub');
   }
   if (c.cond.late) {
     speak(c, retroWho(c), `Retro is no-go until ${unitsOf(c)[c.cond.late].split(',')[0].toLowerCase()} is on station.`, 'bad');
+    lamp(c, 'RECOVERY', '1 SHIP', 'NOT ON STN', 'warn'); lamp(c, 'RETRO', 'NO-GO', 'HOLDING', 'warn');
     speak(c, 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
     c.phase = 'hold'; c.holdLeft = 3; c.holdFor = 'ship'; c.holds++;
     roomChanged(); return;
   }
+  lamp(c, 'RETRO', 'NO-GO', 'LOOKING', 'warn');
   speak(c, retroWho(c), 'Retro is no-go.', 'bad');
   speak(c, 'hollis', 'Retro, I have every ship on station and a flat sea. What are you seeing? Holding while you look.', 'warn');
   c.phase = 'hold'; c.holdLeft = 1.5; c.holdFor = 'look'; c.holds++;
@@ -251,6 +257,7 @@ export function consoleAbort() {
   if (!c || c.phase !== 'ascent' || c.abortAt != null) return;
   c.abortAt = Math.floor(c.t);
   c.calls.abort = { at: c.abortAt, off: c.trace.length ? c.trace[c.trace.length - 1].off : 0 };
+  lamp(c, 'RETRO', 'ABORT', 'CALLED', 'bad'); lamp(c, 'FLIGHT', 'ABORT', 'ABORT', 'bad');
   speak(c, retroWho(c), 'Flight, Retro: she\'s off her line. Recommend abort!', 'bad');
   speak(c, 'hollis', 'Abort! Abort!', 'bad');
   if (c.kind === 'flight') note(`T+${c.abortAt} s: ${c.auto ? 'Tate' : 'you'} called an abort with the flight-path angle ${Math.abs(c.calls.abort.off).toFixed(1)} degrees off the planned line.`);
@@ -304,7 +311,7 @@ export function tickConsole(dt) {
     c.holdLeft -= dt;
     g.clock += dt * 15;
     if (c.holdLeft <= 0) {
-      if (c.holdFor === 'ship') { speak(c, 'reyes', `${unitsOf(c)[c.cond.late].split(',')[0]} is on station.`, 'go'); c.cond.late = null; }
+      if (c.holdFor === 'ship') { speak(c, 'reyes', `${unitsOf(c)[c.cond.late].split(',')[0]} is on station.`, 'go'); c.cond.late = null; lamp(c, 'RECOVERY', 'ALL SHIPS', 'ON STATION', 'go'); }
       c.phase = c.kind === 'sim' && c.clock >= 600 ? 'poll' : 'count'; c.poll = c.clock <= 120 ? 'final' : 'recovery';
       speak(c, 'hollis', 'Retro, Recovery: status?');
       roomChanged();
@@ -334,6 +341,7 @@ export function tickConsole(dt) {
       c.trace.push({ t, gamma: s.gamma + flutter(c.round.seed, t), off: s.off, v: s.v, acc: s.acc });
       if (c.kind === 'flight' && pilotId() && c.abortAt == null && Math.abs(s.off) > ownAbortAt(CREW_TRAITS[pilotId()])) return pilotAbort(c, t);
       if (t === 36 && c.kind === 'flight' && c.round.lightning) {
+        lamp(c, 'EECOM', 'PWR AUX', 'PLT LOST', 'bad');
         speak(c, 'pilot', 'What the hell was that? Everything in the world just dropped out. We\'ve got a whole bunch of lights here.', 'bad', 6);
         speak(c, 'kessler', 'Flight, EECOM: the fuel cells are off the line and I have garbage on the telemetry. Have them try SCE to AUX.', 'bad', 6);
         speak(c, 'pilot', 'SCE to AUX… there it is. We have power. The platform\'s gone, but the Saturn\'s flying.', 'warn', 6);
@@ -365,10 +373,12 @@ function flutter(seed, t) {
 function liftoff(c) {
   if (c.kind === 'flight' && c.round.vehicle === 'titan' && Object.values(c.round.faults).includes('shutdown')) return titanShutdown(c);
   const a = c.orbital ? atlasAscent(c.round, c.kind === 'sim' ? orbitSimFailure(c) : null, boosterOf(c).names) : ascent(c.round, c.kind === 'sim' ? simFailure(c.scenario) : null);
+  c.burn = a.burn; // the planned burn, from the flight plan: player-visible, and all the wall map needs
   if (c.kind === 'flight') { g.launchDay = g.day; g.rocket.where = 'flying'; g.rocket.rise = 0; }
   if (a.padAbort) {
     outcome(c.round);
     c.phase = 'pad'; c.live = false;
+    lamp(c, 'BOOSTER', 'CUTOFF', 'ON THE PAD', 'bad'); lamp(c, 'PAD', 'CHUTES', 'CAPSULE OK', 'warn');
     speak(c, 'albrecht', 'Engine cutoff! She\'s back on the pad!', 'bad', 6);
     speak(c, 'morgan', 'The escape tower\'s gone! It flew off on its own!', 'bad', 6);
     speak(c, 'vega', 'The capsule\'s chutes are out. They\'re hanging off the top of the rocket.', 'warn', 7);
@@ -384,6 +394,7 @@ function liftoff(c) {
 // He pulls the abort handle himself: binding, whatever the ground says.
 function pilotAbort(c, t) {
   c.abortAt = t; c.calls.pilotAbort = { at: t };
+  lamp(c, 'FLIGHT', 'ABORT', 'PILOT', 'bad');
   speak(c, 'pilot', 'She\'s going off! I\'m pulling the handle! Abort!', 'bad', 6);
   speak(c, 'hollis', 'Abort! The pilot has aborted!', 'bad');
   note(`T+${t} s: ${pilotName()} pulled the abort handle himself.`);
@@ -392,6 +403,7 @@ function pilotAbort(c, t) {
 
 function breakup(c) {
   const a = c.round.ascent;
+  lamp(c, 'BOOSTER', 'BREAKUP', a.asis ? 'CAPSULE AWAY' : 'NO SIGNAL', 'bad');
   speak(c, 'albrecht', 'She\'s breaking up!', 'bad', 5);
   speak(c, 'morgan', a.asis ? 'Escape tower fired! The capsule is away!' : 'No escape! I have no capsule signal!', a.asis ? 'warn' : 'bad', 6);
   if (c.kind === 'flight') note(`T+${a.breakupAt} s: the booster broke up off her line. ${a.asis ? 'The abort sensing fired the escape tower and pulled the capsule clear.' : 'The escape tower never fired.'}`);
@@ -402,8 +414,8 @@ function finishAscent(c) {
   if (c.orbital) return finishAtlas(c);
   const a = c.round.ascent, end = outcome(c.round, c.abortAt);
   if (c.kind === 'flight') g.rocket.where = 'gone';
-  if (end.outcome === 'nominal' || end.outcome === 'short' || end.outcome === 'long') speak(c, 'albrecht', `Booster cutoff at ${a.burn} seconds. Capsule separation.`, 'go');
-  if (end.outcome === 'asis') { speak(c, 'albrecht', `Cutoff at ${a.burn} seconds. She ran dry!`, 'warn'); speak(c, 'morgan', 'Abort light! The escape tower fired at cutoff.', 'warn'); }
+  if (end.outcome === 'nominal' || end.outcome === 'short' || end.outcome === 'long') { lamp(c, 'BOOSTER', 'SEPARATION', 'NOMINAL', 'go'); speak(c, 'albrecht', `Booster cutoff at ${a.burn} seconds. Capsule separation.`, 'go'); }
+  if (end.outcome === 'asis') { lamp(c, 'BOOSTER', 'RAN DRY', 'TOWER FIRED', 'warn'); speak(c, 'albrecht', `Cutoff at ${a.burn} seconds. She ran dry!`, 'warn'); speak(c, 'morgan', 'Abort light! The escape tower fired at cutoff.', 'warn'); }
   if (c.kind === 'flight') {
     const last = c.trace[c.trace.length - 1];
     if (last && end.outcome !== 'breakup') note(`At ${end.abortedAt ?? a.burn} s the plot showed ${last.v.toFixed(2)} km/s at ${last.gamma.toFixed(1)} degrees (planned at cutoff: ${PLAN.v} km/s at ${PLAN.gamma} degrees).`);

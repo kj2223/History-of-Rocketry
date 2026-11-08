@@ -24,6 +24,8 @@ work/wac-slice/
 /work/
 /plans/
 *.md
+# The game README is tracked on dev and main alike; other Markdown stays local.
+!/README.md
 *.markdown
 *.pdf
 *.doc
