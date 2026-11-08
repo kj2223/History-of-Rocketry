@@ -156,6 +156,7 @@ function hud() {
   document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === g.speed && !g.paused));
   $('notes').textContent = `Notebook (${g.notes.length})`;
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
+  $('loop').classList.toggle('in-room', g.room === 'console' && !!g.console && !(g.flight && g.flight.view === 'board')); // on the wall's loop board, clear of the map
   const loop = g.loop.slice(-4);
   $('loop').innerHTML = loop.map(l => `<div class="${l.tone}"><span>${l.at}</span> <b>${l.who}:</b> ${l.text.replace(/[&<>]/g, '')}</div>`).join('');
 }

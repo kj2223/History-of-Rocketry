@@ -450,10 +450,10 @@ export function padPicture(ctx, g, x, y, w, h) {
   ctx.translate(x + w / 2 - cx * k, y - (GROUND - 370) * k);
   ctx.scale(k, k);
   if (g.site === 'cape') {
-    ctx.fillStyle = '#3f6f8f'; ctx.fillRect(cx - 400, 440, 800, 48);
-    ctx.fillStyle = '#5b7a3c'; ctx.fillRect(cx - 400, 488, 800, GROUND - 488);
+    ctx.fillStyle = '#3f6f8f'; ctx.fillRect(cx - 3000, 440, 6000, 48);
+    ctx.fillStyle = '#5b7a3c'; ctx.fillRect(cx - 3000, 488, 6000, GROUND - 488);
   }
-  ctx.fillStyle = '#e4d8b4'; ctx.fillRect(cx - 400, GROUND, 800, 80);
+  ctx.fillStyle = '#e4d8b4'; ctx.fillRect(cx - 3000, GROUND, 6000, 80);
   tower(ctx, PLACES.tower);
   if (g.rocket.where === 'tower') roundShape(ctx, g, cx, GROUND - 8, 0, true);
   else if (g.rocket.where === 'flying') {
@@ -532,33 +532,39 @@ export function drawControlRoom(ctx, g, view) {
   ctx.fillStyle = 'rgba(255,255,255,.04)'; for (let x = leftW; x < galleryX; x += 90) ctx.fillRect(x, 0, 2, wallH);
   ctx.fillStyle = '#3d3a33'; ctx.fillRect(leftW, wallH, galleryX - leftW, h - wallH);
   ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(leftW, wallH, galleryX - leftW, 6);
-  // The big map takes the wall, with the pad on television and the telemetry screen stacked beside it.
-  drawWallMap(ctx, g, w * 0.085, wallH * 0.08, w * 0.4, wallH * 0.72);
-  const tvX = w * 0.525, tvW = w * 0.15, tvY = wallH * 0.08, tvH = wallH * 0.3;
+  // The front wall is filled edge to edge: the big map on the left, the pad on television and the monitoring screen
+  // stacked beside it out to the gallery, the clocks across the full width under them, and the loop's board below that
+  // (the DOM loop log sits over it: #loop.in-room in style.css uses the same fractions).
+  const wallL = w * 0.085, wallR = galleryX - w * 0.015;
+  drawWallMap(ctx, g, wallL, wallH * 0.05, w * 0.45, wallH * 0.6);
+  const tvX = wallL + w * 0.47, tvW = wallR - tvX, tvY = wallH * 0.05, tvH = wallH * 0.3;
   ctx.fillStyle = '#181b1f'; ctx.fillRect(tvX - 6, tvY - 6, tvW + 12, tvH + 12);
   padPicture(ctx, g, tvX, tvY, tvW, tvH);
   ctx.fillStyle = 'rgba(0,0,0,.18)'; for (let y = tvY + 5; y < tvY + tvH; y += 6) ctx.fillRect(tvX, y, tvW, 2);
-  monitorScreen(ctx, g, tvX, wallH * 0.46, tvW, wallH * 0.34);
-  // The clocks run along the bottom of the wall: the count, the mission, the site clock.
-  clocksStrip(ctx, g, w * 0.085, wallH * 0.86, w * 0.59, wallH * 0.11);
+  monitorScreen(ctx, g, tvX, wallH * 0.39, tvW, wallH * 0.26);
+  clocksStrip(ctx, g, wallL, wallH * 0.69, wallR - wallL, wallH * 0.09);
+  ctx.fillStyle = '#1b1f25'; ctx.fillRect(wallL - 4, wallH * 0.81 - 4, wallR - wallL + 8, wallH * 0.17 + 8);
   // The side walls: racks of equipment, and the gallery beyond the glass.
   serverBank(ctx, 0, 0, leftW, h, g);
   viewingGallery(ctx, galleryX, 0, w - galleryX, h, g);
   // Your console, drawn into the room below the gallery: clocks, readouts, and the calls that are yours.
   const panelY = h * 0.05 + h * 0.12 + Math.max(10, h * 0.025);
   drawConsolePanel(ctx, g, galleryX + 6, panelY, w - galleryX - 12, h - panelY - 12);
-  // Three rows fill the floor, sized to the room and clear of your panel: the named controllers at the back, the
-  // working stations across the middle, and your wide console at the front.
-  const floor = h - wallH, rowRight = Math.min(w * 0.84, w - 470), rowMid = (leftW + rowRight) / 2, availW = rowRight - leftW - 40;
+  // Two rows fill the floor, sized to the room and clear of your panel: the named controllers at the back, and the
+  // working stations at the front with your wide console in the middle of them.
+  const floor = h - wallH, rowRight = galleryX - w * 0.01, rowMid = (leftW + rowRight) / 2, availW = rowRight - leftW - 40;
   const back = ['hollis', 'dorsey', 'albrecht', 'tate', 'morgan', 'reyes', 'vega', 'kessler'].filter(id => g.people[id] && !g.people[id].hidden);
-  const backK = Math.max(0.55, Math.min(1.1, (availW - (back.length - 1) * 24) / (back.length * 190)));
-  const bSpan = back.length * 190 * backK + (back.length - 1) * 24;
-  back.forEach((id, i) => consoleDesk(ctx, rowMid - bSpan / 2 + i * (190 * backK + 24), wallH + floor * 0.08, backK, g.people[id], ROOM_SEATS[id], c, false, STATION_DUTY[id]));
-  const mid = ['capcom', 'fido', 'surgeon', 'guidance'];
-  const midK = Math.min(1.15, (availW - 3 * 30) / (4 * 190));
-  const mSpan = 4 * 190 * midK + 3 * 30;
-  mid.forEach((duty, i) => consoleDesk(ctx, rowMid - mSpan / 2 + i * (190 * midK + 30), wallH + floor * 0.38, midK, { color: '#4a5568' }, duty.toUpperCase(), c, false, duty));
-  consoleDesk(ctx, rowMid - 230 * 1.3, wallH + floor * 0.78, 1.3, g.people.you, 'YOU · ' + (g.people.you.role || '').toUpperCase(), c, true, SEAT_DUTY[g.record.seat] || 'flight');
+  const backGap = 16, backK = Math.max(0.55, Math.min(1.25, (availW - (back.length - 1) * backGap) / (back.length * 190)));
+  const bSpan = back.length * 190 * backK + (back.length - 1) * backGap;
+  back.forEach((id, i) => consoleDesk(ctx, rowMid - bSpan / 2 + i * (190 * backK + backGap), wallH + floor * 0.16, backK, g.people[id], ROOM_SEATS[id], c, false, STATION_DUTY[id]));
+  const front = [['capcom'], ['fido'], null, ['surgeon'], ['guidance']], frontGap = 24;
+  const frontK = Math.max(0.55, Math.min(1.4, (availW - 4 * frontGap) / (4 * 190 + 460)));
+  let fx = rowMid - ((4 * 190 + 460) * frontK + 4 * frontGap) / 2;
+  const frontY = wallH + floor * 0.6;
+  for (const seat of front) {
+    if (seat) { consoleDesk(ctx, fx, frontY, frontK, { color: '#4a5568' }, seat[0].toUpperCase(), c, false, seat[0]); fx += 190 * frontK + frontGap; }
+    else { consoleDesk(ctx, fx, frontY, frontK, g.people.you, 'YOU · ' + (g.people.you.role || '').toUpperCase(), c, true, SEAT_DUTY[g.record.seat] || 'flight'); fx += 460 * frontK + frontGap; }
+  }
     ctx.textAlign = 'left';
 }
 
