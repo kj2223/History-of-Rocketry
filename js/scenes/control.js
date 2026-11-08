@@ -141,14 +141,6 @@ function consoleView(c) {
   if (c.phase === 'coast') return `${head}${readouts()}<p class="muted">The capsule is coasting. Recovery is on its way.</p>`;
   return `${head}<p class="muted">Done.</p>`;
 }
-// Mission Control, Houston: the room, your seat in it, and the shift.
-function houstonIntro(c) {
-  const seat = g.record.seat;
-  const where = seat === 'flight' ? 'You have the flight director\'s console in the middle row, and the room is yours on your shift. Every call on it is yours: the polls, the climb, and whatever the spacecraft throws at you.'
-    : seat === 'retro' ? 'You have the Retrofire console in the front row, the trench. Dorsey is flight director; the calls on the climb, the splashdown point and the retrofire numbers are yours.'
-    : 'You are in the back room with the spacecraft drawings and a headset on the loop. Tate has Retro and Dorsey is flight director. When the spacecraft does something odd, the call on the hardware is yours.';
-  return `<h2>Mission Control, Houston</h2><p>${where}</p>`;
-}
 // The flight's board: the phase, the elapsed time and the lamps the flight plan has lit.
 function flightBoard(c) {
   const f = c.flight;
