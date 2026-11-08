@@ -25,14 +25,21 @@ const staticSignature = g => {
   return `${g.site || 'white-sands'}|${g.crewed ? 'crewed' : 'uncrewed'}|${bs.built ? 'built' : bs.progress.toFixed(2)}`;
 };
 
-function rebuildStatic(g) {
+// The layer is baked at the display's own scale (capped, so a 4K screen does not ask for a canvas too large to hold),
+// so the buildings stay sharp instead of being stretched up from one pixel per world unit.
+const MAX_BAKE = 3;
+const bakeScale = s => Math.min(MAX_BAKE, Math.max(1, Math.ceil(s * 2) / 2));
+
+function rebuildStatic(g, k) {
   const width = WORLD_W + 400;
-  if (!staticLayer || staticLayer.width !== width) {
+  if (!staticLayer || staticLayer.width !== Math.round(width * k) || staticLayer.height !== Math.round(VIEW_H * k)) {
     staticLayer = document.createElement('canvas');
-    staticLayer.width = width; staticLayer.height = VIEW_H;
+    staticLayer.width = Math.round(width * k); staticLayer.height = Math.round(VIEW_H * k);
   }
   const c = staticLayer.getContext('2d');
-  c.clearRect(0, 0, width, VIEW_H);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, staticLayer.width, staticLayer.height);
+  c.setTransform(k, 0, 0, k, 0, 0);
   paintGround(c, g);
   siteDressing(c, g);
   office(c, PLACES.office, g);
@@ -43,7 +50,7 @@ function rebuildStatic(g) {
   tower(c, PLACES.tower);
   towerDetail(c, PLACES.tower);
   groundShadows(c, g);
-  staticKey = staticSignature(g);
+  staticKey = staticSignature(g) + '|' + k;
 }
 
 // Sunlight from the left: a darker right-edge face on a wall block, so flat rects read as solids.
@@ -81,7 +88,7 @@ function siteDressing(c, g) {
   telephoneLine(c, [-30, 95, 404, 990, 1440, 1736]);
   theodoliteHut(c, 2290);
   radarTrailer(c, 2560);
-  boundarySign(c, 2930, SITES[g.site || 'white-sands'].name.toUpperCase());
+  boundarySign(c, SIGN_X);
   fence(c, 2860, WORLD_W + 400);
   // Plants placed from x so they never shift between rebuilds; kept clear of the doors and the pad.
   for (let x = 30; x < WORLD_W + 380; x += 131) {
@@ -175,13 +182,19 @@ function fence(c, x0, x1) {
   for (const y of [GROUND - 20, GROUND - 13, GROUND - 6]) { c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.stroke(); }
 }
 
-function boundarySign(c, x, name) {
+const SIGN_X = 2930;
+function boundarySign(c, x) {
   c.fillStyle = '#5a4630'; c.fillRect(x + 6, GROUND - 46, 4, 46); c.fillRect(x + 104, GROUND - 46, 4, 46);
   c.fillStyle = '#e9e0c8'; c.fillRect(x, GROUND - 62, 114, 30);
   c.strokeStyle = '#8a3a2a'; c.lineWidth = 2; c.strokeRect(x + 2, GROUND - 60, 110, 26);
-  c.fillStyle = '#2e2a24'; c.textAlign = 'center';
-  c.font = 'bold 7px sans-serif'; c.fillText(name, x + 57, GROUND - 49, 104);
-  c.fillStyle = '#8a3a2a'; c.font = 'bold 6px sans-serif'; c.fillText('RESTRICTED AREA · KEEP OUT', x + 57, GROUND - 39, 104);
+}
+
+// The sign's lettering is drawn per frame, at the screen's resolution, so it reads sharp at any size.
+function signLettering(ctx, g) {
+  const x = SIGN_X, name = SITES[g.site || 'white-sands'].name.toUpperCase();
+  ctx.fillStyle = '#2e2a24'; ctx.textAlign = 'center';
+  ctx.font = 'bold 7px sans-serif'; ctx.fillText(name, x + 57, GROUND - 49, 104);
+  ctx.fillStyle = '#8a3a2a'; ctx.font = 'bold 6px sans-serif'; ctx.fillText('RESTRICTED AREA · KEEP OUT', x + 57, GROUND - 39, 104);
 }
 
 function yucca(c, x, y) {
@@ -306,12 +319,14 @@ export function drawSite(ctx, g, view) {
   ctx.fillStyle = cape ? '#d3c597' : '#cdb489'; ctx.fillRect(0, GROUND, vw, 5);
   // The baked static layer, blitted in world space.
   const key = staticSignature(g);
-  if (!staticLayer || key !== staticKey) rebuildStatic(g);
+  const bake = bakeScale(s);
+  if (!staticLayer || `${key}|${bake}` !== staticKey) rebuildStatic(g, bake);
   ctx.translate(-camX, 0);
-  ctx.drawImage(staticLayer, 0, 0);
+  ctx.drawImage(staticLayer, 0, 0, WORLD_W + 400, VIEW_H);
   // Everything that moves or burns, back to front: rack and flame behind, then the grounded rocket, people, the truck
   // (nearer the camera than the people, so it paints over them), and finally smoke and dust over everything they cover.
   siteLife(ctx, g);
+  signLettering(ctx, g);
   hangarRack(ctx, g);
   if (!g.crewed && g.standFlame > 0) flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
   if (g.crewed) controlScreens(ctx, g);
@@ -494,7 +509,9 @@ function dugout(ctx, p) {
   ctx.fillStyle = '#9b8a70'; ctx.beginPath(); ctx.moveTo(p.x - 20, GROUND); ctx.quadraticCurveTo(p.x + p.w / 2, GROUND - p.h * 2, p.x + p.w + 20, GROUND); ctx.fill();
   // Sandbags along the mound, placed from x so they never shift.
   ctx.fillStyle = '#b3a380';
-  for (let i = 0; i < 9; i++) { const sx = p.x - 12 + i * 9, sy = GROUND - 6 - Math.round(Math.sin((sx - p.x) / (p.w + 24) * Math.PI) * p.h * 1.4); ctx.fillRect(sx, sy, 7, 4); }
+  // The mound is a quadratic from p.x - 20 to p.x + p.w + 20 with its control point 2h up, so its surface at t is
+  // 4h·t(1 - t) above the ground; each bag sits on that line.
+  for (let i = 0; i < 13; i++) { const sx = p.x - 14 + i * 9, t = (sx + 3.5 - (p.x - 20)) / (p.w + 40), sy = GROUND - Math.round(4 * p.h * t * (1 - t)) - 3; ctx.fillRect(sx, sy, 7, 4); }
   ctx.fillStyle = '#2b2a28'; ctx.fillRect(p.x + 14, GROUND - 20, 22, 6); ctx.fillRect(p.x + 52, GROUND - 20, 22, 6);
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(p.x + 36, GROUND - 24, 18, 4); // shadow over the entrance
   ctx.fillStyle = '#4b3b2b'; ctx.fillRect(p.x + 36, GROUND - 26, 16, 26);
