@@ -8,6 +8,8 @@ import { CONTROL_ACTS } from '../scenes/control.js';
 import { talk } from '../data/talk.js';
 import { SEASON } from '../data/campaign.js';
 import { writeSave, readSave, startOver, readBackup, swapBackup } from '../core/save.js';
+import { drawInterior, interiorOf, interiorButtonAt } from './interiors.js';
+import { lookAt } from '../game.js';
 import { render as renderRoom, live as liveRoom, openRoom, closeRoom, bindRoom, openWhenReady, openGameRoom } from '../scenes/rooms.js';
 
 const canvas = document.getElementById('site'), ctx = canvas.getContext('2d');
@@ -54,6 +56,12 @@ canvas.addEventListener('click', e => {
     if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id);
     return;
   }
+  // Inside a walk-in room the scene's own parts are what can be clicked: the spots on the round, the way out.
+  if (interiorOf(g)) {
+    const ratio = window.devicePixelRatio || 1, hit = interiorButtonAt(g, e.offsetX * ratio, e.offsetY * ratio);
+    if (hit) ({ leave: () => closeRoom(), look: () => lookAt(hit.id) })[hit.act]?.() ?? CONTROL_ACTS[hit.act]?.(hit.id);
+    return;
+  }
   if (locked()) return;
   const w = toWorld(e), p = personAt(w), pl = placeAt(w);
   if (p) return goTo(p.x + (you().x < p.x ? -14 : 14), () => { say(p.id, talk(p.id, g.beat)); });
@@ -73,6 +81,12 @@ canvas.addEventListener('mousemove', e => {
   if (g.room === 'console') {
     const ratio = window.devicePixelRatio || 1;
     canvas.style.cursor = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
+    g.hover = null; canvas.title = '';
+    return;
+  }
+  if (interiorOf(g)) {
+    const ratio = window.devicePixelRatio || 1;
+    canvas.style.cursor = interiorButtonAt(g, e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
     g.hover = null; canvas.title = '';
     return;
   }
@@ -156,6 +170,7 @@ function hud() {
   document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === g.speed && !g.paused));
   $('notes').textContent = `Notebook (${g.notes.length})`;
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
+  $('loop').classList.toggle('in-interior', !!interiorOf(g));
   $('loop').classList.toggle('in-room', g.room === 'console' && !!g.console && !(g.flight && g.flight.view === 'board')); // on the wall's loop board, clear of the map
   const loop = g.loop.slice(-4);
   $('loop').innerHTML = loop.map(l => `<div class="${l.tone}"><span>${l.at}</span> <b>${l.who}:</b> ${l.text.replace(/[&<>]/g, '')}</div>`).join('');
@@ -179,6 +194,12 @@ function autosave() {
   try { writeSave(localStorage, checkpoint()); } catch { /* storage full or blocked: play on unsaved */ }
 }
 
+// The canvas pixels the room's panel covers on the right, so a walk-in scene keeps its middle clear of it.
+function panelReserve() {
+  const el = $('room');
+  return el.hidden ? 0 : (el.offsetWidth + 24) * (window.devicePixelRatio || 1);
+}
+
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -191,6 +212,7 @@ function frame(now) {
     updateCamera(view.w / scale(), dt);
     if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
     else if (g.room === 'console' && g.console) drawControlRoom(ctx, g, view);
+    else if (interiorOf(g)) drawInterior(ctx, g, view, panelReserve());
     else drawSite(ctx, g, view);
     renderRoom(); liveRoom(); hud(); autosave();
   } catch (e) { console.error('Frame skipped:', e); }

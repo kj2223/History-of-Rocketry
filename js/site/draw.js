@@ -11,7 +11,7 @@ import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS } from '..
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
-function skyFor(minute) { // minute of the day
+export function skyFor(minute) { // minute of the day
   const h = minute / 60;
   return h > 17.5 || h < 7 ? SKY.dusk : SKY.day;
 }
@@ -43,7 +43,7 @@ function rebuildStatic(g) {
 }
 
 // Sunlight from the left: a darker right-edge face on a wall block, so flat rects read as solids.
-function shadeRight(ctx, x, y, w, h, k = 0.1) {
+export function shadeRight(ctx, x, y, w, h, k = 0.1) {
   const d = Math.max(2, w * k);
   ctx.fillStyle = 'rgba(40,32,20,.18)'; ctx.fillRect(x + w - d, y, d, h);
 }
@@ -220,7 +220,7 @@ function hangarRack(ctx, g) {
   ctx.fillStyle = '#d9c39a'; ctx.fillRect(p.x + 12, GROUND - 2, p.w - 24, 2);
 }
 
-function standStructure(ctx, p) {
+export function standStructure(ctx, p) {
   // An open steel frame over a flame trench.
   ctx.fillStyle = '#7a6a58'; ctx.fillRect(p.x - 10, GROUND - 4, p.w + 20, 8);
   ctx.fillStyle = '#2a2420'; ctx.fillRect(p.x + 40, GROUND - 2, 40, 6);
@@ -306,7 +306,7 @@ function newBlockhouse(ctx, p) {
   ctx.fillStyle = '#555'; for (const px of [x + 40, x + w - 60]) { ctx.fillRect(px, GROUND - h - 44, 6, 26); ctx.fillRect(px, GROUND - h - 44, 14, 5); }
 }
 
-function tower(ctx, p) {
+export function tower(ctx, p) {
   // The 102-foot launch tower: a slender lattice with the rails inside it.
   const top = GROUND - p.h;
   ctx.strokeStyle = '#4e5560'; ctx.lineWidth = 3;
@@ -354,7 +354,7 @@ function rocketOnTruck(ctx, g) {
 
 // The shape of the current vehicle, drawn from its tail at (x, y) along angle (0 = straight up). One dispatch, shared by
 // the site, the truck and the television in Mercury Control.
-function roundShape(ctx, g, x, y, angle, mated) {
+export function roundShape(ctx, g, x, y, angle, mated) {
   const wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
   return g.vehicle === 'redstone' ? mercuryRedstoneShape(ctx, x, y, angle, g.rocket.padAbort) : g.vehicle === 'atlas' ? mercuryAtlasShape(ctx, x, y, angle) : g.vehicle === 'titan' ? geminiTitanShape(ctx, x, y, angle) : g.vehicle === 'saturn5' ? saturnVShape(ctx, x, y, angle) : wac ? wacShape(ctx, x, y, angle, mated) : g.vehicle === 'vanguard' ? vanguardShape(ctx, x, y, angle) : g.vehicle === 'juno' ? junoShape(ctx, x, y, angle) : g.vehicle === 'ranger' ? atlasAgenaShape(ctx, x, y, angle) : g.vehicle === 'viking' ? vikingShape(ctx, x, y, angle) : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper');
 }
@@ -752,7 +752,7 @@ function viewingGallery(ctx, x, y, w, h) {
 }
 
 // The monitoring screen: the flight-path angle as she climbs, second by second, with her position on it.
-function monitorScreen(ctx, g, x, y, w, h) {
+export function monitorScreen(ctx, g, x, y, w, h) {
   ctx.fillStyle = '#181b1f'; ctx.fillRect(x - 6, y - 6, w + 12, h + 12);
   ctx.fillStyle = '#0d1117'; ctx.fillRect(x, y, w, h);
   const c = g.console, trace = c && c.trace;
@@ -812,7 +812,7 @@ function siteClock(g) {
 
 
 // A console desk with its seated controller, its role on the front, and two live screens. Yours carries the mark.
-function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
+export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
   const dw = (yours ? 460 : 190) * k, dh = 60 * k;
   if (who) { // seated behind the desk: shoulders and head above the desktop
     const px = x + dw / 2, py = y + 2;
@@ -846,7 +846,7 @@ function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
   }
 }
 
-function capsuleShape(ctx, x, y, tower) {
+export function capsuleShape(ctx, x, y, tower) {
   ctx.fillStyle = '#1d1f22'; ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y); ctx.lineTo(x + 4, y - 14); ctx.lineTo(x - 4, y - 14); ctx.fill();
   ctx.fillRect(x - 3, y - 20, 6, 6);
   ctx.fillStyle = '#7a6a58'; ctx.fillRect(x - 9, y, 18, 2);
@@ -998,7 +998,7 @@ function boosterShape(ctx, x, y, angle, attached) {
   ctx.restore();
 }
 
-function flame(ctx, x, y, power, angle, time, scale = 1) {
+export function flame(ctx, x, y, power, angle, time, scale = 1) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(angle - Math.PI / 2);
   const len = (26 + 8 * Math.sin(time * 40)) * power * scale;
   const grad = ctx.createLinearGradient(0, 0, 0, len);
@@ -1041,7 +1041,7 @@ export function bubble(ctx, x, y, text, tone = '') {
   lines.forEach((l, i) => ctx.fillText(l, bx + 8, by + 16 + i * lh));
 }
 
-function wrap(ctx, text, width) {
+export function wrap(ctx, text, width) {
   const words = text.split(' '), lines = [];
   let line = '';
   for (const w of words) { const t = line ? `${line} ${w}` : w; if (ctx.measureText(t).width > width && line) { lines.push(line); line = w; } else line = t; }

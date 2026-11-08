@@ -15,6 +15,9 @@ const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let shown = { room: null, version: -1 }, hooks = {}, confirmNew = false, flags = {}, plan = { inspector: 'you', burn: 'short', leak: false };
 
+// What you have ticked to flag on the inspection list, so the hangar scene can mark it on the round.
+export const inspectFlags = () => flags;
+
 export function openRoom(building) {
   g.room = building === 'truck' && roomFor('truck') !== 'recovery' ? null : roomFor(building) === 'watch' ? `watch:${building}` : roomFor(building);
   if (building === 'blockhouse' && g.room === 'count' && !g.count) countStart();
