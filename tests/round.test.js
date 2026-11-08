@@ -2,12 +2,29 @@
 // (the static-fire trace, the gauges, the wreck) follows the truth.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newRound, flagSpots, staticFire, reworkIgniter, leakCheck, hasLeak, hasIgniterFault, hasWeldFault, fly, wreckage, explanationIsRight, tankGauge } from '../js/truth/round.js';
+import {
+  newRound,
+  flagSpots,
+  staticFire,
+  reworkIgniter,
+  leakCheck,
+  hasLeak,
+  hasIgniterFault,
+  hasWeldFault,
+  fly,
+  wreckage,
+  explanationIsRight,
+  tankGauge,
+} from '../js/truth/round.js';
 
-const findSeed = test => { for (let s = 1; s < 500; s++) if (test(newRound(s))) return s; throw new Error('no seed'); };
+const findSeed = test => {
+  for (let s = 1; s < 500; s++) if (test(newRound(s))) return s;
+  throw new Error('no seed');
+};
 
 test('the same seed makes the same round and the same flight', () => {
-  const a = newRound(77), b = newRound(77);
+  const a = newRound(77),
+    b = newRound(77);
   assert.deepEqual(a.faults, b.faults);
   assert.deepEqual(fly(a), fly(b));
 });
@@ -41,7 +58,8 @@ test('a leak bleeds the tank gauge down, and a leak check finds it', () => {
 
 test('a clean round flies about 70 km and the wreck shows nothing wrong', () => {
   const r = newRound(5);
-  r.faults = {}; r.igniter = 'wac-upper/r3';
+  r.faults = {};
+  r.igniter = 'wac-upper/r3';
   const f = fly(r);
   assert.equal(f.failure, null);
   assert.ok(f.apogee > 60 && f.apogee < 80, `apogee ${f.apogee}`);
@@ -52,7 +70,8 @@ test('a clean round flies about 70 km and the wreck shows nothing wrong', () => 
 test('flown faults bring some rounds down, and the wreck points at the cause', () => {
   let failures = 0;
   for (let s = 1; s < 200; s++) {
-    const r = newRound(s), f = fly(r);
+    const r = newRound(s),
+      f = fly(r);
     if (!f.failure) continue;
     failures++;
     const words = { ignition: /igniter/, weld: /weld seam/, leak: /feed fitting/ }[f.failure];

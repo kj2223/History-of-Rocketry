@@ -11,8 +11,15 @@ const START = `${ORIGIN}/index.html`;
 
 // Only the game's own files may load. Inline style attributes are allowed (the progress bars use them); no inline script runs.
 const CSP = [
-  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
-  "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
 ].join('; ');
 
 protocol.registerSchemesAsPrivileged([
@@ -40,28 +47,44 @@ async function serve(request) {
 
 function openWindow() {
   const window = new BrowserWindow({
-    width: 1600, height: 900, minWidth: 1280, minHeight: 720,
-    backgroundColor: '#000000', title: `Per Aspera v${app.getVersion()}`, autoHideMenuBar: true,
+    width: 1600,
+    height: 900,
+    minWidth: 1280,
+    minHeight: 720,
+    backgroundColor: '#000000',
+    title: `Per Aspera v${app.getVersion()}`,
+    autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
   // Keep the version in the title bar (the page's own <title> would replace it), so testers can say which build they played.
-  window.on('page-title-updated', (event) => event.preventDefault());
+  window.on('page-title-updated', event => event.preventDefault());
   window.loadURL(START);
 }
 
 const menu = Menu.buildFromTemplate([
-  { label: 'Game', submenu: [
-    { role: 'reload' }, { type: 'separator' }, { role: 'quit' },
-  ] },
-  { label: 'View', submenu: [{ role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }, { role: 'toggleDevTools' }] },
+  { label: 'Game', submenu: [{ role: 'reload' }, { type: 'separator' }, { role: 'quit' }] },
+  {
+    label: 'View',
+    submenu: [
+      { role: 'resetZoom' },
+      { role: 'zoomIn' },
+      { role: 'zoomOut' },
+      { role: 'togglefullscreen' },
+      { role: 'toggleDevTools' },
+    ],
+  },
 ]);
 
 // No page may leave the game, open new windows, or ask for device permissions.
 app.on('web-contents-created', (_, contents) => {
-  contents.on('will-navigate', (event, url) => { if (!url.startsWith(`${ORIGIN}/`)) event.preventDefault(); });
-  contents.on('will-redirect', (event, url) => { if (!url.startsWith(`${ORIGIN}/`)) event.preventDefault(); });
+  contents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(`${ORIGIN}/`)) event.preventDefault();
+  });
+  contents.on('will-redirect', (event, url) => {
+    if (!url.startsWith(`${ORIGIN}/`)) event.preventDefault();
+  });
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  contents.on('will-attach-webview', (event) => event.preventDefault());
+  contents.on('will-attach-webview', event => event.preventDefault());
 });
 
 app.whenReady().then(() => {

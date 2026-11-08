@@ -11,10 +11,19 @@ export const exportSave = checkpoint => JSON.stringify({ format: FORMAT, content
 
 export const parseSave = (text, check) => {
   let env;
-  try { env = JSON.parse(text); } catch { throw new SaveError('This is not a readable save.'); }
+  try {
+    env = JSON.parse(text);
+  } catch {
+    throw new SaveError('This is not a readable save.');
+  }
   if (env?.format !== FORMAT) throw new SaveError('This is not a Per Aspera save.');
-  if (env.contentVersion !== CONTENT_VERSION) throw new SaveError(`This save is from another version of the game (content ${env.contentVersion}).`);
-  try { check(env.checkpoint); } catch (e) { throw new SaveError(`The save is damaged: ${e.message}`); }
+  if (env.contentVersion !== CONTENT_VERSION)
+    throw new SaveError(`This save is from another version of the game (content ${env.contentVersion}).`);
+  try {
+    check(env.checkpoint);
+  } catch (e) {
+    throw new SaveError(`The save is damaged: ${e.message}`);
+  }
   return env.checkpoint;
 };
 
@@ -29,7 +38,11 @@ export const readSave = (storage, check) => {
   for (const key of [KEYS.current, KEYS.lastGood]) {
     const text = storage.getItem(key);
     if (text === null) continue;
-    try { return parseSave(text, check); } catch { /* try the next one */ }
+    try {
+      return parseSave(text, check);
+    } catch {
+      /* try the next one */
+    }
   }
   return null;
 };
@@ -38,21 +51,28 @@ export const readSave = (storage, check) => {
 export const startOver = storage => {
   const text = storage.getItem(KEYS.current) ?? storage.getItem(KEYS.lastGood);
   if (text !== null) storage.setItem(KEYS.backup, text);
-  storage.removeItem(KEYS.current); storage.removeItem(KEYS.lastGood);
+  storage.removeItem(KEYS.current);
+  storage.removeItem(KEYS.lastGood);
 };
 // The backup, if there is one this version can carry on; null otherwise.
 export const readBackup = (storage, check) => {
   const text = storage.getItem(KEYS.backup);
   if (text === null) return null;
-  try { return parseSave(text, check); } catch { return null; }
+  try {
+    return parseSave(text, check);
+  } catch {
+    return null;
+  }
 };
 // Go back to the backup: it becomes the current game, and the current game becomes the backup.
 export const swapBackup = storage => {
   const backup = storage.getItem(KEYS.backup);
   if (backup === null) return false;
   const current = storage.getItem(KEYS.current) ?? storage.getItem(KEYS.lastGood);
-  if (current !== null) storage.setItem(KEYS.backup, current); else storage.removeItem(KEYS.backup);
-  storage.setItem(KEYS.current, backup); storage.setItem(KEYS.lastGood, backup);
+  if (current !== null) storage.setItem(KEYS.backup, current);
+  else storage.removeItem(KEYS.backup);
+  storage.setItem(KEYS.current, backup);
+  storage.setItem(KEYS.lastGood, backup);
   return true;
 };
 
@@ -60,5 +80,9 @@ export const clearSave = storage => Object.values(KEYS).forEach(k => storage.rem
 
 export const memoryStorage = () => {
   const data = new Map();
-  return { getItem: k => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, String(v)), removeItem: k => data.delete(k) };
+  return {
+    getItem: k => (data.has(k) ? data.get(k) : null),
+    setItem: (k, v) => data.set(k, String(v)),
+    removeItem: k => data.delete(k),
+  };
 };

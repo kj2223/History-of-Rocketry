@@ -2,8 +2,26 @@
 // estimate sharpens with each good flight, and Ellis's trust in your calls is earned and lost.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { g, newGame, tick, finishInspection, finishBoard, endDay, standStart, standDecide, countStart, countAnswer, rideOut, returnFromRecovery,
-  present, nextRound, closeAway, checkpoint, checkCheckpoint, dateText } from '../js/game.js';
+import {
+  g,
+  newGame,
+  tick,
+  finishInspection,
+  finishBoard,
+  endDay,
+  standStart,
+  standDecide,
+  countStart,
+  countAnswer,
+  rideOut,
+  returnFromRecovery,
+  present,
+  nextRound,
+  closeAway,
+  checkpoint,
+  checkCheckpoint,
+  dateText,
+} from '../js/game.js';
 import { SEASON, onPath } from '../js/data/campaign.js';
 import { initProgramme, adopt, recordFlight, estimate } from '../js/world/programme.js';
 import { newRound, hasIgniterFault } from '../js/truth/round.js';
@@ -18,27 +36,36 @@ test('a season runs through every round on its own dates and ends with your reco
     assert.equal(g.roundIndex, i);
     assert.equal(dateText(g.roundStart), dateText(r.start));
     playRound();
-    if (n + 1 < path.length) { assert.equal(g.beat, 'roundEnd'); advance(); assert.equal(g.room, 'away'); }
+    if (n + 1 < path.length) {
+      assert.equal(g.beat, 'roundEnd');
+      advance();
+      assert.equal(g.room, 'away');
+    }
   });
   assert.equal(g.beat, 'seasonEnd');
   assert.equal(g.record.rounds.length, path.length);
   assert.ok(g.record.rounds.every(r => /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon/.test(r.flight)));
 });
 
-test('the review\'s conclusion becomes a fix that changes how later rounds are built, even if it is the wrong one', () => {
+test("the review's conclusion becomes a fix that changes how later rounds are built, even if it is the wrong one", () => {
   const p = initProgramme();
   assert.match(adopt(p, 'ignition'), /reworked igniter/);
   assert.equal(adopt(p, 'ignition'), null, 'a fix is adopted once');
   // With the igniter fixed, no later round carries the ignition fault.
   for (let s = 1; s < 60; s++) assert.equal(hasIgniterFault(newRound(s, p)), false);
   // A weld fix makes bad welds rarer; it does nothing for leaks.
-  const count = (prog, kind) => { let n = 0; for (let s = 1; s < 400; s++) n += Object.values(newRound(s, prog).faults).includes(kind) ? 1 : 0; return n; };
-  const welded = initProgramme(); adopt(welded, 'weld');
+  const count = (prog, kind) => {
+    let n = 0;
+    for (let s = 1; s < 400; s++) n += Object.values(newRound(s, prog).faults).includes(kind) ? 1 : 0;
+    return n;
+  };
+  const welded = initProgramme();
+  adopt(welded, 'weld');
   assert.ok(count(welded, 'weld') < count(initProgramme(), 'weld') * 0.6);
   assert.equal(count(welded, 'leak'), count(initProgramme(), 'leak'));
 });
 
-test('the drawing office\'s estimate moves toward what the radar saw and narrows with each good flight', () => {
+test("the drawing office's estimate moves toward what the radar saw and narrows with each good flight", () => {
   const p = initProgramme();
   const first = estimate(p, 1);
   recordFlight(p, { load: 1, apogee: 71, failure: null });

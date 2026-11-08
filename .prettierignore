@@ -1,0 +1,15 @@
+node_modules/
+dist/
+output/
+release-artifacts/
+document-backups/
+tmp/
+plans/
+prototypes/
+work/
+v1/
+v1-old/
+v1 Prototype/
+
+# Generated coordinate data: one ring per line is already the readable form.
+js/data/world-map.js

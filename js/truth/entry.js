@@ -5,41 +5,65 @@
 // Mercury flies ballistic (its slow roll cancels lift); Gemini steers its lift with bank angle. Distances
 // are along the ground track from the planned retrofire point; positive is downrange.
 
-const MU = 3.986004e14, RE = 6371e3, RHO0 = 1.225, SCALE_HEIGHT = 7200, G0 = 9.80665;
+const MU = 3.986004e14,
+  RE = 6371e3,
+  RHO0 = 1.225,
+  SCALE_HEIGHT = 7200,
+  G0 = 9.80665;
 const SUTTON_GRAVES = 1.7415e-4; // W m^-2 for air, with density in kg/m^3, velocity in m/s and nose radius in m
-const ENTRY_INTERFACE = 120e3, CHUTES = 10e3;
+const ENTRY_INTERFACE = 120e3,
+  CHUTES = 10e3;
 
 const density = h => RHO0 * Math.exp(-Math.max(h, 0) / SCALE_HEIGHT);
 
 // One step of the equations of motion in polar coordinates (r, θ, radial and tangential velocity).
 const derivatives = (s, v) => {
-  const [r, , vr, vt] = s, h = r - RE, speed = Math.hypot(vr, vt);
-  const rho = density(h), q = 0.5 * rho * speed * speed;
-  const drag = q / v.beta, lift = drag * v.ld * Math.cos(v.bank ?? 0);
+  const [r, , vr, vt] = s,
+    h = r - RE,
+    speed = Math.hypot(vr, vt);
+  const rho = density(h),
+    q = 0.5 * rho * speed * speed;
+  const drag = q / v.beta,
+    lift = drag * v.ld * Math.cos(v.bank ?? 0);
   // Drag acts against velocity; lift acts perpendicular to it, upward for a positive cos(bank).
-  const ax = speed ? -drag * vr / speed + lift * vt / speed : 0;
-  const ay = speed ? -drag * vt / speed - lift * vr / speed : 0;
-  return [vr, vt / r, -MU / (r * r) + vt * vt / r + ax, -vr * vt / r + ay, { q, rho, speed, decel: Math.hypot(drag, lift) }];
+  const ax = speed ? (-drag * vr) / speed + (lift * vt) / speed : 0;
+  const ay = speed ? (-drag * vt) / speed - (lift * vr) / speed : 0;
+  return [
+    vr,
+    vt / r,
+    -MU / (r * r) + (vt * vt) / r + ax,
+    (-vr * vt) / r + ay,
+    { q, rho, speed, decel: Math.hypot(drag, lift) },
+  ];
 };
 
 const rk4 = (s, v, dt) => {
   const add = (a, b, k) => a.map((x, i) => x + b[i] * k);
-  const k1 = derivatives(s, v), k2 = derivatives(add(s, k1, dt / 2), v), k3 = derivatives(add(s, k2, dt / 2), v), k4 = derivatives(add(s, k3, dt), v);
+  const k1 = derivatives(s, v),
+    k2 = derivatives(add(s, k1, dt / 2), v),
+    k3 = derivatives(add(s, k2, dt / 2), v),
+    k4 = derivatives(add(s, k3, dt), v);
   return { next: s.map((x, i) => x + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])), info: k1[4] };
 };
 
 // Fly from a state to the chute altitude. Returns where it came down and the loads on the way.
 const descend = (start, v) => {
-  let s = [...start], t = 0, peakG = 0, heat = 0, blackout = 0;
+  let s = [...start],
+    t = 0,
+    peakG = 0,
+    heat = 0,
+    blackout = 0;
   while (s[0] - RE > CHUTES && t < 20000) {
-    const inAir = s[0] - RE < ENTRY_INTERFACE, dt = inAir ? 0.5 : 5;
+    const inAir = s[0] - RE < ENTRY_INTERFACE,
+      dt = inAir ? 0.5 : 5;
     const { next, info } = rk4(s, v, dt);
     if (inAir) {
       peakG = Math.max(peakG, info.decel / G0);
       heat += SUTTON_GRAVES * Math.sqrt(info.rho / v.noseRadius) * info.speed ** 3 * dt;
       if (info.speed > 5500 && s[0] - RE < 95e3) blackout += dt;
     }
-    s = next; t += dt;
+    s = next;
+    t += dt;
   }
   return { range: s[1] * RE, peakG, heatLoad: heat / 1e6, blackout, time: t };
 };
@@ -47,8 +71,10 @@ const descend = (start, v) => {
 // The state just after retrofire from a circular orbit. Thrust acts against the direction of flight, pitched
 // down by `pitch` and turned out of plane by `yaw`; only the in-plane part slows the capsule.
 const afterRetro = (v, { dv, pitch, yaw, late }) => {
-  const r = RE + v.orbitAltitude, vc = Math.sqrt(MU / r);
-  const along = dv * Math.cos(pitch) * Math.cos(yaw), down = dv * Math.sin(pitch) * Math.cos(yaw);
+  const r = RE + v.orbitAltitude,
+    vc = Math.sqrt(MU / r);
+  const along = dv * Math.cos(pitch) * Math.cos(yaw),
+    down = dv * Math.sin(pitch) * Math.cos(yaw);
   // Firing late moves the retrofire point, and so the whole footprint, downrange.
   return [r, (vc / r) * late, -down, vc - along];
 };
@@ -59,10 +85,15 @@ const fromApogee = v => [RE + v.apogee, 0, 0, v.apogeeSpeed];
 // Gemini's guidance chooses the bank angle that lands it where it believes the target is.
 const steer = (start, v, target) => {
   const at = bank => descend(start, { ...v, bank }).range;
-  let lo = 0, hi = Math.PI; // full lift up flies longest, full lift down shortest
+  let lo = 0,
+    hi = Math.PI; // full lift up flies longest, full lift down shortest
   if (target >= at(lo)) return lo;
   if (target <= at(hi)) return hi;
-  for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (at(mid) > target) lo = mid; else hi = mid; }
+  for (let i = 0; i < 30; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid) > target) lo = mid;
+    else hi = mid;
+  }
   return (lo + hi) / 2;
 };
 
@@ -71,7 +102,12 @@ const steer = (start, v, target) => {
 export const flyEntry = (v, retro = {}, navError = 0) => {
   if (v.suborbital) return { ...descend(fromApogee(v), v), miss: 0 };
   const planned = { dv: v.retroDv, pitch: v.retroPitch, yaw: 0, late: 0 };
-  const actual = { dv: v.retroDv * (1 + (retro.dvScale ?? 0)), pitch: v.retroPitch + (retro.pitchError ?? 0), yaw: retro.yawError ?? 0, late: retro.late ?? 0 };
+  const actual = {
+    dv: v.retroDv * (1 + (retro.dvScale ?? 0)),
+    pitch: v.retroPitch + (retro.pitchError ?? 0),
+    yaw: retro.yawError ?? 0,
+    late: retro.late ?? 0,
+  };
   const lifting = v.ld > 0;
   const nominalBank = lifting ? v.nominalBank : 0;
   const aim = descend(afterRetro(v, planned), { ...v, bank: nominalBank }).range;
@@ -86,19 +122,43 @@ export const KM_PER_MILE = 1.609344;
 
 // The capsules. Mercury flies ballistic (its slow roll cancels lift); Gemini banks its lift. Angles in radians.
 const DEG = Math.PI / 180;
-export const MERCURY_ENTRY = { beta: 260, ld: 0, noseRadius: 2.4, retroDv: 170, retroPitch: 34 * DEG, orbitAltitude: 160e3 };
-export const GEMINI_ENTRY = { beta: 340, ld: 0.19, noseRadius: 2.3, retroDv: 100, retroPitch: 20 * DEG, orbitAltitude: 160e3, nominalBank: 60 * DEG };
+export const MERCURY_ENTRY = {
+  beta: 260,
+  ld: 0,
+  noseRadius: 2.4,
+  retroDv: 170,
+  retroPitch: 34 * DEG,
+  orbitAltitude: 160e3,
+};
+export const GEMINI_ENTRY = {
+  beta: 340,
+  ld: 0.19,
+  noseRadius: 2.3,
+  retroDv: 100,
+  retroPitch: 20 * DEG,
+  orbitAltitude: 160e3,
+  nominalBank: 60 * DEG,
+};
 
 // Coming home from the Moon: no retrofire, the ship meets the air at 120 km at about 11 km/s on a flight-path angle the
 // midcourse burns set. Too shallow and she skips back out; too steep and the g load crushes. The command module banks its
 // lift to steer for the target it believes in, as Gemini did. gammaError in degrees, navError in m.
-export const LUNAR_ENTRY = { beta: 360, ld: 0.3, noseRadius: 4.7, speed: 11.03e3, gamma: -6.2, nominalBank: 55 * DEG, corridor: [-7.2, -5.5] };
+export const LUNAR_ENTRY = {
+  beta: 360,
+  ld: 0.3,
+  noseRadius: 4.7,
+  speed: 11.03e3,
+  gamma: -6.2,
+  nominalBank: 55 * DEG,
+  corridor: [-7.2, -5.5],
+};
 export const flyLunarEntry = (v, gammaError = 0, navError = 0) => {
   const at = gamma => [RE + ENTRY_INTERFACE - 1, 0, v.speed * Math.sin(gamma * DEG), v.speed * Math.cos(gamma * DEG)];
   const aim = descend(at(v.gamma), { ...v, bank: v.nominalBank }).range;
   const gamma = v.gamma + gammaError;
   if (gamma > v.corridor[1]) return { skip: true, gamma, miss: Infinity, peakG: 4, heatLoad: 0, blackout: 0, aim };
-  const start = at(gamma), bank = steer(start, v, aim + navError);
+  const start = at(gamma),
+    bank = steer(start, v, aim + navError);
   const out = descend(start, { ...v, bank });
   return { ...out, gamma, aim, miss: out.range - aim, bank, skip: false };
 };

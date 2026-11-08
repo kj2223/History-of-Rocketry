@@ -16,13 +16,13 @@ export const ROUTE_MODES = {
   eor: {
     name: 'Earth-orbit rendezvous',
     plan: 'Two or more Saturns go up, meet in Earth orbit and fuel or join a ship that then goes to the Moon and lands whole.',
-    case: 'Rendezvous close to home, where a miss can be tried again or the crew can come down. Marshall\'s plan: it needs Marshall\'s rockets, and a lot of them.',
-    who: 'Marshall, Albrecht\'s people in Huntsville.',
+    case: "Rendezvous close to home, where a miss can be tried again or the crew can come down. Marshall's plan: it needs Marshall's rockets, and a lot of them.",
+    who: "Marshall, Albrecht's people in Huntsville.",
   },
   lor: {
     name: 'Lunar-orbit rendezvous',
     plan: 'One Saturn V. A mother ship stays in orbit round the Moon while a small, light lander takes two men down and back up to meet it.',
     case: 'By far the lightest: the lander leaves its legs and its descent stage behind, and only the mother ship carries a heat shield. But the rendezvous is a quarter of a million miles from home, and if it fails nobody can help.',
-    who: 'Langley\'s rendezvous people. Houston is coming round to it.',
+    who: "Langley's rendezvous people. Houston is coming round to it.",
   },
 };

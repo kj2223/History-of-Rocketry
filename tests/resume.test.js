@@ -12,11 +12,16 @@ const at = id => SEASON.findIndex(r => r.id === id);
 
 test('a checkpoint saved before the crewed rounds went in finds its round by vehicle and date', () => {
   newGame(5);
-  while (SEASON[g.roundIndex].id !== 'pioneer-4') { playRound(); advance(false); }
-  playRound(); advance(false);
+  while (SEASON[g.roundIndex].id !== 'pioneer-4') {
+    playRound();
+    advance(false);
+  }
+  playRound();
+  advance(false);
   assert.equal(SEASON[g.roundIndex].id, 'ranger-7');
   const old = structuredClone(g.saved);
-  delete old.roundId; old.roundIndex = 18; // where Ranger 7 sat before Mercury, Gemini and Apollo
+  delete old.roundId;
+  old.roundIndex = 18; // where Ranger 7 sat before Mercury, Gemini and Apollo
   assert.equal(roundIndexOf(old), at('ranger-7'));
   newGame(old.seed, old);
   assert.equal(SEASON[g.roundIndex].id, 'ranger-7');
@@ -27,7 +32,10 @@ test('a checkpoint saved before the crewed rounds went in finds its round by veh
 
 test('an old round-end after Pioneer 4 is given the NASA offer it never had', () => {
   newGame(9);
-  while (SEASON[g.roundIndex].id !== 'pioneer-4') { playRound(); advance(true); }
+  while (SEASON[g.roundIndex].id !== 'pioneer-4') {
+    playRound();
+    advance(true);
+  }
   playRound();
   const old = structuredClone(g.saved);
   old.record.offers = old.record.offers.filter(o => o.seat !== 'retro');
@@ -38,24 +46,32 @@ test('an old round-end after Pioneer 4 is given the NASA offer it never had', ()
 
 test('standing at the dugout when the stage reaches the stand opens the static fire', () => {
   newGame(3);
-  finishInspection({}); finishBoard(); nextDay();
+  finishInspection({});
+  finishBoard();
+  nextDay();
   assert.equal(g.beat, 'staticPrep');
   openWhenReady(false);
-  place('you', PLACES.dugout.door); g.room = null;
+  place('you', PLACES.dugout.door);
+  g.room = null;
   until(() => g.beat === 'static');
   openWhenReady(false);
   assert.equal(g.room, 'static');
   // Closed, it stays closed.
-  g.room = null; openWhenReady(false);
+  g.room = null;
+  openWhenReady(false);
   assert.equal(g.room, null);
 });
 
 test('a watch panel open on the blockhouse switches to the count when the round is in the tower', () => {
   newGame(3);
-  finishInspection({}); finishBoard(); nextDay();
+  finishInspection({});
+  finishBoard();
+  nextDay();
   until(() => g.beat === 'static');
-  standStart(); until(() => g.stand.phase === 'read');
-  standDecide({ rework: false, leak: false }); nextDay();
+  standStart();
+  until(() => g.stand.phase === 'read');
+  standDecide({ rework: false, leak: false });
+  nextDay();
   assert.equal(g.beat, 'rollout');
   g.room = 'watch:blockhouse';
   until(() => g.beat === 'countReady');
@@ -68,13 +84,16 @@ test('starting a new game keeps the old one as the backup, and going back swaps 
   const { writeSave, readSave, startOver, readBackup, swapBackup, memoryStorage } = await import('../js/core/save.js');
   const { checkCheckpoint } = await import('../js/game.js');
   const storage = memoryStorage();
-  newGame(5); playRound(); advance(false);
+  newGame(5);
+  playRound();
+  advance(false);
   const later = structuredClone(g.saved);
   writeSave(storage, later);
   startOver(storage);
   assert.equal(readSave(storage, checkCheckpoint), null);
   assert.equal(readBackup(storage, checkCheckpoint).roundIndex, later.roundIndex);
-  newGame(6); writeSave(storage, g.saved);
+  newGame(6);
+  writeSave(storage, g.saved);
   assert.ok(swapBackup(storage));
   assert.equal(readSave(storage, checkCheckpoint).seed, 5);
   assert.equal(readBackup(storage, checkCheckpoint).seed, 6);

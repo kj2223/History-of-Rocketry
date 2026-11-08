@@ -12,7 +12,8 @@ import { flyEntry, MERCURY_ENTRY } from './entry.js';
 
 const DEG = Math.PI / 180;
 export const ORBIT_PLAN = { burn: 300, v: 7.84, gamma: 0, cutoffH: 160, need: 7.78, orbits: 3, period: 88, entryG: 8 };
-export const ORBIT_ABORT_LIMIT = 6, ORBIT_BREAKUP = 18;
+export const ORBIT_ABORT_LIMIT = 6,
+  ORBIT_BREAKUP = 18;
 // A fault on the Atlas or the capsule brings trouble this often when it is there.
 export const ORBIT_FAILURE = { guidance: 0.6, shortburn: 0.6 };
 export const ORBIT_HIDDEN = 0.04;
@@ -25,9 +26,17 @@ export const FUEL_LOW = 0.15;
 // The recovery forces for an orbital flight: the carrier on the planned point, destroyers up and down the track, and the
 // ships in the Atlantic abort areas under the climb (km downrange of the Cape).
 export const ORBIT_RECOVERY = {
-  carrier: { at: 0, helo: 180 }, uprange: { at: -300, ship: 45 }, downrange: { at: 300, ship: 45 },
-  abortAreas: [500, 1200, 2400], abortShip: 45,
-  search: 40, beacon: 30, radarWait: 0.35, crane: 1, slow: 0.35, ready: 0.15,
+  carrier: { at: 0, helo: 180 },
+  uprange: { at: -300, ship: 45 },
+  downrange: { at: 300, ship: 45 },
+  abortAreas: [500, 1200, 2400],
+  abortShip: 45,
+  search: 40,
+  beacon: 30,
+  radarWait: 0.35,
+  crane: 1,
+  slow: 0.35,
+  ready: 0.15,
 };
 
 const smooth = k => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
@@ -35,23 +44,57 @@ export const orbitGamma = t => (t < 10 ? 90 : 90 - 90 * smooth((t - 10) / (ORBIT
 
 // The climb to orbit, decided in full at liftoff. A fixed 9 draws.
 // names: the booster's own fault kinds for a control failure and an early cutoff (the Titan II's are its own).
-export function atlasAscent(round, force = null, names = { guidance: 'guidance', shortburn: 'shortburn', booster: 'Atlas' }) {
-  const ph = round.rng.physical, present = new Set(Object.values(round.faults || {}));
-  const d = { guidance: draw(ph), sign: draw(ph), start: draw(ph), sustainer: draw(ph), cutAt: draw(ph), hidden: draw(ph), which: draw(ph), v: normal(ph), gamma: normal(ph) };
+export function atlasAscent(
+  round,
+  force = null,
+  names = { guidance: 'guidance', shortburn: 'shortburn', booster: 'Atlas' },
+) {
+  const ph = round.rng.physical,
+    present = new Set(Object.values(round.faults || {}));
+  const d = {
+    guidance: draw(ph),
+    sign: draw(ph),
+    start: draw(ph),
+    sustainer: draw(ph),
+    cutAt: draw(ph),
+    hidden: draw(ph),
+    which: draw(ph),
+    v: normal(ph),
+    gamma: normal(ph),
+  };
   let failure = null;
   if (force) failure = force === 'nominal' ? null : force;
   else if (present.has(names.guidance) && d.guidance < ORBIT_FAILURE.guidance) failure = names.guidance;
   else if (present.has(names.shortburn) && d.sustainer < ORBIT_FAILURE.shortburn) failure = names.shortburn;
-  else if (d.hidden < ORBIT_HIDDEN) { failure = d.which < 0.5 ? names.guidance : names.shortburn; round.events.push(`Something failed on the ${names.booster} that no inspection could have found.`); }
-  const P = ORBIT_PLAN, vEnd = P.v * (1 + 0.002 * d.v), burn = failure === names.shortburn ? Math.round(230 + 60 * d.cutAt) : P.burn;
-  const disp = 0.6 * d.gamma, drift = failure === names.guidance ? (d.sign < 0.5 ? -1 : 1) * 0.25 : 0, t0 = 60 + Math.round(90 * d.start);
+  else if (d.hidden < ORBIT_HIDDEN) {
+    failure = d.which < 0.5 ? names.guidance : names.shortburn;
+    round.events.push(`Something failed on the ${names.booster} that no inspection could have found.`);
+  }
+  const P = ORBIT_PLAN,
+    vEnd = P.v * (1 + 0.002 * d.v),
+    burn = failure === names.shortburn ? Math.round(230 + 60 * d.cutAt) : P.burn;
+  const disp = 0.6 * d.gamma,
+    drift = failure === names.guidance ? (d.sign < 0.5 ? -1 : 1) * 0.25 : 0,
+    t0 = 60 + Math.round(90 * d.start);
   const steps = [];
   let breakupAt = null;
   for (let t = 0; t <= burn; t++) {
-    const k = t / P.burn, v = vEnd * k ** 1.4;
+    const k = t / P.burn,
+      v = vEnd * k ** 1.4;
     const off = disp * smooth((t - 10) / (P.burn - 10)) + (drift && t > t0 ? drift * (t - t0) : 0);
-    steps.push({ t, v, gamma: orbitGamma(t) + off, off, acc: (1.3 + 6.5 * k ** 1.8) * (t < 130 ? 1 : 0.55 + 0.45 * k), h: P.cutoffH * k ** 1.3, x: 1400 * k ** 2.4 });
-    if (drift && Math.abs(off) >= ORBIT_BREAKUP) { breakupAt = t; break; }
+    steps.push({
+      t,
+      v,
+      gamma: orbitGamma(t) + off,
+      off,
+      acc: (1.3 + 6.5 * k ** 1.8) * (t < 130 ? 1 : 0.55 + 0.45 * k),
+      h: P.cutoffH * k ** 1.3,
+      x: 1400 * k ** 2.4,
+    });
+    if (drift && Math.abs(off) >= ORBIT_BREAKUP) {
+      breakupAt = t;
+      break;
+    }
   }
   const a = { failure, burn, steps, breakupAt, controlFrom: drift ? t0 : null, asis: true, orbital: true };
   round.ascent = a;
@@ -67,22 +110,48 @@ export function atlasOutcome(round, abortAt = null) {
   const a = round.ascent;
   const atlantic = (s, extra = 0) => {
     const r = arc(Math.min(s.v, 6) + 0.1, Math.max(2, s.gamma), s.h, s.x);
-    return { landing: Math.min(3000, r.range + extra), apogee: r.apogee, entryG: Math.min(16, 6 + 1.5 * s.v), coast: Math.min(1200, r.coast) };
+    return {
+      landing: Math.min(3000, r.range + extra),
+      apogee: r.apogee,
+      entryG: Math.min(16, 6 + 1.5 * s.v),
+      coast: Math.min(1200, r.coast),
+    };
   };
   if (abortAt != null && (a.breakupAt == null || abortAt < a.breakupAt) && abortAt < a.burn) {
-    return (round.end = { outcome: 'aborted', ...atlantic(a.steps[Math.min(abortAt, a.steps.length - 1)]), capsule: 'safe', abortedAt: abortAt });
+    return (round.end = {
+      outcome: 'aborted',
+      ...atlantic(a.steps[Math.min(abortAt, a.steps.length - 1)]),
+      capsule: 'safe',
+      abortedAt: abortAt,
+    });
   }
-  if (a.breakupAt != null) return (round.end = { outcome: 'breakup', ...atlantic(a.steps[a.breakupAt]), capsule: 'damaged', abortedAt: a.breakupAt, breakup: a.breakupAt });
+  if (a.breakupAt != null)
+    return (round.end = {
+      outcome: 'breakup',
+      ...atlantic(a.steps[a.breakupAt]),
+      capsule: 'damaged',
+      abortedAt: a.breakupAt,
+      breakup: a.breakupAt,
+    });
   const s = a.steps[a.steps.length - 1];
-  return (round.end = { outcome: 'orbit', margin: insertionMargin(s.v, s.off), v: s.v, gammaOff: s.off, capsule: 'safe' });
+  return (round.end = {
+    outcome: 'orbit',
+    margin: insertionMargin(s.v, s.off),
+    v: s.v,
+    gammaOff: s.off,
+    capsule: 'safe',
+  });
 }
 
 // The Goddard computers' go/no-go for orbit, from the cutoff velocity and angle on telemetry. Right nearly always.
 // Two observation draws.
 export function goddard(round) {
-  const ob = round.rng.observation, wrong = draw(ob) < 0.03, noise = 0.01 * normal(ob), e = round.end;
+  const ob = round.rng.observation,
+    wrong = draw(ob) < 0.03,
+    noise = 0.01 * normal(ob),
+    e = round.end;
   const seen = { v: e.v + noise, gammaOff: e.gammaOff };
-  const go = (insertionMargin(seen.v, seen.gammaOff) >= 0) !== wrong;
+  const go = insertionMargin(seen.v, seen.gammaOff) >= 0 !== wrong;
   return (round.goddard = { ...seen, go });
 }
 
@@ -90,23 +159,47 @@ export function goddard(round) {
 // A go on an orbit that will not hold brings her down within the first orbit, far from any ship.
 export function insertion(round, go) {
   const e = round.end;
-  if (!go) return Object.assign(e, { outcome: 'nogo', landing: 2400 + 120 * (e.margin < 0 ? -1 : 1), capsule: 'safe', entryG: 9 });
-  if (e.margin < 0) return Object.assign(e, { outcome: 'decay', landing: 5500 + 3000 * Math.min(1, -e.margin * 10), capsule: 'damaged', entryG: 12 });
+  if (!go)
+    return Object.assign(e, {
+      outcome: 'nogo',
+      landing: 2400 + 120 * (e.margin < 0 ? -1 : 1),
+      capsule: 'safe',
+      entryG: 9,
+    });
+  if (e.margin < 0)
+    return Object.assign(e, {
+      outcome: 'decay',
+      landing: 5500 + 3000 * Math.min(1, -e.margin * 10),
+      capsule: 'damaged',
+      entryG: 12,
+    });
   return e;
 }
 
 // What the capsule is really doing in orbit, decided when it gets there. A fixed 6 draws.
 // signal: whether Segment 51 (landing bag deployed) shows, and whether it flickers. scanner: a bad horizon scanner.
 export function inOrbit(round) {
-  const ph = round.rng.physical, present = new Set(Object.values(round.faults || {}));
-  const d = { falseAlarm: draw(ph), flicker: draw(ph), yaw: draw(ph), sign: draw(ph), hand: normal(ph), late: draw(ph) };
-  const loose = present.has('shield'), scanner = present.has('scanner');
+  const ph = round.rng.physical,
+    present = new Set(Object.values(round.faults || {}));
+  const d = {
+    falseAlarm: draw(ph),
+    flicker: draw(ph),
+    yaw: draw(ph),
+    sign: draw(ph),
+    hand: normal(ph),
+    late: draw(ph),
+  };
+  const loose = present.has('shield'),
+    scanner = present.has('scanner');
   const falseAlarm = !loose && d.falseAlarm < (round.seg51Risk ?? 0.12);
   const o = {
-    loose, scanner,
-    signal: loose || falseAlarm, flicker: loose ? d.flicker < 0.25 : d.flicker < 0.7,
+    loose,
+    scanner,
+    signal: loose || falseAlarm,
+    flicker: loose ? d.flicker < 0.25 : d.flicker < 0.7,
     scannerYaw: (d.sign < 0.5 ? -1 : 1) * (SCANNER.yaw[0] + (SCANNER.yaw[1] - SCANNER.yaw[0]) * d.yaw),
-    handYaw: 4 * d.hand, handLate: 1 + 3 * d.late,
+    handYaw: 4 * d.hand,
+    handLate: 1 + 3 * d.late,
     fuelPerOrbit: scanner ? SCANNER.fuelPerOrbit : SCANNER.nominalFuelPerOrbit,
   };
   round.orbit = o;
@@ -117,11 +210,13 @@ export const fuelAfter = (o, orbits) => Math.max(0, 1 - o.fuelPerOrbit * orbits)
 // Retrofire and entry. how: 'auto' (on the automatic system) or 'manual' (fired by hand, lined up on the window).
 // pack: 'keep' (retro pack left on through entry) or 'jettison'. A fixed 5 draws.
 export function retrofire(round, how, pack) {
-  const ph = round.rng.physical, o = round.orbit;
+  const ph = round.rng.physical,
+    o = round.orbit;
   const d = { dv: normal(ph), yaw: normal(ph), short: draw(ph), shield: draw(ph), osc: draw(ph) };
-  const retro = how === 'auto'
-    ? { yawError: (o.scanner ? o.scannerYaw : 1.5 * d.yaw) * DEG, late: 0.3, dvScale: 0.01 * d.dv }
-    : { yawError: o.handYaw * DEG, late: o.handLate, dvScale: 0.01 * d.dv };
+  const retro =
+    how === 'auto'
+      ? { yawError: (o.scanner ? o.scannerYaw : 1.5 * d.yaw) * DEG, late: 0.3, dvScale: 0.01 * d.dv }
+      : { yawError: o.handYaw * DEG, late: o.handLate, dvScale: 0.01 * d.dv };
   if (d.short < 0.02) retro.dvScale -= 0.33;
   const e = flyEntry(MERCURY_ENTRY, retro);
   let capsule = 'safe';
@@ -132,7 +227,18 @@ export function retrofire(round, how, pack) {
   const oscillated = how === 'manual' && fuel < FUEL_LOW;
   // Out of fuel she swings through the entry; now and then hard enough to hurt.
   if (oscillated && d.osc < 0.25 && capsule === 'safe') capsule = 'damaged';
-  Object.assign(round.end, { outcome: 'entry', miss: e.miss / 1000, entryG: e.peakG + (oscillated ? 2 : 0), heat: e.heatLoad, blackout: e.blackout, capsule, how, pack, retro: { yaw: retro.yawError / DEG, late: retro.late, dv: retro.dvScale }, oscillated });
+  Object.assign(round.end, {
+    outcome: 'entry',
+    miss: e.miss / 1000,
+    entryG: e.peakG + (oscillated ? 2 : 0),
+    heat: e.heatLoad,
+    blackout: e.blackout,
+    capsule,
+    how,
+    pack,
+    retro: { yaw: retro.yawError / DEG, late: retro.late, dv: retro.dvScale },
+    oscillated,
+  });
   return round.end;
 }
 
@@ -140,17 +246,24 @@ export function retrofire(round, how, pack) {
 // telemetry reported it (the attitude as the scanner saw it); 'radar': the radars after blackout, accurate but later.
 // Four observation draws.
 export function orbitPredictions(round) {
-  const ob = round.rng.observation, e = round.end, o = round.orbit;
-  const n1 = normal(ob), n2 = normal(ob), n3 = normal(ob); draw(ob);
+  const ob = round.rng.observation,
+    e = round.end,
+    o = round.orbit;
+  const n1 = normal(ob),
+    n2 = normal(ob),
+    n3 = normal(ob);
+  draw(ob);
   const seenYaw = e.how === 'auto' && o.scanner ? 1.5 * n3 : e.retro.yaw + 2 * n3;
-  const predicted = flyEntry(MERCURY_ENTRY, { yawError: seenYaw * DEG, late: e.retro.late, dvScale: e.retro.dv }).miss / 1000;
+  const predicted =
+    flyEntry(MERCURY_ENTRY, { yawError: seenYaw * DEG, late: e.retro.late, dvScale: e.retro.dv }).miss / 1000;
   return (round.ip = { planned: 0, retro: predicted + 10 * n1, radar: e.miss + 12 * n2 });
 }
 
 // Hours from splashdown to pickup. aim: km from the planned point where the helicopters go; waited: whether Recovery held
 // them for the radar. An aborted or decayed flight is found by the nearest ship in the abort areas.
 export function orbitRecoveryHours(end, aim, cond, trained, waited = false) {
-  const R = ORBIT_RECOVERY, prep = trained ? R.ready : R.slow;
+  const R = ORBIT_RECOVERY,
+    prep = trained ? R.ready : R.slow;
   // Down within the first orbit, far from any ship: the search aircraft find her, and a merchant ship or a destroyer
   // runs to her.
   if (end.outcome === 'decay') return prep + 6 + (end.landing - 5500) / 750 + (cond.seaState > 4 ? R.crane : 0);
@@ -158,12 +271,18 @@ export function orbitRecoveryHours(end, aim, cond, trained, waited = false) {
     const near = Math.min(...R.abortAreas.map(a => Math.abs(a - end.landing)));
     return prep + near / R.abortShip + (cond.seaState > 4 ? R.crane : 0);
   }
-  const helosFly = cond.seaState < 5, options = [];
+  const helosFly = cond.seaState < 5,
+    options = [];
   if (helosFly) {
     const miss = Math.abs(aim - end.miss);
-    options.push(Math.abs(aim) / R.carrier.helo + (miss <= R.beacon ? miss / R.carrier.helo : R.beacon / R.carrier.helo + (miss - R.beacon) / R.search) + (waited ? R.radarWait : 0));
+    options.push(
+      Math.abs(aim) / R.carrier.helo +
+        (miss <= R.beacon ? miss / R.carrier.helo : R.beacon / R.carrier.helo + (miss - R.beacon) / R.search) +
+        (waited ? R.radarWait : 0),
+    );
   }
-  for (const id of ['uprange', 'downrange']) if (cond.late !== id) options.push(Math.abs(R[id].at - end.miss) / R[id].ship);
+  for (const id of ['uprange', 'downrange'])
+    if (cond.late !== id) options.push(Math.abs(R[id].at - end.miss) / R[id].ship);
   if (!helosFly) options.push(Math.abs(end.miss) / R.uprange.ship);
   return prep + Math.min(...options) + (helosFly ? 0 : R.crane);
 }

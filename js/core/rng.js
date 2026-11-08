@@ -5,8 +5,10 @@ export const ALGORITHM = 'mulberry32-v1';
 
 const SALTS = { physical: 0x9e3779b9, observation: 0x85ebca6b, forecast: 0xc2b2ae35 };
 
-export const newStreams = seed => Object.fromEntries(
-  Object.entries(SALTS).map(([name, salt]) => [name, { algorithm: ALGORITHM, state: (seed ^ salt) >>> 0 }]));
+export const newStreams = seed =>
+  Object.fromEntries(
+    Object.entries(SALTS).map(([name, salt]) => [name, { algorithm: ALGORITHM, state: (seed ^ salt) >>> 0 }]),
+  );
 
 // A float in [0, 1). Mutates stream.state.
 export const draw = stream => {
@@ -20,6 +22,7 @@ export const draw = stream => {
 
 // Standard normal draw (Box–Muller); always takes exactly two draws.
 export const normal = stream => {
-  const u = draw(stream) || 1e-12, v = draw(stream);
+  const u = draw(stream) || 1e-12,
+    v = draw(stream);
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 };

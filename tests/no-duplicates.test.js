@@ -13,7 +13,11 @@ test('no file declares the same top-level function or class twice', () => {
       if (!f.endsWith('.js')) continue;
       const names = namesIn(readFileSync(new URL(`../${dir}/${f}`, import.meta.url), 'utf8'));
       const dupes = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
-      assert.deepEqual(dupes, [], `${dir}/${f} declares ${dupes.join(', ')} more than once; the last copy silently shadows the working one`);
+      assert.deepEqual(
+        dupes,
+        [],
+        `${dir}/${f} declares ${dupes.join(', ')} more than once; the last copy silently shadows the working one`,
+      );
     }
   }
 });

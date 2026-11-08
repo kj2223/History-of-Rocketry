@@ -13,7 +13,8 @@ export const COSTS = {
 };
 
 // What a plan will cost before anything goes wrong.
-export const planCost = plan => COSTS.inspect[plan.inspector || 'you'] + (plan.burn === 'long' ? COSTS.long : 0) + (plan.leak ? COSTS.leak : 0);
+export const planCost = plan =>
+  COSTS.inspect[plan.inspector || 'you'] + (plan.burn === 'long' ? COSTS.long : 0) + (plan.leak ? COSTS.leak : 0);
 
 // The budget for the fiscal year containing `day`, opening a new year's line if the year has turned.
 export function lineFor(record, day) {
@@ -27,7 +28,8 @@ export function spend(record, day, amount, what) {
   const { fy } = lineFor(record, day);
   const b = record.budget[fy];
   const wasOver = b.spent > b.line;
-  b.spent += amount; b.items.push({ what, amount });
+  b.spent += amount;
+  b.items.push({ what, amount });
   if (!wasOver && b.spent > b.line) record.overspent = (record.overspent || 0) + 1;
   return { fy, ...b };
 }

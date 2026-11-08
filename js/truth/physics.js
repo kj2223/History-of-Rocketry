@@ -9,7 +9,10 @@ export const initPhysical = () => ({ trueDefectMechanism: 'pm-07', latentMechani
 
 // A mechanism is present on every article whose stage revision has not removed it; its `effects` show
 // only under its `when` conditions, but it can bring down any flight it is present on.
-const present = (m, stages) => { const rev = stages[m.stage]; return !!rev && !lineage(rev).some(r => m.absentFrom.includes(r)); };
+const present = (m, stages) => {
+  const rev = stages[m.stage];
+  return !!rev && !lineage(rev).some(r => m.absentFrom.includes(r));
+};
 const showing = (m, conditions) => Object.entries(m.when).every(([k, v]) => conditions[k] === v);
 
 // Generate the true trace of a test and keep it in the physical layer.
@@ -17,11 +20,14 @@ const showing = (m, conditions) => Object.entries(m.when).every(([k, v]) => cond
 export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions }) => {
   const stream = state.rng.physical;
   // shortcut: saves made before latent mechanisms existed get the default set on load.
-  const ids = [state.physical.trueDefectMechanism, ...(state.physical.latentMechanisms ?? LATENT)].filter(id => MECHANISMS[id]);
+  const ids = [state.physical.trueDefectMechanism, ...(state.physical.latentMechanisms ?? LATENT)].filter(
+    id => MECHANISMS[id],
+  );
   const mechanisms = ids.map(id => ({ id, ...MECHANISMS[id] })).filter(m => present(m, stages));
   // One roll decides the flight: each active mechanism brings it down with its own chance, independently.
   const roll = draw(stream);
-  let survive = 1, culprit = null;
+  let survive = 1,
+    culprit = null;
   for (const m of mechanisms) {
     survive *= 1 - (m.flightFailureChance ?? 0);
     if (!culprit && roll < 1 - survive) culprit = m;
@@ -30,7 +36,8 @@ export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions
   if (kind === 'flight') state.physical.culprit = failed ? culprit.id : null; // which mechanism brought it down, for truth only
   const samples = VEHICLE_QUANTITIES[vehicle].map(quantity => {
     let value = BASE[vehicle][quantity];
-    for (const rev of Object.values(stages)) for (const r of lineage(rev)) value += REVISION_EFFECTS[r]?.[quantity] ?? 0;
+    for (const rev of Object.values(stages))
+      for (const r of lineage(rev)) value += REVISION_EFFECTS[r]?.[quantity] ?? 0;
     for (const m of mechanisms) if (showing(m, conditions)) value += m.effects[quantity] ?? 0;
     if (failed) value += culprit.onFailure?.[quantity] ?? 0;
     value *= 1 + SCATTER * normal(stream);
@@ -45,4 +52,6 @@ export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions
 
 export const sampleAt = (state, jobId, index) => ({ ...state.physical.traces[jobId][index] });
 
-export const discardTrace = (state, jobId) => { delete state.physical.traces[jobId]; };
+export const discardTrace = (state, jobId) => {
+  delete state.physical.traces[jobId];
+};

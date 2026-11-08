@@ -1,7 +1,8 @@
 // The site side-on (White Sands from 1945; the Cape keeps the same layout): where each building stands along the ground, in world units.
 // Shared by the game state (where people walk) and the drawing. Content, not hidden truth.
-export const VIEW_H = 600, GROUND = 520, WORLD_W = 3000;
-
+export const VIEW_H = 600,
+  GROUND = 520,
+  WORLD_W = 3000;
 
 // The buildings, by their left edge and width. door: where people stand to go in. room: the room the player can open.
 export const PLACES = {

@@ -3,7 +3,17 @@
 // and your first budget line.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newRound, staticFire, hasTurbineFault, hasHolddownFault, standRework, fly, wreckage, flyLoose, ellisReading } from '../js/truth/round.js';
+import {
+  newRound,
+  staticFire,
+  hasTurbineFault,
+  hasHolddownFault,
+  standRework,
+  fly,
+  wreckage,
+  flyLoose,
+  ellisReading,
+} from '../js/truth/round.js';
 import { initProgramme, adopt } from '../js/world/programme.js';
 import { initRecord, standing, shiftTrust } from '../js/career/record.js';
 import { LINE, COSTS, planCost, spend, lineFor } from '../js/world/budget.js';
@@ -13,7 +23,10 @@ import { g, newGame, finishPlan, onBudget, standStart, rideOut, returnFromRecove
 import { playRound, advance, until } from './play.js';
 
 const viking = (s, p = initProgramme()) => newRound(s, p, 'viking');
-const seedWhere = ok => { for (let s = 1; s < 800; s++) if (ok(viking(s))) return s; throw new Error('no seed'); };
+const seedWhere = ok => {
+  for (let s = 1; s < 800; s++) if (ok(viking(s))) return s;
+  throw new Error('no seed');
+};
 const tail = (trace, n = 12) => trace.slice(-n).reduce((a, p) => a + p.pc, 0) / n;
 
 test('a leaking turbine shows only on a full-duration firing, as chamber pressure sagging late in the burn', () => {
@@ -46,13 +59,20 @@ test('flawed hold-downs only let go under a full-duration firing, and the round 
   assert.ok(loose > 20, `${loose} breakaways`);
 });
 
-test('Vikings fail by turbine cutoff, fins and leaks, and the reviews\' fixes carry', () => {
+test("Vikings fail by turbine cutoff, fins and leaks, and the reviews' fixes carry", () => {
   const seen = new Set();
-  for (let s = 1; s < 300; s++) { const r = viking(s), f = fly(r); if (f.failure) seen.add(f.failure); }
+  for (let s = 1; s < 300; s++) {
+    const r = viking(s),
+      f = fly(r);
+    if (f.failure) seen.add(f.failure);
+  }
   assert.deepEqual([...seen].sort(), ['cutoff', 'fin', 'leak']);
-  const p = initProgramme(); adopt(p, 'cutoff');
+  const p = initProgramme();
+  adopt(p, 'cutoff');
   for (let s = 1; s < 200; s++) assert.equal(hasTurbineFault(viking(s, p)), false);
-  const clean = viking(5); clean.faults = {}; clean.viking = 'viking/r2';
+  const clean = viking(5);
+  clean.faults = {};
+  clean.viking = 'viking/r2';
   const f = fly(clean);
   assert.equal(f.failure, null);
   assert.ok(f.apogee > 140 && f.apogee < 200, `apogee ${f.apogee}`);
@@ -63,16 +83,24 @@ test('the new blockhouse goes up over the winter of 1950-51', () => {
   const mid = blockhouseState(dayOf(1950, 12, 15));
   assert.ok(!mid.built && mid.progress > 0.3 && mid.progress < 0.9);
   assert.equal(blockhouseState(SITE_CHANGES.newBlockhouse.done).built, true);
-  const v5 = SEASON.find(r => r.id === 'viking-5'), v7 = SEASON.find(r => r.id === 'viking-7');
-  assert.ok(blockhouseState(v5.start).progress > 0 && !blockhouseState(v5.start).built, 'Viking 5 flies while it is going up');
+  const v5 = SEASON.find(r => r.id === 'viking-5'),
+    v7 = SEASON.find(r => r.id === 'viking-7');
+  assert.ok(
+    blockhouseState(v5.start).progress > 0 && !blockhouseState(v5.start).built,
+    'Viking 5 flies while it is going up',
+  );
   assert.ok(blockhouseState(v7.start).built, 'Viking 7 is counted from the new one');
 });
 
 test('your budget line: each fiscal year opens a fresh line, and going over counts against your standing', () => {
-  const r = initRecord(); shiftTrust(r, 2);
+  const r = initRecord();
+  shiftTrust(r, 2);
   const before = standing(r);
   assert.equal(lineFor(r, dayOf(1950, 11, 20)).fy, 1951);
-  assert.equal(planCost({ inspector: 'kowalski', burn: 'long', leak: true }), COSTS.inspect.kowalski + COSTS.long + COSTS.leak);
+  assert.equal(
+    planCost({ inspector: 'kowalski', burn: 'long', leak: true }),
+    COSTS.inspect.kowalski + COSTS.long + COSTS.leak,
+  );
   spend(r, dayOf(1950, 11, 20), LINE - 1000, 'firings');
   assert.equal(r.overspent || 0, 0);
   spend(r, dayOf(1951, 2, 1), 5000, 'a slip');
@@ -88,7 +116,10 @@ function toViking(seed) {
   newGame(seed);
   while (g.vehicle !== 'viking') {
     playRound(() => 'nominal');
-    if (g.record.offers.length && !g.record.offers[0].made) { g.record.offers[0].made = true; g.record.offers[0].answer = null; }
+    if (g.record.offers.length && !g.record.offers[0].made) {
+      g.record.offers[0].made = true;
+      g.record.offers[0].answer = null;
+    }
     advance(true);
   }
   assert.equal(g.record.seat, 'test-conductor');
@@ -115,7 +146,8 @@ test('a round that breaks loose on the stand goes to the range plot, the recover
     if (g.beat !== 'flight') continue;
     assert.equal(g.flight.result.failure, 'holddown');
     until(() => g.beat === 'recovery');
-    rideOut(); until(() => g.room === 'recovery');
+    rideOut();
+    until(() => g.room === 'recovery');
     returnFromRecovery();
     chair('holddown');
     assert.match(g.record.rounds.at(-1).flight, /^Lost at 55 seconds/);
@@ -127,7 +159,10 @@ test('a round that breaks loose on the stand goes to the range plot, the recover
 
 test('the whole campaign, 1945 to Ranger 7, runs to the end on either path', () => {
   newGame(13);
-  for (let i = 0; i < SEASON.length; i++) { playRound(() => 'unknown'); if (i + 1 < SEASON.length) advance(false); }
+  for (let i = 0; i < SEASON.length; i++) {
+    playRound(() => 'unknown');
+    if (i + 1 < SEASON.length) advance(false);
+  }
   assert.equal(g.beat, 'seasonEnd');
   assert.equal(SEASON.at(-1).id, 'ranger-7');
 });

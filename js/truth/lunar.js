@@ -4,29 +4,41 @@
 import { draw, normal } from '../core/rng.js';
 import { CAMERA_FAILURE } from './round.js';
 
-export const MOON_KM = 384000, MOON_RADIUS = 1737;
+export const MOON_KM = 384000,
+  MOON_RADIUS = 1737;
 // Hours from injection to the Moon, as the tracking shows it (Pioneer 4 passed the Moon after about 41 hours; Ranger 7
 // hit after about 68).
 export const CRUISE_HOURS = { juno: 40, ranger: 66 };
 // Ranger's midcourse motor can take out this much aiming error at the Moon, in km, if it waits for the second tracking fix.
 export const LATE_REACH = 3000;
 // Hours into the cruise of the first tracking fix (when an early midcourse can be made) and of the second.
-export const FIRST_FIX = 4, SECOND_FIX = 16;
+export const FIRST_FIX = 4,
+  SECOND_FIX = 16;
 // How far out the first fix can be, in km at the Moon (one standard deviation).
 export const FIX_ERROR = 1000;
 // Cameras on this many minutes before impact: more minutes, more pictures, and longer for a weak supply to arc over.
 export const CAMERA_LEADS = [30, 17, 10];
-const CAMERA_STRESS = { 30: 1.3, 17: 1, 10: 0.7 }, PICTURES_A_MINUTE = 250;
+const CAMERA_STRESS = { 30: 1.3, 17: 1, 10: 0.7 },
+  PICTURES_A_MINUTE = 250;
 
 // At injection, decided at liftoff with the rest of the flight. failure: null, 'depletion' (she is short of escape speed
 // and will fall back) or 'camera' (a camera fault nobody could have found). Three physical draws.
 export function injection(round, failure) {
-  const ph = round.rng.physical, a = draw(ph), b = draw(ph), c = normal(ph);
+  const ph = round.rng.physical,
+    a = draw(ph),
+    b = draw(ph),
+    c = normal(ph);
   return {
-    phase: 'cruise', vehicle: round.vehicle,
+    phase: 'cruise',
+    vehicle: round.vehicle,
     aim: round.vehicle === 'ranger' ? 3000 * c : 40000 + 40000 * a, // km off the aim point at the Moon; Pioneer's planned pass
-    fallsBack: failure === 'depletion', peak: 95000 + 15000 * b, // a Jupiter that ran short climbs to here and falls back
-    hiddenCamera: failure === 'camera', fix: null, midcourse: null, residual: null, done: false,
+    fallsBack: failure === 'depletion',
+    peak: 95000 + 15000 * b, // a Jupiter that ran short climbs to here and falls back
+    hiddenCamera: failure === 'camera',
+    fix: null,
+    midcourse: null,
+    residual: null,
+    done: false,
   };
 }
 
@@ -40,7 +52,8 @@ export function firstFix(round) {
 // The midcourse burn. 'now': on the first fix, early, while a small burn moves the aim a long way, but the fix is rough.
 // 'wait': on the second fix, which is good, but late, so the motor can only take out LATE_REACH km. One physical draw.
 export function midcourse(round, when) {
-  const d = round.flight.deep, n = normal(round.rng.physical);
+  const d = round.flight.deep,
+    n = normal(round.rng.physical);
   d.midcourse = when;
   if (when === 'now') d.residual = d.aim - d.fix + 300 * n;
   else d.residual = Math.sign(d.aim) * Math.max(0, Math.abs(d.aim) - LATE_REACH) + 120 * n;
@@ -51,7 +64,10 @@ export function midcourse(round, when) {
 // in km from the aim point, as the stations see it. One observation draw.
 export function finalFix(round) {
   const d = round.flight.deep;
-  if (d.predicted == null) d.predicted = Math.abs((d.residual ?? d.aim) + (d.vehicle === 'ranger' ? 150 : 3000) * normal(round.rng.observation));
+  if (d.predicted == null)
+    d.predicted = Math.abs(
+      (d.residual ?? d.aim) + (d.vehicle === 'ranger' ? 150 : 3000) * normal(round.rng.observation),
+    );
   return d.predicted;
 }
 
@@ -59,7 +75,10 @@ export function finalFix(round) {
 // peak and falls back over twice the climb.
 export const FALL_PEAK_HOUR = 18;
 export function distanceAt(d, h) {
-  if (d.fallsBack) { const u = Math.min(2, h / FALL_PEAK_HOUR); return d.peak * (1 - (1 - u) ** 2); }
+  if (d.fallsBack) {
+    const u = Math.min(2, h / FALL_PEAK_HOUR);
+    return d.peak * (1 - (1 - u) ** 2);
+  }
   return MOON_KM * Math.min(1, h / CRUISE_HOURS[d.vehicle]) ** 0.7;
 }
 
@@ -67,9 +86,12 @@ export function distanceAt(d, h) {
 // chance of an arc-over growing with the minutes they run. Pioneer: the pass at the distance she was aimed. Sets the
 // flight's failure and what the tracking stations say.
 export function encounter(round, lead = 17) {
-  const f = round.flight, d = f.deep, ph = round.rng.physical;
+  const f = round.flight,
+    d = f.deep,
+    ph = round.rng.physical;
   const km = n => Math.round(n / 100) * 100;
-  let failure = null, say;
+  let failure = null,
+    say;
   if (d.vehicle === 'juno') {
     say = `Passed the Moon at about ${(Math.round(d.aim / 1000) * 1000).toLocaleString('en-US')} km and went on into orbit round the Sun.`;
   } else {
@@ -78,9 +100,15 @@ export function encounter(round, lead = 17) {
     const arc = d.hiddenCamera || (fault && draw(ph) < Math.min(0.95, CAMERA_FAILURE * CAMERA_STRESS[lead]));
     d.pictures = arc ? 0 : Math.round(lead * PICTURES_A_MINUTE * (0.95 + 0.1 * draw(ph)));
     d.lead = lead;
-    if (off > MOON_RADIUS) { failure = 'miss'; d.pictures = 0; say = `She missed the Moon by about ${km(off - MOON_RADIUS).toLocaleString('en-US')} km and went on past it into orbit round the Sun.`; }
-    else if (arc) { failure = 'camera'; say = 'She hit the Moon, but the cameras never sent a picture: the high-voltage supply had failed.'; }
-    else say = `Hit the Moon ${off < 100 ? 'within 100 km of' : `about ${km(off).toLocaleString('en-US')} km from`} the aim point, sending ${d.pictures.toLocaleString('en-US')} pictures in the last ${lead} minutes.`;
+    if (off > MOON_RADIUS) {
+      failure = 'miss';
+      d.pictures = 0;
+      say = `She missed the Moon by about ${km(off - MOON_RADIUS).toLocaleString('en-US')} km and went on past it into orbit round the Sun.`;
+    } else if (arc) {
+      failure = 'camera';
+      say = 'She hit the Moon, but the cameras never sent a picture: the high-voltage supply had failed.';
+    } else
+      say = `Hit the Moon ${off < 100 ? 'within 100 km of' : `about ${km(off).toLocaleString('en-US')} km from`} the aim point, sending ${d.pictures.toLocaleString('en-US')} pictures in the last ${lead} minutes.`;
   }
   f.failure = failure;
   f.failAt = failure ? Math.round(CRUISE_HOURS[d.vehicle] * 3600) : null;
