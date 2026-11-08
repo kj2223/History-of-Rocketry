@@ -338,6 +338,10 @@ export const PAPER = {
   atlas: { apogee: 260, spread: 0.1 },
   titan: { apogee: 300, spread: 0.1 },
   saturn5: { apogee: 300, spread: 0.1 },
+  saturnib: { apogee: 300, spread: 0.1 },
+  shuttle: { apogee: 300, spread: 0.08 },
+  dragon: { apogee: 400, spread: 0.08 },
+  sls: { apogee: 300, spread: 0.08 },
 };
 export const PAPER_APOGEE = PAPER.wac.apogee;
 export function estimate(programme, vehicle = 'wac', load = 1) {

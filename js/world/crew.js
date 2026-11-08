@@ -22,6 +22,37 @@ export const CREW_TRAITS = {
   dumont: { risk: 0.7, candour: 0.65, independence: 0.65 },
   reiss: { risk: 0.55, candour: 0.75, independence: 0.5 },
   tanaka: { risk: 0.4, candour: 0.8, independence: 0.55 },
+  // The scientist-astronauts of 1966.
+  halloran: { risk: 0.5, candour: 0.7, independence: 0.45 },
+  dengler: { risk: 0.4, candour: 0.75, independence: 0.55 },
+  serrano: { risk: 0.55, candour: 0.6, independence: 0.75 },
+  cavanagh: { risk: 0.35, candour: 0.55, independence: 0.4 },
+  ostrowski: { risk: 0.3, candour: 0.85, independence: 0.5 },
+  lindstrom: { risk: 0.7, candour: 0.65, independence: 0.8 },
+  beaumont: { risk: 0.4, candour: 0.7, independence: 0.35 },
+  adeyemi: { risk: 0.6, candour: 0.75, independence: 0.7 },
+  whitfield: { risk: 0.45, candour: 0.8, independence: 0.6 },
+  gardner: { risk: 0.35, candour: 0.9, independence: 0.45 },
+  novak: { risk: 0.6, candour: 0.6, independence: 0.65 },  // The 1978 class.
+  carter: { risk: 0.5, candour: 0.7, independence: 0.5 },
+  ellison: { risk: 0.35, candour: 0.75, independence: 0.4 },
+  vasquez: { risk: 0.45, candour: 0.8, independence: 0.6 },
+  winters: { risk: 0.65, candour: 0.9, independence: 0.5 },
+  hobbs: { risk: 0.4, candour: 0.6, independence: 0.45 },
+  nakagawa: { risk: 0.4, candour: 0.85, independence: 0.5 },
+  brennan: { risk: 0.55, candour: 0.8, independence: 0.65 },
+  donovan: { risk: 0.6, candour: 0.65, independence: 0.6 },
+  // The 1996 class.
+  okeke: { risk: 0.45, candour: 0.75, independence: 0.5 },
+  farrow: { risk: 0.5, candour: 0.85, independence: 0.55 },
+  delacroix: { risk: 0.4, candour: 0.7, independence: 0.45 },
+  quinn: { risk: 0.35, candour: 0.9, independence: 0.5 },
+  hawthorne: { risk: 0.5, candour: 0.75, independence: 0.55 },
+  // The 2020 class.
+  sharma: { risk: 0.5, candour: 0.8, independence: 0.6 },
+  larsen: { risk: 0.4, candour: 0.85, independence: 0.5 },
+  vaughn: { risk: 0.45, candour: 0.8, independence: 0.5 },
+  petrossian: { risk: 0.6, candour: 0.75, independence: 0.7 },
 };
 
 // Whether he consents to go, from his own reading of the recovery board and the count. Binding: no consent, no launch.

@@ -5,6 +5,7 @@
 // spot: a wrong number from the ground's computers. Everything is decided from draws taken once, when the flight reaches
 // orbit, so a look in the checkout room or a sim never shifts it.
 import { draw, normal } from '../core/rng.js';
+import { skylabShield } from '../world/race.js';
 import { flyEntry, flyLunarEntry, GEMINI_ENTRY, LUNAR_ENTRY } from './entry.js';
 import { ORBIT_RECOVERY } from './orbit.js';
 
@@ -53,10 +54,14 @@ export function flightTruth(round, id) {
     'alarm',
     'ascent',
     'chute',
+    'throttle',
   ])
     t.flags[k] = kinds.has(k);
   t.flags.navdata = !!round.navdata;
   t.flags.lightning = !!round.lightning;
+  t.flags.throttle = !!round.throttle;
+  // The workshop's launch damage rides with the seed, not the round: the same station meets every crew.
+  if (/^skylab/.test(id)) t.flags.shield = skylabShield(round.seed);
   t.fuelcellRecovers = d[0] < ODDS.fuelcellRecovers;
   return (round.flightTruth = t);
 }
@@ -693,18 +698,43 @@ const RESOLVE = {
       : "You flew on EECOM's switch plan. It worked every burn.";
     return out;
   },
-  traverse(choice, { d, out }) {
+  traverse(choice, { d, out, t }) {
     if (choice === 'turn') {
       out.lines.push(['dorsey', 'Turn back now. Bag what you can reach.', '']);
       out.verdict = 'good';
       out.judge = 'Turning back at the walkback limit is the rule, and the rule held.';
       return out;
     }
-    out.lines.push([
-      'pilot',
-      "Twenty minutes. Here's the white rock. It's anorthosite, Houston. Old as the Moon.",
-      'go',
-    ]);
+    const SITE = {
+      'apollo-16': {
+        rock: "Twenty minutes. Here's House Rock, Houston: a breccia the size of a house, and it came from the basin, not from here.",
+        broke:
+          'The rover broke down on the slope of Stone Mountain. The crew walked back five kilometres and reached the lander with their suits almost empty.',
+        found:
+          'On the slope of Stone Mountain the crew cracked open House Rock: a piece of the basin rim, four billion years of the Moon in one stone.',
+      },
+      'apollo-17': {
+        rock: "Twenty minutes. And here at Shorty, Houston: there's orange soil underfoot. Orange as rust, all along the rim.",
+        broke:
+          'The rover broke down out at the landslide. The crew walked back five kilometres and reached the lander with their suits almost empty.',
+        found:
+          'At Shorty crater the crew found orange soil underfoot: volcanic glass from a fire fountain three and a half billion years old.',
+      },
+      'artemis-3': {
+        rock: 'Twenty minutes. And here in the shadow line at the crater wall, Houston: the drill came up with ice in its first metre. Water, where the Sun has never reached.',
+        broke:
+          'The drill sled broke down out at the crater wall. The crew walked back three kilometres over the rim country and reached the lander with their suits almost empty.',
+        found:
+          'At the rim of Shackleton the drill brought up ice from soil the Sun has never touched: water, kept cold for four billion years, waiting for whoever came back.',
+      },
+    }[t.id] || {
+      rock: "Twenty minutes. Here's the white rock. It's anorthosite, Houston. Old as the Moon.",
+      broke:
+        'The rover broke down at the Apennine Front. The crew walked back five kilometres and reached the lander with their suits almost empty.',
+      found:
+        "At the Apennine Front the crew found a white rock four and a half billion years old, a piece of the Moon's first crust.",
+    };
+    out.lines.push(['pilot', SITE.rock, 'go']);
     if (d[12] < ODDS.roverBreaks) {
       out.lines.push([
         'pilot',
@@ -716,15 +746,13 @@ const RESOLVE = {
       out.verdict = 'bad';
       out.judge =
         'Twenty minutes past the walkback limit, and the rover quit. They walked home on the dregs of their suits. That rule is written for exactly that.';
-      out.note =
-        'The rover broke down at the Apennine Front. The crew walked back five kilometres and reached the lander with their suits almost empty.';
+      out.note = SITE.broke;
       return out;
     }
     out.verdict = 'fair';
     out.judge =
       "Twenty minutes past the limit for the oldest rock anyone has found. The rover held. I don't want to see it twice.";
-    out.note =
-      "At the Apennine Front the crew found a white rock four and a half billion years old, a piece of the Moon's first crust.";
+    out.note = SITE.found;
     return out;
   },
   navcheck(choice, { f, out }) {
@@ -750,6 +778,239 @@ const RESOLVE = {
     out.lines.push(['tate', 'Numbers are in the computer. Retrofire on time.', 'go']);
     out.verdict = f.navdata ? 'bad' : 'fair';
     out.judge = f.navdata ? "The number for the Earth's rotation we sent up was wrong. Nobody checked it." : '';
+    return out;
+  },
+  // Apollo 16's throttle flutter at the low gate. The descent pressed on; the abort branch costs the first moonwalk.
+  throttle(choice, { out }) {
+    if (choice === 'descend') {
+      out.verdict = 'good';
+      out.judge = 'The flutter held its line on the way down, the same as in the checkout. She landed on time.';
+      return out;
+    }
+    out.set.linspect = true;
+    out.lines.push(['pilot', "Houston, going around. We'll be back once you've had a look at her.", '']);
+    out.verdict = 'fair';
+    out.judge =
+      'Two hours late to the surface, and the first moonwalk shortened. Careful, and it cost a little of the mission.';
+    return out;
+  },
+  // Skylab 2: the parasol shade, and the jammed solar wing. The shade is the rule; the wing is a gamble on a suit.
+  parasol(choice, { out }) {
+    if (choice === 'parasol') {
+      out.set.shaded = true;
+      out.verdict = 'good';
+      out.judge =
+        'The parasol went up through the solar airlock the day after rendezvous, and the workshop came down out of the fifties into the twenties. The rule written for exactly that.';
+      return out;
+    }
+    out.verdict = 'bad';
+    out.judge =
+      'A week in a workshop at fifty-two degrees: food spoiled, film curled, and the crew worked in masks. The shade went up anyway, late.';
+    out.set.shaded = true;
+    return out;
+  },
+  panel(choice, { d, out }) {
+    if (choice === 'free') {
+      if (d[17] < 0.15) {
+        out.set.panelFree = true;
+        out.set.hurt = 0.08;
+        out.verdict = 'fair';
+        out.judge =
+          'The wing came free on the second try, and the spacewalker came back with his suit torn at the cuff. She has full power.';
+        return out;
+      }
+      out.set.panelFree = true;
+      out.verdict = 'good';
+      out.judge = 'The wing came free and tracked the Sun. The workshop had her full power from that day on.';
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge = 'One wing, half power, for the life of the station. The experiment programme ran anyway, on a ration.';
+    return out;
+  },
+  quad(choice, { d, out }) {
+    if (choice === 'stay') {
+      if (d[18] < 0.12) {
+        out.set.short = true;
+        out.verdict = 'bad';
+        out.judge =
+          'The quad worsened in the sixth week, and the mission came home a month short of its plan, under thruster control that was down to two good quads.';
+        return out;
+      }
+      out.verdict = 'good';
+      out.judge =
+        'The leak held its line to the hour, the way leaks do when the watches are kept. Fifty-nine days, flown in full.';
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge =
+      "They came home early with a spacecraft in good shape and a science programme half done. Safe, and it shortened the workshop's year.";
+    return out;
+  },
+  pace(choice, { d, out }) {
+    if (choice === 'quiet') {
+      out.verdict = 'good';
+      out.judge =
+        'One quiet day, then a timeline built from what the crew could actually do. They beat the new one every week after.';
+      return out;
+    }
+    if (d[19] < 0.3) {
+      out.verdict = 'bad';
+      out.judge =
+        'The schedule held and the work did not. A crew that stops talking to the ground gets nothing done, and this one nearly stopped.';
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge = 'The schedule held, and the crew grumbled and flew it anyway. It cost some of the science.';
+    return out;
+  },
+  align(choice, { d, out }) {
+    if (choice === 'stop') {
+      out.verdict = 'good';
+      out.judge =
+        'They stopped at a hundred and fifty metres, realigned, and closed the last metres at a walking pace. That is what the rule is for.';
+      return out;
+    }
+    if (d[20] < 0.65) {
+      out.set.hurt = 0.05;
+      out.verdict = 'bad';
+      out.judge =
+        "They pressed, and the probes took a knock hard enough to write off the docking module's re-docking. Both crews were fine; the paperwork was not.";
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge = 'They pressed and got away with it. Luck is not a procedure.';
+    return out;
+  },
+  // The Shuttle years.
+  tiles(choice, { f, d, out }) {
+    if (choice === 'inspect') {
+      if (f.foam) {
+        out.set.tilesKnown = true;
+        out.verdict = 'good';
+        out.judge =
+          'The cameras found the strike: tiles gone at the wing edge, the structure untouched. She comes home on the plan, watched.';
+        out.lines.push([
+          'kessler',
+          'Flight, EECOM: six tiles gone at the wing leading edge, and the structure behind them is sound. She can come home.',
+          'warn',
+        ]);
+        return out;
+      }
+      out.verdict = 'good';
+      out.judge = 'The cameras found the tiles whole. The burn cost a little of the schedule and bought certainty.';
+      return out;
+    }
+    if (f.foam && d[21] < 0.4) {
+      out.set.hurt = 0.15;
+      out.verdict = 'bad';
+      out.judge =
+        "The strike went deeper than anyone looked for. She held together on the way in, but that was the design's margin, spent.";
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge = 'She came home whole. Nobody knows how close the strike came, because nobody looked.';
+    return out;
+  },
+  tald(choice, { d, out }) {
+    if (choice === 'edwards') {
+      out.set.edwards = true;
+      out.verdict = 'good';
+      out.judge =
+        'The lakebed at Edwards: eleven thousand feet of dry ground and no obstacles. She rolled out long and slow.';
+      return out;
+    }
+    if (d[22] < 0.35) {
+      out.set.hurt = 0.1;
+      out.verdict = 'bad';
+      out.judge =
+        "The Cape's runway is shorter, and she came in fast. The brakes took fire, and the crew rode it out from the escape slidewire.";
+      return out;
+    }
+    out.set.edwards = false;
+    out.verdict = 'fair';
+    out.judge =
+      "She rolled out on the Cape's runway with margin to spare. It was the schedule's call, not the margin's.";
+    return out;
+  },
+  hubblefix(choice, { d, out }) {
+    if (choice === 'install') {
+      if (d[23] < 0.2) {
+        out.set.fixed = true;
+        out.set.hurt = 0.08;
+        out.verdict = 'fair';
+        out.judge =
+          'The optics went in on the fifth spacewalk, after a radiator snag cost the crew a day. The telescope can see again.';
+        return out;
+      }
+      out.set.fixed = true;
+      out.verdict = 'good';
+      out.judge =
+        "The optics went in as rehearsed in the pool, to the millimetre. The telescope's first pictures after were the sharpest anyone had taken.";
+      return out;
+    }
+    out.verdict = 'bad';
+    out.judge =
+      'The telescope came home with her eyesight unfixed, and the astronomers got two more years of blur. The repair will have to be flown again.';
+    return out;
+  },
+  berth(choice, { d, out }) {
+    if (choice === 'arm') {
+      out.set.berthed = true;
+      out.verdict = 'good';
+      out.judge =
+        'The arm took her at a walking pace and berthed her gently, the way the procedure was written. That is why the arm is there.';
+      return out;
+    }
+    if (d[24] < 0.4) {
+      out.set.hurt = 0.06;
+      out.verdict = 'bad';
+      out.judge =
+        'A direct docking with a dead module: the probes took a knock, and a pressure ring has to be reworked on a spacewalk.';
+      return out;
+    }
+    out.set.berthed = true;
+    out.verdict = 'fair';
+    out.judge = 'It went in hard but it held. Some habits are older than the hardware.';
+    return out;
+  },
+  wings(choice, { d, out }) {
+    if (choice === 'both') {
+      if (d[25] < 0.25) {
+        out.set.wingsOut = true;
+        out.set.hurt = 0.06;
+        out.verdict = 'fair';
+        out.judge =
+          'The second wing snagged on the way out and the spacewalkers freed it by hand. Both are tracking, and a day is lost.';
+        return out;
+      }
+      out.set.wingsOut = true;
+      out.verdict = 'good';
+      out.judge =
+        'Both wings out in one day of sunlight, one at a time as the rule says. The station makes her own power.';
+      return out;
+    }
+    out.set.wingsOut = true;
+    out.verdict = 'good';
+    out.judge =
+      'One wing the first day, the second after an overnight check. Slower than the plan, and cleaner for it.';
+    return out;
+  },
+  // Apollo 16's ascent-engine checkout, reading low. Going early is the historical call; holding costs surface time.
+  ascentEarly(choice, { d, out }) {
+    if (choice === 'early') {
+      out.set.ascentNow = true;
+      out.lines.push(['pilot', "Houston, we're buttoned up. Light her when you're ready.", 'go']);
+      out.verdict = 'good';
+      out.judge =
+        'They went early, as soon as the crew was buttoned up. The pressure read low right up to the burn, and the engine burned anyway. Going early bought the margin back.';
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge =
+      d[13] < 0.4
+        ? 'The second look came back clean, and they went three hours late for nothing.'
+        : 'Holding cost three hours on the surface. The extra checks found nothing, and proved it.';
     return out;
   },
 };

@@ -1141,6 +1141,211 @@ export const KITS = {
     },
   },
 
+  shuttle: {
+    name: 'Space Shuttle',
+    range: 'STS',
+    crew: ['kowalski', 'delgado'],
+    crewed: true,
+    maker:
+      "The orbiters are Rockwell's, the tanks Lockheed-Martin's, the boosters Morton-Thiokol's. Every flight is a first, flown by a standing fleet.",
+    brief: 'The orbiter is on the pad with the tank and both boosters. Work the sims, then we fly.',
+    spots: {
+      'srbo-ring': {
+        name: "Right-hand booster's aft field joint",
+        fault: 'oring',
+        sound: 'The joint holds vacuum on the leak check, and its seals are warm.',
+        cue: 'The joint leaked blow-through on a bench test in a cold chamber; the paperwork called it accepted.',
+      },
+      'ssme-engines': {
+        name: 'Three main engines and their turbopumps',
+        fault: 'ssme',
+        sound: 'All three engines run clean to rated power on the checkout.',
+        cue: 'One high-pressure turbopump shows a vibration signature a shade above its line.',
+      },
+      'et-ramp': {
+        name: "External tank's bipod ramp foam",
+        fault: 'foam',
+        sound: 'The ramp foam is bonded and inspected.',
+        cue: 'A foam loss on the ramp turned up on the last flight’s film, and nobody could say why.',
+      },
+      'fc-1': {
+        name: 'Fuel cells and their oxygen and hydrogen tanks',
+        fault: 'fuelcell',
+        sound: 'Three fuel cells carry the load on the run.',
+        cue: 'Cell two’s voltage walks a little under load.',
+      },
+      'gpc-strings': {
+        name: 'The four general-purpose computers and their backup',
+        fault: 'computer',
+        sound: 'All four strings agree through the whole profile.',
+        cue: 'One string disagreed with its sisters for a half second during the checkout.',
+      },
+      'cabin-wiring': {
+        name: 'Cabin wiring and stowage',
+        fault: 'cabin',
+        sound: 'The wiring is dressed and the cabin clear.',
+        cue: 'Chafed insulation behind an avionics rack, and a lot of Velcro.',
+      },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      oring: "A solid booster's field joint burned through. The stack broke up.",
+      ssme: 'A main engine shut down early and the orbit came up short.',
+      foam: 'Foam came off the tank and struck the tiles.',
+      fuelcell: 'A fuel cell dropped out early.',
+      computer: 'A computer string failed on the climb.',
+      cabin: 'The cabin wiring shorted. Rewire, and change the stowage.',
+      unknown: 'Not enough evidence to call it. Ask for a full teardown.',
+    },
+  },
+
+  dragon: {
+    name: 'Crew Dragon',
+    range: 'CREW DRAGON',
+    crew: ['kowalski', 'delgado'],
+    crewed: true,
+    maker:
+      "The launcher and the spacecraft are one company's, built to a NASA contract. The abort motors pull the capsule clear of anything.",
+    brief: 'Dragon and her launcher are on the pad. Work the sims, then we fly.',
+    spots: {
+      'merlin-engines': {
+        name: 'Nine first-stage engines and their turbopumps',
+        fault: 'merlin',
+        sound: 'All nine run clean to rated power on the static fire.',
+        cue: 'One engine’s turbopump showed hot gas on the acceptance run.',
+      },
+      'abort-thrusters': {
+        name: "The capsule's escape thrusters and their fuel",
+        fault: 'abort',
+        sound: 'The escape thrusters light on the stand and pull full weight.',
+        cue: 'One thruster’s valve seat showed wear on the bench.',
+      },
+      'docking-system': {
+        name: 'The docking system and its cameras',
+        fault: 'computer',
+        sound: 'The docking simulator runs the approach clean.',
+        cue: 'A camera dropped frames during the range check.',
+      },
+      chutes: {
+        name: 'Four main parachutes and their risers',
+        fault: 'chute',
+        sound: 'The risers and reefing cutters are as drawn.',
+        cue: 'A riser runs close to a reaction control vent.',
+      },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      merlin: 'A first-stage engine gave out and the orbit came up short.',
+      abort: "The capsule's escape thrusters would not have fired.",
+      computer: 'The docking system failed on the approach.',
+      chute: 'A main parachute failed.',
+      unknown: 'Not enough evidence to call it. Ask for a full teardown.',
+    },
+  },
+
+  sls: {
+    name: 'Artemis-SLS',
+    range: 'SLS',
+    crew: ['kowalski', 'delgado'],
+    crewed: true,
+    maker:
+      "The core stage and engines are the Shuttle's line, the boosters are five-segment derivatives, and the spacecraft is Orion. It is Apollo's granddaughter, and it knows it.",
+    brief: 'The SLS is on Pad 39B. Work the sims, then we fly.',
+    spots: {
+      'rs25-engines': {
+        name: 'Four RS-25 engines and their turbopumps',
+        fault: 'ssme',
+        sound: 'All four run clean to rated power on the checkout.',
+        cue: 'One engine’s hydrogen bleed valve read slow on the bench.',
+      },
+      'srb-joints': {
+        name: "The five-segment boosters' field joints",
+        fault: 'oring',
+        sound: 'The joints hold vacuum on the leak check, and the heaters are on.',
+        cue: 'The redesigned joint’s heater circuit showed an open on one segment.',
+      },
+      icps: {
+        name: 'The upper stage and its restart system',
+        fault: 'relight',
+        sound: 'The restart bottles hold pressure and the chilldown valves cycle.',
+        cue: 'The helium bottle pressure creeps down overnight.',
+      },
+      'orion-service': {
+        name: "Orion's service module and its engine",
+        fault: 'sps',
+        sound: "The engine's valves and the propellant gauging check out.",
+        cue: 'A ball valve actuator is slow to close on the bench.',
+      },
+      chutes: {
+        name: "Orion's eleven parachutes and their risers",
+        fault: 'chute',
+        sound: 'The risers and reefing cutters are as drawn.',
+        cue: 'A riser runs close to a reaction control vent.',
+      },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      ssme: 'A core-stage engine shut down early and the orbit came up short.',
+      oring: "A booster's field joint burned through. The stack broke up.",
+      relight: 'The upper stage would not restart. Fix its restart system.',
+      sps: "Orion's service engine was faulty.",
+      chute: 'A main parachute failed.',
+      unknown: 'Not enough evidence to call it. Ask for a full teardown.',
+    },
+  },
+
+  saturnib: {
+    name: 'Apollo-Saturn IB',
+    range: 'SATURN IB',
+    crew: ['kowalski', 'delgado'],
+    crewed: true,
+    maker:
+      "The first stage is Chrysler's, the S-IVB Douglas's, the spacecraft North American's and Grumman's. The workshop is the leftover from Apollo.",
+    brief: 'The Saturn IB is on the pad. Work the sims, then we fly.',
+    spots: {
+      'h1-engines': {
+        name: 'First-stage H-1 engines and turbopumps',
+        fault: 'h1',
+        sound: 'All eight H-1s hold their chamber pressures on the check.',
+        cue: "One engine's turbopump ran hot on the factory acceptance run, and the paperwork called it in tolerance.",
+      },
+      iu: {
+        name: "Instrument unit: the Saturn's guidance",
+        fault: 'saturnctl',
+        sound: 'The platform and computer run the profile clean.',
+        cue: 'The platform gimbal draws a little more current than its twin.',
+      },
+      'csm-engine': {
+        name: 'Service propulsion engine',
+        fault: 'sps',
+        sound: "The engine's valves and the propellant gauging check out.",
+        cue: 'A ball valve actuator is slow to close on the bench.',
+      },
+      'cabin-wiring': {
+        name: 'Command module wiring and cabin materials',
+        fault: 'cabin',
+        sound: 'The wiring is dressed and the cabin clear of loose material.',
+        cue: 'Chafed insulation on a wire bundle under the couches, and a lot of Velcro.',
+      },
+      chutes: {
+        name: 'Command module parachutes and their reaction control dump',
+        fault: 'chute',
+        sound: 'The risers and reefing cutters are as drawn.',
+        cue: 'A riser runs close to a reaction control vent.',
+      },
+    },
+    explanations: {
+      nominal: 'She flew as planned. Nothing to fix.',
+      h1: 'An H-1 ran hot and its turbopump gave out late in the first-stage burn.',
+      saturnctl: "The Saturn's guidance failed and she went off her line.",
+      sps: 'The service propulsion engine was faulty.',
+      cabin: 'The cabin wiring shorted. Rewire, and change the cabin atmosphere.',
+      chute: 'A main parachute failed.',
+      lightning: "Lightning struck the vehicle and knocked the spacecraft's power off the line.",
+      unknown: 'Not enough evidence to call it. Ask for a full teardown.',
+    },
+  },
+
   bumper: {
     name: 'Bumper',
     range: 'BUMPER (V-2 + WAC)',

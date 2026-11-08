@@ -15,7 +15,7 @@ export const ORBIT_PLAN = { burn: 300, v: 7.84, gamma: 0, cutoffH: 160, need: 7.
 export const ORBIT_ABORT_LIMIT = 6,
   ORBIT_BREAKUP = 18;
 // A fault on the Atlas or the capsule brings trouble this often when it is there.
-export const ORBIT_FAILURE = { guidance: 0.6, shortburn: 0.6 };
+export const ORBIT_FAILURE = { guidance: 0.6, shortburn: 0.6, boost: 0.65 };
 export const ORBIT_HIDDEN = 0.04;
 // The heat shield: if it is really loose and the retro pack is jettisoned as planned, the shield can come off in entry.
 export const SHIELD = { offIfJettisoned: 0.8, damagedIfKept: 0.15, debrisIfKept: 0.05 };
@@ -66,7 +66,11 @@ export function atlasAscent(
   if (force) failure = force === 'nominal' ? null : force;
   else if (present.has(names.guidance) && d.guidance < ORBIT_FAILURE.guidance) failure = names.guidance;
   else if (present.has(names.shortburn) && d.sustainer < ORBIT_FAILURE.shortburn) failure = names.shortburn;
-  else if (d.hidden < ORBIT_HIDDEN) {
+  else if (names.boost && present.has(names.boost)) {
+    // The booster-joint draw is taken only where a booster joint is in the model (the Shuttle), so no other vehicle's
+    // draws move.
+    if (draw(ph) < (round.warm ? 0.15 : (round.boostRisk ?? 0.6))) failure = names.boost;
+  } else if (d.hidden < ORBIT_HIDDEN) {
     failure = d.which < 0.5 ? names.guidance : names.shortburn;
     round.events.push(`Something failed on the ${names.booster} that no inspection could have found.`);
   }
@@ -96,7 +100,22 @@ export function atlasAscent(
       break;
     }
   }
-  const a = { failure, burn, steps, breakupAt, controlFrom: drift ? t0 : null, asis: true, orbital: true };
+  // A booster that fails structurally (the Shuttle's field joints) breaks the stack where it stands: the burn ends there.
+  const boostBreak = failure === names.boost ? 58 + Math.round(20 * d.cutAt) : null;
+  const a = {
+    failure,
+    burn,
+    steps,
+    breakupAt,
+    controlFrom: drift ? t0 : null,
+    asis: true,
+    orbital: true,
+  };
+  if (boostBreak != null) {
+    a.boostFailure = true;
+    a.breakupAt = boostBreak;
+    steps.length = Math.min(steps.length, boostBreak + 1);
+  }
   round.ascent = a;
   return a;
 }
@@ -128,8 +147,9 @@ export function atlasOutcome(round, abortAt = null) {
   if (a.breakupAt != null)
     return (round.end = {
       outcome: 'breakup',
-      ...atlantic(a.steps[a.breakupAt]),
-      capsule: 'damaged',
+      ...atlantic(a.steps[Math.min(a.breakupAt, a.steps.length - 1)]),
+      // A crew riding the stack (the Shuttle, no tower) goes with it.
+      capsule: a.boostFailure ? 'lost' : 'damaged',
       abortedAt: a.breakupAt,
       breakup: a.breakupAt,
     });

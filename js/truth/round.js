@@ -151,6 +151,16 @@ export const DEFAULT_PROGRAMME = {
   ascentRisk: 0.08,
   chuteRisk: 0.1,
   lightningRisk: 0.08,
+  // Apollo 16's throttle flutter at the low gate: the engine holds, but the needle will not sit still.
+  throttleRisk: 0.25,
+  h1Risk: 0.2,
+  oringRisk: 0.15,
+  foamRisk: 0.3,
+  ssmeRisk: 0.1,
+  // How often a faulty booster joint actually burns through in flight: cold raises it, and a hold that warms the day lowers it.
+  boostRisk: 0.55,
+  merlinRisk: 0.15,
+  abortRisk: 0.08,
   weldRisk: 0.55,
   finRisk: 0.35,
   holddownRisk: 0.3,
@@ -242,13 +252,43 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   }
   // Apollo's: the Saturn V's stages and guidance, the spacecraft's engine, tanks, wiring and parachutes, the lander's
   // computer and ascent engine, and the weather at the pad (no spot: lightning).
-  let lightning = false;
+  let lightning = false,
+    throttle = false;
+  // The Saturn IB's own draws, taken only on its rounds: the H-1 turbopumps, the instrument unit, the service engine,
+  // the cabin wiring and the parachutes.
+  if (vehicle === 'saturnib') {
+    const d = [...Array(10)].map(() => draw(rng.physical));
+    ['h1', 'saturnctl', 'sps', 'cabin', 'chute'].forEach((k, i) => put(k, p[`${k}Risk`], d[2 * i], d[2 * i + 1]));
+  }
+  // The Shuttle's own draws, taken only on its rounds: the booster joint, the main engines, the tank's foam, the fuel
+  // cells, the computers and the cabin wiring.
+  if (vehicle === 'shuttle') {
+    const d = [...Array(12)].map(() => draw(rng.physical));
+    ['oring', 'ssme', 'foam', 'fuelcell', 'computer', 'cabin'].forEach((k, i) =>
+      put(k, p[`${k}Risk`], d[2 * i], d[2 * i + 1]),
+    );
+  }
+  // Dragon's own draws, taken only on its rounds: the first-stage engines, the escape thrusters, the docking system
+  // (the computers) and the parachutes.
+  if (vehicle === 'dragon') {
+    const d = [...Array(8)].map(() => draw(rng.physical));
+    ['merlin', 'abort', 'computer', 'chute'].forEach((k, i) => put(k, p[`${k}Risk`], d[2 * i], d[2 * i + 1]));
+  }
+  // SLS reuses the Shuttle's kinds for her engines and boosters, and Apollo's for the upper stage, Orion and the
+  // parachutes. Her draws are her own.
+  if (vehicle === 'sls') {
+    const d = [...Array(10)].map(() => draw(rng.physical));
+    ['ssme', 'oring', 'relight', 'sps', 'chute'].forEach((k, i) => put(k, p[`${k}Risk`], d[2 * i], d[2 * i + 1]));
+  }
   if (vehicle === 'saturn5') {
     const d = [...Array(22)].map(() => draw(rng.physical));
     ['saturnctl', 'j2', 'pogo', 'relight', 'sps', 'tank', 'cabin', 'alarm', 'ascent', 'chute'].forEach((k, i) =>
       put(k, p[`${k}Risk`], d[2 * i], d[2 * i + 1]),
     );
     lightning = d[20] < p.lightningRisk;
+    // Apollo 16's own draw, taken after the others so no earlier Saturn V round changes: the descent engine's throttle
+    // fluttering through the low gate.
+    throttle = draw(rng.physical) < p.throttleRisk;
   }
   const latent = [
     igniterFault && usesWac(vehicle) && 'pm-11',
@@ -281,7 +321,9 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     propellantLoad: 1,
     ...(vehicle === 'redstone' ? { thrust } : {}),
     ...(vehicle === 'titan' ? { navdata, dustcap } : {}),
-    ...(vehicle === 'saturn5' ? { lightning } : {}),
+    ...(vehicle === 'saturn5' ? { lightning, throttle } : {}),
+    ...(vehicle === 'shuttle' ? { cold: !!p.cold, boostRisk: p.boostRisk } : {}),
+    ...(vehicle === 'sls' ? { boostRisk: p.boostRisk } : {}),
     events: [], // what happened, for the debrief
   };
 }

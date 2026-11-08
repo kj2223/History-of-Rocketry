@@ -1119,6 +1119,23 @@ function truck(ctx, x, g) {
   ctx.font = 'bold 8px sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText(g.site === 'cape' ? 'U.S. NAVY' : 'U.S. ARMY', x + 8, y - 16);
+  // The recovery party rides in the cab and the bed while the truck is rolling out.
+  if (g.truck.follow) {
+    ctx.fillStyle = '#2e3236';
+    for (const [px, py] of [
+      [x + 74, y - 26],
+      [x + 82, y - 26],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(px, py - 8, 4, 0, 7);
+      ctx.fill();
+      ctx.fillRect(px - 4, py - 5, 8, 10);
+    }
+    ctx.beginPath();
+    ctx.arc(x + 20, y - 36, 4, 0, 7);
+    ctx.fill();
+    ctx.fillRect(x + 16, y - 33, 8, 9);
+  }
 }
 
 // The rocket wherever it is on the site: in pieces in the hangar, carried, on the stand, on the truck, in the tower.
@@ -1144,11 +1161,12 @@ function rocketOnSite(ctx, g) {
 
 // The round riding the truck's bed, drawn after the truck so it sits on it.
 function rocketOnTruck(ctx, g) {
+  // The round stands on the bed, clear of the rear edge and its tail fins.
   roundShape(
     ctx,
     g,
-    g.truck.x + (g.vehicle === 'wac' || g.vehicle === 'aerobee' ? 2 : 90),
-    GROUND - 10,
+    g.truck.x + (g.vehicle === 'wac' || g.vehicle === 'aerobee' ? 16 : 24),
+    GROUND - 2,
     -Math.PI / 2,
     true,
   );
@@ -1164,19 +1182,23 @@ export function roundShape(ctx, g, x, y, angle, mated) {
       ? mercuryAtlasShape(ctx, x, y, angle)
       : g.vehicle === 'titan'
         ? geminiTitanShape(ctx, x, y, angle)
-        : g.vehicle === 'saturn5'
-          ? saturnVShape(ctx, x, y, angle)
-          : wac
-            ? wacShape(ctx, x, y, angle, mated)
-            : g.vehicle === 'vanguard'
+        : g.vehicle === 'shuttle'
+          ? shuttleShape(ctx, x, y, angle)
+          : g.vehicle === 'saturn5' || g.vehicle === 'saturnib' || g.vehicle === 'sls'
+            ? saturnVShape(ctx, x, y, angle)
+            : g.vehicle === 'dragon'
               ? vanguardShape(ctx, x, y, angle)
-              : g.vehicle === 'juno'
-                ? junoShape(ctx, x, y, angle)
-                : g.vehicle === 'ranger'
-                  ? atlasAgenaShape(ctx, x, y, angle)
-                  : g.vehicle === 'viking'
-                    ? vikingShape(ctx, x, y, angle)
-                    : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper');
+              : wac
+                ? wacShape(ctx, x, y, angle, mated)
+                : g.vehicle === 'vanguard'
+                  ? vanguardShape(ctx, x, y, angle)
+                  : g.vehicle === 'juno'
+                    ? junoShape(ctx, x, y, angle)
+                    : g.vehicle === 'ranger'
+                      ? atlasAgenaShape(ctx, x, y, angle)
+                      : g.vehicle === 'viking'
+                        ? vikingShape(ctx, x, y, angle)
+                        : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper');
 }
 
 // The launch smoke, drawn over the site while she is still low enough to be in it.
@@ -1290,7 +1312,9 @@ function trackMinutes(c) {
 
 function drawWallMap(ctx, g, x, y, w, h) {
   const c = g.console,
-    orbital = !!(c && (c.orbital || c.flight)) || ['atlas', 'titan', 'saturn5'].includes(g.vehicle);
+    orbital =
+      !!(c && (c.orbital || c.flight)) ||
+      ['atlas', 'titan', 'saturn5', 'saturnib', 'shuttle', 'dragon', 'sls'].includes(g.vehicle);
   const X = lon => x + ((lon + 180) / 360) * w,
     Y = lat => y + ((MAP_TOP - lat) / (MAP_TOP - MAP_BOTTOM)) * h;
   ctx.fillStyle = '#22272e';
@@ -1723,6 +1747,15 @@ function consolePanelModel(c) {
   const km = x => `${Math.round(Math.abs(x))} km ${x >= 0 ? 'long' : 'short'}`;
   if (c.poll || c.phase === 'poll') {
     // a pending poll outranks the count: it is the call the room is waiting on
+    if (c.poll === 'joint') {
+      P.state = 'THE BOOSTER JOINT';
+      P.lines.push("The contractor's engineers recommend the afternoon warm.");
+      if (!auto) {
+        btn('m-go', null, 'PRESS', 'danger');
+        btn('m-nogo', null, 'HOLD', 'go');
+      }
+      return P;
+    }
     P.state = c.poll === 'final' ? 'FINAL STATUS CHECK' : 'RECOVERY POLL';
     if (c.cond) {
       P.lines.push(`Sea state: ${c.cond.seaState}`);
@@ -2383,6 +2416,45 @@ export function geminiTitanShape(ctx, x, y, angle) {
   ctx.save();
   ctx.rotate(-Math.PI / 2);
   ctx.fillText('UNITED STATES', 90, 3);
+  ctx.restore();
+  ctx.restore();
+}
+
+// The Shuttle stack: the external tank with two boosters strapped on, and the orbiter on her side at the top.
+export function shuttleShape(ctx, x, y, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#b56b3c';
+  ctx.fillRect(-11, -160, 22, 160); // the external tank
+  ctx.fillStyle = 'rgba(0,0,0,.1)';
+  ctx.fillRect(-11, -160, 6, 160);
+  ctx.fillStyle = '#e8e4da';
+  ctx.fillRect(-26, -150, 13, 150); // left booster
+  ctx.fillRect(13, -150, 13, 150); // right booster
+  ctx.fillStyle = '#26282c';
+  ctx.fillRect(-26, -12, 13, 12);
+  ctx.fillRect(13, -12, 13, 12);
+  // The orbiter, nose up along the tank's side: wings and tail at the bottom, tiles where the belly shows.
+  ctx.fillStyle = '#f2f0ea';
+  ctx.beginPath();
+  ctx.moveTo(-2, -190);
+  ctx.lineTo(9, -160);
+  ctx.lineTo(9, -108);
+  ctx.lineTo(-14, -100);
+  ctx.lineTo(-2, -190);
+  ctx.fill();
+  ctx.fillStyle = '#3e4652';
+  ctx.fillRect(-14, -118, 10, 16); // the wing seen edge-on
+  ctx.fillRect(-2, -196, 8, 10);
+  ctx.fillStyle = '#26282c';
+  ctx.fillRect(-2, -108, 6, 10); // engines
+  ctx.fillStyle = '#3e4652';
+  ctx.font = 'bold 7px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.save();
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('UNITED STATES', 100, 3);
   ctx.restore();
   ctx.restore();
 }

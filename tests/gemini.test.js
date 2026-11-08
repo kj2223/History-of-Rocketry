@@ -649,8 +649,8 @@ test('the uplinked landing point puts Apollo 12 beside the Surveyor', () => {
   assert.ok(!resolve(r, 'landpoint', 'eye', {}).capability);
 });
 
-// ---- A5: Apollo 15, and the end of Apollo ----
-test("Apollo 15 flies three days at Hadley, and the end of Apollo brings the Center director's offer", async () => {
+// ---- A5: Apollo 15, 16 and 17, and the end of Apollo ----
+test('Apollo 15 flies three days at Hadley, and the landings run out at Apollo 17 with no offer above the shift', async () => {
   await toApollo11(8);
   playMission({ sims: 0 });
   advance(true);
@@ -658,6 +658,9 @@ test("Apollo 15 flies three days at Hadley, and the end of Apollo brings the Cen
   playMission({ sims: 0 });
   advance(true);
   g.room = null; // Apollo 12
+  playMission({ sims: 0 });
+  advance(true);
+  g.room = null; // Apollo 13, the third landing
   assert.equal(SEASON[g.roundIndex].id, 'apollo-15');
   const asked = [];
   playMission({
@@ -671,8 +674,35 @@ test("Apollo 15 flies three days at Hadley, and the end of Apollo brings the Cen
   assert.equal(e.id, 'apollo-15');
   if (!/^Lost/.test(e.flight) && asked.includes('loi'))
     assert.ok(asked.includes('spsbank') && asked.includes('traverse'), asked.join());
-  const o = g.record.offers.at(-1);
-  assert.equal(o.seat, 'director');
+  advance(true);
+  g.room = null; // Apollo 15
+  playMission({ sims: 0 });
+  advance(true);
+  g.room = null; // Apollo 16
+  playMission({ sims: 0 });
+  assert.equal(g.record.rounds.at(-1).id, 'apollo-17');
+  // No seat above the shift: the player stays a flight director to the end (Aaron, 8 November 2026).
+  assert.ok(!g.record.offers.some(o => o.seat === 'director'), g.record.offers.map(o => o.seat).join());
+  advance(true);
+  g.room = null; // the workshop years begin: Skylab 2 on the Saturn IB
+  assert.equal(SEASON[g.roundIndex].id, 'skylab-2');
+  playMission({ sims: 0 });
+  assert.equal(g.record.rounds.at(-1).id, 'skylab-2');
+  assert.notEqual(g.beat, 'seasonEnd');
+  advance(true);
+  g.room = null; // Skylab 3
+  playMission({ sims: 0 });
+  advance(true);
+  g.room = null; // Skylab 4
+  playMission({ sims: 0 });
+  advance(true);
+  g.room = null; // Apollo-Soyuz
+  playMission({ sims: 0 });
+  assert.equal(g.record.rounds.at(-1).id, 'astp');
+  // The Shuttle years follow (A8); the full 1945-2030 run lives in tests/campaign.test.js.
+  advance(true);
+  g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'sts-1');
 });
 
 test('past the walkback limit the rover can quit; a failed main parachute brings her down on two', async () => {

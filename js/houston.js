@@ -6,7 +6,7 @@
 // on the other shift, who makes the call Houston made.
 //
 // The truth behind each answer is in truth/flights.js. What the rooms read is g.console.flight, never the round.
-import { g, note, roomChanged } from './game.js';
+import { g, crewOf, note, roomChanged } from './game.js';
 import { FLIGHTS, DECISIONS, CAPABILITIES } from './data/flights.js';
 import { flightTruth, flag, resolve, geminiEntry, lunarEntry, measure } from './truth/flights.js';
 import { SEASON } from './data/campaign.js';
@@ -29,7 +29,7 @@ export const owns = (seat, decision) => {
   return seat === o || (seat === 'flight' && o !== 'programme');
 };
 // The second crewman, by name, for the loop.
-const crewName = i => ASTRONAUTS[SEASON[g.roundIndex].crew?.[i]]?.name;
+const crewName = i => ASTRONAUTS[crewOf()?.[i]]?.name;
 
 // Into the flight proper: the console's phase becomes 'mission'.
 export function startFlight(c) {
@@ -167,6 +167,7 @@ export function answer(c, choice, speak) {
   for (const [who, text, tone] of r.lines) speak(c, who, text, tone || '', 6);
   Object.assign(f.state, r.set);
   if (r.hurt) f.state.hurt = Math.max(f.state.hurt || 0, r.hurt);
+  if (d.id === 'tald') c.calls.edwards = choice === 'edwards';
   if (r.endAt != null) f.endAt = Math.min(f.endAt ?? Infinity, r.endAt);
   if (r.capability) f.capabilities.push(r.capability);
   if (c.kind === 'flight' && r.slip) {

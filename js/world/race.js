@@ -110,6 +110,13 @@ export function raceOf(seed) {
   return out.sort((x, y) => x.at - y.at);
 }
 
+// Skylab's launch, 14 May 1973: whether the workshop's micrometeoroid shield is torn away on the climb and one solar
+// wing jams against the hull. The hidden layer's, from the game's seed; never a script.
+export function skylabShield(seed) {
+  const s = newStreams((seed ^ 0x5b1af3e7) >>> 0).forecast;
+  return draw(s) < 0.6;
+}
+
 // Apollo 1's plugs-out test, January 1967: whether the chafed wiring sparks in the pure-oxygen cabin. Seeded from the
 // game, like the Soviet attempts: the programme's cabin hazard at that time, never a script.
 export function apolloFire(seed, programme) {

@@ -248,6 +248,19 @@ export const SEASON = [
     start: dayOf(1969, 11, 12),
     name: 'Apollo 12, the pinpoint landing',
   }, // 14 November 1969
+  // The third landing. The flight itself is the hidden layer's, like every round: whether oxygen tank two fails on the
+  // way out is decided when the round is made, never scripted (C3).
+  {
+    id: 'apollo-13',
+    vehicle: 'saturn5',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['kowalczyk', 'harlan', 'reiss'],
+    path: 'nasa',
+    start: dayOf(1970, 4, 9),
+    name: 'Apollo 13, the third landing',
+  }, // launched 11 April 1970
   {
     id: 'apollo-15',
     vehicle: 'saturn5',
@@ -256,11 +269,202 @@ export const SEASON = [
     orbital: true,
     crew: ['moreau', 'price', 'tanaka'],
     risk: { chuteRisk: 0.6 },
-    turningPoint: 'director',
     path: 'nasa',
     start: dayOf(1971, 7, 24),
     name: 'Apollo 15, Hadley Rille and the rover',
   }, // 26 July 1971
+  // Apollo 16, the Descartes highlands: the last of the science landings before the cuts, and the rover again.
+  {
+    id: 'apollo-16',
+    vehicle: 'saturn5',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['achterberg', 'castellano', 'dumont'],
+    risk: { spsRisk: 0.4, throttleRisk: 0.75 },
+    path: 'nasa',
+    start: dayOf(1972, 4, 14),
+    name: 'Apollo 16, the Descartes highlands',
+  }, // launched 16 April 1972
+  // Apollo 17, the last one: three days in the valley of Taurus-Littrow, with the geologist in the lander.
+  {
+    id: 'apollo-17',
+    vehicle: 'saturn5',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['price', 'beckett', 'tanaka'],
+    risk: { j2Risk: 0.5 },
+    path: 'nasa',
+    start: dayOf(1972, 12, 5),
+    name: 'Apollo 17, the last landing, the valley of Taurus-Littrow',
+  }, // launched 7 December 1972
+  // The workshop years. The crews fly on the Saturn IB and stay weeks aboard; the station itself went up on the last
+  // Saturn V, and whether her shield survived the climb is the hidden layer's, from the game's seed.
+  {
+    id: 'skylab-2',
+    vehicle: 'saturnib',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['halloran', 'dengler', 'serrano'],
+    path: 'nasa',
+    start: dayOf(1973, 5, 23),
+    name: 'Skylab 2, the first crew to the workshop',
+  }, // launched 25 May 1973
+  {
+    id: 'skylab-3',
+    vehicle: 'saturnib',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['cavanagh', 'ostrowski', 'lindstrom'],
+    path: 'nasa',
+    start: dayOf(1973, 7, 26),
+    name: 'Skylab 3, fifty-nine days aboard',
+  }, // launched 28 July 1973
+  {
+    id: 'skylab-4',
+    vehicle: 'saturnib',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['beaumont', 'adeyemi', 'whitfield'],
+    path: 'nasa',
+    start: dayOf(1973, 11, 14),
+    name: 'Skylab 4, eighty-four days aboard',
+  }, // launched 16 November 1973
+  // The last Apollo: docked with the other side, and flown home for good.
+  {
+    id: 'astp',
+    vehicle: 'saturnib',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['okafor', 'gardner', 'novak'],
+    path: 'nasa',
+    start: dayOf(1975, 7, 13),
+    name: 'Apollo-Soyuz, the last Apollo',
+  }, // launched 15 July 1975
+  // The Shuttle years (A8). The orbiter is a winged spacecraft: she flies to orbit, works in it, and lands on a runway.
+  // The joints and the tank are the hidden layer's; the cold of January 1986 is a condition, never a script.
+  {
+    id: 'sts-1',
+    vehicle: 'shuttle',
+    site: 'cape',
+    crewed: 'shuttle',
+    orbital: true,
+    crew: ['carter', 'ellison'],
+    path: 'nasa',
+    start: dayOf(1981, 4, 10),
+    name: 'STS-1, the first Shuttle flight',
+  }, // launched 12 April 1981
+  {
+    id: 'sts-51l',
+    vehicle: 'shuttle',
+    site: 'cape',
+    crewed: 'shuttle',
+    orbital: true,
+    crew: ['hobbs', 'winters', 'nakagawa'],
+    risk: { oringRisk: 0.9, boostRisk: 0.95, cold: true },
+    path: 'nasa',
+    start: dayOf(1986, 1, 26),
+    name: 'STS-51-L, the coldest launch morning',
+  }, // launched 28 January 1986
+  {
+    id: 'sts-26',
+    vehicle: 'shuttle',
+    site: 'cape',
+    crewed: 'shuttle',
+    orbital: true,
+    crew: ['donovan', 'vasquez', 'brennan'],
+    path: 'nasa',
+    start: dayOf(1988, 9, 27),
+    name: 'STS-26, the return to flight',
+  }, // launched 29 September 1988
+  {
+    id: 'sts-61',
+    vehicle: 'shuttle',
+    site: 'cape',
+    crewed: 'shuttle',
+    orbital: true,
+    crew: ['vasquez', 'quinn', 'donovan'],
+    path: 'nasa',
+    start: dayOf(1993, 12, 1),
+    name: 'STS-61, the repair of the telescope',
+  }, // launched 2 December 1993
+  // The station era (A9): the pieces go up on the Shuttle, and the crews stay months at a time.
+  {
+    id: 'sts-88',
+    vehicle: 'shuttle',
+    site: 'cape',
+    crewed: 'shuttle',
+    orbital: true,
+    crew: ['okeke', 'farrow', 'delacroix'],
+    path: 'nasa',
+    start: dayOf(1998, 12, 2),
+    name: 'STS-88, the first two modules of the station',
+  }, // launched 4 December 1998
+  {
+    id: 'sts-97',
+    vehicle: 'shuttle',
+    site: 'cape',
+    crewed: 'shuttle',
+    orbital: true,
+    crew: ['hawthorne', 'farrow', 'quinn'],
+    path: 'nasa',
+    start: dayOf(2000, 11, 29),
+    name: 'STS-97, the solar wings and the first expedition',
+  }, // launched 30 November 2000
+  // Commercial crew (A10): a company's spacecraft and launcher, bought by the seat.
+  {
+    id: 'demo-2',
+    vehicle: 'dragon',
+    site: 'cape',
+    crewed: 'dragon',
+    orbital: true,
+    crew: ['sharma', 'larsen'],
+    path: 'nasa',
+    start: dayOf(2020, 5, 25),
+    name: 'Demo-2, the first commercial crew',
+  }, // launched 30 May 2020
+  // Artemis (A11): Apollo's granddaughter. One round the Moon with nobody aboard, then four crews on the free return,
+  // then the return to the Moon at the south pole. The campaign ends here, in 2030.
+  {
+    id: 'artemis-1',
+    vehicle: 'sls',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: [],
+    risk: { relightRisk: 0.4 },
+    path: 'nasa',
+    start: dayOf(2022, 11, 14),
+    name: 'Artemis I, the Moon round trip without a crew',
+  }, // launched 16 November 2022
+  {
+    id: 'artemis-2',
+    vehicle: 'sls',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['sharma', 'vaughn', 'larsen', 'petrossian'],
+    path: 'nasa',
+    start: dayOf(2025, 9, 10),
+    name: 'Artemis II, four crews round the Moon',
+  }, // launched 12 September 2025
+  {
+    id: 'artemis-3',
+    vehicle: 'sls',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['vaughn', 'larsen', 'petrossian'],
+    risk: { spsRisk: 0.4 },
+    path: 'nasa',
+    start: dayOf(2028, 9, 8),
+    name: 'Artemis III, the return to the Moon, the south pole',
+  }, // launched 10 September 2028
   {
     id: 'ranger-7',
     vehicle: 'ranger',
@@ -276,18 +480,9 @@ export const SEASON = [
 export const LAST_WORD = {
   'ranger-7':
     "Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.",
-  'apollo-10': 'Apollo 11 was set for July 1969. That is as far as Apollo goes in this build.',
-  'apollo-11':
-    'Apollo 12 was set for November 1969, to land beside an old robot on the Ocean of Storms. That is as far as Apollo goes in this build.',
-  'apollo-12': 'Apollo 13 was set for April 1970. That is as far as Apollo goes in this build.',
-  'apollo-15':
-    'Apollo 16 went to the Descartes highlands in April 1972, and in December Apollo 17 took a geologist to the valley of Taurus-Littrow. Apollo 18, 19 and 20 were cancelled, their Saturn Vs left to lie on their sides as museum pieces. When Apollo 17 left the Moon, nobody went back. This is where the build ends.',
-  'apollo-6':
-    'In August 1968 Houston began to talk about sending the next Saturn V round the Moon. That is as far as Apollo goes in this build.',
-  'gem-12':
-    'Gemini was over: ten crewed flights in twenty months. Its rendezvous, its dockings, its long flights and its spacewalks went to Apollo as evidence. That is as far as Gemini goes in this build.',
+  'artemis-3':
+    'Artemis III came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole grows through 2029 and 2030, and the flights keep coming. This is where the build ends.',
 };
-
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
 export const SITES = {
   'white-sands': {
@@ -364,6 +559,52 @@ export const BETWEEN = {
   'viking-9': [
     'Viking 8, in June 1952, broke loose from its moorings during a static firing and flew. The range cut its engine at 55 seconds and it came down a few miles to the southeast.',
     'Martin has improved the airframe for the later Vikings: lighter, and carrying more propellant.',
+  ],
+  'apollo-16': [
+    'Apollo 14 went to Fra Mauro in February 1971 without you. The Saturn V was checked from end to end after the trouble the year before, and the landings went on.',
+  ],
+  'apollo-17': [
+    '1972: the budget took three Saturn Vs and their flights away, and everyone on the shift knows the valley flight is the last one.',
+  ],
+  'skylab-2': [
+    'The last three Saturn Vs never flew: two stand in museums and one is cut up for spares. Apollo 17 came home in December 1972, and nobody has been back to the Moon.',
+  ],
+  'skylab-3': ['The first crew came home in June, having kept the workshop alive. The astronomers want her for years.'],
+  'skylab-4': [
+    'The second crew flew fifty-nine days in the summer and came home in September. The workshop has been lived in for a year.',
+  ],
+  astp: [
+    '1974: the last Skylab crew came home in February after eighty-four days. The workshop stands empty in orbit, waiting for the shuttle that nobody has built yet.',
+  ],
+  'sts-1': [
+    'The seventies went to the workshop and to the treaty handshake in orbit. After that the Saturn line is struck, and what comes next has wings. Six years of building, two years of delays, and the first orbiter goes up with only the two of them aboard.',
+  ],
+  'sts-51l': [
+    'The fleet has flown twenty-four flights without a loss: satellites up, crews back, a laboratory in the bay. January 1986 is the coldest launch morning anyone at the Cape can remember, and the first teacher is aboard.',
+  ],
+  'sts-26': [
+    'The fleet stood down for thirty-two months while the joints were redesigned and the whole agency asked itself what it had missed. The countdown for the return to flight is the most watched in years.',
+  ],
+  'sts-61': [
+    '1990: the telescope went up and could not focus - a mirror ground to the wrong figure, a mistake known only from orbit. The repair has been rehearsed for a year in the pool at Huntsville.',
+  ],
+  'sts-88': [
+    'The station era: Russia is a partner now, and the first module has been up alone for a fortnight, waiting for a visitor.',
+  ],
+  'sts-97': [
+    'The station has been lived in for three weeks by its first long-stay crew, and the visiting flights keep her supplied.',
+  ],
+  'demo-2': [
+    "Nine years since an American crew flew from American soil. The crewed spacecraft are a company's now, and NASA buys the seats.",
+  ],
+  'artemis-1': [
+    "2011: the Shuttle fleet retired, and for a decade the crews rode other people's rockets. What came out of the decade is Apollo's granddaughter with a new name, and she goes up with nobody aboard.",
+  ],
+  'artemis-2': [
+    'Orion flew round the Moon with nobody aboard and came home at eleven kilometres a second, inside her corridor. The four of them have trained together for two years.',
+  ],
+  'artemis-3': [
+    'The lander is up, checked out in lunar orbit by the last flight. The south pole is where the ice is, and where nobody has ever stood.',
   ],
   'vanguard-tv0': [
     'Vikings 10, 11 and 12 flew from White Sands without you. Viking 11, in May 1954, reached 254 km, the highest any single-stage rocket had gone.',
@@ -549,17 +790,8 @@ export const PROGRAMME_OFFER = {
   declineNote: 'You keep your seat and fly Apollo from the console.',
 };
 
-// The last, at the end of Apollo: the Manned Spacecraft Center needs a director for what comes after.
-export const DIRECTOR_OFFER = {
-  seat: 'director',
-  title: 'Director, Manned Spacecraft Center',
-  from: 'hollis',
-  text: 'Apollo has two flights left, and then Houston has a space station made from a spare third stage and a shuttle nobody has built. The Center needs a director who has sat in every chair. They asked me who. I said you.',
-  sidelined: "Houston named a new Center director. It wasn't you this time.",
-  again: 'Houston is asking again.',
-  takeNote: 'From now on you run the Manned Spacecraft Center: the people, the money, and what comes after the Moon.',
-  declineNote: 'You keep your seat for the last of Apollo.',
-};
+// There is no offer at the end of Apollo: from the Houston shift onward the player stays a flight director
+// (Aaron, 8 November 2026), and the campaign runs on to 2030 with no further promotion.
 
 // The way back from the uncrewed years: after Ranger 7, Houston staffs Gemini and asks JPL for its range man. Always
 // made: it is the branch's last round, and a sidelined player must have the chance C1 promised.
@@ -585,10 +817,8 @@ export const offerFor = turningPoint =>
     engineer: ENGINEER_OFFER,
     flight: FD_OFFER,
     programme: PROGRAMME_OFFER,
-    director: DIRECTOR_OFFER,
     gemini: GEMINI_OFFER,
   })[turningPoint] || FIRST_OFFER;
 // The offer behind an entry in your record, by the seat it offered.
 export const offerBySeat = seat =>
-  [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, PROGRAMME_OFFER, DIRECTOR_OFFER, FIRST_OFFER].find(o => o.seat === seat) ||
-  FIRST_OFFER;
+  [NASA_OFFER, ENGINEER_OFFER, FD_OFFER, PROGRAMME_OFFER, FIRST_OFFER].find(o => o.seat === seat) || FIRST_OFFER;

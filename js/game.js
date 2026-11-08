@@ -30,8 +30,8 @@ import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
 import { APOLLO_PLACES } from './data/apollo.js';
-import { ASTRONAUTS } from './data/crew.js';
-import { raceNews, RACE_FROM, apolloFire } from './world/race.js';
+import { ASTRONAUTS, SEVEN, NINE, FOURTEEN, ELEVEN, EIGHT, SIXTEEN, ARTEMIS } from './data/crew.js';
+import { raceNews, RACE_FROM, apolloFire, skylabShield } from './world/race.js';
 import {
   initRecord,
   addRound,
@@ -179,6 +179,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
     away: null,
     saved: null,
     savedVersion: 0,
+    crewSwaps: {},
   };
   for (const [id, p] of Object.entries(PEOPLE))
     g.people[id] = { id, ...p, target: p.x, face: 1, bubble: null, working: false, hidden: false };
@@ -210,6 +211,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
       launchDay: from.launchDay ?? null,
       plan: from.plan ?? null,
       mission: from.mission ?? null,
+      crewSwaps: from.crewSwaps ?? {},
     }),
   );
   setVehicle();
@@ -247,6 +249,42 @@ function catchUpOffer() {
       ? `${by} put your name forward: ${offer.title.toLowerCase()}.`
       : `${offer.title} was on offer. ${by} did not put your name forward.`,
   );
+}
+
+// Who flies round i: the season's crew, with everyone the game has lost replaced by the living astronaut who takes his
+// place. Deaths are never scripted (C3); when one happens, the later crews hear about it here.
+export function crewOf(i = g.roundIndex) {
+  const crew = SEASON[i].crew;
+  if (!crew || !g?.crewSwaps) return crew;
+  const swaps = g.crewSwaps;
+  return crew.map(id => {
+    let who = id;
+    // A substitute can himself be lost later; the chain ends on a living man.
+    for (let n = 0; swaps[who] && n < Object.keys(swaps).length; n++) who = swaps[who];
+    return who;
+  });
+}
+
+// An astronaut (or a whole crew) has died. The record keeps their names; every crew still to come that he was on is
+// re-flown by the living astronaut next in line for the seat. The pick is deterministic: the first living astronaut of
+// his own group (the Mercury seven, the 1962 nine, the 1963 fourteen) who is not already booked beside him.
+export function recordDeaths(ids, day = g.day, round = SEASON[g.roundIndex].id) {
+  const names = ids.map(id => ASTRONAUTS[id].name).join(', ');
+  (g.record.losses = g.record.losses || []).push({ name: names, day, round });
+  g.crewSwaps = g.crewSwaps || {};
+  // The rounds still to come: a death changes nobody who has already flown.
+  const ahead = SEASON.map((r, i) => [r, i]).filter(
+    ([r]) => (r.crew || []).length && roundStartOf(SEASON.indexOf(r)) > day,
+  );
+  for (const id of ids) {
+    const seats = ahead.filter(([, i]) => crewOf(i).includes(id));
+    if (g.crewSwaps[id] || !seats.length) continue;
+    const gone = new Set([...Object.keys(g.crewSwaps), ...Object.values(g.crewSwaps), id]);
+    const booked = new Set(seats.flatMap(([, i]) => crewOf(i) || []).filter(who => who !== id));
+    const group = [SEVEN, NINE, FOURTEEN, ELEVEN, EIGHT, SIXTEEN, ARTEMIS].find(list => list.includes(id)) || ELEVEN;
+    const pick = [...group, ...Object.keys(ASTRONAUTS)].find(who => !gone.has(who) && !booked.has(who));
+    if (pick) g.crewSwaps[id] = pick;
+  }
 }
 
 // The parts of the game that belong to one round, cleared before each.
@@ -302,9 +340,9 @@ function setVehicle() {
   g.people.tate.hidden = !(g.crewed && (g.record.seat === 'engineer' || (houston && g.record.seat !== 'retro')));
   for (const id of Object.keys(GEMINI_PEOPLE)) g.people[id].hidden = !houston;
   g.people.crew2.hidden = true;
-  if (SEASON[g.roundIndex].crew?.[1]) g.people.crew2.name = ASTRONAUTS[SEASON[g.roundIndex].crew[1]].name;
+  if (crewOf()?.[1]) g.people.crew2.name = ASTRONAUTS[crewOf()[1]].name;
   g.people.ellis.hidden = g.crewed;
-  const pilot = SEASON[g.roundIndex].crew?.[0];
+  const pilot = crewOf()?.[0];
   g.people.pilot.hidden = !pilot;
   if (pilot) Object.assign(g.people.pilot, { name: ASTRONAUTS[pilot].name, crewId: pilot });
   for (const [id, role] of Object.entries(ROLES))
@@ -333,8 +371,9 @@ function apolloFireLines() {
       'On 27 January 1967 the first Apollo crew ran the plugs-out test on Pad 34 in pure oxygen at full pressure. It went clean. Apollo 1 flew in February: two weeks in Earth orbit with a cabin that hummed and smelled of hot wiring, and came home.',
       'The programme office wants that wiring looked at before anyone goes to the Moon.',
     ];
-  const names = ['whitcomb', 'castellano', 'harlan'].map(id => ASTRONAUTS[id].name).join(', ');
-  (g.record.losses = g.record.losses || []).push({ name: names, day: dayOf(1967, 1, 27), round: 'apollo-1' });
+  const dead = ['whitcomb', 'castellano', 'harlan'];
+  recordDeaths(dead, dayOf(1967, 1, 27), 'apollo-1');
+  const names = dead.map(id => ASTRONAUTS[id].name).join(', ');
   const fix = adopt(g.programme, 'cabin');
   return [
     `On 27 January 1967, in the plugs-out test on Pad 34, a spark in the wiring under the couches lit the pure-oxygen cabin. ${names} died in seconds behind a hatch that opened inward. Nobody on the pad could reach them.`,
@@ -655,8 +694,9 @@ const BEATS = {
     g.objective = atSea()
       ? 'Go over to the telemetry building with Morgan: take the range car.'
       : 'Ride out with the recovery party: go to the truck.';
-    walk('morgan', PLACES.truck.door + 30);
-    walk('kowalski', PLACES.truck.door - 20);
+    // Board beside the truck, not in its bed: the door stands at the cab.
+    walk('morgan', PLACES.truck.door + 55);
+    walk('kowalski', PLACES.truck.door - 60);
     say(
       'morgan',
       atSea()
@@ -678,7 +718,7 @@ const BEATS = {
     place('kowalski', 650);
     place('delgado', 780);
     g.people.morgan.hidden = g.people.kowalski.hidden = g.people.you.hidden = false;
-    place('you', PLACES.truck.door);
+    place('you', PLACES.truck.door + 50);
   },
   roundEnd() {
     g.objective = 'The round is written up. Carry on to the next round from the office when you are ready.';
@@ -1404,6 +1444,12 @@ function jumpTo(i) {
   if (next.crewed && next.crewed !== 'mercury')
     lines.push(...raceNews(g.seed, Math.max(from, RACE_FROM), roundStartOf(i)));
   if (next.id === 'apollo-6') lines.push(...apolloFireLines());
+  // The workshop's launch damage is the hidden layer's; when it happened, Houston saw it on launch day, and the crew
+  // flies up to fix it.
+  if (next.id === 'skylab-2' && skylabShield(g.seed))
+    lines.push(
+      'The workshop went up on the last Saturn V, and sixty-three seconds into the climb the range saw something tear away from her. On the television from orbit her micrometeoroid shield is gone and one solar wing is jammed against the hull. She is hot inside, and the crew going up tomorrow is the repair party.',
+    );
   g.away = { from: dateText(from), to: dateText(roundStartOf(i)), lines };
   startRound(i);
   g.room = 'away';
@@ -1458,21 +1504,17 @@ export function answerFirstOffer(take) {
   else if (g.crewed)
     say(
       'hollis',
-      o.seat === 'director'
+      o.seat === 'programme'
         ? take
-          ? "Good. Now it's your budget they'll cut."
-          : "Then fly the last of them. I'll tell them to ask again."
-        : o.seat === 'programme'
+          ? 'Off the console, then. Get them their hardware on time, and get it right.'
+          : 'Good. I need flight directors more than I need schedulers.'
+        : o.seat === 'flight'
           ? take
-            ? 'Off the console, then. Get them their hardware on time, and get it right.'
-            : 'Good. I need flight directors more than I need schedulers.'
-          : o.seat === 'flight'
-            ? take
-              ? "Good. Houston's yours on your shift, Flight. Know your rules."
-              : 'Then keep your seat. Somebody has to.'
-            : take
-              ? "Good luck in Hangar S. I'll want straight answers from you on flight day."
-              : 'Glad to keep you, Retro.',
+            ? "Good. Houston's yours on your shift, Flight. Know your rules."
+            : 'Then keep your seat. Somebody has to.'
+          : take
+            ? "Good luck in Hangar S. I'll want straight answers from you on flight day."
+            : 'Glad to keep you, Retro.',
       take ? 'go' : '',
       8,
     );

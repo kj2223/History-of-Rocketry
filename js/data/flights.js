@@ -91,6 +91,52 @@ const ASCENT = at => [
     show: { LM: ['docked'] },
   },
 ];
+// The flight plan, a step at a time. (Fragment: the Saturn IB steps, sorted.)
+const IB = [
+  {
+    at: 0.2,
+    phase: 'Launch and Earth orbit',
+    where: [0.02, 'Earth orbit'],
+    say: [['kessler', 'Flight, EECOM: spacecraft is good. Platform good.', 'go']],
+    show: { 'S-IVB': ['safed'], SPS: ['not yet fired'], DOCKING: ['workshop ahead'] },
+  },
+  {
+    at: 2.2,
+    if: 'h1',
+    say: [
+      [
+        'albrecht',
+        'Flight, Booster: number six H-1 was rough from liftoff and its turbopump read hot. She made orbit, but that pump is finished.',
+        'bad',
+      ],
+    ],
+    show: { 'H-1 6': ['hot, made orbit', true] },
+  },
+].sort((a, b) => a.at - b.at);
+
+// The Shuttle's steps: the orbiter in orbit, and a main engine that shut down early.
+const STS = [
+  {
+    at: 0.2,
+    phase: 'Launch and Earth orbit',
+    where: [0.02, 'Earth orbit'],
+    say: [['kessler', 'Flight, EECOM: the orbiter is in orbit. Payload bay doors are open.', 'go']],
+    show: { ORBITER: ['in orbit'], 'PAYLOAD BAY': ['doors open'] },
+  },
+  {
+    at: 1.8,
+    if: 'ssme',
+    say: [
+      [
+        'albrecht',
+        'Flight, Booster: one main engine shut down early in the climb. The orbit came up low, and the OMS burned long to make it up.',
+        'bad',
+      ],
+    ],
+    show: { 'MAIN ENGINES': ['one down early', true] },
+  },
+].sort((a, b) => a.at - b.at);
+
 export const FLIGHTS = {
   'gem-4': {
     program: 'gemini',
@@ -1108,6 +1154,1268 @@ export const FLIGHTS = {
       { at: 294.6, retro: true },
     ],
   },
+  // Apollo 16: the Descartes highlands. The command module drifted on the approach, the lander's throttle fluttered at
+  // the low gate, and the ascent engine's checkout read low before the climb home.
+  'apollo-16': {
+    program: 'apollo',
+    craft: 'Apollo 16',
+    entry: 'lunar',
+    completes: 'landing',
+    phases: 9,
+    objective: 'land in the Descartes highlands, three days among the mountains, and bring all three home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Go for translunar injection only with a good third stage and a good spacecraft after one and a half Earth orbits.',
+      'No lunar orbit insertion without a service engine that has passed its checks: without it there is no way home.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+      'In the descent, abort on any computer alarm that stops the computer flying the lander.',
+      'The rover never goes farther than the crew can walk back on what is left in their suits.',
+      'An engine that will not hold its thrust does not land the lander.',
+      'An ascent engine that cannot be trusted does not wait for its scheduled hour.',
+    ],
+    steps: [
+      {
+        at: 0.2,
+        phase: 'Launch and Earth orbit',
+        where: [0.02, 'Earth orbit'],
+        say: [['kessler', 'Flight, EECOM: spacecraft is good. Platform good.', 'go']],
+        show: { 'S-IVB': ['safed for restart'], SPS: ['not yet fired'], LM: ['in the adapter'] },
+      },
+      ...EARLY,
+      {
+        at: 2.4,
+        if: 'relight',
+        say: [['albrecht', "Flight, Booster: the S-IVB's restart bottle pressure is low. She may not light.", 'warn']],
+        show: { 'S-IVB': ['bottle pressure low', true] },
+      },
+      { at: 2.8, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      {
+        at: 11,
+        lunar: true,
+        phase: 'Translunar coast',
+        where: [0.3, '120,000 km out'],
+        say: [
+          [
+            'crew2',
+            "Houston, the lander's out and on our nose. The rover's folded up on her side, where it should be.",
+            'go',
+          ],
+        ],
+        show: { LM: ['docked'] },
+      },
+      {
+        at: 13,
+        lunar: true,
+        where: [0.35, '160,000 km out'],
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the command module's number-four thruster is fighting the hand control. She drifts off and comes back. It was the same in practice; we can dock with it, but I don't love it.",
+            'warn',
+          ],
+        ],
+        show: { 'CM RCS': ['drifting on the hand control', true] },
+      },
+      {
+        lunar: true,
+        at: 30,
+        where: [0.55, '220,000 km out'],
+        offShift: 'A midcourse correction to a hybrid trajectory, off the free return. Nothing for your team.',
+      },
+      ...TANK,
+      {
+        lunar: true,
+        at: 60,
+        if: 'sps',
+        show: { SPS: ['chamber pressure low on the check', true] },
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the service engine's test firing came up a little short on chamber pressure.",
+            'warn',
+          ],
+        ],
+      },
+      { lunar: true, at: 60, unless: 'sps', show: { SPS: ['good on the check'] } },
+      { at: 81, phase: 'Lunar orbit insertion', where: [0.97, 'Approaching the Moon'], moon: true, decide: 'loi' },
+      {
+        at: 104,
+        moon: true,
+        where: [1, 'Lunar orbit'],
+        set: { lmFlown: true },
+        say: [['pilot', "Houston, the lander has undocked. She's flying.", 'go']],
+        show: { LM: ['undocked'] },
+      },
+      {
+        at: 107.5,
+        phase: 'Powered descent',
+        moon: true,
+        say: [['kessler', "Flight, the descent engine has lit. She's coming down over the mountains.", 'go']],
+        show: { 'LM COMPUTER': ['flying the descent'] },
+      },
+      {
+        at: 107.53,
+        moon: true,
+        if: 'alarm',
+        say: [['pilot', 'Houston, program alarm. 1202.', 'bad']],
+        show: { 'LM COMPUTER': ['1202 alarms', true] },
+      },
+      { at: 107.55, moon: true, if: 'alarm', decide: 'alarm' },
+      {
+        at: 107.6,
+        moon: true,
+        not: 'noLanding',
+        if: 'throttle',
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the descent engine's throttle is fluttering as she comes through the low gate. It was steady in the checkout. She's holding, but I want the call.",
+            'warn',
+          ],
+        ],
+        show: { 'DESCENT ENGINE': ['throttle flutter', true] },
+      },
+      { at: 107.62, moon: true, not: 'noLanding', if: 'throttle', decide: 'throttle' },
+      {
+        at: 107.7,
+        moon: true,
+        not: 'noLanding',
+        unless: 'linspect',
+        set: { landed: true },
+        say: [
+          [
+            'pilot',
+            "Contact. Houston, we're down on the Cayley plain at Descartes. She's sitting level, a mile from the mountains.",
+            'go',
+          ],
+        ],
+      },
+      {
+        at: 110,
+        moon: true,
+        when: 'linspect',
+        set: { landed: true },
+        say: [
+          [
+            'tate',
+            "Flight, Retro: two hours around, and the command module pilot has had the lander's numbers back. The throttle is sound. They're going down on the next pass.",
+            'go',
+          ],
+        ],
+      },
+      {
+        at: 111.5,
+        phase: 'On the surface',
+        moon: true,
+        when: 'landed',
+        where: [1, 'On the Moon'],
+        offShift:
+          'Moonwalks up the slope of Stone Mountain and out to the rille, and the first drill cores of the highlands. Nothing for your team.',
+      },
+      {
+        at: 150,
+        moon: true,
+        when: 'landed',
+        say: [
+          [
+            'pilot',
+            "Houston, we're two kilometres up the mountain, and there's House Rock ahead: a boulder the size of a house, thrown here from the basin. I want twenty minutes with it.",
+            'warn',
+          ],
+        ],
+        show: { ROVER: ['2 km up the slope'], WALKBACK: ['limit', true] },
+      },
+      { at: 150.1, moon: true, when: 'landed', decide: 'traverse' },
+      {
+        at: 170,
+        moon: true,
+        when: 'landed',
+        if: 'ascent',
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the ascent engine's chamber pressure came up low all the way on the checkout. If she quits on the burn, they're stranded.",
+            'bad',
+          ],
+        ],
+        show: { 'ASCENT ENGINE': ['chamber pressure low', true] },
+      },
+      { at: 170.4, moon: true, when: 'landed', decide: 'ascentEarly' },
+      ...ASCENT(172),
+      {
+        at: 224,
+        phase: 'Trans-Earth injection',
+        where: [0.97, 'Behind the Moon'],
+        moon: true,
+        say: [
+          [
+            'morgan',
+            "Flight, Network: she's behind the Moon. Trans-Earth injection is out of our sight. Waiting for acquisition.",
+            'warn',
+          ],
+        ],
+      },
+      {
+        at: 224.3,
+        moon: true,
+        when: 'stranded',
+        say: [
+          ['morgan', "Flight, Network: we have her, and she's still in lunar orbit. The engine did not burn.", 'bad'],
+        ],
+      },
+      {
+        at: 224.4,
+        moon: true,
+        not: 'stranded',
+        say: [['crew2', "Houston, the engine burned on time. We're coming home.", 'go']],
+      },
+      { at: 260, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 289, lunar: true, decide: 'mcc' },
+      { at: 294.6, retro: true },
+    ],
+  },
+  // Apollo 17: the last landing, three days in the valley of Taurus-Littrow, and the orange soil at Shorty.
+  'apollo-17': {
+    program: 'apollo',
+    craft: 'Apollo 17',
+    entry: 'lunar',
+    completes: 'landing',
+    phases: 9,
+    objective: 'three days in the valley of Taurus-Littrow, and the last men home from the Moon',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Go for translunar injection only with a good third stage and a good spacecraft after one and a half Earth orbits.',
+      'No lunar orbit insertion without a service engine that has passed its checks: without it there is no way home.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+      'In the descent, abort on any computer alarm that stops the computer flying the lander.',
+      'The rover never goes farther than the crew can walk back on what is left in their suits.',
+    ],
+    steps: [
+      {
+        at: 0.2,
+        phase: 'Launch and Earth orbit',
+        where: [0.02, 'Earth orbit'],
+        say: [['kessler', 'Flight, EECOM: spacecraft is good. Platform good.', 'go']],
+        show: { 'S-IVB': ['safed for restart'], SPS: ['not yet fired'], LM: ['in the adapter'] },
+      },
+      ...EARLY,
+      {
+        at: 1.7,
+        if: 'j2',
+        say: [
+          [
+            'albrecht',
+            "Flight, Booster: the second stage's centre engine shut down two minutes early. The others ran long and made it up; orbit is as planned.",
+            'warn',
+          ],
+        ],
+        show: { 'S-II': ['centre engine down', true] },
+      },
+      {
+        at: 2.4,
+        if: 'relight',
+        say: [['albrecht', "Flight, Booster: the S-IVB's restart bottle pressure is low. She may not light.", 'warn']],
+        show: { 'S-IVB': ['bottle pressure low', true] },
+      },
+      { at: 2.6, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      {
+        at: 11,
+        lunar: true,
+        phase: 'Translunar coast',
+        where: [0.3, '120,000 km out'],
+        say: [
+          [
+            'crew2',
+            "Houston, the lander's out and on our nose. The rover's folded up on her side, where it should be.",
+            'go',
+          ],
+        ],
+        show: { LM: ['docked'] },
+      },
+      {
+        lunar: true,
+        at: 30,
+        where: [0.55, '220,000 km out'],
+        offShift: 'A midcourse correction to a hybrid trajectory, off the free return. Nothing for your team.',
+      },
+      ...TANK,
+      {
+        lunar: true,
+        at: 60,
+        if: 'sps',
+        show: { SPS: ['chamber pressure low on the check', true] },
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the service engine's test firing came up a little short on chamber pressure.",
+            'warn',
+          ],
+        ],
+      },
+      { lunar: true, at: 60, unless: 'sps', show: { SPS: ['good on the check'] } },
+      { at: 83.5, phase: 'Lunar orbit insertion', where: [0.97, 'Approaching the Moon'], moon: true, decide: 'loi' },
+      {
+        at: 109.5,
+        moon: true,
+        where: [1, 'Lunar orbit'],
+        set: { lmFlown: true },
+        say: [['pilot', "Houston, the lander has undocked. She's flying.", 'go']],
+        show: { LM: ['undocked'] },
+      },
+      {
+        at: 112,
+        phase: 'Powered descent',
+        moon: true,
+        say: [['kessler', "Flight, the descent engine has lit. She's coming down into the valley.", 'go']],
+        show: { 'LM COMPUTER': ['flying the descent'] },
+      },
+      {
+        at: 112.03,
+        moon: true,
+        if: 'alarm',
+        say: [['pilot', 'Houston, program alarm. 1202.', 'bad']],
+        show: { 'LM COMPUTER': ['1202 alarms', true] },
+      },
+      { at: 112.05, moon: true, if: 'alarm', decide: 'alarm' },
+      {
+        at: 112.2,
+        moon: true,
+        not: 'noLanding',
+        set: { landed: true },
+        say: [
+          [
+            'pilot',
+            "Contact. Houston, we're down in the valley of Taurus-Littrow, right between the mountains. It's steep on both sides and the ground is level.",
+            'go',
+          ],
+        ],
+      },
+      {
+        at: 113,
+        phase: 'On the surface',
+        moon: true,
+        when: 'landed',
+        where: [1, 'On the Moon'],
+        offShift:
+          'Three moonwalks down the valley and up the mountain behind the lander, and the deepest set of samples Apollo brought home. Nothing for your team.',
+      },
+      {
+        at: 146,
+        moon: true,
+        when: 'landed',
+        say: [
+          [
+            'pilot',
+            "Houston, we're out at the edge of the landslide, and the white rock is straight ahead. I want twenty minutes with it before the rule says turn around.",
+            'warn',
+          ],
+        ],
+        show: { ROVER: ['5 km out'], WALKBACK: ['limit', true] },
+      },
+      { at: 146.1, moon: true, when: 'landed', decide: 'traverse' },
+      {
+        at: 152,
+        moon: true,
+        when: 'landed',
+        say: [
+          [
+            'pilot',
+            "Houston, there's orange soil underfoot here at Shorty. Orange as rust, all along the rim of the crater.",
+            'go',
+          ],
+        ],
+        show: { SURFACE: ['orange soil at Shorty', true] },
+      },
+      ...ASCENT(172.5),
+      {
+        at: 224.8,
+        phase: 'Trans-Earth injection',
+        where: [0.97, 'Behind the Moon'],
+        moon: true,
+        say: [
+          [
+            'morgan',
+            "Flight, Network: she's behind the Moon. Trans-Earth injection is out of our sight. Waiting for acquisition.",
+            'warn',
+          ],
+        ],
+      },
+      {
+        at: 225.1,
+        moon: true,
+        when: 'stranded',
+        say: [
+          ['morgan', "Flight, Network: we have her, and she's still in lunar orbit. The engine did not burn.", 'bad'],
+        ],
+      },
+      {
+        at: 225.2,
+        moon: true,
+        not: 'stranded',
+        say: [['crew2', "Houston, the engine burned on time. We're coming home.", 'go']],
+      },
+      { at: 260, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 289, lunar: true, decide: 'mcc' },
+      { at: 294.6, retro: true },
+    ],
+  },
+
+  // ---- The workshop years, 1973-75. The Saturn IB's steps (IB) have no lightning fragment: the Saturn IB has
+  // never been hit. The workshop's launch damage rides with the seed, not the round. ----
+
+  'skylab-2': {
+    program: 'apollo',
+    craft: 'Skylab 2',
+    entry: 'orbit',
+    completes: 'evawork',
+    phases: 5,
+    objective: 'rendezvous with the workshop, save her if she needs saving, twenty-eight days of work, and home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Dock on the third revolution; the crew has two free drift orbits in hand.',
+      'The workshop is not occupied without a shade over a lost shield.',
+      'One spacewalk a day, never two: the suits must dry out between them.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...IB,
+      ...EARLY,
+      {
+        at: 5,
+        if: 'shield',
+        say: [
+          [
+            'pilot',
+            "Houston, we have the workshop. She's flying odd: the micrometeoroid shield is gone, torn back over the solar panel bay. One wing is jammed shut and the other did not open.",
+            'bad',
+          ],
+        ],
+        note: "The workshop's micrometeoroid shield was torn away sixty-three seconds into her launch, and one solar wing jammed against the hull. Temperatures inside climbed past fifty degrees.",
+        show: { WORKSHOP: ['shield gone, one wing jammed', true] },
+      },
+      { at: 5.2, if: 'shield', decide: 'parasol' },
+      {
+        at: 6,
+        unless: 'shield',
+        say: [['pilot', 'Houston, the workshop is bright gold and whole. Docking on the next pass.', 'go']],
+      },
+      {
+        at: 7.5,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', "Houston, hard dock. We're aboard the first American space station.", 'go']],
+        show: { DOCKING: ['hard dock'] },
+      },
+      {
+        at: 26,
+        when: 'shaded',
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: the parasol is out through the solar airlock. Cabin temperature is coming down already: thirty-two degrees and falling.',
+            'go',
+          ],
+        ],
+        show: { WORKSHOP: ['shaded', true] },
+      },
+      { at: 30, decide: 'panel' },
+      {
+        at: 40,
+        when: 'panelFree',
+        say: [['kessler', 'Flight, EECOM: the wing is out and tracking the Sun. The workshop has full power.', 'go']],
+        show: { 'SOLAR WING': ['free and tracking', true] },
+      },
+      {
+        at: 100,
+        offShift:
+          "The crew's weeks aboard: experiments on schedule, the workshop standing to it, and a crew working well together. Nothing for your team.",
+      },
+      {
+        at: 660,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', "Houston, we're loose. The workshop looks good from out here. See you in the spring.", 'go']],
+      },
+      { at: 668, retro: true },
+    ],
+  },
+
+  // Skylab 3: fifty-nine days, and a leaking thruster quad to weigh the mission against.
+  'skylab-3': {
+    program: 'apollo',
+    craft: 'Skylab 3',
+    entry: 'orbit',
+    completes: null,
+    phases: 5,
+    objective: 'fifty-nine days aboard, the full science programme, and all three home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Dock on the third revolution; the crew has two free drift orbits in hand.',
+      'A leaking thruster quad is watched hour by hour: if it worsens, the mission comes home.',
+      'One spacewalk a day, never two: the suits must dry out between them.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...IB,
+      ...EARLY,
+      {
+        at: 8,
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: a leak in an attitude thruster quad on the service module. Three quads in that system are still good. It is not getting worse, but it is not getting better.',
+            'warn',
+          ],
+        ],
+        show: { 'RCS QUAD': ['leaking', true] },
+      },
+      { at: 8.2, decide: 'quad' },
+      {
+        at: 200,
+        offShift:
+          'Five weeks in: medicine, the Sun through the telescopes, and six hundred hours of experiments. Nothing for your team.',
+      },
+      {
+        at: 900,
+        offShift: 'The crew is working eight-hour days and asking for more. The flight surgeons keep an eye on them.',
+      },
+      {
+        at: 1370,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', 'Houston, undocked. Fifty-nine days, and the workshop took everything we threw at her.', 'go']],
+      },
+      { at: 1378, retro: true },
+    ],
+  },
+
+  // Skylab 4: the last crew, the comet, and a crew that pushed back.
+  'skylab-4': {
+    program: 'apollo',
+    craft: 'Skylab 4',
+    entry: 'orbit',
+    completes: null,
+    phases: 5,
+    objective: 'eighty-four days aboard, the comet through the telescopes, and the workshop handed over safe',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Dock on the third revolution; the crew has two free drift orbits in hand.',
+      'The timeline serves the crew; the crew do not serve the timeline.',
+      'One spacewalk a day, never two: the suits must dry out between them.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...IB,
+      ...EARLY,
+      {
+        at: 12,
+        say: [
+          [
+            'pilot',
+            "Houston, we're an hour behind by noon every day. The timeline you sent up was written for men who don't sleep. We need a day to reset it.",
+            'warn',
+          ],
+        ],
+        show: { SCHEDULE: ['falling behind', true] },
+      },
+      { at: 12.2, decide: 'pace' },
+      {
+        at: 90,
+        say: [
+          [
+            'crew2',
+            "Houston, the comet is naked-eye from here, and through the telescope it's worth every mile we flew. Photographing until the pass ends.",
+            'go',
+          ],
+        ],
+        show: { TELESCOPE: ['on the comet', true] },
+      },
+      {
+        at: 500,
+        offShift: 'Two months in: the comet photographed, the Earth surveyed, and a crew in rhythm with the workshop.',
+      },
+      {
+        at: 1980,
+        where: [0.02, 'Earth orbit'],
+        say: [
+          ['pilot', "Houston, undocked. Eighty-four days, and she's still good. Somebody ought to come back.", 'go'],
+        ],
+      },
+      { at: 1988, retro: true },
+    ],
+  },
+
+  // Apollo-Soyuz, July 1975: the last Apollo, flown with the other side.
+  astp: {
+    program: 'apollo',
+    craft: 'Apollo-Soyuz',
+    entry: 'orbit',
+    completes: 'intl',
+    phases: 4,
+    objective: 'dock with the Soyuz, open the hatches both ways, fly two days together, and come home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'The docking is at a walking pace: stop and realign whenever either craft is off her line.',
+      'Nothing is powered in the docking module while the hatches are open.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...IB,
+      ...EARLY,
+      {
+        at: 20,
+        say: [
+          [
+            'morgan',
+            'Flight, Network: the Soyuz is on the radar, forty kilometres out. Their crew reports all well.',
+            'go',
+          ],
+        ],
+        show: { SOYUZ: ['acquiring'] },
+      },
+      { at: 21.5, decide: 'align' },
+      {
+        at: 22.5,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', 'Houston, hard dock. Both probes read capture. Tell Moscow.', 'go']],
+        show: { SOYUZ: ['hard dock', true] },
+      },
+      {
+        at: 30,
+        offShift:
+          'The hatches open both ways and the crews trade capsules, dinners and bad jokes through interpreters. Nothing for your team.',
+      },
+      {
+        at: 40,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', "Houston, we're loose of the Soyuz. Tell them we'll see them down the road.", 'go']],
+      },
+      { at: 46, retro: true },
+    ],
+  },
+
+  // ---- The Shuttle years, 1981-2000 (A8, A9) ----
+
+  // STS-1, April 1981: the first winged spacecraft to orbit, flown home to the lakebed at Edwards by hand.
+  'sts-1': {
+    program: 'shuttle',
+    craft: 'Columbia, STS-1',
+    entry: 'orbit',
+    completes: 'reusable',
+    phases: 4,
+    objective: 'fly the orbiter to orbit, check her tiles, and bring her home on a runway',
+    rules: [
+      'The lakebed at Edwards is the primary landing site; the Cape only if the weather holds.',
+      'Two good fuel cells, or the flight comes home at the next opportunity.',
+      'The tiles are checked before entry is certified.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 0.25,
+        if: 'cabin',
+        say: [
+          [
+            'pilot',
+            "Houston, there's a smell of burning insulation back in the avionics bay. No smoke we can see.",
+            'warn',
+          ],
+        ],
+      },
+      {
+        at: 2.6,
+        if: 'foam',
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: the photographs from the tank show foam off the bipod ramp, and the belly took it. We are looking at the tiles.',
+            'warn',
+          ],
+        ],
+        note: "Foam came off the external tank's bipod ramp during the climb and struck the tiles on the belly. Nobody could say how deep it went from the ground.",
+        show: { TILES: ['strike suspected', true] },
+      },
+      { at: 2.7, if: 'foam', decide: 'tiles' },
+      {
+        at: 5,
+        if: 'fuelcell',
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: one fuel cell is dropping off the bus. Two remain. She is good for the plan.',
+            'warn',
+          ],
+        ],
+        show: { 'FUEL CELLS': ['two of three', true] },
+      },
+      {
+        at: 8,
+        offShift:
+          'Two days of systems tests: opening and closing the doors, the radiators, and the first look at the tiles in orbit. Nothing for your team.',
+      },
+      {
+        at: 20,
+        phase: 'The entry',
+        where: [0.4, 'Coming home'],
+        decide: 'tald',
+      },
+      { at: 24, retro: true },
+    ],
+  },
+
+  // STS-51-L, January 1986: the coldest launch morning in the programme's history. The joint is the hidden layer's.
+  'sts-51l': {
+    program: 'shuttle',
+    craft: 'Challenger, STS-51-L',
+    entry: 'orbit',
+    completes: null,
+    phases: 3,
+    objective: 'carry the tracking satellite and the first teacher to orbit, and come home two days later',
+    rules: [
+      'The solid-rocket joints have never flown colder than the coldest launch before this one.',
+      'A joint that has leaked on the bench does not fly without a retest.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 3,
+        if: 'foam',
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: foam off the tank at the ramp, and the belly took it. The tiles are being looked at.',
+            'warn',
+          ],
+        ],
+        show: { TILES: ['strike suspected', true] },
+      },
+      {
+        at: 5,
+        phase: 'In orbit',
+        where: [0.02, 'Earth orbit'],
+        offShift:
+          'The tracking satellite is up and spinning free. Schoolchildren across the country are watching live: one of the crew teaches her lesson from orbit.',
+      },
+      { at: 25, retro: true },
+    ],
+  },
+
+  // STS-26, September 1988: the return to flight, on the redesigned joint.
+  'sts-26': {
+    program: 'shuttle',
+    craft: 'Discovery, STS-26',
+    entry: 'orbit',
+    completes: null,
+    phases: 3,
+    objective: 'return the fleet to flight on the redesigned joint, and bring every one of them home',
+    rules: [
+      'The redesigned joint flies with heaters on and seals warm; no launch if any seal reads cold.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 1.5,
+        say: [
+          [
+            'albrecht',
+            "Flight, Booster: the redesigned joint's heaters are reading good. Seals warm all the way round.",
+            'go',
+          ],
+        ],
+        show: { 'SRB JOINT': ['heaters good'] },
+      },
+      {
+        at: 5,
+        where: [0.02, 'Earth orbit'],
+        offShift: 'The satellite is up. The crew keeps the timeline loose and the loop quiet. Nothing for your team.',
+      },
+      { at: 24, retro: true },
+    ],
+  },
+
+  // STS-61, December 1993: the repair flight, four spacewalks to fix the telescope's eyesight.
+  'sts-61': {
+    program: 'shuttle',
+    craft: 'Endeavour, STS-61',
+    entry: 'orbit',
+    completes: 'hubble',
+    phases: 4,
+    objective: 'catch the telescope, fix her eyesight on five spacewalks, and bring her home seeing',
+    rules: [
+      'No spacewalk without a partner at the airlock and a ready path home.',
+      'The corrective optics are installed only with the telescope latched and the aperture closed.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 5,
+        say: [
+          [
+            'pilot',
+            'Houston, we have the telescope on the arm. She looks tired: solar panels warped, and she needs her glasses.',
+            'warn',
+          ],
+        ],
+        show: { TELESCOPE: ['on the arm', true] },
+      },
+      {
+        at: 30,
+        phase: 'The repair',
+        where: [0.02, 'Earth orbit'],
+        decide: 'hubblefix',
+      },
+      {
+        at: 36,
+        when: 'fixed',
+        say: [
+          ['crew2', "Houston, the corrective optics are in and latched. She'll see better than she ever has.", 'go'],
+        ],
+        show: { TELESCOPE: ['new eyes', true] },
+      },
+      {
+        at: 60,
+        offShift: 'Five spacewalks across five days, the busiest EVA week anyone has flown. Nothing for your team.',
+      },
+      { at: 70, retro: true },
+    ],
+  },
+
+  // STS-88, December 1998: the first pieces of the station joined in orbit.
+  'sts-88': {
+    program: 'shuttle',
+    craft: 'Endeavour, STS-88',
+    entry: 'orbit',
+    completes: 'station',
+    phases: 4,
+    objective: 'mate the second module to the first, open the hatches between them, and come home',
+    rules: [
+      'The docking is at a walking pace: stop and realign whenever either craft is off her line.',
+      'The module is berthed by the arm before the ring is latched.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 20,
+        say: [
+          [
+            'morgan',
+            'Flight, Network: the module is on the radar, thirty kilometres out. She has been up alone for a fortnight.',
+            'go',
+          ],
+        ],
+        show: { MODULE: ['acquiring'] },
+      },
+      {
+        at: 21.5,
+        decide: 'berth',
+      },
+      {
+        at: 22.5,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', 'Houston, the module is on the arm. Bringing her in to mate.', 'go']],
+        show: { MODULE: ['on the arm', true] },
+      },
+      {
+        at: 30,
+        where: [0.02, 'Earth orbit'],
+        set: { station: true },
+        say: [['pilot', 'Houston, hatches open. Two modules of a space station, joined in orbit.', 'go']],
+        show: { STATION: ['two modules', true] },
+      },
+      {
+        at: 36,
+        offShift: 'Three spacewalks connect power and data between the modules. Nothing for your team.',
+      },
+      { at: 46, retro: true },
+    ],
+  },
+
+  // STS-97, December 2000: the solar wings up, and the first expedition handed her keys.
+  'sts-97': {
+    program: 'shuttle',
+    craft: 'Endeavour, STS-97',
+    entry: 'orbit',
+    completes: null,
+    phases: 4,
+    objective: 'carry up the solar wings, hand the station to its first long-stay crew, and come home',
+    rules: [
+      'The docking is at a walking pace: stop and realign whenever either craft is off her line.',
+      'The wings deploy only in daylight and one at a time.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 21,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', 'Houston, docked to the station. The crew aboard has been up for three weeks.', 'go']],
+        show: { STATION: ['docked'] },
+      },
+      {
+        at: 26,
+        decide: 'wings',
+      },
+      {
+        at: 32,
+        when: 'wingsOut',
+        say: [
+          ['kessler', 'Flight, EECOM: the wings are out and tracking. The station is making her own power now.', 'go'],
+        ],
+        show: { 'SOLAR WINGS': ['out and tracking', true] },
+      },
+      {
+        at: 40,
+        offShift:
+          'The handover: the first expedition stays, the ferry crew goes home, and the station keeps flying between visits.',
+      },
+      { at: 48, retro: true },
+    ],
+  },
+
+  // ---- Commercial crew and Artemis, 2020-2030 (A10, A11) ----
+
+  // The first crewed flight of a spacecraft a company built: up on a nine-engine launcher, docked to the station in a day.
+  'demo-2': {
+    program: 'dragon',
+    craft: 'Dragon, Demo-2',
+    entry: 'orbit',
+    completes: 'commercial',
+    phases: 4,
+    objective: 'fly a company-built spacecraft and its two crew to the station, and bring them home on the water',
+    rules: [
+      'No launch while thunderstorms stand within ten miles of the pad.',
+      'Docking is automatic; the crew takes over only on the system\u2019s own say-so.',
+      'Four good parachutes or she does not leave the station.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 6,
+        where: [0.02, 'Earth orbit'],
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: the approach is automatic and clean. The crew is riding along like passengers.',
+            'go',
+          ],
+        ],
+        show: { DOCKING: ['automatic'] },
+      },
+      {
+        at: 8,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', 'Houston, hard dock. First crew on a new American spacecraft in nine years.', 'go']],
+        show: { STATION: ['docked', true] },
+      },
+      {
+        at: 300,
+        offShift:
+          'Two months aboard: the crew works the station\u2019s science and sleeps in a spacecraft built by a rocket company.',
+      },
+      {
+        at: 900,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', 'Houston, undocked. She flies like the simulator said she would.', 'go']],
+      },
+      { at: 908, retro: true },
+    ],
+  },
+
+  // Artemis I, 2022: the big rocket round the Moon with nobody aboard, flown from the same room as Apollo.
+  'artemis-1': {
+    program: 'apollo',
+    craft: 'Artemis I',
+    entry: 'lunar',
+    completes: 'lunarorbit',
+    phases: 4,
+    objective: 'send Orion round the Moon and back with nobody aboard, and prove the rocket for the crews behind her',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',
+      'The free return is the plan; nobody aboard can change it.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...IB,
+      ...EARLY,
+      {
+        at: 2.4,
+        if: 'relight',
+        say: [
+          ['albrecht', "Flight, Booster: the upper stage's restart bottle pressure is low. She may not light.", 'warn'],
+        ],
+        show: { 'UPPER STAGE': ['bottle pressure low', true] },
+      },
+      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      {
+        at: 11,
+        lunar: true,
+        phase: 'Translunar coast',
+        where: [0.3, '120,000 km out'],
+        say: [
+          ['morgan', 'Flight, Network: Orion is outbound. Nobody aboard but the mannequins and the instruments.', 'go'],
+        ],
+      },
+      {
+        at: 80,
+        phase: 'The flyby',
+        where: [0.97, 'Approaching the Moon'],
+        moon: true,
+        say: [
+          [
+            'morgan',
+            "Flight, Network: she's behind the Moon on the free return, sixty-eight kilometres over the far side at closest. Out of sight for half an hour.",
+            'warn',
+          ],
+        ],
+      },
+      {
+        at: 82,
+        moon: true,
+        say: [['morgan', 'Flight, Network: we have her. Coming home on the free return, exactly as aimed.', 'go']],
+      },
+      { at: 200, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 228, lunar: true, decide: 'mcc' },
+      { at: 234, retro: true },
+    ],
+  },
+
+  // Artemis II: four crews round the Moon, the farthest any human has flown since 1972.
+  'artemis-2': {
+    program: 'apollo',
+    craft: 'Artemis II',
+    entry: 'lunar',
+    completes: 'lunarorbit',
+    phases: 5,
+    objective: 'fly four crews round the Moon on the free return, farther than anyone has gone since 1972, and home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',
+      'The free return is the plan; the engine is there to change it, not to rely on.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...IB,
+      ...EARLY,
+      {
+        at: 2.4,
+        if: 'relight',
+        say: [
+          ['albrecht', "Flight, Booster: the upper stage's restart bottle pressure is low. She may not light.", 'warn'],
+        ],
+        show: { 'UPPER STAGE': ['bottle pressure low', true] },
+      },
+      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      {
+        at: 11,
+        lunar: true,
+        phase: 'Translunar coast',
+        where: [0.3, '120,000 km out'],
+        say: [
+          [
+            'crew2',
+            "Houston, we're outbound. From here the Earth is getting smaller and nobody has flown this far in fifty years.",
+            'go',
+          ],
+        ],
+      },
+      {
+        at: 60,
+        lunar: true,
+        if: 'sps',
+        show: { SPS: ['chamber pressure low on the check', true] },
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the service engine's test firing came up a little short on chamber pressure.",
+            'warn',
+          ],
+        ],
+      },
+      { lunar: true, at: 60, unless: 'sps', show: { SPS: ['good on the check'] } },
+      {
+        at: 80,
+        phase: 'The flyby',
+        where: [0.97, 'Approaching the Moon'],
+        moon: true,
+        say: [
+          [
+            'pilot',
+            "Houston, we're about to lose her behind the Moon. Sixty-eight kilometres over the far side. Tell everybody to look up.",
+            'warn',
+          ],
+        ],
+      },
+      {
+        at: 82,
+        moon: true,
+        say: [
+          [
+            'crew2',
+            "Houston, there it is. The far side, and then the Earth rising over the limb. We'll take pictures the whole way round.",
+            'go',
+          ],
+        ],
+      },
+      { at: 200, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 228, lunar: true, decide: 'mcc' },
+      { at: 234, retro: true },
+    ],
+  },
+
+  // Artemis III: the return to the Moon, at the south pole, in the build's last year.
+  'artemis-3': {
+    program: 'apollo',
+    craft: 'Artemis III',
+    entry: 'lunar',
+    completes: 'landing',
+    phases: 9,
+    objective: 'land at the south pole of the Moon, the first landing in more than fifty years, and bring them home',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',
+      'No lunar orbit insertion without a service engine that has passed its checks: without it there is no way home.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+      'In the descent, abort on any computer alarm that stops the computer flying the lander.',
+      'The lander never goes farther than the crew can walk back on what is left in their suits.',
+    ],
+    steps: [
+      ...IB,
+      ...EARLY,
+      {
+        at: 2.4,
+        if: 'relight',
+        say: [
+          ['albrecht', "Flight, Booster: the upper stage's restart bottle pressure is low. She may not light.", 'warn'],
+        ],
+        show: { 'UPPER STAGE': ['bottle pressure low', true] },
+      },
+      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      {
+        at: 11,
+        lunar: true,
+        phase: 'Translunar coast',
+        where: [0.3, '120,000 km out'],
+        say: [
+          [
+            'crew2',
+            "Houston, the lander's out and on our nose. Two crews, two spacecraft, and the pole waiting.",
+            'go',
+          ],
+        ],
+        show: { LM: ['docked'] },
+      },
+      ...TANK,
+      {
+        lunar: true,
+        at: 60,
+        if: 'sps',
+        show: { SPS: ['chamber pressure low on the check', true] },
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the service engine's test firing came up a little short on chamber pressure.",
+            'warn',
+          ],
+        ],
+      },
+      { lunar: true, at: 60, unless: 'sps', show: { SPS: ['good on the check'] } },
+      { at: 80, phase: 'Lunar orbit insertion', where: [0.97, 'Approaching the Moon'], moon: true, decide: 'loi' },
+      {
+        at: 102,
+        moon: true,
+        where: [1, 'Lunar orbit'],
+        set: { lmFlown: true },
+        say: [['pilot', "Houston, the lander has undocked. She's flying.", 'go']],
+        show: { LM: ['undocked'] },
+      },
+      {
+        at: 105,
+        phase: 'Powered descent',
+        moon: true,
+        say: [['kessler', "Flight, the descent engine has lit. She's coming down over the Shackleton rim.", 'go']],
+        show: { 'LM COMPUTER': ['flying the descent'] },
+      },
+      {
+        at: 105.03,
+        moon: true,
+        if: 'alarm',
+        say: [['pilot', 'Houston, program alarm. 1202.', 'bad']],
+        show: { 'LM COMPUTER': ['1202 alarms', true] },
+      },
+      { at: 105.05, moon: true, if: 'alarm', decide: 'alarm' },
+      {
+        at: 105.2,
+        moon: true,
+        not: 'noLanding',
+        set: { landed: true },
+        say: [
+          [
+            'pilot',
+            "Contact. Houston, we're down near the pole, on the rim of Shackleton. The Sun never sets here, and there's ice in the dark over the crater wall.",
+            'go',
+          ],
+        ],
+      },
+      {
+        at: 107,
+        phase: 'On the surface',
+        moon: true,
+        when: 'landed',
+        where: [1, 'On the Moon'],
+        offShift:
+          'Six days at the pole: the drill into the permanently shadowed soil, and the first humans at the south pole of the Moon. Nothing for your team.',
+      },
+      {
+        at: 140,
+        moon: true,
+        when: 'landed',
+        say: [
+          [
+            'pilot',
+            "Houston, we're three kilometres out at the crater wall, and the drill has ice in its first metre. I want twenty more minutes before we turn.",
+            'warn',
+          ],
+        ],
+        show: { 'WALK LIMIT': ['reached', true] },
+      },
+      { at: 140.1, moon: true, when: 'landed', decide: 'traverse' },
+      ...ASCENT(166),
+      {
+        at: 218,
+        phase: 'Trans-Earth injection',
+        where: [0.97, 'Behind the Moon'],
+        moon: true,
+        say: [
+          [
+            'morgan',
+            "Flight, Network: she's behind the Moon. Trans-Earth injection is out of our sight. Waiting for acquisition.",
+            'warn',
+          ],
+        ],
+      },
+      {
+        at: 218.3,
+        moon: true,
+        when: 'stranded',
+        say: [
+          ['morgan', "Flight, Network: we have her, and she's still in lunar orbit. The engine did not burn.", 'bad'],
+        ],
+      },
+      {
+        at: 218.4,
+        moon: true,
+        not: 'stranded',
+        say: [['crew2', "Houston, the engine burned on time. We're coming home.", 'go']],
+      },
+      { at: 254, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 282, lunar: true, decide: 'mcc' },
+      { at: 288, retro: true },
+    ],
+  },
 };
 
 // The questions, the options for each, who owns the call (the flight director unless said otherwise) and what the
@@ -1289,11 +2597,124 @@ export const DECISIONS = {
     owner: 'retro',
     options: { send: 'Send the numbers now.', check: 'Have the back room check them first.' },
   },
+  throttle: {
+    q: "The descent engine's throttle is fluttering through the low gate. Press the descent, or abort to lunar orbit and have the command module pilot inspect her?",
+    auto: 'descend',
+    rule: 6,
+    options: {
+      descend: 'Press on. The flutter was steady in the checkout and she is holding.',
+      abort: 'Abort the descent. Go around once and inspect the lander from the command module.',
+    },
+  },
+  ascentEarly: {
+    q: "The ascent engine's chamber pressure came up low on the checkout. Fly the climb early, or hold the planned hour and check her again?",
+    auto: 'early',
+    rule: 7,
+    options: {
+      early: 'Fly the ascent early, as soon as the crew is buttoned up.',
+      hold: 'Hold the planned hour and run the checks again.',
+    },
+  },
+  parasol: {
+    q: 'The workshop has lost her shield and the temperatures inside are climbing. The parasol shade is made up on the ground: send it up with the crew tomorrow, and deploy it through the solar airlock?',
+    auto: 'parasol',
+    rule: 2,
+    options: {
+      parasol: 'Deploy the parasol through the solar airlock, and let the workshop cool.',
+      standby: 'Hold off. Let the crew work from inside and re-ask the question at the end of the week.',
+    },
+  },
+  panel: {
+    q: 'One solar wing is jammed shut against the hull. Send a spacewalker up to cut her free?',
+    auto: 'free',
+    rule: 3,
+    options: {
+      free: 'Fly the EVA and cut the wing free: stand-off foot restraints, cable cutters, the long way round.',
+      leave: 'Leave her folded. The workshop runs on one wing, and the EVA day goes to experiments.',
+    },
+  },
+  quad: {
+    q: 'A service-module thruster quad is leaking. Hold the fifty-nine days, or come home early?',
+    auto: 'stay',
+    rule: 2,
+    options: {
+      stay: 'Stay the full fifty-nine days, with the quad watched hour by hour.',
+      home: 'Come home early. The workshop keeps; the science schedule does not.',
+    },
+  },
+  pace: {
+    q: 'The crew says the timeline is written for men who do not sleep, and they are falling behind by noon every day. Give them a quiet day to reset it, or hold the schedule?',
+    auto: 'quiet',
+    rule: 2,
+    options: {
+      quiet: 'Give them one quiet day, and rebuild the timeline from what they actually do.',
+      hold: 'Hold the schedule. The work is the work.',
+    },
+  },
+  align: {
+    q: 'The Soyuz is off her attitude line for the docking. Stop at a hundred and fifty metres and realign, or press?',
+    auto: 'stop',
+    rule: 1,
+    options: {
+      stop: 'Stop at a hundred and fifty metres. Wait for them to realign, then close the last metres slowly.',
+      press: 'Press. The closing rate is small and the probes can take it.',
+    },
+  },
+  tiles: {
+    q: 'The belly took a foam hit from the tank\u2019s ramp. Burn the OMS to look her over, or trust the design and fly her home as planned?',
+    auto: 'inspect',
+    rule: 2,
+    options: {
+      inspect: 'Burn the OMS and tip her belly to the cameras. Look her over before entry.',
+      trust: 'Trust the design. She was built with this tank, and the schedule holds.',
+    },
+  },
+  tald: {
+    q: 'She is coming home. Primary is the lakebed at Edwards: long, flat, and far from home port. The Cape\u2019s runway is shorter. Which do you fly?',
+    auto: 'edwards',
+    rule: 0,
+    options: {
+      edwards: 'The lakebed at Edwards. The long, sure way down.',
+      cape: "The Cape's runway. Home in one hop, with less margin.",
+    },
+  },
+  hubblefix: {
+    q: 'The telescope is on the arm and the corrective optics are in the bay. Install them, or bring her home for the ground to decide?',
+    auto: 'install',
+    rule: 1,
+    options: {
+      install: 'Install the corrective optics on the spacewalks, as rehearsed in the pool.',
+      abort: 'Bring her home with the telescope unfixed. The ground will decide what next.',
+    },
+  },
+  berth: {
+    q: 'The module is drifting free and unpowered. Grab her with the arm now, or let her coast and dock the old way?',
+    auto: 'arm',
+    rule: 1,
+    options: {
+      arm: 'Take her on the arm at a walking pace, and berth her gently.',
+      dock: 'Close and dock directly. It is how every other docking has been done.',
+    },
+  },
+  wings: {
+    q: 'The solar wings are folded in the bay. Deploy both in today\u2019s sunlight, or hold the second for tomorrow\u2019s pass?',
+    auto: 'both',
+    rule: 1,
+    options: {
+      both: 'Both wings out today, one at a time, in the sunlight.',
+      one: 'One wing today. Hold the second for tomorrow, and check her overnight.',
+    },
+  },
 };
 
 // What each flight can show, when it is shown: scoped capability evidence that later plans can cite. It never certifies
 // other hardware.
 export const CAPABILITIES = {
+  reusable: 'A winged spacecraft flown to orbit and landed on a runway, ready to fly again',
+  hubble: 'A telescope in orbit repaired by hand, and seeing clearly again',
+  station: 'Two modules of a space station joined in orbit, hatched together',
+  workshop: 'Weeks aboard a workshop in orbit: work, sleep, exercise and science on a station',
+  intl: "A docking and a joint flight flown with another nation's crew",
   eva: 'A spacewalk from Gemini, outside the cabin on an umbilical',
   duration: 'Eight days in orbit in Gemini, the length of a lunar trip',
   fourdays: 'Four days in orbit in Gemini',

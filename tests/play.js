@@ -21,6 +21,8 @@ import {
   answerFirstOffer,
 } from '../js/game.js';
 import { pendingOffer } from '../js/career/record.js';
+import { routeArgue, routeDone, apollo8Decide, apollo8Done } from '../js/mercury.js';
+import { newGame } from '../js/game.js';
 import { lunarMidcourse, lunarLead } from '../js/lunar.js';
 
 export const until = (done, limit = 40000) => {
@@ -136,6 +138,45 @@ export function toRoundId(id, call = () => 'nominal') {
   closeAway();
 }
 
+// The Shuttle's joint call rides the poll buttons: go is press, no-go is hold.
+// Play the whole campaign from 1945 to the round with this id, taking every offer, going round the Moon at Apollo 8.
+export function campaignTo(seed, id, opts = {}) {
+  newGame(seed);
+  for (let guard = 140; guard; guard--) {
+    if (SEASON[g.roundIndex].id === id) break;
+    if (g.beat === 'sRoute') {
+      routeArgue('lor');
+      routeDone();
+      nextRound();
+      g.room = null;
+      continue;
+    }
+    if (g.beat === 'sApollo8') {
+      apollo8Decide('moon');
+      apollo8Done();
+      nextRound();
+      g.room = null;
+      continue;
+    }
+    if (g.beat === 'seasonEnd')
+      throw new Error(
+        `the season ended before ${id} (at ${SEASON[g.roundIndex].id}, path ${g.record.path}, seat ${g.record.seat})`,
+      );
+    if (g.crewed) playMission(opts);
+    else playRound(() => 'nominal', { inspector: 'you', burn: 'short', leak: false });
+    const o = g.record.offers[g.record.offers.length - 1];
+    if (o && !o.made && o.day >= g.record.rounds[g.record.rounds.length - 1].day) {
+      o.made = true;
+      o.answer = null;
+    }
+    advance(true);
+    g.room = null;
+  }
+  closeAway();
+  assert.equal(SEASON[g.roundIndex].id, id, `did not reach ${id}`);
+  return g;
+}
+
 // One console decision point at a time: a poll, the climb (abort or not), the impact points, the pad.
 const asked = c => c && c.phase === 'mission' && c.flight?.decision?.mine;
 const waiting = () =>
@@ -150,6 +191,7 @@ const waiting = () =>
         ['pad', 'shutdown', 'ascent', 'insertion', 'pack', 'retro'].includes(g.console.phase)));
 function work(c, opts) {
   if (asked(c)) return consoleDecide(opts.decide(c.flight.decision, c));
+  if (c.poll === 'joint') return consolePoll(opts.joint !== 'hold');
   if (c.poll || c.phase === 'poll') return consolePoll(opts.poll(c));
   if (c.phase === 'ip') return consoleAim(opts.aim(c));
   if (c.phase === 'pad') return padChoose(opts.pad);

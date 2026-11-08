@@ -8,6 +8,8 @@
 // What the rooms read is g.console and g.mission, never the round itself.
 import {
   g,
+  crewOf,
+  recordDeaths,
   say,
   note,
   walk,
@@ -127,6 +129,16 @@ const BOOSTERS = {
   },
   saturn5: {
     names: { guidance: 'saturnctl', shortburn: 's2cutoff', booster: 'Saturn V' },
+    tapes: APOLLO_TAPES,
+    sims: APOLLO_SIMS,
+  },
+  saturnib: {
+    names: { guidance: 'saturnctl', shortburn: 's2cutoff', booster: 'Saturn IB' },
+    tapes: APOLLO_TAPES,
+    sims: APOLLO_SIMS,
+  },
+  shuttle: {
+    names: { guidance: 'computer', shortburn: 'ssme', boost: 'oring', booster: 'Shuttle' },
     tapes: APOLLO_TAPES,
     sims: APOLLO_SIMS,
   },
@@ -267,7 +279,7 @@ export const MERCURY_BEATS = {
 };
 const cap = t => t[0].toUpperCase() + t.slice(1);
 // Who flies this round, if anyone: his id, or null.
-export const pilotId = () => (g.crewed && SEASON[g.roundIndex].crew?.[0]) || null;
+export const pilotId = () => (g.crewed && crewOf()?.[0]) || null;
 const pilotName = () => ASTRONAUTS[pilotId()].name;
 const first = () => pilotName().split(' ')[0];
 // Whether you are the project engineer: Tate has the Retrofire console, and you answer for the hardware.
@@ -296,10 +308,10 @@ function houstonBrief(launch) {
 // Everyone flying this round, by name.
 // An Apollo crew: the commander and the lunar module pilot fly the lander (crew 0 and 2); the command module pilot (1) stays up.
 export const lmCrew = () => {
-  const n = (SEASON[g.roundIndex].crew || []).map(id => ASTRONAUTS[id].name);
+  const n = (crewOf() || []).map(id => ASTRONAUTS[id].name);
   return { lm: `${n[0]} and ${n[2]}`, cm: n[1] };
 };
-export const crewNames = () => (SEASON[g.roundIndex].crew || []).map(id => ASTRONAUTS[id].name).join(' and ');
+export const crewNames = () => (crewOf() || []).map(id => ASTRONAUTS[id].name).join(' and ');
 
 // Who is where in a Mercury round.
 function seatPeople() {
@@ -414,6 +426,8 @@ export function consoleStart() {
 export function consolePoll(go) {
   const con = g.console;
   if (!con || !con.poll) return;
+  // The Shuttle's joint call rides the poll buttons: go is press, no-go is hold for the afternoon warm.
+  if (con.poll === 'joint') return jointAnswer(go);
   const b = board(con),
     ok = boardGood(con);
   con.calls.poll.push({ go, ok });
@@ -559,16 +573,43 @@ export function consoleAim(which) {
   roomChanged();
 }
 
+// The joint call answered. Press: fly into the cold. Hold: the launch slips a day, and the joint warms with it.
+function jointAnswer(go) {
+  const con = g.console;
+  const sim = con.kind === 'sim';
+  con.poll = null;
+  if (go) {
+    speak(con, retroWho(con), 'Flight is go. Light her on schedule.', 'go');
+    if (!sim) note('You pressed the count over the engineers\u2019 joint call: a launch into the cold of the morning.');
+    roomChanged();
+    return;
+  }
+  speak(con, retroWho(con), 'Retro is no-go on the joint. Hold for the afternoon.');
+  speak(con, 'hollis', 'Agreed. We scrub. The joint warms with the day.', 'go');
+  if (!sim) {
+    note('You held the count for the booster joint: the launch slips a day, into the afternoon warm.');
+    con.round.warm = true;
+    g.mission.jointHold = true;
+    endCount('joint');
+    return;
+  }
+  finishSim(con, 'scrub');
+}
+
 function endCount(why) {
   const con = g.console;
   con.phase = 'done';
   con.live = false;
   if (con.kind === 'sim') return finishSim(con, why);
   g.console = null;
-  if (why === 'scrub') {
+  if (why === 'scrub' || why === 'joint') {
     g.slipDays += 1;
     g.mission.scrubs += 1;
-    note('The launch was scrubbed for the sea in the recovery area. It slips a day.');
+    note(
+      why === 'joint'
+        ? 'The launch was held for the booster joint. It slips a day, into the afternoon warm.'
+        : 'The launch was scrubbed for the sea in the recovery area. It slips a day.',
+    );
     setBeat('mScrub');
   }
   roomChanged();
@@ -602,6 +643,31 @@ export function tickConsole(dt) {
     const step = con.clock > 10 ? COUNT_RATE : 1;
     con.clock = Math.max(0, con.clock - step * dt);
     g.clock += (step * dt) / 60;
+    // The Shuttle's telecall: on a cold morning, the booster contractor's engineers ask the flight director not to
+    // press a field joint that has never flown this cold. A poll like any other: go is press, no-go is hold.
+    if (
+      con.kind === 'flight' &&
+      con.round.vehicle === 'shuttle' &&
+      con.round.cold &&
+      !con.jointAsked &&
+      !con.round.warm &&
+      con.clock <= 540 &&
+      con.clock > 520
+    ) {
+      con.jointAsked = true; // and on the round, so tomorrow's count does not ask twice
+      con.round.jointAsked = true;
+      con.poll = 'joint';
+      speak(
+        con,
+        'albrecht',
+        "Flight, Booster: the contractor's engineers are on the line about the right-hand booster's field joint. It has never flown this cold, and it leaked blow-through on a cold bench test. They recommend we wait for the afternoon warm.",
+        'warn',
+        9,
+      );
+      speak(con, 'hollis', 'Retro: the count is at your call. Press, or hold for the afternoon?', 'warn', 6);
+      roomChanged();
+      return;
+    }
     while (con.next < MERCURY_COUNT.length && MERCURY_COUNT[con.next].at >= con.clock) {
       const s = MERCURY_COUNT[con.next++];
       if (con.kind === 'sim' && s.at > 10) continue; // a sim picks up at the recovery poll, then counts the last ten seconds
@@ -822,7 +888,7 @@ function splash(con) {
   }
   if (con.kind === 'flight' && pilotId()) {
     const fate = crewFate(con.round, end, con.hours ?? 0, con.sank),
-      many = (SEASON[g.roundIndex].crew || []).length > 1,
+      many = (crewOf() || []).length > 1,
       n = many ? crewNames() : pilotName();
     con.fate = fate;
     if (con.sank)
@@ -1168,7 +1234,7 @@ function flightRecord() {
             nominal: `Splashdown about ${Math.round(end.landing / 10) * 10} km downrange${hrs}.`,
           }[end.outcome];
   let out = m.sank ? `${text} The capsule sank before it was reached.` : text;
-  const many = (SEASON[g.roundIndex].crew || []).length > 1,
+  const many = (crewOf() || []).length > 1,
     who = many ? `The crew, ${crewNames()},` : pilotId() ? pilotName() : '';
   if (pilotId() && m.fate && end.lmLost && m.fate !== 'killed')
     out = `Lost: ${out} ${lmCrew().lm} died in lunar orbit; ${lmCrew().cm} came home alone.`;
@@ -1201,7 +1267,12 @@ const ORBIT_RECORD = {
 function flightText(e, hrs) {
   const m = g.mission;
   if (e.capsule === 'lost' && !hrs) return `Lost: ${m.craft} did not survive the entry.`;
-  return `${m.craft}: ${m.flightHours} hours${m.capabilities?.length ? `. Shown: ${m.capabilities.join('; ')}` : ''}; splashdown ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the planned point${hrs}.`;
+  // A winged spacecraft lands on a runway, not in the water.
+  const where =
+    g.vehicle === 'shuttle'
+      ? `down on ${m.calls?.edwards ? 'the lakebed runway at Edwards' : "the Cape's runway"}, ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the mark`
+      : `splashdown ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the planned point`;
+  return `${m.craft}: ${m.flightHours} hours${m.capabilities?.length ? `. Shown: ${m.capabilities.join('; ')}` : ''}; ${where}${hrs}.`;
 }
 // What went wrong on an orbital flight, if the booster did not: the shield, or the scanner.
 function orbitCause() {
@@ -1464,14 +1535,8 @@ export function toReview() {
   if (con && con.orbital && con.round.end?.outcome === 'entry' && con.round.end.capsule !== 'lost')
     (g.record.orbitMisses = g.record.orbitMisses || []).push(con.round.end.miss);
   if (con && con.round.end?.lmLost && g.mission.fate !== 'killed')
-    (g.record.losses = g.record.losses || []).push({ name: lmCrew().lm, day: g.day, round: SEASON[g.roundIndex].id });
-  if (g.mission.fate === 'killed') {
-    (g.record.losses = g.record.losses || []).push({
-      name: (SEASON[g.roundIndex].crew || []).length > 1 ? crewNames() : pilotName(),
-      day: g.day,
-      round: SEASON[g.roundIndex].id,
-    });
-  }
+    recordDeaths([crewOf()[2]], g.day, SEASON[g.roundIndex].id); // the lander's pilot did not come back
+  if (g.mission.fate === 'killed') recordDeaths(crewOf() || []);
   g.console = null;
   g.room = null;
   setBeat('mReview');
@@ -1506,20 +1571,30 @@ function finishAtlas(con) {
     con.phase = 'insertion';
     return roomChanged();
   }
+  const shuttle = con.round.vehicle === 'shuttle';
   if (end.outcome === 'aborted' || end.outcome === 'breakup') {
     if (end.outcome === 'aborted')
-      speak(con, 'morgan', 'The escape system fired. The capsule is coming down in the Atlantic abort area.', 'warn');
+      speak(
+        con,
+        'morgan',
+        shuttle
+          ? 'Abort flying. The engines that are left carry her down short of orbit, to the abort site.'
+          : 'The escape system fired. The capsule is coming down in the Atlantic abort area.',
+        'warn',
+      );
     else
       speak(
         con,
         'morgan',
-        'She broke up! The abort sensing pulled the capsule clear. She is coming down in the Atlantic.',
+        shuttle
+          ? 'She broke up! Both boosters are gone and the stack is coming apart. There is no way out from that seat.'
+          : 'She broke up! The abort sensing pulled the capsule clear. She is coming down in the Atlantic.',
         'bad',
         6,
       );
     if (con.kind === 'flight')
       note(
-        `T+${end.abortedAt} s: the flight was aborted and the capsule came down about ${Math.round(end.landing / 10) * 10} km downrange, in the Atlantic abort area.`,
+        `T+${end.abortedAt} s: the flight was aborted and the ${shuttle ? 'orbiter came down at the abort site' : 'capsule came down'} about ${Math.round(end.landing / 10) * 10} km downrange${shuttle ? '' : ', in the Atlantic abort area'}.`,
       );
   }
   con.aim = null;
@@ -1772,7 +1847,37 @@ function afterEntry(con) {
 }
 
 // Recovery's board after an orbital flight.
+// A Shuttle's homecoming: the runway, the convoy, and no ships at all.
+function splashRunway(con, end, lines) {
+  if (end.capsule === 'lost' && end.outcome === 'entry') {
+    con.hours = null;
+    lines.push(
+      end.skip
+        ? 'She came in too shallow and skipped back out of the atmosphere. Nothing was heard from her again.'
+        : 'There was nothing to recover. The search aircraft found a slick and some charred pieces of the tiles.',
+    );
+    return;
+  }
+  con.hours = 0.4;
+  con.sank = false;
+  const mins = Math.round(con.hours * 60);
+  const site = con.flight?.state?.edwards ? 'the lakebed runway at Edwards' : "the Cape's runway";
+  if (end.outcome === 'entry') lines.push(`Down on ${site}, ${km(end.miss)} of the mark.`);
+  else if (end.outcome === 'decay')
+    lines.push('She came down within the first orbit, short of any runway, far from any convoy.');
+  else
+    lines.push(
+      `She came down at the abort landing site, about ${Math.round(end.landing / 10) * 10} km downrange of the Cape.`,
+    );
+  lines.push(`The convoy reached her ${mins} minutes after she rolled to a stop.`);
+  if (end.capsule === 'damaged')
+    lines.push('She rolled out scorched and battered: the tiles took more than they were built for.');
+  else lines.push('She rolled out whole, and the ground crew swarmed her with sniffers and cameras.');
+}
+
 function splashOrbit(con, end, trained, lines) {
+  // The orbiter comes home on a runway: the convoy reaches her in minutes, and there is nothing to sink.
+  if (con.round.vehicle === 'shuttle') return splashRunway(con, end, lines);
   if (end.capsule === 'lost' && end.outcome === 'entry') {
     con.hours = null;
     lines.push(
