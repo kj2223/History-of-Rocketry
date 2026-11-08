@@ -506,7 +506,7 @@ function offerCard(o) {
     return `<div class="offer"><h3>An offer: ${esc(o.title)}</h3><p>${esc(from)}: "${esc(o.again ? offer.again : o.text || offer.text)}"</p>
     <p class="muted">${esc(o.takeNote || offer.takeNote)} ${esc(o.declineNote || offer.declineNote)}</p>
     <button class="primary" data-act="offer-take">Take the job</button><button data-act="offer-decline">Turn it down, for now</button></div>`;
-  return `<div class="offer"><p>${o.answer === 'taken' ? `You took the job: ${esc(o.title)}.` : 'You turned the offer down and kept your seat.'}</p></div>`;
+  return `<div class="offer"><p>${o.answer === 'taken' ? `You took the job: ${esc(o.title)}.` : o.answer === 'withdrawn' ? `The offer was withdrawn: ${esc(o.title)}. You keep the flight director's shift.` : 'You turned the offer down and kept your seat.'}</p></div>`;
 }
 
 // One round of your record, in words: the flight as the range saw it, your call, Ellis's conclusion and the fix.

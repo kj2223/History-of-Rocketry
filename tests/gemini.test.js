@@ -265,8 +265,9 @@ test("Gemini 12, the last: a paced spacewalk, and the Apollo programme office's 
     assert.ok(asked.includes('evaplan'));
     assert.ok(g.record.capabilities.some(c => c.id === 'evawork'));
   }
-  const o = g.record.offers.at(-1);
-  assert.equal(o.seat, 'programme');
+  // The programme office is parked until the management side is designed (Aaron, 8 November 2026): Gemini 12 makes no
+  // offer, and the flight director keeps the shift.
+  assert.ok(!g.record.offers.some(o => o.seat === 'programme'));
 });
 
 test('the full task list outside wears a man out more often than the paced plan', () => {
@@ -369,12 +370,9 @@ const toApollo6 = (seed, takeProgramme = true) => {
   advance(true);
   g.room = null; // Gemini 6A, 8
   playMission(); // Gemini 12
-  const o = g.record.offers.at(-1);
-  if (!o.made) {
-    o.made = true;
-    o.answer = null;
-  }
-  advance(takeProgramme);
+  // No round offers the programme office now; its seat is parked, so the tests that keep its code honest set it here.
+  if (takeProgramme) g.record.seat = 'programme';
+  advance(false);
   g.room = null;
   assert.equal(SEASON[g.roundIndex].id, 'apollo-6');
 };
