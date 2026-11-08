@@ -54,3 +54,7 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 #loop.in-room { left: 8.5vw; width: 77vw; top: calc(44px + (100vh - 44px) * 0.4536); height: calc((100vh - 44px) * 0.0952); overflow: hidden;
   font-size: clamp(9px, calc((100vh - 44px) * 0.0952 / 4 / 1.75), 15px); }
 #loop.in-room div { margin-top: 1px; padding: 0 .5rem; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Inside a walk-in room (blockhouse, hangar, dugout, simulator) the loop log drops to the bottom left, clear of the
+   periscopes and the slit, above the way out. */
+#loop.in-interior { top: auto; bottom: 34px; left: 176px; width: min(520px, 36vw); }
