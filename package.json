@@ -1,7 +1,7 @@
 {
-  "name": "project-vanguard",
-  "productName": "Project Vanguard",
-  "version": "0.5.0",
+  "name": "Ad Astra",
+  "productName": "Ad Astra",
+  "version": "0.5.5",
   "description": "A management game about the American space programme",
   "type": "module",
   "main": "desktop/main.js",
