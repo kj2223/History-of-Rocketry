@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newGame, g, morning, answerFirstOffer } from '../js/game.js';
+import '../js/mercury.js'; // the crewed modules register their beats with game.js; this test reaches Mercury
 import { SEASON } from '../js/data/campaign.js';
 import { pendingOffer } from '../js/career/record.js';
 
@@ -12,7 +13,13 @@ const at = id => SEASON.findIndex(r => r.id === id);
 function stranded() {
   newGame(11);
   g.record.path = undefined;
-  g.record.rounds.push({ id: 'ranger-7', vehicle: 'ranger', name: 'Ranger 7', day: SEASON[at('ranger-7')].start + 2, flight: 'Lost at 40 seconds.' });
+  g.record.rounds.push({
+    id: 'ranger-7',
+    vehicle: 'ranger',
+    name: 'Ranger 7',
+    day: SEASON[at('ranger-7')].start + 2,
+    flight: 'Lost at 40 seconds.',
+  });
   g.roundIndex = at('ranger-7');
   g.day = SEASON[at('ranger-7')].start + 3;
   g.vehicle = 'ranger';
@@ -69,7 +76,13 @@ test('a NASA-path player at the end of Apollo is not offered Gemini again', () =
   newGame(11);
   g.record.path = 'nasa';
   g.record.seat = 'director';
-  g.record.rounds.push({ id: 'apollo-15', vehicle: 'saturn5', name: 'Apollo 15', day: SEASON[at('apollo-15')].start + 2, flight: 'In orbit: perigee about 100 km, apogee about 120 km.' });
+  g.record.rounds.push({
+    id: 'apollo-15',
+    vehicle: 'saturn5',
+    name: 'Apollo 15',
+    day: SEASON[at('apollo-15')].start + 2,
+    flight: 'In orbit: perigee about 100 km, apogee about 120 km.',
+  });
   g.roundIndex = at('apollo-15');
   g.day = SEASON[at('apollo-15')].start + 3;
   g.vehicle = 'saturn5';
