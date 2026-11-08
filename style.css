@@ -48,3 +48,9 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 .loop-in-room div { background: rgba(11,15,20,.6); padding: .15rem .45rem; margin-top: 2px; border-left: 3px solid #4a5464; }
 .loop-in-room div.go { border-color: #6fc88a; } .loop-in-room div.warn { border-color: #e8c66a; } .loop-in-room div.bad { border-color: #d0634f; }
 #help { position: fixed; left: 0; right: 0; bottom: 0; padding: .35rem 1rem; font-size: .8rem; color: #a9b0bb; background: rgba(11,15,20,.8); z-index: 2; }
+
+/* In launch control, the loop log sits on its own board along the bottom of the front wall, under the clocks
+   (the fractions match drawControlRoom: the wall is 56% of the canvas, the board starts 81% of the way down it). */
+#loop.in-room { left: 8.5vw; width: 77vw; top: calc(44px + (100vh - 44px) * 0.4536); height: calc((100vh - 44px) * 0.0952); overflow: hidden;
+  font-size: clamp(9px, calc((100vh - 44px) * 0.0952 / 4 / 1.75), 15px); }
+#loop.in-room div { margin-top: 1px; padding: 0 .5rem; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
