@@ -33,12 +33,15 @@ function rebuildStatic(g) {
   const c = staticLayer.getContext('2d');
   c.clearRect(0, 0, width, VIEW_H);
   paintGround(c, g);
+  siteDressing(c, g);
   office(c, PLACES.office, g);
   hangarStructure(c, PLACES.hangar);
   if (g.crewed) trainer(c, PLACES.stand, PLACES.dugout);
   else { standStructure(c, PLACES.stand); dugout(c, PLACES.dugout); }
   blockhouse(c, PLACES.blockhouse, g);
   tower(c, PLACES.tower);
+  towerDetail(c, PLACES.tower);
+  groundShadows(c, g);
   staticKey = staticSignature(g);
 }
 
@@ -63,6 +66,216 @@ function paintGround(c, g) {
   c.fillStyle = 'rgba(120,100,70,.25)'; c.fillRect(0, GROUND + 32, WORLD_W + 400, 1); c.fillRect(0, GROUND + 35, WORLD_W + 400, 1);
 }
 
+// ---- Site dressing: the things around the buildings that make it a place ----------------------------------------------
+// Baked into the static layer (siteDressing behind the buildings, groundShadows in front of them) or, where it moves with
+// the wind or the clock, drawn per frame (skyDressing, siteLife). None of it is clickable and none of it reads the game
+// beyond the site and the clock.
+
+// The telephone line that feeds the site, the water tank by the office, the range stations past the tower, desert or
+// dune plants along the ground, and the boundary sign at the far end of the range road. Painted before the buildings so
+// they stand in front of the line.
+function siteDressing(c, g) {
+  const cape = g.site === 'cape';
+  waterTank(c, 22);
+  telephoneLine(c, [-30, 95, 404, 990, 1440, 1736]);
+  theodoliteHut(c, 2290);
+  radarTrailer(c, 2560);
+  boundarySign(c, 2930, SITES[g.site || 'white-sands'].name.toUpperCase());
+  fence(c, 2860, WORLD_W + 400);
+  // Plants placed from x so they never shift between rebuilds; kept clear of the doors and the pad.
+  for (let x = 30; x < WORLD_W + 380; x += 131) {
+    const px = x + (x * 17) % 60, near = Object.values(PLACES).some(p => px > p.x - 30 && px < p.x + p.w + 30);
+    if (near) continue;
+    if (cape) seaOats(c, px, GROUND + 2); else if ((x / 131) % 3 < 1) yucca(c, px, GROUND + 1); else creosote(c, px, GROUND + 2, 7 + (x % 5));
+  }
+  // Nearer the camera, below the road: bigger bushes, partly cut off by the bottom of the view.
+  for (let x = 140; x < WORLD_W + 380; x += 377) cape ? seaOats(c, x + (x * 7) % 90, GROUND + 70, 1.6) : creosote(c, x + (x * 7) % 90, GROUND + 74, 16 + (x % 7));
+}
+
+// Sun from the left: each building throws a short shadow to the right along the sand. Painted after the buildings.
+function groundShadows(c, g) {
+  const bs = blockhouseState(g.day);
+  const blocks = [[PLACES.office.x, PLACES.office.w + 8], [PLACES.hangar.x, PLACES.hangar.w], [PLACES.blockhouse.x, PLACES.blockhouse.w + 10]];
+  if (bs.built) blocks.push([PLACES.blockhouse.x - 150, PLACES.blockhouse.w + 154]);
+  for (const [x, w] of blocks) {
+    const grad = c.createLinearGradient(x + w, 0, x + w + 46, 0);
+    grad.addColorStop(0, 'rgba(70,52,30,.22)'); grad.addColorStop(1, 'rgba(70,52,30,0)');
+    c.fillStyle = grad; c.beginPath(); c.moveTo(x + w, GROUND); c.lineTo(x + w + 46, GROUND + 7); c.lineTo(x + 18, GROUND + 7); c.lineTo(x, GROUND); c.fill();
+  }
+  // The tower's thin lattice shadow, laid along the ground to the right.
+  const t = PLACES.tower;
+  c.strokeStyle = 'rgba(70,52,30,.16)'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(t.x + t.w / 2, GROUND + 3); c.lineTo(t.x + t.w / 2 + 150, GROUND + 9); c.stroke();
+}
+
+function telephoneLine(c, xs) {
+  const top = GROUND - 96;
+  // The wires first, two per crossarm, sagging between the poles.
+  c.strokeStyle = 'rgba(40,36,32,.55)'; c.lineWidth = 0.8;
+  for (let i = 0; i < xs.length - 1; i++) for (const dx of [-11, 11]) {
+    const a = xs[i] + dx, b = xs[i + 1] + dx, sag = Math.min(18, (b - a) / 30);
+    c.beginPath(); c.moveTo(a, top + 2); c.quadraticCurveTo((a + b) / 2, top + 2 + sag * 2, b, top + 2); c.stroke();
+  }
+  for (const x of xs) {
+    c.fillStyle = '#6b5236'; c.fillRect(x - 2, top - 4, 4, GROUND - top + 4);
+    c.fillStyle = 'rgba(30,22,14,.25)'; c.fillRect(x + 1, top - 4, 1, GROUND - top + 4); // the shaded side
+    c.fillStyle = '#5a4430'; c.fillRect(x - 15, top, 30, 3);
+    c.fillStyle = '#9fb6a8'; for (const dx of [-11, -5, 5, 11]) c.fillRect(x + dx - 1, top - 3, 2, 3); // glass insulators
+  }
+}
+
+// A wooden water tank on a trestle, the kind every camp in the desert had.
+function waterTank(c, x) {
+  const legs = GROUND - 70;
+  c.strokeStyle = '#6e5a42'; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(x + 4, GROUND); c.lineTo(x + 10, legs); c.moveTo(x + 44, GROUND); c.lineTo(x + 38, legs); c.stroke();
+  c.lineWidth = 1.2; c.beginPath();
+  for (const y of [GROUND - 22, GROUND - 46]) { c.moveTo(x + 6, y); c.lineTo(x + 42, y); }
+  c.moveTo(x + 6, GROUND - 22); c.lineTo(x + 40, GROUND - 46); c.moveTo(x + 42, GROUND - 22); c.lineTo(x + 8, GROUND - 46); c.stroke();
+  c.fillStyle = '#8a6d4c'; c.fillRect(x, legs - 40, 48, 40);
+  c.fillStyle = 'rgba(40,28,16,.25)'; c.fillRect(x + 40, legs - 40, 8, 40);
+  c.strokeStyle = '#3e3a36'; c.lineWidth = 1.5; for (const y of [legs - 32, legs - 18, legs - 6]) { c.beginPath(); c.moveTo(x, y); c.lineTo(x + 48, y); c.stroke(); } // hoops
+  c.fillStyle = '#6e5a42'; c.beginPath(); c.moveTo(x - 3, legs - 40); c.lineTo(x + 24, legs - 54); c.lineTo(x + 51, legs - 40); c.fill();
+  c.fillStyle = '#5a5f66'; c.fillRect(x + 22, legs, 3, GROUND - legs); // the down pipe
+}
+
+// A camera station out on the range: a small hut with a slotted roof for the tracking telescope, behind sandbags.
+function theodoliteHut(c, x) {
+  c.fillStyle = '#b8ad98'; c.fillRect(x, GROUND - 38, 44, 38);
+  shadeRight(c, x, GROUND - 38, 44, 38, 0.15);
+  c.fillStyle = '#9c917c'; c.beginPath(); c.arc(x + 22, GROUND - 38, 18, Math.PI, 0); c.fill();
+  c.fillStyle = '#2c2a27'; c.fillRect(x + 19, GROUND - 56, 6, 18); // the open slot
+  c.fillStyle = '#4b4f55'; c.save(); c.translate(x + 22, GROUND - 48); c.rotate(-0.6); c.fillRect(-2, -12, 4, 14); c.restore();
+  c.fillStyle = '#5a4630'; c.fillRect(x + 6, GROUND - 22, 9, 22);
+  c.fillStyle = '#b3a380'; for (let i = 0; i < 6; i++) c.fillRect(x - 10 + i * 11 + (i > 2 ? 22 : 0), GROUND - 6, 10, 6);
+  c.fillStyle = '#a69674'; for (let i = 0; i < 5; i++) c.fillRect(x - 5 + i * 11 + (i > 1 ? 22 : 0), GROUND - 11, 10, 5);
+}
+
+// A tracking radar on its trailer, the dish tipped up toward the tower.
+function radarTrailer(c, x) {
+  c.fillStyle = '#5c6648'; c.fillRect(x, GROUND - 30, 70, 20);
+  c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x, GROUND - 14, 70, 4);
+  c.fillStyle = '#1e1e1e'; for (const wx of [x + 14, x + 26]) { c.beginPath(); c.arc(wx, GROUND - 6, 6, 0, 7); c.fill(); }
+  c.fillStyle = '#7a7a7a'; for (const wx of [x + 14, x + 26]) { c.beginPath(); c.arc(wx, GROUND - 6, 2.5, 0, 7); c.fill(); }
+  c.strokeStyle = '#4e5458'; c.lineWidth = 2; c.beginPath(); c.moveTo(x + 64, GROUND - 12); c.lineTo(x + 66, GROUND); c.stroke(); // the jack
+  c.fillStyle = '#4a5240'; c.fillRect(x + 40, GROUND - 44, 8, 14); // the pedestal
+  c.save(); c.translate(x + 44, GROUND - 50); c.rotate(-0.5);
+  c.fillStyle = '#c9cdc8'; c.beginPath(); c.ellipse(0, 0, 22, 8, 0, Math.PI, 0); c.fill();
+  c.fillStyle = '#a5aaa6'; c.beginPath(); c.ellipse(0, 0, 22, 3, 0, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#6d726f'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-14, -2); c.lineTo(0, -16); c.lineTo(14, -2); c.stroke(); // feed struts
+  c.restore();
+  c.strokeStyle = '#3a3a3a'; c.lineWidth = 1; c.beginPath(); c.moveTo(x + 70, GROUND - 18); c.quadraticCurveTo(x + 90, GROUND + 2, x + 110, GROUND - 1); c.stroke(); // its cable
+}
+
+function fence(c, x0, x1) {
+  c.strokeStyle = '#6e604c'; c.lineWidth = 2;
+  for (let x = x0; x < x1; x += 34) { c.beginPath(); c.moveTo(x, GROUND); c.lineTo(x, GROUND - 22); c.stroke(); }
+  c.strokeStyle = 'rgba(70,64,56,.6)'; c.lineWidth = 0.7;
+  for (const y of [GROUND - 20, GROUND - 13, GROUND - 6]) { c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.stroke(); }
+}
+
+function boundarySign(c, x, name) {
+  c.fillStyle = '#5a4630'; c.fillRect(x + 6, GROUND - 46, 4, 46); c.fillRect(x + 104, GROUND - 46, 4, 46);
+  c.fillStyle = '#e9e0c8'; c.fillRect(x, GROUND - 62, 114, 30);
+  c.strokeStyle = '#8a3a2a'; c.lineWidth = 2; c.strokeRect(x + 2, GROUND - 60, 110, 26);
+  c.fillStyle = '#2e2a24'; c.textAlign = 'center';
+  c.font = 'bold 7px sans-serif'; c.fillText(name, x + 57, GROUND - 49, 104);
+  c.fillStyle = '#8a3a2a'; c.font = 'bold 6px sans-serif'; c.fillText('RESTRICTED AREA · KEEP OUT', x + 57, GROUND - 39, 104);
+}
+
+function yucca(c, x, y) {
+  c.strokeStyle = '#6f7d48'; c.lineWidth = 1.4;
+  for (let a = -2.6; a <= -0.5; a += 0.3) { c.beginPath(); c.moveTo(x, y - 2); c.lineTo(x + Math.cos(a) * 10, y - 2 + Math.sin(a) * 10); c.stroke(); }
+  c.strokeStyle = '#8c7a54'; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 4); c.lineTo(x + 1, y - 24); c.stroke(); // the flower stalk
+  c.fillStyle = '#efe6c4'; c.fillRect(x - 1, y - 26, 4, 6);
+}
+
+function creosote(c, x, y, r) {
+  c.fillStyle = 'rgba(70,52,30,.18)'; c.beginPath(); c.ellipse(x + r * 0.4, y, r * 1.1, r * 0.22, 0, 0, 7); c.fill();
+  c.fillStyle = '#7d8a4e'; c.beginPath(); c.arc(x - r * 0.35, y - r * 0.4, r * 0.55, 0, 7); c.arc(x + r * 0.3, y - r * 0.55, r * 0.6, 0, 7); c.arc(x, y - r * 0.8, r * 0.5, 0, 7); c.fill();
+  c.fillStyle = 'rgba(255,250,220,.18)'; c.beginPath(); c.arc(x - r * 0.45, y - r * 0.7, r * 0.3, 0, 7); c.fill(); // lit from the left
+}
+
+function seaOats(c, x, y, k = 1) {
+  c.strokeStyle = '#a49a62'; c.lineWidth = 1;
+  for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(x + i, y); c.quadraticCurveTo(x + i * 2, y - 8 * k, x + i * 3 + 2, y - 14 * k); c.stroke(); }
+  c.fillStyle = '#c4b47a'; for (let i = -1; i <= 1; i++) c.fillRect(x + i * 3 + 2, y - 16 * k, 2, 3 * k);
+}
+
+// The light: the sun high on the left by day or low and orange at dusk (fixed to the screen, as far things are), and a
+// few clouds drifting slowly on the far parallax.
+function skyDressing(ctx, g, vw, camX) {
+  const dusk = skyFor(g.clock % 1440) === SKY.dusk;
+  const sx = vw * 0.12, sy = dusk ? 400 : 90, glow = ctx.createRadialGradient(sx, sy, 4, sx, sy, dusk ? 160 : 120);
+  glow.addColorStop(0, dusk ? 'rgba(255,190,120,.55)' : 'rgba(255,252,235,.55)'); glow.addColorStop(1, 'rgba(255,240,210,0)');
+  ctx.fillStyle = glow; ctx.fillRect(sx - 170, sy - 170, 340, 340);
+  ctx.fillStyle = dusk ? '#ffd29a' : '#fffbea'; ctx.beginPath(); ctx.arc(sx, sy, dusk ? 18 : 14, 0, 7); ctx.fill();
+  const span = vw + 600, drift = (g.time * 2 + camX * 0.08) % span;
+  ctx.fillStyle = dusk ? 'rgba(240,170,150,.35)' : 'rgba(255,255,255,.55)';
+  for (const [x0, y, w] of [[80, 120, 90], [520, 70, 130], [930, 160, 70], [1300, 100, 110], [1700, 140, 80]]) {
+    const x = ((x0 - drift) % span + span) % span - 300;
+    cloud(ctx, x, y, w);
+  }
+}
+
+function cloud(ctx, x, y, w) {
+  ctx.beginPath();
+  ctx.ellipse(x, y, w * 0.5, w * 0.12, 0, 0, 7);
+  ctx.ellipse(x - w * 0.18, y - w * 0.08, w * 0.22, w * 0.12, 0, 0, 7);
+  ctx.ellipse(x + w * 0.12, y - w * 0.11, w * 0.26, w * 0.15, 0, 0, 7);
+  ctx.fill();
+}
+
+// Haze where the far ground meets the sky, so the mountains sit back.
+function horizonHaze(ctx, g, vw) {
+  const sky = skyFor(g.clock % 1440), grad = ctx.createLinearGradient(0, 340, 0, GROUND);
+  grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, sky[2]);
+  ctx.globalAlpha = 0.35; ctx.fillStyle = grad; ctx.fillRect(0, 340, vw, GROUND - 340); ctx.globalAlpha = 1;
+}
+
+// What moves in the wind on the site: the windsock by the tower, the flag by the office, the beacon on the tower top.
+function siteLife(ctx, g) {
+  const t = g.time;
+  // The windsock: a striped cone on a pole, filling and sagging with the gusts.
+  const wx = 1965, wy = GROUND - 70, fill = 0.75 + 0.25 * Math.sin(t * 0.7) * Math.sin(t * 1.9);
+  ctx.fillStyle = '#7a7a7a'; ctx.fillRect(wx - 1, wy, 2, 70);
+  for (let i = 0; i < 4; i++) {
+    const a = i * 6 * fill, b = (i + 1) * 6 * fill, droop = (1 - fill) * 6, r1 = 4 - i * 0.6, r2 = 4 - (i + 1) * 0.6;
+    ctx.fillStyle = i % 2 ? '#f2efe6' : '#d9552b';
+    ctx.beginPath(); ctx.moveTo(wx + a, wy + 4 - r1 + droop * i / 4); ctx.lineTo(wx + b, wy + 4 - r2 + droop * (i + 1) / 4);
+    ctx.lineTo(wx + b, wy + 4 + r2 + droop * (i + 1) / 4); ctx.lineTo(wx + a, wy + 4 + r1 + droop * i / 4); ctx.fill();
+  }
+  // The flag on its pole between the office and the hangar.
+  const fx = 432, fy = GROUND - 104;
+  ctx.fillStyle = '#d8d4c8'; ctx.fillRect(fx - 1, fy - 2, 2, 106); ctx.fillStyle = '#c9a74a'; ctx.beginPath(); ctx.arc(fx, fy - 3, 2, 0, 7); ctx.fill();
+  for (let i = 0; i < 12; i++) {
+    const wave = Math.sin(t * 3 - i * 0.6) * i * 0.18;
+    for (let s = 0; s < 7; s++) { ctx.fillStyle = s % 2 ? '#f2efe6' : '#b0302c'; ctx.fillRect(fx + 1 + i * 2, fy + s * 2 + wave, 2, 2); }
+    if (i < 5) { ctx.fillStyle = '#2c3a6a'; ctx.fillRect(fx + 1 + i * 2, fy + wave, 2, 8); }
+  }
+  // The tower-top beacon, which blinks after dark.
+  const dusk = skyFor(g.clock % 1440) === SKY.dusk, tw = PLACES.tower;
+  if (dusk && Math.sin(t * 3) > 0) {
+    ctx.fillStyle = 'rgba(255,60,40,.35)'; ctx.beginPath(); ctx.arc(tw.x + tw.w / 2, GROUND - tw.h - 4, 7, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff5a3c';
+  } else ctx.fillStyle = '#7a2a22';
+  ctx.beginPath(); ctx.arc(tw.x + tw.w / 2, GROUND - tw.h - 4, 2.5, 0, 7); ctx.fill();
+}
+
+// Small things the tower carries that the lattice alone leaves out: a top platform with its rail, and the ladder.
+function towerDetail(c, p) {
+  const top = GROUND - p.h;
+  c.fillStyle = '#4e5560'; c.fillRect(p.x + 8, top - 2, p.w - 16, 4);
+  c.strokeStyle = '#4e5560'; c.lineWidth = 1; c.beginPath(); c.moveTo(p.x + 8, top - 12); c.lineTo(p.x + p.w - 8, top - 12);
+  for (const x of [p.x + 8, p.x + p.w / 2, p.x + p.w - 8]) { c.moveTo(x, top - 2); c.lineTo(x, top - 12); }
+  c.stroke();
+  c.fillStyle = '#4e5560'; c.fillRect(p.x + p.w / 2 - 1, top - 6, 2, 4); // the beacon's stub
+  c.strokeStyle = 'rgba(78,85,96,.7)'; c.lineWidth = 0.8; c.beginPath();
+  const lx = p.x + p.w - 20; c.moveTo(lx, GROUND); c.lineTo(lx + 6, top); c.moveTo(lx + 5, GROUND); c.lineTo(lx + 9, top);
+  for (let y = 6; y < p.h; y += 6) { const k = y / p.h; c.moveTo(lx + 6 * k, GROUND - y); c.lineTo(lx + 5 + 4 * k, GROUND - y); }
+  c.stroke();
+}
+
 export function drawSite(ctx, g, view) {
   const { w, h } = view, s = h / VIEW_H, camX = g.cam.x;
   ctx.save();
@@ -73,6 +286,7 @@ export function drawSite(ctx, g, view) {
   const grad = ctx.createLinearGradient(0, 0, 0, GROUND);
   grad.addColorStop(0, sky[0]); grad.addColorStop(0.7, sky[1]); grad.addColorStop(1, sky[2]);
   ctx.fillStyle = grad; ctx.fillRect(0, 0, vw, GROUND);
+  skyDressing(ctx, g, vw, camX);
   const cape = g.site === 'cape';
   if (cape) {
     // The Atlantic on the horizon, flat as a table, and a line of palmettos and scrub behind the pads.
@@ -85,6 +299,7 @@ export function drawSite(ctx, g, view) {
     mountains(ctx, camX * 0.15, vw, '#8d86a0', 380, [0, 60, 30, 120, 70, 150, 40, 90, 20]);
     mountains(ctx, camX * 0.3, vw, '#a99a8c', 440, [10, 40, 25, 60, 15, 50, 35, 20, 45]);
   }
+  horizonHaze(ctx, g, vw);
   // The ground itself reaches past the world edge, so the pan never shows sky underfoot.
   ctx.fillStyle = cape ? '#e4d8b4' : '#d9c39a'; ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
   ctx.fillStyle = cape ? '#d3c597' : '#cdb489'; ctx.fillRect(0, GROUND, vw, 5);
@@ -95,6 +310,7 @@ export function drawSite(ctx, g, view) {
   ctx.drawImage(staticLayer, 0, 0);
   // Everything that moves or burns, back to front: rack and flame behind, then the grounded rocket, people, the truck
   // (nearer the camera than the people, so it paints over them), and finally smoke and dust over everything they cover.
+  siteLife(ctx, g);
   hangarRack(ctx, g);
   if (!g.crewed && g.standFlame > 0) flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
   if (g.crewed) controlScreens(ctx, g);
@@ -122,13 +338,36 @@ function palm(ctx, x, y) {
 }
 
 function mountains(ctx, offset, vw, color, base, peaks) {
+  const pts = ridgePoints(offset, vw, base, peaks);
   ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(0, GROUND);
-  const span = 260;
+  for (const [x, y] of pts) ctx.lineTo(x, y);
+  ctx.lineTo(vw + 260, GROUND); ctx.fill();
+  ridgeShade(ctx, pts);
+}
+
+function ridgePoints(offset, vw, base, peaks) {
+  const span = 260, pts = [];
   for (let x = -span; x < vw + span; x += span / 2) {
     const i = Math.floor((x + offset) / (span / 2)), k = ((i % peaks.length) + peaks.length) % peaks.length;
-    ctx.lineTo(x - ((x + offset) % (span / 2)), base - peaks[k]);
+    pts.push([x - ((x + offset) % (span / 2)), base - peaks[k]]);
   }
-  ctx.lineTo(vw + span, GROUND); ctx.fill();
+  return pts;
+}
+
+// Sun from the left: every slope that falls away to the right is in shade, and the ridge line catches a thin light.
+function ridgeShade(ctx, pts) {
+  ctx.fillStyle = 'rgba(40,30,50,.13)';
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+    if (by <= ay) continue;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(bx, GROUND); ctx.lineTo(ax + (bx - ax) * 0.45, GROUND); ctx.fill(); // a facet, not a column
+  }
+  ctx.strokeStyle = 'rgba(255,245,225,.18)'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+    if (by >= ay) continue;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  }
 }
 
 function label(ctx, place) {
