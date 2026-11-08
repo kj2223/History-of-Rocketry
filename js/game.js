@@ -797,7 +797,7 @@ export function answerFirstOffer(take) {
   note(take ? `You took the offer: ${o.title.toLowerCase()}.` : `You turned down the offer: ${o.title.toLowerCase()}. You stay ${/^[aeiou]/i.test(SEATS[g.record.seat]) ? 'an' : 'a'} ${SEATS[g.record.seat].toLowerCase()}.`);
   if (take && o.path && o.path !== before) {
     const i = rejoinIndex(o.path);
-    if (i != null) { jumpTo(i); return; }
+    if (i >= 0) { jumpTo(i); return; }
   }
   morning(nextIndex() != null ? 'roundEnd' : 'seasonEnd');
 }

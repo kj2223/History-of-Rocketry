@@ -72,7 +72,7 @@ canvas.addEventListener('mousemove', e => {
   // In launch control the cursor answers to the drawn buttons, not the site.
   if (g.room === 'console') {
     const ratio = window.devicePixelRatio || 1;
-    canvas.style.cursor = controlButtonAt(e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
+    canvas.style.cursor = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
     g.hover = null; canvas.title = '';
     return;
   }
