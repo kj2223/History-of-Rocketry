@@ -157,7 +157,7 @@ test('a round that breaks loose on the stand goes to the range plot, the recover
   assert.fail('no seed broke loose');
 });
 
-test('the whole campaign, 1945 to Ranger 7, runs to the end on either path', () => {
+test('the JPL path, every offer declined, runs from 1945 to the season end at Ranger 7', () => {
   newGame(13);
   for (let i = 0; i < SEASON.length; i++) {
     playRound(() => 'unknown');

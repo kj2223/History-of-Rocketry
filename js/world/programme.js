@@ -112,6 +112,14 @@ const FIXES = {
       p.ranger = 'agena/r2';
     },
   },
+  // After 51-L, whatever the review said: the booster field joint redesigned with a third O-ring, a capture feature
+  // and heaters (flown from STS-26, September 1988). The five-segment boosters on SLS carry it on.
+  oring: {
+    text: "Every solid booster's field joints are now the redesigned joint: a capture feature, a third O-ring and heaters.",
+    apply: p => {
+      p.oringRisk = (p.oringRisk ?? 0.15) * 0.15; // 0.15: the build standard before (truth/round.js)
+    },
+  },
   miss: {
     text: 'From now on the midcourse burn waits on the best tracking fix the stations can give.',
     apply: () => {},
@@ -312,6 +320,12 @@ export function adopt(programme, cause) {
 }
 // The standing fixes so far, in Ellis's words, for the news between rounds.
 export const fixesInForce = programme => programme.adopted.map(c => FIXES[c]?.text).filter(Boolean);
+// The standing fixes not yet told in a "while you were away", marked as told: each is news once, not at every jump.
+export function newFixes(programme) {
+  const fresh = programme.adopted.slice(programme.told ?? 0);
+  programme.told = programme.adopted.length;
+  return fresh.map(c => FIXES[c]?.text).filter(Boolean);
+}
 
 // A flight the radar tracked to its peak. Only good flights tell the drawing office about the vehicle's performance.
 export function recordFlight(programme, { vehicle = 'wac', load, apogee, failure }) {
