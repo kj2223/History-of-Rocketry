@@ -917,22 +917,26 @@ export function standStructure(ctx, p) {
   ctx.lineTo(p.x + 90, GROUND - p.h);
   ctx.lineTo(p.x + 100, GROUND);
   ctx.stroke();
+  // The legs lean in from 20/100 at the ground to 30/90 at the top beam; every member ends on a leg, inside the frame.
+  const left = y => p.x + 20 + (10 * y) / p.h,
+    right = y => p.x + 100 - (10 * y) / p.h;
   ctx.lineWidth = 2;
   for (let y = 30; y < p.h; y += 30) {
     ctx.beginPath();
-    ctx.moveTo(p.x + 22, GROUND - y);
-    ctx.lineTo(p.x + 98, GROUND - y);
+    ctx.moveTo(left(y), GROUND - y);
+    ctx.lineTo(right(y), GROUND - y);
     ctx.stroke();
   }
-  // Cross-bracing between the horizontals, and concrete footings under the legs.
+  // Cross-bracing in each bay, up to and no higher than the top beam, and concrete footings under the legs.
   ctx.strokeStyle = '#6b6f76';
   ctx.lineWidth = 1.2;
   for (let y = 30; y < p.h; y += 30) {
+    const y2 = Math.min(y + 30, p.h);
     ctx.beginPath();
-    ctx.moveTo(p.x + 22, GROUND - y);
-    ctx.lineTo(p.x + 98, GROUND - y - 30);
-    ctx.moveTo(p.x + 98, GROUND - y);
-    ctx.lineTo(p.x + 22, GROUND - y - 30);
+    ctx.moveTo(left(y), GROUND - y);
+    ctx.lineTo(right(y2), GROUND - y2);
+    ctx.moveTo(right(y), GROUND - y);
+    ctx.lineTo(left(y2), GROUND - y2);
     ctx.stroke();
   }
   ctx.fillStyle = '#8a8f96';
