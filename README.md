@@ -2,7 +2,7 @@
 
 **Build the programme that takes America from the desert test range to the Moon.**
 
-*Ad Astra* is a historical side-scrolling game about the American space programme. Begin as a junior engineer at White Sands in 1945 and work your way to Flight Director. Once you take the Houston shift, you can stay on console through Artemis III in 2030. A separate management mode is in design.
+*Ad Astra* is a historical side-scrolling game about the American space programme. Begin as a junior engineer at White Sands in 1945 and work your way to Flight Director. Once you take the Houston shift, you stay on console from Gemini through Apollo, Skylab, the Shuttle, the space station, the first commercial crew and Artemis, to the return to the Moon at the lunar south pole. A separate management mode is in design.
 
 This is not just a story about rockets. It is a story about the people on the ground who have to make them work.
 
@@ -18,7 +18,7 @@ The 2D presentation makes the work feel tangible—the rocket moves from the han
 - **Run the range.** Follow static firings, rollout, launch countdowns, tracking, recovery, and post-flight reviews.
 - **Make consequential calls.** Balance caution, evidence, budget, and schedule. The fixes you adopt—and the trust you earn—carry forward.
 - **Grow with the programme.** Take on new responsibilities as the campaign advances from early test vehicles to crewed spaceflight.
-- **Work the missions.** At the Mercury, Gemini, and Apollo stages, take your place in the control room and respond to the changing flight plan.
+- **Work the missions.** From Mercury to Artemis, take your place in the control room and respond to the changing flight plan. Crews can be lost, and nothing is scripted: the faults are hidden in the hardware, not written into the story.
 - **Keep your own record.** The notebook, campaign record, and autosaved checkpoints help you follow what happened and pick up where you left off.
 
 Some outcomes and technical problems are simulated, so the campaign is about more than replaying a fixed sequence: you have to interpret what the evidence is telling you and decide what to do next.
@@ -35,6 +35,10 @@ Some outcomes and technical problems are simulated, so the campaign is about mor
 The top bar also provides pause, simulation-speed, notebook, and game options. Game progress is saved automatically in the browser or desktop app.
 
 ## Play
+
+### Download (Windows)
+
+The newest build is always on the [releases page](https://github.com/kj2223/History-of-Rocketry/releases/latest): `ProjectVanguard-Setup.exe` installs the game, `ProjectVanguard-Portable.exe` runs without installing. The builds are unsigned, so Windows SmartScreen warns on first run (More info, then Run anyway). Saves from v0.5.2 and earlier carry over on first run.
 
 ### In a browser
 
