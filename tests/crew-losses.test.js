@@ -120,3 +120,20 @@ test('the Center director seat and its open offer are retired: the player is bac
   newGame(3, s);
   assert.equal(g.record.seat, 'flight');
 });
+
+// Seed 116 once read "The crew, Edward Nakamura and Edward Nakamura, were killed": a stand-in was written back into
+// crews that had already flown, beside the man he was standing in for.
+test('a stand-in never reaches a crew that flew before the loss, and no crew names anyone twice', () => {
+  for (const [i, r] of SEASON.entries()) {
+    for (const lost of r.crew || []) {
+      newGame(1);
+      const day = SEASON[i].start + 1;
+      recordDeaths([lost], day, r.id);
+      for (let k = 0; k < SEASON.length; k++) {
+        const crew = crewOf(k) || [];
+        assert.equal(new Set(crew).size, crew.length, `${SEASON[k].id} after losing ${lost} on ${r.id}: ${crew}`);
+        if (SEASON[k].start <= day) assert.deepEqual(crew, SEASON[k].crew || [], `${SEASON[k].id} rewritten`);
+      }
+    }
+  }
+});
