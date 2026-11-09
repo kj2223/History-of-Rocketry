@@ -35,3 +35,10 @@ work/wac-slice/
 
 # Per-machine Git guards (configured with core.hooksPath).
 /.local-git-hooks/
+
+# Claude Code: per-machine state and settings. Shared hooks live in .claude/settings.json and .claude/hooks/.
+/.claude/settings.local.json
+/.claude/release-ok
+/.claude/.tests-passed
+# Playwright MCP is configured per machine (the Windows form differs from Linux).
+/.mcp.json

@@ -33,7 +33,7 @@ export const CREW_TRAITS = {
   adeyemi: { risk: 0.6, candour: 0.75, independence: 0.7 },
   whitfield: { risk: 0.45, candour: 0.8, independence: 0.6 },
   gardner: { risk: 0.35, candour: 0.9, independence: 0.45 },
-  novak: { risk: 0.6, candour: 0.6, independence: 0.65 },  // The 1978 class.
+  novak: { risk: 0.6, candour: 0.6, independence: 0.65 }, // The 1978 class.
   carter: { risk: 0.5, candour: 0.7, independence: 0.5 },
   ellison: { risk: 0.35, candour: 0.75, independence: 0.4 },
   vasquez: { risk: 0.45, candour: 0.8, independence: 0.6 },
