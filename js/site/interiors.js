@@ -751,6 +751,24 @@ function drawDugout(ctx, g, s) {
         .forEach((p, i) => (i ? ctx.lineTo(px(p.t), py(p[key])) : ctx.moveTo(px(p.t), py(p[key]))));
       ctx.stroke();
     }
+    // The chamber wall temperature on a full-duration firing, on the same paper at 1000 K full scale, with the limit
+    // dashed: the same amber track the stand panel's chart shows.
+    if (walled && st.trace[0].wall != null) {
+      const pw = kelvin => py(kelvin * 0.03);
+      ctx.strokeStyle = '#c98a1c';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      st.trace
+        .slice(0, upto)
+        .forEach((p, i) => (i ? ctx.lineTo(px(p.t), pw(p.wall)) : ctx.moveTo(px(p.t), pw(p.wall))));
+      ctx.stroke();
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(rx, pw(k.stand.wall[1]));
+      ctx.lineTo(rx + rw, pw(k.stand.wall[1]));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   } else {
     ctx.strokeStyle = '#d6cdb5';
     for (let v = 0; v <= 30; v += 5) {
@@ -762,7 +780,11 @@ function drawDugout(ctx, g, s) {
   }
   ctx.fillStyle = '#d8d2c0';
   ctx.font = '12px Georgia, serif';
-  ctx.fillText('Recorder: red chamber, blue tank', rx, ry + rh + 26);
+  ctx.fillText(
+    `Recorder: red chamber, blue tank${walled ? ', amber wall temperature (dashed: limit)' : ''}`,
+    rx,
+    ry + rh + 26,
+  );
   // The firing box: the key, and the lamp that says the stage is pressurised.
   lamp(ctx, 160, 440, 12, !!st && ['ready', 'held', 'count'].includes(phase), '#f0b440', 'PRESSURISED');
   lamp(ctx, 270, 440, 12, phase === 'firing', '#ff8a5a', 'FIRE');
