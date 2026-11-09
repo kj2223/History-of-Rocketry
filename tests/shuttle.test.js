@@ -115,3 +115,20 @@ test('every Shuttle decision has its rule, and every flight ends on retrofire', 
   }
   for (const id of ['reusable', 'hubble', 'station']) assert.ok(CAPABILITIES[id], id);
 });
+
+// After 51-L the joint is redesigned whatever the review said, and the Shuttles after it fly the new joint.
+test('the return to flight brings the redesigned field joint, told once in the news', async () => {
+  const { advance } = await import('./play.js');
+  campaignTo(8, 'sts-51l', { sims: 0, joint: 'hold' });
+  playMission({ sims: 0, joint: 'hold' });
+  advance(true);
+  assert.equal(SEASON[g.roundIndex].id, 'sts-26');
+  assert.ok(g.programme.adopted.includes('oring'));
+  assert.ok(g.programme.oringRisk < 0.03, `${g.programme.oringRisk}`);
+  assert.ok(
+    g.away.lines.some(l => /redesigned joint/.test(l)),
+    g.away.lines.join('\n'),
+  );
+  // The standing fixes from 1945 are not repeated on this morning's news.
+  assert.ok(!g.away.lines.some(l => /WAC upper stage/.test(l)));
+});

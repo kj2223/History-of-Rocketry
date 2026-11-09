@@ -377,6 +377,8 @@ export const SEASON = [
     crewed: 'shuttle',
     orbital: true,
     crew: ['donovan', 'vasquez', 'brennan'],
+    // The redesigned field joint flies from here, whatever the 51-L review said.
+    adopt: ['oring'],
     path: 'nasa',
     start: dayOf(1988, 9, 27),
     name: 'STS-26, the return to flight',
@@ -449,9 +451,9 @@ export const SEASON = [
     orbital: true,
     crew: ['sharma', 'vaughn', 'larsen', 'petrossian'],
     path: 'nasa',
-    start: dayOf(2025, 9, 10),
+    start: dayOf(2026, 3, 30),
     name: 'Artemis II, a crew of four round the Moon',
-  }, // launched 12 September 2025
+  }, // launched 1 April 2026, splashed down 10 April
   {
     id: 'artemis-3',
     vehicle: 'sls',
@@ -463,7 +465,7 @@ export const SEASON = [
     path: 'nasa',
     start: dayOf(2028, 9, 8),
     name: 'Artemis III, the return to the Moon, the south pole',
-  }, // launched 10 September 2028
+  }, // the game's own date: NASA's plans for the first landing have moved since
   {
     id: 'ranger-7',
     vehicle: 'ranger',

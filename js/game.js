@@ -42,7 +42,7 @@ import {
   pendingOffer,
   SEATS,
 } from './career/record.js';
-import { initProgramme, adopt, recordFlight, estimate, fixesInForce, rangeRecord } from './world/programme.js';
+import { initProgramme, adopt, recordFlight, estimate, newFixes, rangeRecord } from './world/programme.js';
 
 // g.day is the campaign day (0 is 1 January 1945). Each round starts on its SEASON date and plans to fly two days later.
 export const START_MINUTE = 7 * 60 + 30,
@@ -1515,8 +1515,11 @@ function jumpTo(i) {
     next = SEASON[i];
   const lines = [...(BETWEEN[next.id] || [])];
   // The first Bumper's WAC is built to the standard the WAC rounds left behind, and the V-2s to what the V-2 round taught.
-  if (next.vehicle !== SEASON[g.roundIndex].vehicle && g.programme.adopted.length)
-    lines.push(`Everything the reviews decided so far goes into the build: ${fixesInForce(g.programme).join(' ')}`);
+  // Each standing fix is told once, at the first change of vehicle after it was decided.
+  if (next.vehicle !== SEASON[g.roundIndex].vehicle) {
+    const fresh = newFixes(g.programme);
+    if (fresh.length) lines.push(`What the reviews decided goes into the build: ${fresh.join(' ')}`);
+  }
   if (!next.crewed) lines.push(`The crew built ${next.name} in the hangar.`);
   // The other side, from 1966, as Houston heard of it.
   if (next.crewed && next.crewed !== 'mercury')
@@ -1530,6 +1533,11 @@ function jumpTo(i) {
     );
   g.away = { from: dateText(from), to: dateText(roundStartOf(i)), lines };
   startRound(i);
+  // A fix the round brings with it whatever the reviews said (the redesigned booster joint at STS-26) is news now.
+  if (next.adopt?.length) {
+    const fresh = newFixes(g.programme);
+    if (fresh.length) lines.push(`Going into the build from this flight: ${fresh.join(' ')}`);
+  }
   g.room = 'away';
 }
 
