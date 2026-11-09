@@ -40,3 +40,8 @@ work/wac-slice/
 .codex/agents/qa_reviewer.toml
 .mcp.json
 .prettierrc
+
+# Claude Code: per-machine state and settings. Shared hooks live in .claude/settings.json and .claude/hooks/.
+/.claude/settings.local.json
+/.claude/release-ok
+/.claude/.tests-passed
