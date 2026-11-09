@@ -9,13 +9,20 @@ test('the WAC fitting drawing follows observed inspection and repair evidence', 
   g.rocket.where = 'hangar';
   const fills = [];
   const rotations = [];
-  const ctx = new Proxy({
-    fill() { fills.push(this.fillStyle); },
-    rotate(angle) { rotations.push(angle); },
-    measureText: text => ({ width: text.length * 6 }),
-    createLinearGradient: () => ({ addColorStop() {} }),
-    createRadialGradient: () => ({ addColorStop() {} }),
-  }, { get: (target, key) => target[key] ?? (() => {}) });
+  const ctx = new Proxy(
+    {
+      fill() {
+        fills.push(this.fillStyle);
+      },
+      rotate(angle) {
+        rotations.push(angle);
+      },
+      measureText: text => ({ width: text.length * 6 }),
+      createLinearGradient: () => ({ addColorStop() {} }),
+      createRadialGradient: () => ({ addColorStop() {} }),
+    },
+    { get: (target, key) => target[key] ?? (() => {}) },
+  );
   const render = () => {
     fills.length = 0;
     drawInterior(ctx, g, { w: 1200, h: 760 });

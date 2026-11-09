@@ -98,7 +98,7 @@ test('a bad or foreign save is refused and never resumed', () => {
   assert.throws(() => parseSave('{nope', checkCheckpoint), /not a readable save/);
   assert.throws(
     () => parseSave(JSON.stringify({ format: 'per-aspera-v1', contentVersion: 4 }), checkCheckpoint),
-    /not a Per Aspera save/,
+    /not an Ad Astra save/,
   );
   const bad = JSON.parse(good);
   bad.checkpoint.beat = 'flight';
