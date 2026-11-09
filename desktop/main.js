@@ -2,6 +2,7 @@
 // The game itself is unchanged. This file only makes the window and serves the game's files to it.
 // Files are served under app://game/ rather than file:// so ES modules load and the saves (localStorage) have a fixed home.
 import { app, BrowserWindow, Menu, protocol, net, session } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
@@ -52,7 +53,7 @@ function openWindow() {
     minWidth: 1280,
     minHeight: 720,
     backgroundColor: '#000000',
-    title: `Per Aspera v${app.getVersion()}`,
+    title: `Ad Astra v${app.getVersion()}`,
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
   });
@@ -86,6 +87,20 @@ app.on('web-contents-created', (_, contents) => {
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
   contents.on('will-attach-webview', event => event.preventDefault());
 });
+
+// Builds up to v0.5.2 were called Project Vanguard, and Electron keeps each app's saves in a folder named after it. On the
+// first run under the new name, bring the old folder's saves across so a game in progress carries on. The old folder is
+// left as it was.
+function carryOverSaves() {
+  const here = path.join(app.getPath('userData'), 'Local Storage');
+  const before = path.join(app.getPath('appData'), 'Project Vanguard', 'Local Storage');
+  try {
+    if (!fs.existsSync(here) && fs.existsSync(before)) fs.cpSync(before, here, { recursive: true });
+  } catch {
+    // Nothing to carry over, or the copy failed: the game starts fresh, as it would have anyway.
+  }
+}
+carryOverSaves();
 
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_, __, allow) => allow(false));

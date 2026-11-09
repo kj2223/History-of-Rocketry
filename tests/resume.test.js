@@ -81,7 +81,8 @@ test('a watch panel open on the blockhouse switches to the count when the round 
 });
 
 test('starting a new game keeps the old one as the backup, and going back swaps them', async () => {
-  const { KEYS, writeSave, readSave, startOver, readBackup, swapBackup, memoryStorage } = await import('../js/core/save.js');
+  const { KEYS, writeSave, readSave, startOver, readBackup, swapBackup, memoryStorage } =
+    await import('../js/core/save.js');
   const { checkCheckpoint } = await import('../js/game.js');
   const storage = memoryStorage();
   newGame(5);

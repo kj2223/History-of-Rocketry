@@ -16,7 +16,7 @@ export const parseSave = (text, check) => {
   } catch {
     throw new SaveError('This is not a readable save.');
   }
-  if (env?.format !== FORMAT) throw new SaveError('This is not a Per Aspera save.');
+  if (env?.format !== FORMAT) throw new SaveError('This is not an Ad Astra save.');
   if (env.contentVersion !== CONTENT_VERSION)
     throw new SaveError(`This save is from another version of the game (content ${env.contentVersion}).`);
   try {

@@ -1,7 +1,17 @@
 // The crew-death rules across every era, and older saves carried into the Flight Director's 1945–2030 game.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { g, newGame, crewOf, recordDeaths, lostIds, apolloFireLines, checkpoint, morning, nextIndex } from '../js/game.js';
+import {
+  g,
+  newGame,
+  crewOf,
+  recordDeaths,
+  lostIds,
+  apolloFireLines,
+  checkpoint,
+  morning,
+  nextIndex,
+} from '../js/game.js';
 import { toReview } from '../js/mercury.js';
 import { SEASON } from '../js/data/campaign.js';
 import { GROUPS } from '../js/data/crew.js';

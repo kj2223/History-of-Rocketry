@@ -37,8 +37,9 @@ jobs:
       - run: npm ci
       - run: npm test
       # The next number in the series: one more than the highest vX.Y.N release so far, or vX.Y.0 for the first.
+      # Only a push to main publishes: a manual run or a pull request builds and checks, nothing more.
       - name: Pick the release number
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           SERIES=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
@@ -54,10 +55,10 @@ jobs:
             dist/ProjectVanguard-Setup.exe
             dist/ProjectVanguard-Portable.exe
       - name: Publish the release
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           gh release create "v$VERSION" dist/ProjectVanguard-Setup.exe dist/ProjectVanguard-Portable.exe \
-            --target "$GITHUB_SHA" --title "Project Vanguard v$VERSION" --generate-notes --latest
+            --target "$GITHUB_SHA" --title "Ad Astra v$VERSION" --generate-notes --latest
           # The rolling "dev-build" release from before numbered releases; the latest links replace it.
           gh release delete dev-build --yes --cleanup-tag || true

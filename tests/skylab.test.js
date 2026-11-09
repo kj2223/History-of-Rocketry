@@ -23,7 +23,11 @@ test('the workshop\u2019s shield loss is the hidden layer\u2019s, seeded from th
   assert.ok(seen.has(true) && seen.has(false), [...seen].join());
   // The same station meets every crew: the flag rides with the seed, not the round.
   newGame(3);
-  for (const [id, seed] of [['skylab-2', 7], ['skylab-3', 8], ['skylab-4', 9]]) {
+  for (const [id, seed] of [
+    ['skylab-2', 7],
+    ['skylab-3', 8],
+    ['skylab-4', 9],
+  ]) {
     const round = newRound(seed, g.programme, 'saturnib');
     startFlight({ kind: 'flight', flightId: id, round, a: {} });
     assert.equal(round.flightTruth.flags.shield, skylabShield(g.seed), id);
