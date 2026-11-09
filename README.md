@@ -1,8 +1,8 @@
-# Per Aspera
+# Ad Astra
 
 **Build the programme that takes America from the desert test range to the Moon.**
 
-*Per Aspera* is a historical rocket-programme management game set in the early American space age. Begin as a junior engineer at White Sands in 1945, where every test is a lesson and every launch is a risk. Follow the programme as it grows through the early rockets, Mercury, Gemini, and Apollo—making the calls that shape the hardware, the schedule, and your career.
+*Ad Astra* is a historical side-scrolling game about the American space programme. Begin as a junior engineer at White Sands in 1945 and work your way to Flight Director. Once you take the Houston shift, you can stay on console through Artemis III in 2030. A separate management mode is in design.
 
 This is not just a story about rockets. It is a story about the people on the ground who have to make them work.
 
@@ -71,4 +71,4 @@ npm test
 
 ## The long view
 
-From the first uncertain firings at White Sands to the decisions made in Mission Control, *Per Aspera* is about earning progress one test at a time. If you enjoy history, thoughtful management, and stories where the details matter, step onto the range and help write the next chapter of rocketry.
+From the first uncertain firings at White Sands to the decisions made in Mission Control, *Ad Astra* is about earning progress one test at a time.

@@ -2183,14 +2183,15 @@ export const FLIGHTS = {
     ],
   },
 
-  // Artemis II: four crews round the Moon, the farthest any human has flown since 1972.
+  // Artemis II: a crew of four round the Moon, the farthest any human has flown since 1972.
   'artemis-2': {
     program: 'apollo',
     craft: 'Artemis II',
     entry: 'lunar',
     completes: 'lunarorbit',
     phases: 5,
-    objective: 'fly four crews round the Moon on the free return, farther than anyone has gone since 1972, and home',
+    objective:
+      'fly a crew of four round the Moon on the free return, farther than anyone has gone since 1972, and home',
     rules: [
       'No launch with the sea above state 4 in the primary landing area.',
       'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',

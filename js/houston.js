@@ -35,7 +35,7 @@ const crewName = i => ASTRONAUTS[crewOf()?.[i]]?.name;
 export function startFlight(c) {
   const id = c.flightId,
     plan = FLIGHTS[id];
-  if (c.kind === 'flight') flightTruth(c.round, id);
+  if (c.kind === 'flight') flightTruth(c.round, id, g.seed);
   c.flight = {
     id,
     craft: plan.craft,

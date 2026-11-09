@@ -215,6 +215,13 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
     }),
   );
   setVehicle();
+  if (from.crewSwaps == null) {
+    const losses = [];
+    for (const loss of g.record.losses || []) {
+      losses.push(loss);
+      replaceLostCrew(lostIds({ losses: [loss] }), loss.day, lostIds({ losses }));
+    }
+  }
   if (g.away) g.room = 'away';
   retireSeats();
   // A season that ended in an older build (Apollo 15 was the last round in v0.5.2) carries on when this build has more.
@@ -313,8 +320,10 @@ function standIn(id, seatDay, gone, booked) {
 export function recordDeaths(ids, day = g.day, round = SEASON[g.roundIndex].id) {
   const names = ids.map(id => ASTRONAUTS[id].name).join(', ');
   (g.record.losses = g.record.losses || []).push({ name: names, ids: [...ids], day, round });
-  g.crewSwaps = g.crewSwaps || {};
-  const gone = lostIds();
+  replaceLostCrew(ids, day, lostIds());
+}
+
+function replaceLostCrew(ids, day, gone) {
   // The rounds still to come: a death changes nobody who has already flown.
   const ahead = SEASON.map((r, i) => [r, i]).filter(([r, i]) => (r.crew || []).length && roundStartOf(i) > day);
   for (const id of ids) {
@@ -494,6 +503,7 @@ export function morning(beat) {
     launchDay: g.launchDay,
     plan: g.plan,
     mission: g.mission ?? null,
+    crewSwaps: g.crewSwaps,
   });
   g.savedVersion++;
   setBeat(beat);
@@ -943,6 +953,7 @@ export function standLeakCheck() {
   if (s.phase !== 'held' && s.phase !== 'ready') return;
   s.phase = 'leakcheck';
   const r = leakCheck(g.round);
+  if (r.found) g.decided.leakFixed = r.found;
   note(
     r.found
       ? `Leak check before the firing: leak found at the ${r.found.toLowerCase()} and fixed.`
@@ -973,7 +984,7 @@ export const standTank = () => tankGauge(g.round, g.stand.pressurised || 0);
 
 export function standDecide(choices) {
   const s = g.stand;
-  g.decided = { ...choices };
+  g.decided = { ...g.decided, ...choices };
   let hours = 0;
   const st = kit().stand;
   if (choices.rework) {
@@ -984,6 +995,7 @@ export function standDecide(choices) {
   }
   if (choices.leak) {
     const r = leakCheck(g.round);
+    if (r.found) g.decided.leakFixed = r.found;
     hours += r.hours;
     note(
       r.found

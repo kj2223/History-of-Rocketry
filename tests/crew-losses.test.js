@@ -1,14 +1,53 @@
 // The crew-death rules across every era, and older saves carried into the Flight Director's 1945–2030 game.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { g, newGame, crewOf, recordDeaths, lostIds, apolloFireLines, checkpoint, nextIndex } from '../js/game.js';
-import '../js/mercury.js';
+import {
+  g,
+  newGame,
+  crewOf,
+  recordDeaths,
+  lostIds,
+  apolloFireLines,
+  checkpoint,
+  morning,
+  nextIndex,
+} from '../js/game.js';
+import { toReview } from '../js/mercury.js';
 import { SEASON } from '../js/data/campaign.js';
 import { GROUPS } from '../js/data/crew.js';
 import { apolloFire } from '../js/world/race.js';
 
 const at = id => SEASON.findIndex(r => r.id === id);
 const yearOfGroup = id => GROUPS.find(gr => gr.ids.includes(id)).year;
+
+test('crew replacements survive reload, including older checkpoints that omitted the swaps', () => {
+  newGame(1);
+  const day = SEASON[at('demo-2')].start;
+  recordDeaths(['sharma', 'larsen'], day, 'demo-2');
+  const expected = crewOf(at('artemis-2'));
+  morning('brief');
+  const saved = structuredClone(checkpoint());
+  assert.deepEqual(saved.crewSwaps, g.crewSwaps);
+  newGame(1, saved);
+  assert.deepEqual(crewOf(at('artemis-2')), expected);
+  delete saved.crewSwaps;
+  delete saved.record.losses[0].ids;
+  newGame(1, saved);
+  assert.deepEqual(crewOf(at('artemis-2')), expected);
+  assert.equal(g.record.losses.length, 1);
+});
+
+test('a failed lunar rescue records both lander occupants and leaves the orbiter pilot alive', () => {
+  newGame(1);
+  g.roundIndex = at('apollo-11');
+  const [commander, orbiterPilot, landerPilot] = crewOf();
+  g.beat = 'mRecovery';
+  g.mission = {};
+  g.console = { round: { end: { lmLost: true } }, fate: 'safe' };
+  toReview();
+  assert.deepEqual(lostIds(), new Set([commander, landerPilot]));
+  assert.ok(!lostIds().has(orbiterPilot));
+});
 // No one the game has lost is named on a round still to fly.
 const noGhosts = after => {
   const gone = lostIds();
