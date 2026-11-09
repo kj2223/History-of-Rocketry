@@ -280,13 +280,31 @@ function catchUpOffer() {
 export function crewOf(i = g.roundIndex) {
   const crew = SEASON[i].crew;
   if (!crew || !g?.crewSwaps) return crew;
-  const swaps = g.crewSwaps;
+  const swaps = g.crewSwaps,
+    start = roundStartOf(i),
+    lost = lossDays();
   return crew.map(id => {
     let who = id;
-    // A substitute can himself be lost later; the chain ends on a living man.
-    for (let n = 0; swaps[who] && n < Object.keys(swaps).length; n++) who = swaps[who];
+    // A substitute can himself be lost later; the chain ends on a living man. A swap only reaches rounds that start
+    // after the loss: a death changes nobody who has already flown, nor the crew of the flight it happened on.
+    for (let n = 0; swaps[who] && lost[who] != null && lost[who] < start && n < Object.keys(swaps).length; n++)
+      who = swaps[who];
     return who;
   });
+}
+
+// The day each lost astronaut was lost, by id. Older saves kept only the names, so those are read back through the roster.
+export function lossDays(record = g.record) {
+  const byName = Object.fromEntries(Object.entries(ASTRONAUTS).map(([id, a]) => [a.name, id]));
+  const days = {};
+  for (const l of record.losses || [])
+    for (const id of l.ids ||
+      l.name
+        .split(', ')
+        .map(n => byName[n])
+        .filter(Boolean))
+      days[id] ??= l.day;
+  return days;
 }
 
 // Everyone the game has lost, by id. Older saves kept only the names, so those are read back through the roster.
