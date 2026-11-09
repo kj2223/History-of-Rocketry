@@ -983,6 +983,7 @@ function drawHangar(ctx, g, s) {
     const x = 140 + ((i + 0.5) / Math.max(1, people.length)) * 920;
     heads.push([p, x, whiteSands ? hangarTechnician(ctx, x, 590 + (i % 2) * 31, p) : standing(ctx, x, p, t, 3)]);
   });
+  layoutTags(tagQueue);
   for (const args of tagQueue) drawTag(...args);
   bubbles(ctx, heads);
 }
@@ -1149,8 +1150,28 @@ let tagQueue = [];
 function tag(...args) {
   tagQueue.push(args);
 }
-function drawTag(ctx, s, sp, px, py, ty, seen, flagged, actionable, act, side) {
-  const tw = 230,
+// Tags in the same row (above the round, or below it) are pushed apart so no card covers another, wherever the spots
+// sit on the hardware: the WAC's acid fitting is drawn where it is, not where the spread put it.
+const TAG_W = 230,
+  TAG_GAP = 10;
+function layoutTags(queue) {
+  const rows = {};
+  for (const args of queue) {
+    const [, , , px, , ty, , , , , side] = args;
+    if (side || ty == null) continue;
+    (rows[ty < 400 ? 'up' : 'down'] ||= []).push({ args, x: Math.max(10, Math.min(DW - TAG_W - 10, px - TAG_W / 2)) });
+  }
+  for (const row of Object.values(rows)) {
+    row.sort((a, b) => a.x - b.x);
+    for (let i = 1; i < row.length; i++) row[i].x = Math.max(row[i].x, row[i - 1].x + TAG_W + TAG_GAP);
+    const over = row.at(-1).x - (DW - TAG_W - 10);
+    if (over > 0) for (const t of row) t.x -= over;
+    for (let i = row.length - 2; i >= 0; i--) row[i].x = Math.min(row[i].x, row[i + 1].x - TAG_W - TAG_GAP);
+    for (const t of row) t.args[11] = t.x;
+  }
+}
+function drawTag(ctx, s, sp, px, py, ty, seen, flagged, actionable, act, side, at = null) {
+  const tw = TAG_W,
     lines = [];
   ctx.font = 'bold 13px Georgia, serif';
   const name = wrap(ctx, sp.name, tw - 20);
@@ -1165,7 +1186,7 @@ function drawTag(ctx, s, sp, px, py, ty, seen, flagged, actionable, act, side) {
     tx = side === 'right' ? px + 180 : px - 180 - tw;
     tyy = py - th / 2;
   } else {
-    tx = Math.max(10, Math.min(DW - tw - 10, px - tw / 2));
+    tx = at ?? Math.max(10, Math.min(DW - tw - 10, px - tw / 2));
     tyy = ty - (ty < 400 ? th : 0);
   }
   tyy = Math.max(10, Math.min(FLOOR + 130 - th, tyy));
