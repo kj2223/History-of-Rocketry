@@ -13,3 +13,10 @@ v1 Prototype/
 
 # Generated coordinate data: one ring per line is already the readable form.
 js/data/world-map.js
+
+# Hand-laid compact style (one rule or element per line); keep it as written.
+style.css
+index.html
+
+# Design documents and notes: Prettier would realign their tables.
+*.md
