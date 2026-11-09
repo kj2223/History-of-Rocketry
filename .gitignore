@@ -35,3 +35,8 @@ work/wac-slice/
 
 # Per-machine Git guards (configured with core.hooksPath).
 /.local-git-hooks/
+.codex/agents/historian.toml
+.codex/config.toml
+.codex/agents/qa_reviewer.toml
+.mcp.json
+.prettierrc
