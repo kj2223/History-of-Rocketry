@@ -104,6 +104,28 @@ export function lunarLive() {
   }
 }
 
+function plotBacking(ctx, w, h) {
+  const glass = ctx.createLinearGradient(0, 0, 0, h);
+  glass.addColorStop(0, '#151f2b');
+  glass.addColorStop(1, '#0b1018');
+  ctx.fillStyle = glass;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#202d3b';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 16; x < w; x += 16) {
+    ctx.moveTo(x + 0.5, 8);
+    ctx.lineTo(x + 0.5, h - 8);
+  }
+  for (let y = 16; y < h; y += 16) {
+    ctx.moveTo(8, y + 0.5);
+    ctx.lineTo(w - 8, y + 0.5);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = '#334456';
+  ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+}
+
 // Earth on the left, the Moon on the right, her track between them; a short shot's track turns back.
 function drawMap(c, L) {
   if (!c) return;
@@ -115,16 +137,16 @@ function drawMap(c, L) {
     mid = h * 0.62;
   const px = d => x0 + ((x1 - x0) * d) / MOON_KM,
     py = d => mid - 46 * Math.sin(Math.PI * Math.min(1, d / MOON_KM));
-  ctx.fillStyle = '#0b1018';
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#2d5d8a';
+  plotBacking(ctx, w, h);
+  const earth = ctx.createRadialGradient(x0 - 4, mid - 4, 1, x0, mid, 12);
+  earth.addColorStop(0, '#89bdd3');
+  earth.addColorStop(0.75, '#34678f');
+  earth.addColorStop(1, '#1d3652');
+  ctx.fillStyle = earth;
   ctx.beginPath();
   ctx.arc(x0, mid, 12, 0, 7);
   ctx.fill();
-  ctx.fillStyle = '#cfcab8';
-  ctx.beginPath();
-  ctx.arc(x1, mid, 8, 0, 7);
-  ctx.fill();
+  moonDisc(ctx, x1, mid, 8);
   ctx.setLineDash([3, 4]);
   ctx.strokeStyle = '#4a5464';
   ctx.lineWidth = 1;
@@ -157,8 +179,63 @@ function drawMap(c, L) {
   ctx.font = '11px Georgia, serif';
   ctx.fillText('Earth', x0 - 14, mid + 26);
   ctx.fillText(`Moon, ${fmt(MOON_KM)} km`, x1 - 80, mid + 24);
+  ctx.strokeStyle = '#526579';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x0, h - 23.5);
+  ctx.lineTo(x1, h - 23.5);
   for (let k = 100000; k < MOON_KM; k += 100000) {
+    ctx.moveTo(px(k), h - 24);
+    ctx.lineTo(px(k), h - 18);
     ctx.fillText(`${k / 1000}k`, px(k) - 10, h - 6);
+  }
+  ctx.stroke();
+}
+
+function moonDisc(ctx, cx, cy, r) {
+  const light = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.45, 0, cx, cy, r);
+  light.addColorStop(0, '#eee8d6');
+  light.addColorStop(0.7, '#cfcab8');
+  light.addColorStop(1, '#918a7c');
+  ctx.fillStyle = light;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  for (const [a, b, rx, ry, tilt] of [
+    [-0.39, -0.29, 0.27, 0.16, -0.43],
+    [-0.28, -0.11, 0.19, 0.26, 0.58],
+    [0.28, -0.32, 0.21, 0.15, 0.2],
+    [0.49, 0.02, 0.17, 0.25, -0.48],
+    [0.11, 0.24, 0.18, 0.1, -0.4],
+  ]) {
+    ctx.fillStyle = 'rgba(76, 76, 72, .23)';
+    ctx.beginPath();
+    ctx.ellipse(cx + a * r, cy + b * r, rx * r, ry * r, tilt, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.lineWidth = Math.max(0.5, r * 0.012);
+  for (const [a, b, size] of [
+    [-0.34, 0.44, 0.07],
+    [0.32, 0.54, 0.13],
+    [-0.62, 0.13, 0.09],
+    [-0.08, 0.59, 0.04],
+    [0.66, 0.37, 0.06],
+    [0.04, -0.67, 0.05],
+    [-0.14, 0.38, 0.095],
+    [0.21, 0.41, 0.045],
+    [-0.5, -0.58, 0.035],
+  ]) {
+    const x = cx + a * r,
+      y = cy + b * r,
+      crater = size * r;
+    ctx.fillStyle = 'rgba(68, 61, 55, .28)';
+    ctx.beginPath();
+    ctx.arc(x, y, crater, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 247, 224, .48)';
+    ctx.beginPath();
+    ctx.arc(x, y, crater, 0.1, 2.6);
+    ctx.stroke();
   }
 }
 
@@ -172,23 +249,8 @@ function drawMoon(c, L) {
     cx = w * 0.42,
     cy = h / 2;
   const r = Math.min(150, (22 * 60) / (L.minutes + 9));
-  ctx.fillStyle = '#0b1018';
-  ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#cfcab8';
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, 7);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(90,85,75,.35)';
-  for (const [a, b, s] of [
-    [-0.3, -0.2, 0.18],
-    [0.25, 0.1, 0.12],
-    [-0.1, 0.35, 0.1],
-    [0.4, -0.35, 0.08],
-  ]) {
-    ctx.beginPath();
-    ctx.arc(cx + a * r, cy + b * r, s * r, 0, 7);
-    ctx.fill();
-  }
+  plotBacking(ctx, w, h);
+  moonDisc(ctx, cx, cy, r);
   if (L.vehicle === 'ranger') {
     ctx.strokeStyle = '#6fc88a';
     ctx.lineWidth = 1.5;
@@ -229,6 +291,8 @@ function drawMoon(c, L) {
     ctx.stroke();
     ctx.setLineDash([]);
   }
+  ctx.fillStyle = '#111923';
+  ctx.fillRect(1, h - 21, w - 2, 20);
   ctx.fillStyle = '#a9b0bb';
   ctx.font = '11px Georgia, serif';
   ctx.fillText(

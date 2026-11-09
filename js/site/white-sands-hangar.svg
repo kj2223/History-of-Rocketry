@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <defs>
+    <pattern id="floor" width="72" height="58" patternUnits="userSpaceOnUse">
+      <rect width="72" height="58" fill="#56584c"/>
+      <path d="M0 58V0H72" fill="none" stroke="#3c4339"/>
+      <path d="M10 12h22m14 30h15M15 34l12-4" stroke="#c3b595" opacity=".16"/>
+    </pattern>
+    <pattern id="wall" width="16" height="90" patternUnits="userSpaceOnUse">
+      <rect width="16" height="90" fill="#414d47"/>
+      <path d="M2 0v90" stroke="#27332e" stroke-width="4"/>
+    </pattern>
+    <radialGradient id="amber">
+      <stop stop-color="#e9ab58" stop-opacity=".37"/>
+      <stop offset="1" stop-color="#e9ab58" stop-opacity="0"/>
+    </radialGradient>
+    <g id="crate">
+      <rect width="57" height="43" rx="2" fill="#806747" stroke="#332d23" stroke-width="3"/>
+      <path d="M5 8h47M5 20h47M5 32h47M10 4v32m37-32v32" stroke="#b18c57" opacity=".68"/>
+      <path d="M2 39h53v7H2z" fill="#4d3d2c"/>
+    </g>
+  </defs>
+  <rect width="1200" height="760" fill="#222c28"/>
+  <path d="M36 85h1128v596H36z" fill="url(#floor)" stroke="#17201b" stroke-width="9"/>
+  <path d="M36 78h1128v110H36z" fill="url(#wall)" stroke="#27352c" stroke-width="5"/>
+  <path d="M36 80h1128M36 187v495h421m286 0h421V187" fill="none" stroke="#747664" stroke-width="13"/>
+  <path d="M458 681h284v46H458z" fill="#726c58" stroke="#373d32" stroke-width="5"/>
+  <path d="M98 332h1004v177H98z" fill="none" stroke="#bea06a" stroke-width="3" stroke-dasharray="17 8"/>
+  <path d="M458 671V536h284v135" fill="#b5a37c" opacity=".09"/>
+  <ellipse cx="800" cy="405" rx="370" ry="268" fill="url(#amber)"/>
+  <use href="#crate" x="61" y="217"/><use href="#crate" x="125" y="218"/><use href="#crate" x="62" y="269"/>
+  <use href="#crate" x="1034" y="562"/><use href="#crate" x="1094" y="568"/><use href="#crate" x="1081" y="616"/>
+  <path d="M406 191h364v79H406z" fill="#534330" stroke="#292a22" stroke-width="5"/>
+  <path d="M410 195h356v54H410z" fill="#9f815a"/>
+  <path d="M428 203h48v32h-48z" fill="#dfcfaa"/>
+  <path d="M435 210h32m-32 7h27m-27 7h30" stroke="#736a51"/>
+  <path d="M510 226l21-19m-6 1 6-1 1 7m17 10h32m18-11h24" fill="none" stroke="#dad2b5" stroke-width="4"/>
+  <rect x="691" y="200" width="57" height="38" rx="4" fill="#444e41" stroke="#30372d" stroke-width="3"/>
+  <circle cx="709" cy="217" r="10" fill="#e4dcc1"/>
+  <path d="M709 220l4-10m11 5h17m-17 7h17" stroke="#5b523c" stroke-width="2"/>
+  <path d="M944 197h158v102H944z" fill="#354035" stroke="#28332b" stroke-width="5"/>
+  <path d="M949 225h148m-148 35h148m-148 35h148" stroke="#a08c67" stroke-width="4"/>
+  <use href="#crate" transform="translate(959 198) scale(.56)"/>
+  <use href="#crate" transform="translate(1038 232) scale(.6)"/>
+  <use href="#crate" transform="translate(977 266) scale(.56)"/>
+  <path d="M94 556h178v61H94z" fill="#69523a" stroke="#302c22" stroke-width="5"/>
+  <path d="M99 560h168v38H99z" fill="#a7875d"/>
+  <path d="M116 567h56v22h-56z" fill="#c3b998" stroke="#766b51" stroke-width="2"/>
+  <path d="M199 585l28-18m-6 0h6v6" fill="none" stroke="#565d50" stroke-width="4"/>
+  <text x="600" y="130" text-anchor="middle" fill="#d7c9a4" font-family="Georgia, serif" font-size="19" letter-spacing="5">WHITE SANDS · ASSEMBLY</text>
+</svg>

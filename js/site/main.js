@@ -300,7 +300,7 @@ const fresh = () => {
 };
 bindRoom({
   again: () => {
-    startOver(localStorage);
+    startOver(localStorage, checkCheckpoint);
     newGame();
     fresh();
   },
@@ -309,7 +309,7 @@ bindRoom({
     return c ? where(c) : null;
   },
   restore: () => {
-    if (!swapBackup(localStorage)) return;
+    if (!swapBackup(localStorage, checkCheckpoint)) return;
     const c = readSave(localStorage, checkCheckpoint);
     if (c) newGame(c.seed, c);
     else newGame();

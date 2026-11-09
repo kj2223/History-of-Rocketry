@@ -31,6 +31,8 @@ const DW = 1200,
   DH = 760,
   FLOOR = 610;
 let hits = [];
+const whiteSandsBackdrop = typeof Image === 'undefined' ? null : new Image();
+if (whiteSandsBackdrop) whiteSandsBackdrop.src = new URL('./white-sands-hangar.svg', import.meta.url).href;
 
 // Which interior a room is drawn in, if any. The uncrewed blockhouse and dugout; the hangar in every era (Hangar S and
 // the Saturn's checkout in the crewed years); the simulator in the old training building at the Cape.
@@ -80,12 +82,29 @@ export function drawInterior(ctx, g, view, reserve = 0) {
 
 // Fills the canvas edge to edge, wall over floor, then moves into the design box.
 function room(ctx, s, wall, floor) {
-  ctx.fillStyle = wall;
-  ctx.fillRect(0, 0, s.w, s.oy + FLOOR * s.k);
+  const floorY = s.oy + FLOOR * s.k;
+  const wallLight = ctx.createLinearGradient(0, 0, 0, floorY);
+  wallLight.addColorStop(0, '#292a29');
+  wallLight.addColorStop(0.28, wall);
+  wallLight.addColorStop(0.84, wall);
+  wallLight.addColorStop(1, '#38352e');
+  ctx.fillStyle = wallLight;
+  ctx.fillRect(0, 0, s.w, floorY);
   ctx.fillStyle = floor;
-  ctx.fillRect(0, s.oy + FLOOR * s.k, s.w, s.h);
+  ctx.fillRect(0, floorY, s.w, s.h - floorY);
   ctx.fillStyle = 'rgba(0,0,0,.28)';
-  ctx.fillRect(0, s.oy + FLOOR * s.k, s.w, 8 * s.k);
+  ctx.fillRect(0, floorY - 8 * s.k, s.w, 8 * s.k);
+  ctx.fillStyle = 'rgba(247,225,181,.16)';
+  ctx.fillRect(0, floorY - 8 * s.k, s.w, s.k);
+  ctx.strokeStyle = 'rgba(14,12,10,.18)';
+  ctx.lineWidth = Math.max(1, s.k);
+  ctx.beginPath();
+  for (let i = -4; i <= 12; i++) {
+    const x = (i * s.w) / 8;
+    ctx.moveTo((x + s.w / 2) / 2, floorY);
+    ctx.lineTo(x, s.h);
+  }
+  ctx.stroke();
   ctx.translate(s.ox, s.oy);
   ctx.scale(s.k, s.k);
 }
@@ -806,8 +825,16 @@ function drawHangar(ctx, g, s) {
   const crewed = g.crewed,
     t = g.time,
     apollo = crewed && programOf() === 'apollo';
-  room(ctx, s, crewed ? '#d9d7d0' : '#3d3f43', crewed ? '#c9c6bc' : '#6b6a66');
-  if (crewed) {
+  const whiteSands = g.vehicle === 'wac';
+  room(
+    ctx,
+    s,
+    crewed ? '#d9d7d0' : whiteSands ? '#222827' : '#3d3f43',
+    crewed ? '#c9c6bc' : whiteSands ? '#39352f' : '#6b6a66',
+  );
+  if (whiteSands) {
+    if (whiteSandsBackdrop?.naturalWidth) ctx.drawImage(whiteSandsBackdrop, 0, 0, DW, DH);
+  } else if (crewed) {
     // Hangar S: white walls, a clean floor, the maker's banner
     ctx.fillStyle = '#e8e6df';
     ctx.fillRect(-2000, 0, 5000, 60);
@@ -909,14 +936,13 @@ function drawHangar(ctx, g, s) {
   const actionable = g.room === 'inspect' || g.room === 'checkout';
   const ids = crewed ? capsuleSpots() : Object.keys(kit().spots);
   const spots = KITS[g.vehicle]?.spots || {};
-  const seenOf = id =>
-    crewed
-      ? (g.mission?.checkout?.[id]?.text ?? null)
-      : g.looked[id] == null
-        ? null
-        : g.looked[id]
-          ? spots[id].cue
-          : spots[id].sound;
+  const fittingFixed = g.vehicle === 'wac' && g.decided.leakFixed === spots.fitting.name;
+  const seenOf = id => {
+    if (crewed) return g.mission?.checkout?.[id]?.text ?? null;
+    if (id === 'fitting' && fittingFixed) return 'Leak check found and fixed the leak at this fitting.';
+    if (g.looked[id] == null) return null;
+    return g.looked[id] ? spots[id].cue : spots[id].sound;
+  };
   const flaggedOf = id => (crewed ? !!g.mission?.flags?.[id] : !!inspectFlags()[id]);
   const act = crewed ? 'eng-look' : 'look';
   const list = ids
@@ -955,39 +981,112 @@ function drawHangar(ctx, g, s) {
   const people = inside(g, 'hangar').filter(p => p.id !== 'you' || !actionable);
   people.forEach((p, i) => {
     const x = 140 + ((i + 0.5) / Math.max(1, people.length)) * 920;
-    heads.push([p, x, standing(ctx, x, p, t, 3)]);
+    heads.push([p, x, whiteSands ? hangarTechnician(ctx, x, 590 + (i % 2) * 31, p) : standing(ctx, x, p, t, 3)]);
   });
   for (const args of tagQueue) drawTag(...args);
   bubbles(ctx, heads);
 }
 
-// The round lying on its side, nose to the right, on cradles; a tag for each spot with a line to where it is on her.
+function hangarTechnician(ctx, x, y, person) {
+  ctx.fillStyle = 'rgba(20,24,18,.48)';
+  ctx.beginPath();
+  ctx.ellipse(x + 5, y + 11, 27, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = person.color;
+  ctx.strokeStyle = '#30372c';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(x - 20, y - 13, 40, 29, 9);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#bd9875';
+  ctx.beginPath();
+  ctx.arc(x, y - 13, 11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = person.hat || '#57493b';
+  ctx.fillRect(x - 10, y - 19, 20, 8);
+  if (person.id === 'you') youMark(ctx, x, y - 37);
+  return y - 39;
+}
+
+// The round lies on cradles with its nose to the left, as in the site hangar.
 function drawRoundOnCradles(ctx, g, s, list, seenOf, flaggedOf, actionable, act) {
   const [len0, half] = SHAPE[g.vehicle] || [100, 10];
   const mated = !!g.rocket.mated,
     len = (g.vehicle === 'wac' || g.vehicle === 'aerobee') && mated ? 86 : g.vehicle === 'bumper' && mated ? 160 : len0;
   const k = Math.min(940 / len, 120 / half),
-    x0 = 600 - (len * k) / 2,
+    tailX = 600 + (len * k) / 2,
     cy = 410;
   // Cradles under her, then the round itself.
   const steel = g.crewed ? '#8a8f96' : '#6a5a44';
   for (const f of [0.15, 0.5, 0.85]) {
-    const cx = x0 + f * len * k;
+    const cx = tailX - f * len * k;
     ctx.fillStyle = steel;
-    ctx.fillRect(cx - 24, cy + Math.min(half * k, 60) * 0.6, 48, FLOOR - cy);
-    ctx.fillRect(cx - 40, FLOOR - 10, 80, 10);
+    if (g.vehicle === 'wac') {
+      ctx.fillRect(cx - 18, cy - 54, 36, 108);
+      ctx.fillStyle = '#9a7950';
+      ctx.fillRect(cx - 24, cy - 55, 48, 7);
+      ctx.fillRect(cx - 24, cy + 48, 48, 7);
+    } else {
+      ctx.fillRect(cx - 24, cy + Math.min(half * k, 60) * 0.6, 48, FLOOR - cy);
+      ctx.fillRect(cx - 40, FLOOR - 10, 80, 10);
+    }
   }
   ctx.save();
-  ctx.translate(x0, cy);
+  ctx.translate(tailX, cy);
   ctx.scale(k, k);
-  roundShape(ctx, g, 0, 0, Math.PI / 2, mated);
+  roundShape(ctx, g, 0, 0, -Math.PI / 2, mated);
   ctx.restore();
+  const fittingX = tailX - ((mated ? 26 : 0) + 21) * k;
+  if (g.vehicle === 'wac') {
+    const light = ctx.createRadialGradient(fittingX, cy - 18, 8, fittingX, cy - 18, 158);
+    light.addColorStop(0, 'rgba(255,213,143,.28)');
+    light.addColorStop(1, 'rgba(255,213,143,0)');
+    ctx.fillStyle = light;
+    ctx.fillRect(fittingX - 158, cy - 176, 316, 316);
+    ctx.strokeStyle = '#35382e';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(fittingX + 94, cy - 62);
+    ctx.lineTo(fittingX + 66, cy - 94);
+    ctx.lineTo(fittingX + 29, cy - 69);
+    ctx.stroke();
+    ctx.fillStyle = '#d2aa64';
+    ctx.fillRect(fittingX + 16, cy - 71, 22, 10);
+    ctx.fillStyle = '#b4aa94';
+    ctx.fillRect(fittingX - 21, cy - 19, 42, 35);
+    const fixed = g.decided.leakFixed === kit().spots.fitting.name;
+    if (g.looked.fitting != null && !fixed) {
+      ctx.fillStyle = '#323737';
+      ctx.fillRect(fittingX - 18, cy - 16, 36, 29);
+      ctx.strokeStyle = '#c79b63';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(fittingX - 16, cy + 3);
+      ctx.lineTo(fittingX - 7, cy + 3);
+      ctx.lineTo(fittingX - 7, cy - 5);
+      ctx.lineTo(fittingX + 17, cy - 5);
+      ctx.stroke();
+      ctx.fillStyle = '#ead4a6';
+      ctx.fillRect(fittingX - 2, cy - 9, 8, 8);
+      if (g.looked.fitting) {
+        ctx.fillStyle = '#698744';
+        ctx.beginPath();
+        ctx.ellipse(fittingX + 3, cy + 13, 4, 12, -0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (fixed) {
+      ctx.fillStyle = '#eee2b8';
+      ctx.fillRect(fittingX + 15, cy - 19, 3, 8);
+    }
+  }
   ctx.fillStyle = 'rgba(0,0,0,.2)';
   ctx.beginPath();
-  ctx.ellipse(600, FLOOR + 6, (len * k) / 2, 10, 0, 0, 7);
+  if (g.vehicle !== 'wac') ctx.ellipse(600, FLOOR + 6, (len * k) / 2, 10, 0, 0, 7);
   ctx.fill();
   list.forEach((sp, i) => {
-    const bx = x0 + sp.f * len * k,
+    const bx = g.vehicle === 'wac' && sp.id === 'fitting' ? fittingX : tailX - sp.f * len * k,
       up = i % 2 === 0;
     tag(ctx, s, sp, bx, cy, up ? 230 : 520, seenOf(sp.id), flaggedOf(sp.id), actionable, act);
   });

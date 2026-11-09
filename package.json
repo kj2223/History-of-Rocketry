@@ -2,7 +2,7 @@
   "name": "ad-astra",
   "productName": "Ad Astra",
   "version": "0.5.5",
-  "description": "A management game about the American space programme",
+  "description": "A side-scrolling game about the American space programme, from White Sands to Artemis",
   "type": "module",
   "main": "desktop/main.js",
   "scripts": {
@@ -12,7 +12,8 @@
   },
   "devDependencies": {
     "electron": "^45.2.3",
-    "electron-builder": "^26.18.0"
+    "electron-builder": "^26.18.0",
+    "prettier": "3.9.10"
   },
   "build": {
     "appId": "com.kj2223.projectvanguard",

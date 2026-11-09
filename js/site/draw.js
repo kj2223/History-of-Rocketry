@@ -67,27 +67,44 @@ export function shadeRight(ctx, x, y, w, h, k = 0.1) {
 }
 
 function paintGround(c, g) {
-  const cape = g.site === 'cape';
+  const cape = g.site === "cape";
+  // Broken sediment lines and stones, baked with the rest of the site.
+  for (let x = 12; x < WORLD_W + 400; x += 23) {
+    const y = GROUND + 6 + ((x * 13) % (VIEW_H - GROUND - 8));
+    const length = 8 + ((x * 7) % 27);
+    c.fillStyle = cape ? "rgba(112,102,74,.12)" : "rgba(109,78,45,.14)";
+    c.fillRect(x, y, length, 1);
+    c.fillRect(x + length + 4, y + 2, 3, 2);
+    c.fillStyle = "rgba(255,247,221,.21)";
+    c.fillRect(x + 2, y - 1, length - 3, 1);
+  }
   // Scrub along the desert floor, or sea grass on the Cape's sand.
-  c.fillStyle = cape ? '#7f9a52' : '#9c9c62';
+  c.fillStyle = cape ? "#7f9a52" : "#9c9c62";
   for (let x = 40; x < WORLD_W + 400; x += 97) {
     const y = GROUND + 12 + ((x * 7) % 50);
     c.fillRect(x, y, 6, 3);
     c.fillRect(x + 2, y - 3, 2, 3);
   }
   // Stones and pale patches on the sand, placed from x so they never change between frames.
-  c.fillStyle = 'rgba(120,100,70,.3)';
+  c.fillStyle = "rgba(120,100,70,.3)";
   for (let x = 60; x < WORLD_W + 400; x += 173) {
     c.beginPath();
-    c.arc(x + ((x * 13) % 44), GROUND + 16 + ((x * 7) % 40), 1.6 + (x % 3), 0, 7);
+    c.arc(
+      x + ((x * 13) % 44),
+      GROUND + 16 + ((x * 7) % 40),
+      1.6 + (x % 3),
+      0,
+      7,
+    );
     c.fill();
   }
-  c.fillStyle = 'rgba(255,244,214,.25)';
-  for (let x = 110; x < WORLD_W + 400; x += 240) c.fillRect(x, GROUND + 8 + ((x * 3) % 44), 26 + (x % 20), 3);
+  c.fillStyle = "rgba(255,244,214,.25)";
+  for (let x = 110; x < WORLD_W + 400; x += 240)
+    c.fillRect(x, GROUND + 8 + ((x * 3) % 44), 26 + (x % 20), 3);
   // The road out to the range, with wheel ruts.
-  c.fillStyle = '#c3a87c';
+  c.fillStyle = "#c3a87c";
   c.fillRect(0, GROUND + 30, WORLD_W + 400, 8);
-  c.fillStyle = 'rgba(120,100,70,.25)';
+  c.fillStyle = "rgba(120,100,70,.25)";
   c.fillRect(0, GROUND + 32, WORLD_W + 400, 1);
   c.fillRect(0, GROUND + 35, WORLD_W + 400, 1);
 }
@@ -554,26 +571,49 @@ export function drawSite(ctx, g, view) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, vw, GROUND);
   skyDressing(ctx, g, vw, camX);
-  const cape = g.site === 'cape';
+  const cape = g.site === "cape";
   if (cape) {
     // The Atlantic on the horizon, flat as a table, and a line of palmettos and scrub behind the pads.
-    ctx.fillStyle = '#3f6f8f';
+    const sea = ctx.createLinearGradient(0, 440, 0, 488);
+    sea.addColorStop(0, "#61869a");
+    sea.addColorStop(0.55, "#436e88");
+    sea.addColorStop(1, "#385d72");
+    ctx.fillStyle = sea;
     ctx.fillRect(0, 440, vw, GROUND - 440);
-    ctx.fillStyle = 'rgba(255,255,255,.25)';
-    for (let x = (-camX * 0.2) % 70; x < vw; x += 70) ctx.fillRect(x, 452 + ((x * 3) % 20), 26, 2);
-    ctx.fillStyle = '#5b7a3c';
+    ctx.fillStyle = "rgba(255,255,255,.25)";
+    for (let x = (-camX * 0.2) % 70; x < vw; x += 70)
+      ctx.fillRect(x, 452 + ((x * 3) % 20), 26, 2);
+    ctx.fillStyle = "#5b7a3c";
     ctx.fillRect(0, 488, vw, GROUND - 488);
     for (let x = (-camX * 0.4) % 140; x < vw + 140; x += 140) palm(ctx, x, 492);
   } else {
     // The Organ Mountains, far off, moving slowly behind the site.
-    mountains(ctx, camX * 0.15, vw, '#8d86a0', 380, [0, 60, 30, 120, 70, 150, 40, 90, 20]);
-    mountains(ctx, camX * 0.3, vw, '#a99a8c', 440, [10, 40, 25, 60, 15, 50, 35, 20, 45]);
+    mountains(
+      ctx,
+      camX * 0.15,
+      vw,
+      "#8d86a0",
+      380,
+      [0, 60, 30, 120, 70, 150, 40, 90, 20],
+    );
+    mountains(
+      ctx,
+      camX * 0.3,
+      vw,
+      "#a99a8c",
+      440,
+      [10, 40, 25, 60, 15, 50, 35, 20, 45],
+    );
   }
   horizonHaze(ctx, g, vw);
   // The ground itself reaches past the world edge, so the pan never shows sky underfoot.
-  ctx.fillStyle = cape ? '#e4d8b4' : '#d9c39a';
+  const sand = ctx.createLinearGradient(0, GROUND, 0, VIEW_H);
+  sand.addColorStop(0, cape ? "#e4d8b4" : "#d9c39a");
+  sand.addColorStop(0.55, cape ? "#d9caa0" : "#d3b88c");
+  sand.addColorStop(1, cape ? "#c8b88d" : "#bc9d73");
+  ctx.fillStyle = sand;
   ctx.fillRect(0, GROUND, vw, VIEW_H - GROUND);
-  ctx.fillStyle = cape ? '#d3c597' : '#cdb489';
+  ctx.fillStyle = cape ? "#d3c597" : "#cdb489";
   ctx.fillRect(0, GROUND, vw, 5);
   // The baked static layer, blitted in world space.
   const key = staticSignature(g);
@@ -587,26 +627,38 @@ export function drawSite(ctx, g, view) {
   signLettering(ctx, g);
   hangarRack(ctx, g);
   if (!g.crewed && g.standFlame > 0)
-    flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
+    flame(
+      ctx,
+      PLACES.stand.x + 60,
+      GROUND - 40,
+      g.standFlame,
+      Math.PI / 2,
+      g.time,
+      1.4,
+    );
   if (g.crewed) controlScreens(ctx, g);
   rocketOnSite(ctx, g);
-  for (const p of Object.values(g.people)) if (!p.hidden) person(ctx, p, g.time);
+  for (const p of Object.values(g.people))
+    if (!p.hidden) person(ctx, p, g.time);
   truck(ctx, g.truck.x, g);
-  if (g.rocket.where === 'truck') rocketOnTruck(ctx, g);
+  if (g.rocket.where === "truck") rocketOnTruck(ctx, g);
   for (const job of g.jobs) jobBar(ctx, job);
   launchSmoke(ctx, g);
   truckDust(ctx, g);
   for (const p of Object.values(g.people))
-    if (!p.hidden && p.bubble) bubble(ctx, p.x, GROUND - 44, p.bubble.text, p.bubble.tone);
+    if (!p.hidden && p.bubble)
+      bubble(ctx, p.x, GROUND - 44, p.bubble.text, p.bubble.tone);
   if (g.marker != null) {
-    ctx.fillStyle = 'rgba(255,240,180,.8)';
+    ctx.fillStyle = "rgba(255,240,180,.8)";
     ctx.fillRect(g.marker - 3, GROUND + 2, 6, 3);
   }
   // Building names on hover.
   if (g.hover)
     label(
       ctx,
-      g.hover.room === 'truck' && !g.crewed ? { ...g.hover, name: SITES[g.site || 'white-sands'].truck } : g.hover,
+      g.hover.room === "truck" && !g.crewed
+        ? { ...g.hover, name: SITES[g.site || "white-sands"].truck }
+        : g.hover,
     );
   ctx.restore();
   // Night falls as a fade.
@@ -803,22 +855,32 @@ function mercuryControl(ctx, p) {
 // The hangar's structure is static (baked); what sits on its rack changes with the round and is drawn per frame.
 function hangarStructure(ctx, p) {
   // A quonset-style hangar, cut away to show the floor.
-  ctx.fillStyle = '#8c8f93';
+  ctx.fillStyle = "#8c8f93";
   ctx.beginPath();
   ctx.moveTo(p.x, GROUND);
   ctx.lineTo(p.x, GROUND - p.h + 40);
-  ctx.quadraticCurveTo(p.x + p.w / 2, GROUND - p.h - 40, p.x + p.w, GROUND - p.h + 40);
+  ctx.quadraticCurveTo(
+    p.x + p.w / 2,
+    GROUND - p.h - 40,
+    p.x + p.w,
+    GROUND - p.h + 40,
+  );
   ctx.lineTo(p.x + p.w, GROUND);
   ctx.fill();
   shadeRight(ctx, p.x, GROUND - p.h + 40, p.w, p.h - 40, 0.06);
-  ctx.fillStyle = '#3d3f43';
+  ctx.fillStyle = "#3d3f43";
   ctx.beginPath();
   ctx.moveTo(p.x + 12, GROUND);
   ctx.lineTo(p.x + 12, GROUND - p.h + 46);
-  ctx.quadraticCurveTo(p.x + p.w / 2, GROUND - p.h - 22, p.x + p.w - 12, GROUND - p.h + 46);
+  ctx.quadraticCurveTo(
+    p.x + p.w / 2,
+    GROUND - p.h - 22,
+    p.x + p.w - 12,
+    GROUND - p.h + 46,
+  );
   ctx.lineTo(p.x + p.w - 12, GROUND);
   ctx.fill();
-  ctx.strokeStyle = '#55585d';
+  ctx.strokeStyle = "#55585d";
   ctx.lineWidth = 2;
   for (let i = 1; i < 6; i++) {
     const x = p.x + (p.w * i) / 6;
@@ -828,7 +890,7 @@ function hangarStructure(ctx, p) {
     ctx.stroke();
   }
   // A thin highlight along the left of each rib, so the corrugation reads.
-  ctx.strokeStyle = '#83868b';
+  ctx.strokeStyle = "#83868b";
   ctx.lineWidth = 1;
   for (let i = 1; i < 6; i++) {
     const x = p.x + (p.w * i) / 6 - 2;
@@ -837,10 +899,21 @@ function hangarStructure(ctx, p) {
     ctx.lineTo(x, GROUND - p.h + 22);
     ctx.stroke();
   }
+  ctx.fillStyle = "#292c31";
+  ctx.fillRect(p.x + 12, GROUND - 12, p.w - 24, 12);
+  ctx.fillStyle = "#717478";
+  ctx.fillRect(p.x + 12, GROUND - 13, p.w - 24, 1);
+  ctx.fillStyle = "#a3a2a0";
+  for (let i = 1; i < 6; i++) {
+    const x = p.x + (p.w * i) / 6;
+    for (let y = GROUND - p.h + 48; y < GROUND - 15; y += 18)
+      ctx.fillRect(x - 2, y, 2, 2);
+  }
   // Hanging lamps, with a soft cone of light on the floor below each.
-  ctx.fillStyle = '#f3dd8a';
-  for (let i = 1; i < 4; i++) ctx.fillRect(p.x + (p.w * i) / 4 - 5, GROUND - p.h + 40, 10, 4);
-  ctx.fillStyle = 'rgba(243,221,138,.10)';
+  ctx.fillStyle = "#f3dd8a";
+  for (let i = 1; i < 4; i++)
+    ctx.fillRect(p.x + (p.w * i) / 4 - 5, GROUND - p.h + 40, 10, 4);
+  ctx.fillStyle = "rgba(243,221,138,.10)";
   for (let i = 1; i < 4; i++) {
     const lx = p.x + (p.w * i) / 4;
     ctx.beginPath();
@@ -851,11 +924,11 @@ function hangarStructure(ctx, p) {
     ctx.fill();
   }
   // Work benches and the booster on its rack.
-  ctx.fillStyle = '#6a5a44';
+  ctx.fillStyle = "#6a5a44";
   ctx.fillRect(p.x + 30, GROUND - 22, 70, 4);
   ctx.fillRect(p.x + 34, GROUND - 18, 3, 18);
   ctx.fillRect(p.x + 94, GROUND - 18, 3, 18);
-  ctx.fillStyle = 'rgba(40,32,20,.2)';
+  ctx.fillStyle = "rgba(40,32,20,.2)";
   ctx.fillRect(p.x + 12, GROUND - 3, p.w - 24, 3); // shadow along the floor
 }
 
@@ -1175,30 +1248,36 @@ function rocketOnTruck(ctx, g) {
 // The shape of the current vehicle, drawn from its tail at (x, y) along angle (0 = straight up). One dispatch, shared by
 // the site, the truck and the television in Mercury Control.
 export function roundShape(ctx, g, x, y, angle, mated) {
-  const wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
-  return g.vehicle === 'redstone'
+  const wac = g.vehicle === "wac" || g.vehicle === "aerobee";
+  if (g.vehicle === "sls" || g.vehicle === "dragon")
+    return modernLauncher(ctx, x, y, angle, g.vehicle);
+  return g.vehicle === "redstone"
     ? mercuryRedstoneShape(ctx, x, y, angle, g.rocket.padAbort)
-    : g.vehicle === 'atlas'
+    : g.vehicle === "atlas"
       ? mercuryAtlasShape(ctx, x, y, angle)
-      : g.vehicle === 'titan'
+      : g.vehicle === "titan"
         ? geminiTitanShape(ctx, x, y, angle)
-        : g.vehicle === 'shuttle'
+        : g.vehicle === "shuttle"
           ? shuttleShape(ctx, x, y, angle)
-          : g.vehicle === 'saturn5' || g.vehicle === 'saturnib' || g.vehicle === 'sls'
+          : g.vehicle === "saturn5" || g.vehicle === "saturnib"
             ? saturnVShape(ctx, x, y, angle)
-            : g.vehicle === 'dragon'
-              ? vanguardShape(ctx, x, y, angle)
-              : wac
-                ? wacShape(ctx, x, y, angle, mated)
-                : g.vehicle === 'vanguard'
-                  ? vanguardShape(ctx, x, y, angle)
-                  : g.vehicle === 'juno'
-                    ? junoShape(ctx, x, y, angle)
-                    : g.vehicle === 'ranger'
-                      ? atlasAgenaShape(ctx, x, y, angle)
-                      : g.vehicle === 'viking'
-                        ? vikingShape(ctx, x, y, angle)
-                        : v2Shape(ctx, x, y, angle, mated && g.vehicle === 'bumper');
+            : wac
+              ? wacShape(ctx, x, y, angle, mated)
+              : g.vehicle === "vanguard"
+                ? vanguardShape(ctx, x, y, angle)
+                : g.vehicle === "juno"
+                  ? junoShape(ctx, x, y, angle)
+                  : g.vehicle === "ranger"
+                    ? atlasAgenaShape(ctx, x, y, angle)
+                    : g.vehicle === "viking"
+                      ? vikingShape(ctx, x, y, angle)
+                      : v2Shape(
+                          ctx,
+                          x,
+                          y,
+                          angle,
+                          mated && g.vehicle === "bumper",
+                        );
 }
 
 // The launch smoke, drawn over the site while she is still low enough to be in it.
@@ -1635,19 +1714,27 @@ export function drawControlRoom(ctx, g, view) {
     c = g.console;
   const wallH = Math.round(h * 0.56);
   // Paint the whole canvas first: no frame of the site may survive behind the room.
-  ctx.fillStyle = '#14171c';
+  ctx.fillStyle = "#14171c";
   ctx.fillRect(0, 0, w, h);
   // The room between two side walls: the server bank on the left, the viewing gallery on the right.
   const leftW = w * 0.055,
     galleryX = w * 0.87;
   // The back wall, and the floor.
-  ctx.fillStyle = '#262a31';
+  ctx.fillStyle = "#262a31";
   ctx.fillRect(leftW, 0, galleryX - leftW, wallH);
-  ctx.fillStyle = 'rgba(255,255,255,.04)';
+  ctx.fillStyle = "rgba(255,255,255,.04)";
   for (let x = leftW; x < galleryX; x += 90) ctx.fillRect(x, 0, 2, wallH);
-  ctx.fillStyle = '#3d3a33';
+  const carpet = ctx.createLinearGradient(0, wallH, 0, h);
+  carpet.addColorStop(0, "#33322e");
+  carpet.addColorStop(0.4, "#454137");
+  carpet.addColorStop(1, "#302f2b");
+  ctx.fillStyle = carpet;
   ctx.fillRect(leftW, wallH, galleryX - leftW, h - wallH);
-  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.fillStyle = "rgba(232,221,189,.08)";
+  for (const depth of [0.12, 0.29, 0.52, 0.82]) {
+    ctx.fillRect(leftW, wallH + depth * (h - wallH), galleryX - leftW, 1);
+  }
+  ctx.fillStyle = "rgba(0,0,0,.3)";
   ctx.fillRect(leftW, wallH, galleryX - leftW, 6);
   // The front wall is filled edge to edge: the big map on the left, the pad on television and the monitoring screen
   // stacked beside it out to the gallery, the clocks across the full width under them, and the loop's board below that
@@ -1659,32 +1746,57 @@ export function drawControlRoom(ctx, g, view) {
     tvW = wallR - tvX,
     tvY = wallH * 0.05,
     tvH = wallH * 0.3;
-  ctx.fillStyle = '#181b1f';
+  ctx.fillStyle = "#181b1f";
   ctx.fillRect(tvX - 6, tvY - 6, tvW + 12, tvH + 12);
   padPicture(ctx, g, tvX, tvY, tvW, tvH);
-  ctx.fillStyle = 'rgba(0,0,0,.18)';
+  ctx.fillStyle = "rgba(0,0,0,.18)";
   for (let y = tvY + 5; y < tvY + tvH; y += 6) ctx.fillRect(tvX, y, tvW, 2);
   monitorScreen(ctx, g, tvX, wallH * 0.39, tvW, wallH * 0.26);
   clocksStrip(ctx, g, wallL, wallH * 0.69, wallR - wallL, wallH * 0.09);
-  ctx.fillStyle = '#1b1f25';
-  ctx.fillRect(wallL - 4, wallH * 0.81 - 4, wallR - wallL + 8, wallH * 0.17 + 8);
+  ctx.fillStyle = "#1b1f25";
+  ctx.fillRect(
+    wallL - 4,
+    wallH * 0.81 - 4,
+    wallR - wallL + 8,
+    wallH * 0.17 + 8,
+  );
   // The side walls: racks of equipment, and the gallery beyond the glass.
   serverBank(ctx, 0, 0, leftW, h, g);
   viewingGallery(ctx, galleryX, 0, w - galleryX, h, g);
   // Your console, drawn into the room below the gallery: clocks, readouts, and the calls that are yours.
   const panelY = h * 0.05 + h * 0.12 + Math.max(10, h * 0.025);
-  drawConsolePanel(ctx, g, galleryX + 6, panelY, w - galleryX - 12, h - panelY - 12);
+  drawConsolePanel(
+    ctx,
+    g,
+    galleryX + 6,
+    panelY,
+    w - galleryX - 12,
+    h - panelY - 12,
+  );
   // Two rows fill the floor, sized to the room and clear of your panel: the named controllers at the back, and the
   // working stations at the front with your wide console in the middle of them.
   const floor = h - wallH,
     rowRight = galleryX - w * 0.01,
     rowMid = (leftW + rowRight) / 2,
     availW = rowRight - leftW - 40;
-  const back = ['hollis', 'dorsey', 'albrecht', 'tate', 'morgan', 'reyes', 'vega', 'kessler'].filter(
-    id => g.people[id] && !g.people[id].hidden,
-  );
+  const back = [
+    "hollis",
+    "dorsey",
+    "albrecht",
+    "tate",
+    "morgan",
+    "reyes",
+    "vega",
+    "kessler",
+  ].filter((id) => g.people[id] && !g.people[id].hidden);
   const backGap = 16,
-    backK = Math.max(0.55, Math.min(1.25, (availW - (back.length - 1) * backGap) / (back.length * 190)));
+    backK = Math.max(
+      0.55,
+      Math.min(
+        1.25,
+        (availW - (back.length - 1) * backGap) / (back.length * 190),
+      ),
+    );
   const bSpan = back.length * 190 * backK + (back.length - 1) * backGap;
   back.forEach((id, i) =>
     consoleDesk(
@@ -1699,14 +1811,27 @@ export function drawControlRoom(ctx, g, view) {
       STATION_DUTY[id],
     ),
   );
-  const front = [['capcom'], ['fido'], null, ['surgeon'], ['guidance']],
+  const front = [["capcom"], ["fido"], null, ["surgeon"], ["guidance"]],
     frontGap = 24;
-  const frontK = Math.max(0.55, Math.min(1.4, (availW - 4 * frontGap) / (4 * 190 + 460)));
+  const frontK = Math.max(
+    0.55,
+    Math.min(1.4, (availW - 4 * frontGap) / (4 * 190 + 460)),
+  );
   let fx = rowMid - ((4 * 190 + 460) * frontK + 4 * frontGap) / 2;
   const frontY = wallH + floor * 0.6;
   for (const seat of front) {
     if (seat) {
-      consoleDesk(ctx, fx, frontY, frontK, { color: '#4a5568' }, seat[0].toUpperCase(), c, false, seat[0]);
+      consoleDesk(
+        ctx,
+        fx,
+        frontY,
+        frontK,
+        { color: "#4a5568" },
+        seat[0].toUpperCase(),
+        c,
+        false,
+        seat[0],
+      );
       fx += 190 * frontK + frontGap;
     } else {
       consoleDesk(
@@ -1715,15 +1840,15 @@ export function drawControlRoom(ctx, g, view) {
         frontY,
         frontK,
         g.people.you,
-        'YOU · ' + (g.people.you.role || '').toUpperCase(),
+        "YOU · " + (g.people.you.role || "").toUpperCase(),
         c,
         true,
-        SEAT_DUTY[g.record.seat] || 'flight',
+        SEAT_DUTY[g.record.seat] || "flight",
       );
       fx += 460 * frontK + frontGap;
     }
   }
-  ctx.textAlign = 'left';
+  ctx.textAlign = "left";
 }
 
 // ---- Your console, drawn into the room: the clocks, readouts and calls that are yours, on the panel under the
@@ -2110,7 +2235,7 @@ export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
       py = y + 2;
     ctx.fillStyle = who.color;
     ctx.fillRect(px - 14 * k, py - 27 * k, 28 * k, 27 * k);
-    ctx.fillStyle = '#e2b993';
+    ctx.fillStyle = "#e2b993";
     ctx.beginPath();
     ctx.arc(px, py - 33 * k, 8 * k, 0, 7);
     ctx.fill();
@@ -2119,21 +2244,29 @@ export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
       ctx.fillRect(px - 10 * k, py - 40 * k, 20 * k, 4 * k);
     }
   }
-  ctx.fillStyle = '#4b5258';
+  const enamel = ctx.createLinearGradient(0, y, 0, y + dh);
+  enamel.addColorStop(0, "#5c646a");
+  enamel.addColorStop(0.75, "#414950");
+  enamel.addColorStop(1, "#343a40");
+  ctx.fillStyle = enamel;
   ctx.fillRect(x, y, dw, dh);
-  ctx.fillStyle = '#565d66';
+  ctx.fillStyle = "#565d66";
   ctx.fillRect(x, y, dw, 10 * k);
   shadeRight(ctx, x, y, dw, dh, 0.08);
   // Two screens, one line each, clipped to the glass so nothing spills off the console. Yours is a wide four-screen desk.
   const [a, b, tone] = duty ? stationReadout(duty, c) : controlReadout(c);
-  const ink = tone === 'bad' ? '#d0634f' : tone === 'warn' ? '#e8c66a' : '#9fdc9a';
-  const lastTrace = c && c.trace && c.trace.length ? c.trace[c.trace.length - 1] : null;
+  const ink =
+    tone === "bad" ? "#d0634f" : tone === "warn" ? "#e8c66a" : "#9fdc9a";
+  const lastTrace =
+    c && c.trace && c.trace.length ? c.trace[c.trace.length - 1] : null;
   const lines = yours
     ? [
         a,
         b,
-        lastTrace ? lastTrace.v.toFixed(2) + ' km/s' : '0.00 km/s',
-        lastTrace ? (lastTrace.off >= 0 ? '+' : '') + lastTrace.off.toFixed(1) + '° OFF' : '0.0° OFF',
+        lastTrace ? lastTrace.v.toFixed(2) + " km/s" : "0.00 km/s",
+        lastTrace
+          ? (lastTrace.off >= 0 ? "+" : "") + lastTrace.off.toFixed(1) + "° OFF"
+          : "0.0° OFF",
       ]
     : [a, b];
   const screens = yours
@@ -2152,32 +2285,40 @@ export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
       sy = y + 16 * k,
       sw = (yours ? 105 : 74) * k,
       sh = 30 * k;
-    ctx.fillStyle = '#0d1117';
+    ctx.fillStyle = "#0d1117";
+    ctx.fillRect(sx - 2 * k, sy - 2 * k, sw + 4 * k, sh + 4 * k);
+    const glass = ctx.createLinearGradient(0, sy, 0, sy + sh);
+    glass.addColorStop(0, "#243139");
+    glass.addColorStop(0.35, "#161e24");
+    glass.addColorStop(1, "#10161a");
+    ctx.fillStyle = glass;
     ctx.fillRect(sx, sy, sw, sh);
+    ctx.fillStyle = "rgba(178,200,197,.14)";
+    ctx.fillRect(sx + 2 * k, sy + 2 * k, sw - 4 * k, k);
     ctx.save();
     ctx.beginPath();
     ctx.rect(sx, sy, sw, sh);
     ctx.clip();
     ctx.fillStyle = ink;
     ctx.font = `${Math.max(8, Math.round(9 * k))}px monospace`;
-    ctx.textAlign = 'left';
+    ctx.textAlign = "left";
     ctx.fillText(text, sx + 5 * k, sy + 19 * k);
     ctx.restore();
   }
-  ctx.fillStyle = '#c9d2da';
+  ctx.fillStyle = "#c9d2da";
   ctx.font = `${Math.max(7, Math.round(8 * k))}px sans-serif`;
   ctx.fillText(label, x + 10 * k, y + dh - 6 * k);
   if (yours) {
     // your mark: the gold chevron, like the one you wear on the site
     const px = x + dw / 2,
       py = y - 44 * k;
-    ctx.fillStyle = '#e8c66a';
+    ctx.fillStyle = "#e8c66a";
     ctx.beginPath();
     ctx.moveTo(px - 7 * k, py);
     ctx.lineTo(px + 7 * k, py);
     ctx.lineTo(px, py - 7 * k);
     ctx.fill();
-    ctx.strokeStyle = '#e8c66a';
+    ctx.strokeStyle = "#e8c66a";
     ctx.lineWidth = 2;
     ctx.strokeRect(x + 3, y + 1, dw - 6, dh - 4);
   }
@@ -2460,6 +2601,62 @@ export function shuttleShape(ctx, x, y, angle) {
 }
 
 // The Saturn V: three white stages with black roll bands, the lander's adapter, the command module and its escape tower.
+// The late campaign's stacks share a paint treatment, with their own proportions and hardware.
+function modernLauncher(ctx, x, y, angle, vehicle) {
+  const sls = vehicle === "sls";
+  const half = sls ? 16 : 9;
+  const core = sls ? 244 : 150;
+  const upper = sls ? 310 : 205;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  const tank = ctx.createLinearGradient(-half, 0, half, 0);
+  tank.addColorStop(0, sls ? "#925438" : "#a7adb0");
+  tank.addColorStop(0.35, sls ? "#d69960" : "#f1efe8");
+  tank.addColorStop(1, sls ? "#a25a3c" : "#bcc0c0");
+  ctx.fillStyle = tank;
+  ctx.fillRect(-half, -core, half * 2, core - 8);
+  ctx.fillStyle = "#272c30";
+  ctx.fillRect(-half, -14, half * 2, 7);
+  ctx.fillStyle = "#e7e5dd";
+  ctx.fillRect(-half, -upper, half * 2, upper - core);
+  ctx.fillStyle = "#4c5155";
+  ctx.fillRect(-half, -core - 7, half * 2, 4);
+
+  ctx.fillStyle = "#f0eee6";
+  ctx.beginPath();
+  ctx.moveTo(-half, -upper);
+  ctx.lineTo(-half * 0.65, -upper - 12);
+  ctx.quadraticCurveTo(0, -upper - 31, half * 0.65, -upper - 12);
+  ctx.lineTo(half, -upper);
+  ctx.fill();
+  if (sls) {
+    ctx.fillStyle = "#d1d3cf";
+    ctx.fillRect(-2, -upper - 49, 4, 34);
+    for (const bx of [-30, 17]) {
+      ctx.fillStyle = "#e9e6dd";
+      ctx.beginPath();
+      ctx.moveTo(bx, -9);
+      ctx.lineTo(bx, -157);
+      ctx.lineTo(bx + 6.5, -174);
+      ctx.lineTo(bx + 13, -157);
+      ctx.lineTo(bx + 13, -9);
+      ctx.fill();
+      ctx.fillStyle = "#515554";
+      for (let y = -22; y >= -142; y -= 30) ctx.fillRect(bx, y, 13, 2);
+      ctx.fillRect(bx + 1, -10, 11, 6);
+    }
+  } else {
+    ctx.fillStyle = "#303943";
+    ctx.fillRect(-half, -upper - 2, half * 2, 2);
+    ctx.fillRect(-4, -upper - 12, 8, 3);
+    ctx.fillRect(-half - 2, -44, 2, 29);
+    ctx.fillRect(half, -44, 2, 29);
+  }
+  ctx.restore();
+}
+
 export function saturnVShape(ctx, x, y, angle) {
   ctx.save();
   ctx.translate(x, y);
@@ -2786,32 +2983,50 @@ export function drawTracking(ctx, g, view) {
     f = g.flight,
     path = f.result.path,
     upto = Math.min(path.length - 1, Math.floor(f.t));
-  ctx.fillStyle = '#0d1a14';
+  const phosphor = ctx.createRadialGradient(
+    w / 2,
+    h / 2,
+    0,
+    w / 2,
+    h / 2,
+    Math.max(w, h) * 0.7,
+  );
+  phosphor.addColorStop(0, "#152a20");
+  phosphor.addColorStop(1, "#09130f");
+  ctx.fillStyle = phosphor;
   ctx.fillRect(0, 0, w, h);
   // The plot's scale grows with the round: a WAC peaks near 70 km, a V-2 over 150, a Bumper several hundred.
   const deep = !!f.result.deep,
-    top = Math.max(80, deep ? 0 : g.round.estimate.high * 1.15, f.result.apogee * 1.1),
+    top = Math.max(
+      80,
+      deep ? 0 : g.round.estimate.high * 1.15,
+      f.result.apogee * 1.1,
+    ),
     hStep = niceStep(top);
   const range = f.result.range,
     maxH = Math.ceil(top / hStep) * hStep,
     xStep = range <= 40 ? 5 : range <= 120 ? 10 : niceStep(range * 1.1);
   const pad = 70,
     maxX = Math.max(30, Math.ceil(f.result.range / xStep) * xStep + xStep);
-  const px = x => pad + (x / maxX) * (w - pad * 2),
-    py = km => h - pad - (km / maxH) * (h - pad * 2);
-  ctx.strokeStyle = '#1f3b2d';
+  const px = (x) => pad + (x / maxX) * (w - pad * 2),
+    py = (km) => h - pad - (km / maxH) * (h - pad * 2);
+  ctx.strokeStyle = "#1f3b2d";
   ctx.lineWidth = 1;
-  ctx.font = '12px monospace';
-  ctx.fillStyle = '#5fae7f';
-  ctx.textAlign = 'right';
+  ctx.font = "12px monospace";
+  ctx.fillStyle = "#5fae7f";
+  ctx.textAlign = "right";
   for (let k = 0; k <= maxH; k += hStep) {
     ctx.beginPath();
     ctx.moveTo(pad, py(k));
     ctx.lineTo(w - pad, py(k));
     ctx.stroke();
-    ctx.fillText(k >= 10000 ? `${k / 1000}k km` : `${k} km`, pad - 8, py(k) + 4);
+    ctx.fillText(
+      k >= 10000 ? `${k / 1000}k km` : `${k} km`,
+      pad - 8,
+      py(k) + 4,
+    );
   }
-  ctx.textAlign = 'center';
+  ctx.textAlign = "center";
   for (let k = 0; k <= maxX; k += xStep) {
     ctx.beginPath();
     ctx.moveTo(px(k), py(0));
@@ -2819,14 +3034,18 @@ export function drawTracking(ctx, g, view) {
     ctx.stroke();
     ctx.fillText(`${k}`, px(k), h - pad + 18);
   }
-  ctx.fillText('km downrange', w / 2, h - pad + 36);
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#8fd6a8';
-  ctx.font = '14px monospace';
-  ctx.fillText(`${SITES[g.site || 'white-sands'].plot} · RANGE PLOT · ${KITS[g.vehicle].range}`, pad, 32);
+  ctx.fillText("km downrange", w / 2, h - pad + 36);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#8fd6a8";
+  ctx.font = "14px monospace";
+  ctx.fillText(
+    `${SITES[g.site || "white-sands"].plot} · RANGE PLOT · ${KITS[g.vehicle].range}`,
+    pad,
+    32,
+  );
   // The drawing office's estimate, faint (a lunar shot has none: she goes off the top of the board).
   if (!deep) {
-    ctx.strokeStyle = 'rgba(232,198,106,.35)';
+    ctx.strokeStyle = "rgba(232,198,106,.35)";
     ctx.setLineDash([6, 6]);
     ctx.beginPath();
     ctx.moveTo(px(0), py(g.round.estimate.low));
@@ -2835,10 +3054,14 @@ export function drawTracking(ctx, g, view) {
     ctx.lineTo(w - pad, py(g.round.estimate.high));
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(232,198,106,.6)';
-    ctx.fillText('drawing-office estimate', w - pad - 190, py(g.round.estimate.high) - 6);
+    ctx.fillStyle = "rgba(232,198,106,.6)";
+    ctx.fillText(
+      "drawing-office estimate",
+      w - pad - 190,
+      py(g.round.estimate.high) - 6,
+    );
   }
-  ctx.strokeStyle = '#9ff0b8';
+  ctx.strokeStyle = "#9ff0b8";
   ctx.lineWidth = 2;
   ctx.beginPath();
   for (let i = 0; i <= upto; i++) {
@@ -2847,18 +3070,20 @@ export function drawTracking(ctx, g, view) {
   }
   ctx.stroke();
   const p = path[upto];
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = "#fff";
   ctx.beginPath();
   ctx.arc(px(p.x), py(p.h), 4, 0, 7);
   ctx.fill();
-  ctx.fillStyle = '#8fd6a8';
-  ctx.font = '16px monospace';
+  ctx.fillStyle = "#8fd6a8";
+  ctx.font = "16px monospace";
   ctx.fillText(
-    `T+${String(Math.floor(f.t)).padStart(3, '0')} s   ALT ${p.h.toFixed(1)} km   RANGE ${p.x.toFixed(1)} km`,
+    `T+${String(Math.floor(f.t)).padStart(3, "0")} s   ALT ${p.h.toFixed(1)} km   RANGE ${p.x.toFixed(1)} km`,
     pad,
     58,
   );
   // The loop: the latest calls, as bubbles along the bottom.
   const calls = f.calls.slice(-3);
-  calls.forEach((c, i) => bubble(ctx, pad + 130 + i * 260, h - 96, `${c.who}: ${c.text}`, c.tone));
+  calls.forEach((c, i) =>
+    bubble(ctx, pad + 130 + i * 260, h - 96, `${c.who}: ${c.text}`, c.tone),
+  );
 }

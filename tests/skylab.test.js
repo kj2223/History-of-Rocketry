@@ -7,6 +7,9 @@ import { flightTruth, resolve } from '../js/truth/flights.js';
 import { initProgramme } from '../js/world/programme.js';
 import { skylabShield } from '../js/world/race.js';
 import { FLIGHTS, DECISIONS } from '../js/data/flights.js';
+import { g, newGame } from '../js/game.js';
+import { startFlight } from '../js/houston.js';
+import '../js/mercury.js';
 
 const round = (id, s) => {
   const r = newRound(s, initProgramme(), 'saturnib');
@@ -19,9 +22,12 @@ test('the workshop\u2019s shield loss is the hidden layer\u2019s, seeded from th
   for (let s = 1; s <= 60; s++) seen.add(skylabShield(s));
   assert.ok(seen.has(true) && seen.has(false), [...seen].join());
   // The same station meets every crew: the flag rides with the seed, not the round.
-  const r = round('skylab-2', 8);
-  const r3 = round('skylab-3', 8);
-  assert.equal(r.flightTruth.flags.shield, r3.flightTruth.flags.shield);
+  newGame(3);
+  for (const [id, seed] of [['skylab-2', 7], ['skylab-3', 8], ['skylab-4', 9]]) {
+    const round = newRound(seed, g.programme, 'saturnib');
+    startFlight({ kind: 'flight', flightId: id, round, a: {} });
+    assert.equal(round.flightTruth.flags.shield, skylabShield(g.seed), id);
+  }
   // And it is not an Apollo flag.
   const ap = round('apollo-16', 8);
   assert.ok(!ap.flightTruth.flags.shield);

@@ -48,9 +48,9 @@ export const readSave = (storage, check) => {
 };
 
 // Starting a new game keeps the one you were playing as the backup, so starting over never loses a game.
-export const startOver = storage => {
-  const text = storage.getItem(KEYS.current) ?? storage.getItem(KEYS.lastGood);
-  if (text !== null) storage.setItem(KEYS.backup, text);
+export const startOver = (storage, check) => {
+  const current = readSave(storage, check);
+  if (current !== null) storage.setItem(KEYS.backup, exportSave(current));
   storage.removeItem(KEYS.current);
   storage.removeItem(KEYS.lastGood);
 };
@@ -65,14 +65,13 @@ export const readBackup = (storage, check) => {
   }
 };
 // Go back to the backup: it becomes the current game, and the current game becomes the backup.
-export const swapBackup = storage => {
-  const backup = storage.getItem(KEYS.backup);
+export const swapBackup = (storage, check) => {
+  const backup = readBackup(storage, check);
   if (backup === null) return false;
-  const current = storage.getItem(KEYS.current) ?? storage.getItem(KEYS.lastGood);
-  if (current !== null) storage.setItem(KEYS.backup, current);
+  const current = readSave(storage, check);
+  if (current !== null) storage.setItem(KEYS.backup, exportSave(current));
   else storage.removeItem(KEYS.backup);
-  storage.setItem(KEYS.current, backup);
-  storage.setItem(KEYS.lastGood, backup);
+  writeSave(storage, backup);
   return true;
 };
 

@@ -427,7 +427,7 @@ export const SEASON = [
     start: dayOf(2020, 5, 25),
     name: 'Demo-2, the first commercial crew',
   }, // launched 30 May 2020
-  // Artemis (A11): Apollo's granddaughter. One round the Moon with nobody aboard, then four crews on the free return,
+  // Artemis (A11): Apollo's granddaughter. One round the Moon with nobody aboard, then a crew of four on the free return,
   // then the return to the Moon at the south pole. The campaign ends here, in 2030.
   {
     id: 'artemis-1',
@@ -450,7 +450,7 @@ export const SEASON = [
     crew: ['sharma', 'vaughn', 'larsen', 'petrossian'],
     path: 'nasa',
     start: dayOf(2025, 9, 10),
-    name: 'Artemis II, four crews round the Moon',
+    name: 'Artemis II, a crew of four round the Moon',
   }, // launched 12 September 2025
   {
     id: 'artemis-3',

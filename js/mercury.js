@@ -1534,8 +1534,10 @@ export function toReview() {
   }
   if (con && con.orbital && con.round.end?.outcome === 'entry' && con.round.end.capsule !== 'lost')
     (g.record.orbitMisses = g.record.orbitMisses || []).push(con.round.end.miss);
-  if (con && con.round.end?.lmLost && g.mission.fate !== 'killed')
-    recordDeaths([crewOf()[2]], g.day, SEASON[g.roundIndex].id); // the lander's pilot did not come back
+  if (con && con.round.end?.lmLost && g.mission.fate !== 'killed') {
+    const [commander, , landerPilot] = crewOf();
+    recordDeaths([commander, landerPilot]);
+  }
   if (g.mission.fate === 'killed') recordDeaths(crewOf() || []);
   g.console = null;
   g.room = null;

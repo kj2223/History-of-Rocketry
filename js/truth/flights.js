@@ -35,7 +35,7 @@ export const ODDS = {
 export const NAV_ERROR_KM = -129;
 
 // Decided once, as she reaches orbit. The flags are the spacecraft's real troubles; d are the draws the answers use.
-export function flightTruth(round, id) {
+export function flightTruth(round, id, campaignSeed = round.seed) {
   const ph = round.rng.physical,
     d = [...Array(FLIGHT_DRAWS)].map(() => draw(ph));
   const kinds = new Set(Object.values(round.faults || {}));
@@ -61,7 +61,7 @@ export function flightTruth(round, id) {
   t.flags.lightning = !!round.lightning;
   t.flags.throttle = !!round.throttle;
   // The workshop's launch damage rides with the seed, not the round: the same station meets every crew.
-  if (/^skylab/.test(id)) t.flags.shield = skylabShield(round.seed);
+  if (/^skylab/.test(id)) t.flags.shield = skylabShield(campaignSeed);
   t.fuelcellRecovers = d[0] < ODDS.fuelcellRecovers;
   return (round.flightTruth = t);
 }
