@@ -151,21 +151,15 @@ const RESOLVE = {
       return out;
     }
     out.lines.push(['kessler', "Powering down to the minimum. We'll watch it through the night.", '']);
+    out.set.poweredDown = true;
     if (!t.fuelcellRecovers) {
-      out.lines.push([
-        'kessler',
-        'Flight, EECOM: the pressure kept falling. The cells are going. We are on batteries.',
-        'bad',
-      ]);
       out.endAt = 22;
       out.set.short = true;
       out.set.batteries = true;
       out.hurt = d[3] < ODDS.batteriesShort ? 0.15 : 0;
       out.verdict = 'bad';
       out.judge = 'The cells were going and we let her drift on them until they died. She came home on batteries.';
-      out.note = 'Overnight the fuel cells failed. The spacecraft came home early on its batteries.';
     } else {
-      out.note = 'Overnight the fuel-cell pressure fell to about 12 psi and held there.';
       out.judge = 'The pressure settled, and drifting kept the flight. It was against the rule, and it came off.';
     }
     return out;
@@ -184,7 +178,13 @@ const RESOLVE = {
     out.judge = 'Eight days on a sick spacecraft, and the cells held. Apollo needed that.';
     return out;
   },
-  rdvplan(choice, { f, d, out }) {
+  rdvplan(choice, { f, d, state, out }) {
+    if (choice === 'stand-down') {
+      out.set.rendezvousMissed = true;
+      out.verdict = 'fair';
+      out.judge = 'The intercept window closed before we committed. Gemini 6A stayed clear of Gemini 7.';
+      return out;
+    }
     const bad = choice === 'onboard' && f.computer;
     if (bad) {
       out.lines.push([
@@ -192,7 +192,8 @@ const RESOLVE = {
         "Houston, the computer reset in the middle of the burn. We're high and fast. We'll fly it on the charts.",
         'bad',
       ]);
-      if (d[10] < 0.5) {
+      if (d[10] < 0.5 || (state.reserve ?? 100) < 60) {
+        out.set.rendezvousMissed = true;
         out.lines.push([
           'kessler',
           "Flight, they're short of fuel to close. They've stopped at twelve miles. No rendezvous.",
@@ -205,6 +206,7 @@ const RESOLVE = {
       }
       out.lines.push(['pilot', "Closing on the charts… a hundred and twenty feet and stopped. We're there.", 'go']);
       out.capability = 'rendezvous';
+      out.set.rendezvousComplete = true;
       out.verdict = 'fair';
       out.judge =
         "The computer failed in the burn and the crew got there on their charts. We shouldn't have needed them to.";
@@ -218,6 +220,13 @@ const RESOLVE = {
       'go',
     ]);
     out.capability = 'rendezvous';
+    out.set.rendezvousComplete = true;
+    if (choice === 'ground' && state.groundFix === 'provisional') {
+      out.lines.push(['morgan', 'FIDO: the provisional fix got them there. They needed an extra trim before closing.', 'warn']);
+      out.verdict = 'fair';
+      out.judge = 'The intercept worked, but the provisional ground fix cost an extra correction.';
+      return out;
+    }
     out.verdict = choice === 'onboard' || f.computer ? 'good' : 'fair';
     out.judge =
       choice === 'ground' && !f.computer

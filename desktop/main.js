@@ -1,7 +1,7 @@
 // THE DESKTOP SHELL: opens the game in its own Electron window instead of a browser tab.
 // The game itself is unchanged. This file only makes the window and serves the game's files to it.
 // Files are served under app://game/ rather than file:// so ES modules load and the saves (localStorage) have a fixed home.
-import { app, BrowserWindow, Menu, protocol, net, session } from 'electron';
+import { app, BrowserWindow, Menu, dialog, protocol, net, session } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -94,13 +94,23 @@ app.on('web-contents-created', (_, contents) => {
 function carryOverSaves() {
   const here = path.join(app.getPath('userData'), 'Local Storage');
   const before = path.join(app.getPath('appData'), 'Project Vanguard', 'Local Storage');
+  if (fs.existsSync(here) || !fs.existsSync(before)) return;
+  fs.mkdirSync(path.dirname(here), { recursive: true });
+  const staging = fs.mkdtempSync(path.join(path.dirname(here), '.save-migration-'));
   try {
-    if (!fs.existsSync(here) && fs.existsSync(before)) fs.cpSync(before, here, { recursive: true });
-  } catch {
-    // Nothing to carry over, or the copy failed: the game starts fresh, as it would have anyway.
+    const copy = path.join(staging, 'Local Storage');
+    fs.cpSync(before, copy, { recursive: true });
+    fs.renameSync(copy, here);
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
   }
 }
-carryOverSaves();
+try {
+  carryOverSaves();
+} catch (error) {
+  dialog.showErrorBox('Could not copy the old saves', `Ad Astra will retry next time it starts.\n\n${error.message}`);
+  app.exit(1);
+}
 
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_, __, allow) => allow(false));

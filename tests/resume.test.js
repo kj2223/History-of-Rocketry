@@ -10,6 +10,22 @@ import { finishInspection, finishBoard, standStart, standDecide } from '../js/ga
 
 const at = id => SEASON.findIndex(r => r.id === id);
 
+test('resuming an Apollo round preserves its revised schedule', () => {
+  newGame(5);
+  const round = SEASON[at('apollo-8')];
+  const start = round.start + 90;
+  const saved = {
+    ...structuredClone(g.saved),
+    roundIndex: at('apollo-8'),
+    roundId: round.id,
+    day: start,
+    programme: { ...g.programme, apolloSlip: 90 },
+    beat: 'roundEnd',
+  };
+  newGame(saved.seed, saved);
+  assert.equal(g.roundStart, start);
+});
+
 test('a checkpoint saved before the crewed rounds went in finds its round by vehicle and date', () => {
   newGame(5);
   while (SEASON[g.roundIndex].id !== 'pioneer-4') {
@@ -17,6 +33,8 @@ test('a checkpoint saved before the crewed rounds went in finds its round by veh
     advance(false);
   }
   playRound();
+  advance(false);
+  playRound(); // Mariner 2 precedes Ranger 7 on the extended route.
   advance(false);
   assert.equal(SEASON[g.roundIndex].id, 'ranger-7');
   const old = structuredClone(g.saved);
@@ -27,7 +45,7 @@ test('a checkpoint saved before the crewed rounds went in finds its round by veh
   assert.equal(SEASON[g.roundIndex].id, 'ranger-7');
   assert.equal(g.vehicle, 'ranger');
   playRound();
-  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(g.beat, 'roundEnd');
 });
 
 test('an old round-end after Pioneer 4 is given the NASA offer it never had', () => {

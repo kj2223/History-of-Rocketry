@@ -38,7 +38,7 @@ The top bar also provides pause, simulation-speed, notebook, and game options. G
 
 ### Download (Windows)
 
-The newest build is always on the [releases page](https://github.com/kj2223/History-of-Rocketry/releases/latest): `ProjectVanguard-Setup.exe` installs the game, `ProjectVanguard-Portable.exe` runs without installing. The builds are unsigned, so Windows SmartScreen warns on first run (More info, then Run anyway). Saves from v0.5.2 and earlier carry over on first run.
+The newest build is always on the [releases page](https://github.com/kj2223/History-of-Rocketry/releases/latest): `ProjectVanguard-Setup.exe` installs the game, `ProjectVanguard-Portable.exe` runs without installing. The builds are unsigned, so Windows SmartScreen warns on first run (More info, then Run anyway). On first launch, Ad Astra copies the old Project Vanguard desktop save folder if no Ad Astra save folder exists. The game can resume saves in the `per-aspera` format at content version 3.
 
 ### In a browser
 

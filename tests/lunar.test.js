@@ -146,8 +146,8 @@ test('flagging the arcing camera supply saves the pictures', () => {
   assert.ok(!Object.values(r.faults).includes('camera'));
 });
 
-test("the campaign ends with NASA's lunar shots from the Cape, after the Soviet Lunas and six failed Rangers", () => {
-  const jpl = SEASON.filter(r => onPath(r, 'jpl')),
+test("JPL's lunar shots fly from the Cape, after the Soviet Lunas and six failed Rangers", () => {
+  const jpl = SEASON.filter(r => onPath(r, 'jpl') && !r.probe),
     ids = jpl.map(r => r.id);
   assert.deepEqual(ids.slice(-3), ['pioneer-3', 'pioneer-4', 'ranger-7']);
   assert.ok(jpl.slice(-3).every(r => r.site === 'cape'));

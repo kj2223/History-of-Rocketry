@@ -475,6 +475,42 @@ export const SEASON = [
     start: dayOf(1964, 7, 26),
     name: 'Ranger 7',
   }, // flew 28 July 1964
+  {
+    id: 'mariner-2',
+    name: 'Mariner 2, Venus flyby',
+    vehicle: 'ranger', // shares the Atlas–Agena site art
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1962, 8, 27),
+    probe: {
+      encounter: dayOf(1962, 12, 14),
+      tracking: 'The Atlas–Agena has sent Mariner 2 toward Venus. The deep-space stations report a usable signal.',
+      evidence: 'Tracking puts Mariner 2 on course for Venus. Telemetry shows the automatic encounter sequencer faltering. The infrared and microwave radiometers need the encounter sequence to start during the flyby.',
+      action: 'Send the backup encounter command',
+      alternate: 'Wait for the automatic sequencer',
+      received: 'The radiometer scans came through. JPL has infrared and microwave observations of Venus.',
+      missed: 'The automatic sequence did not start during the pass. JPL has tracking but no Venus radiometer scans.',
+    },
+  },
+  {
+    id: 'mariner-4',
+    name: 'Mariner 4, Mars flyby',
+    vehicle: 'ranger', // shares the Atlas–Agena site art
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1964, 11, 28),
+    probe: {
+      encounter: dayOf(1965, 7, 14), // Pasadena local date; 15 July UTC
+      playback: dayOf(1965, 7, 15),
+      tracking: 'The Atlas–Agena has sent Mariner 4 toward Mars. The deep-space stations report a usable signal.',
+      evidence: 'Tracking puts Mariner 4 on course for Mars. The camera will run automatically once you command encounter mode. It records to tape. The signal will drop as the spacecraft passes behind Mars.',
+      action: 'Command planetary encounter mode',
+      alternate: 'Keep the spacecraft in cruise mode',
+      recorded: 'Contact is back after occultation. The recorder reports a completed camera sequence. Playback starts on the next tracking day.',
+      received: 'Playback is underway. The first images of Mars are coming down from the recorder.',
+      missed: 'The flyby is over. JPL has tracking but no images because encounter mode was never enabled.',
+    },
+  },
 ];
 
 // The last word on the season-end page: what came after the last round you worked, and where this build stops.
@@ -501,7 +537,8 @@ export const SITES = {
 };
 export const siteOf = round => SITES[round.site || 'white-sands'];
 // Whether a round is on the player's path: rounds without a path are on every path; the rest only on their own.
-export const onPath = (round, path = 'jpl') => !round.path || round.path === path;
+export const onPath = (round, path = 'jpl') =>
+  Array.isArray(round.path) ? round.path.includes(path) : !round.path || round.path === path;
 
 // The site changes over the years. The new blockhouse goes up beside the old one over the winter of 1950-51 (Provisional
 // dates); from the spring the count is run from there.
@@ -796,8 +833,7 @@ export const PROGRAMME_OFFER = {
 // There is no offer at the end of Apollo: from the Houston shift onward the player stays a flight director
 // (Aaron, 8 November 2026), and the campaign runs on to 2030 with no further promotion.
 
-// The way back from the uncrewed years: after Ranger 7, Houston staffs Gemini and asks JPL for its range man. Always
-// made: it is the branch's last round, and a sidelined player must have the chance C1 promised.
+// At Ranger 7, Houston offers a Gemini shift to anyone still on the JPL route.
 export const GEMINI_OFFER = {
   seat: 'flight',
   title: 'Flight director, Gemini',
@@ -807,7 +843,7 @@ export const GEMINI_OFFER = {
   again: 'Houston asks again: they still want you on a Gemini shift.',
   takeNote:
     "From now on you run a shift in Mission Control, Houston: the polls, the holds, the aborts and the mission rules. When a sick spacecraft stays up, it's your call.",
-  declineNote: 'You keep your seat at JPL. The uncrewed years carry on without you.',
+  declineNote: 'You keep your seat at JPL and go on to Mariner 4.',
   path: 'nasa',
   always: true,
 };

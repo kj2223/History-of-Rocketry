@@ -10,9 +10,17 @@
       <path d="M2 0v90" stroke="#27332e" stroke-width="4"/>
     </pattern>
     <radialGradient id="amber">
-      <stop stop-color="#e9ab58" stop-opacity=".37"/>
+      <stop stop-color="#e9ab58" stop-opacity=".48"/>
       <stop offset="1" stop-color="#e9ab58" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="wall-shadow" x2="0" y2="1">
+      <stop stop-color="#17211d" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#17211d" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="bench-edge" x2="0" y2="1">
+      <stop stop-color="#7a6348"/>
+      <stop offset="1" stop-color="#453727"/>
+    </linearGradient>
     <g id="crate">
       <rect width="57" height="43" rx="2" fill="#806747" stroke="#332d23" stroke-width="3"/>
       <path d="M5 8h47M5 20h47M5 32h47M10 4v32m37-32v32" stroke="#b18c57" opacity=".68"/>
@@ -22,15 +30,23 @@
   <rect width="1200" height="760" fill="#222c28"/>
   <path d="M36 85h1128v596H36z" fill="url(#floor)" stroke="#17201b" stroke-width="9"/>
   <path d="M36 78h1128v110H36z" fill="url(#wall)" stroke="#27352c" stroke-width="5"/>
+  <path d="M36 78h1128v110H36z" fill="url(#wall-shadow)"/>
   <path d="M36 80h1128M36 187v495h421m286 0h421V187" fill="none" stroke="#747664" stroke-width="13"/>
+  <path d="M44 192h1112m-1112 5v477m1112-477v477" fill="none" stroke="#252f28" stroke-width="4" opacity=".6"/>
   <path d="M458 681h284v46H458z" fill="#726c58" stroke="#373d32" stroke-width="5"/>
   <path d="M98 332h1004v177H98z" fill="none" stroke="#bea06a" stroke-width="3" stroke-dasharray="17 8"/>
   <path d="M458 671V536h284v135" fill="#b5a37c" opacity=".09"/>
-  <ellipse cx="800" cy="405" rx="370" ry="268" fill="url(#amber)"/>
+  <g fill="none" stroke="#242923" stroke-linecap="round">
+    <path d="M499 681q-13-62 36-131m153 131q-6-75 40-137" stroke-width="9" opacity=".23"/>
+    <path d="m254 397 49 4m-28 6 23 2m228 5 51-3m-39 9 23-1m281-15 53 2m-39 7 19 1" stroke-width="4" opacity=".32"/>
+  </g>
+  <ellipse cx="612" cy="419" rx="486" ry="215" fill="url(#amber)"/>
   <use href="#crate" x="61" y="217"/><use href="#crate" x="125" y="218"/><use href="#crate" x="62" y="269"/>
   <use href="#crate" x="1034" y="562"/><use href="#crate" x="1094" y="568"/><use href="#crate" x="1081" y="616"/>
-  <path d="M406 191h364v79H406z" fill="#534330" stroke="#292a22" stroke-width="5"/>
+  <path d="M408 270h362l16 13H422zM94 617h178l15 10H105z" fill="#252a23" opacity=".34"/>
+  <path d="M406 191h364v79H406z" fill="url(#bench-edge)" stroke="#292a22" stroke-width="5"/>
   <path d="M410 195h356v54H410z" fill="#9f815a"/>
+  <path d="M415 245h348m-270-5h24m114-14h30m-24 14h22" fill="none" stroke="#d2b486" opacity=".35"/>
   <path d="M428 203h48v32h-48z" fill="#dfcfaa"/>
   <path d="M435 210h32m-32 7h27m-27 7h30" stroke="#736a51"/>
   <path d="M510 226l21-19m-6 1 6-1 1 7m17 10h32m18-11h24" fill="none" stroke="#dad2b5" stroke-width="4"/>
@@ -42,9 +58,14 @@
   <use href="#crate" transform="translate(959 198) scale(.56)"/>
   <use href="#crate" transform="translate(1038 232) scale(.6)"/>
   <use href="#crate" transform="translate(977 266) scale(.56)"/>
-  <path d="M94 556h178v61H94z" fill="#69523a" stroke="#302c22" stroke-width="5"/>
+  <path d="M94 556h178v61H94z" fill="url(#bench-edge)" stroke="#302c22" stroke-width="5"/>
   <path d="M99 560h168v38H99z" fill="#a7875d"/>
-  <path d="M116 567h56v22h-56z" fill="#c3b998" stroke="#766b51" stroke-width="2"/>
-  <path d="M199 585l28-18m-6 0h6v6" fill="none" stroke="#565d50" stroke-width="4"/>
+  <ellipse cx="145" cy="579" rx="62" ry="29" fill="url(#amber)"/>
+  <path d="M113 567h62v25h-62z" fill="#d6c6a1" stroke="#766b51" stroke-width="2"/>
+  <path d="M120 578l9-4h29v9h-29zm25-5v11m-24 4h35" fill="none" stroke="#847961"/>
+  <rect x="198" y="570" width="57" height="23" rx="2" fill="#4e5548" stroke="#36392f" stroke-width="2"/>
+  <path d="M217 572v19m19-19v19" stroke="#767c68"/>
+  <path d="M204 579h7m13 5h6m12-6h7m-5 7h5" stroke="#b6ad91" stroke-width="2"/>
+  <path d="M101 598h164M463 685h274" stroke="#b7a583" opacity=".32"/>
   <text x="600" y="130" text-anchor="middle" fill="#d7c9a4" font-family="Georgia, serif" font-size="19" letter-spacing="5">WHITE SANDS · ASSEMBLY</text>
 </svg>

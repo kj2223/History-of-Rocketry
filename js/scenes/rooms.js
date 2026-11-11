@@ -20,12 +20,12 @@ import {
   NORMAL_TANK,
   returnFromRecovery,
   present,
-  debrief,
   roomFor,
   dateText,
   clockText,
   closeAway,
   nextRound,
+  advanceProbe,
   kit,
   answerFirstOffer,
   conducting,
@@ -37,6 +37,7 @@ import {
   budgetLine,
   atSea,
   nextIndex,
+  roundStartOf,
   placeName,
 } from '../game.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
@@ -259,6 +260,21 @@ export function openGameRoom() {
 }
 
 const ROOMS = {
+  probeHandover() {
+    const { name, probe } = SEASON[g.roundIndex];
+    return `<h2>${esc(name)}</h2><p>${esc(probe.tracking)}</p>
+      <button class="primary" data-act="probe-command">Accept handover and jump to encounter</button>`;
+  },
+  probeEncounter() {
+    const { name, probe } = SEASON[g.roundIndex];
+    return `<h2>${esc(name)}</h2><p>${esc(probe.evidence)}</p>
+      <button class="primary" data-act="probe-command">${esc(probe.action)}</button>
+      <button data-act="probe-wait">${esc(probe.alternate)}</button>`;
+  },
+  probePlayback() {
+    return `<h2>Mariner 4 playback</h2><p>${esc(SEASON[g.roundIndex].probe.received)}</p>
+      <button class="primary" data-act="probe-command">Log receipt and close the round</button>`;
+  },
   game() {
     const here = `${SEASON[g.roundIndex].name[0].toUpperCase()}${SEASON[g.roundIndex].name.slice(1)}, ${dateText()}`,
       backup = hooks.backup?.();
@@ -439,13 +455,13 @@ const ROOMS = {
   // The round is over: what you said, what Ellis concluded and what changes. Only what you could know.
   roundEnd() {
     const r = g.record.rounds[g.record.rounds.length - 1],
-      next = nextIndex() != null ? SEASON[nextIndex()] : null;
+      i = nextIndex(),
+      next = i != null ? SEASON[i] : null;
     const o = g.record.offers[g.record.offers.length - 1],
       here = o && o.day >= r.day;
     return `<h2>Written up: ${esc(r.name)}</h2>${recordLine(r)}
       ${here ? offerCard(o) : ''}
-      ${next && !pendingOffer(g.record) ? `<p>Next: ${esc(next.name)}, from ${esc(dateText(next.start))}.</p><button class="primary" data-act="next-round">Carry on to the next round</button>` : ''}
-      <button data-act="show-debrief">What was really wrong? (for testing)</button>`;
+      ${next && !pendingOffer(g.record) ? `<p>Next: ${esc(next.name)}, from ${esc(dateText(roundStartOf(i)))}.</p><button class="primary" data-act="next-round">Carry on to the next round</button>` : ''}`;
   },
   seasonEnd() {
     const cap = t => t[0].toUpperCase() + t.slice(1);
@@ -466,19 +482,7 @@ const ROOMS = {
       ${rec.capabilities?.length ? `<p><strong>What your flights showed, as evidence Apollo can cite:</strong></p><ul>${rec.capabilities.map(c => `<li>${esc(c.text)} (${esc(c.flight)})</li>`).join('')}</ul>` : ''}
       ${offer}
       <p class="muted">${esc(LAST_WORD[rs[rs.length - 1].id] || '')}</p>
-      <button data-act="show-debrief">What was really wrong last round? (for testing)</button>
-      <button data-act="again">Start again from 1945</button>`;
-  },
-  debrief() {
-    const d = debrief();
-    return `<h2>Prototype debrief</h2>
-      <p class="muted">This page is for testing the prototype. It shows the hidden truth the game would never show you.</p>
-      <p><strong>The flight:</strong> ${esc(d.outcome)} ${esc(d.dates)}</p>
-      <p><strong>What was really wrong with this round at the start:</strong></p><ul>${d.faults.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
-      <p><strong>What you and the crew did about it:</strong></p><ul>${d.caught.length ? d.caught.map(f => `<li>${esc(f)}</li>`).join('') : '<li>Nothing was changed.</li>'}</ul>
-      ${d.stillThere.length ? `<p><strong>Still on the round when it flew:</strong> ${esc(d.stillThere.join(', '))}.</p>` : '<p>The round flew with nothing left wrong on it.</p>'}
-      <p><strong>At the review</strong> Ellis ${d.review.agree ? 'agreed with you' : 'overruled you'}.</p>
-      <button class="primary" data-act="debrief-done">Back</button>`;
+      <button data-act="game-new">Start again from 1945</button>`;
   },
 };
 
@@ -511,6 +515,7 @@ function offerCard(o) {
 
 // One round of your record, in words: the flight as the range saw it, your call, Ellis's conclusion and the fix.
 function recordLine(r, inline = false) {
+  if (r.yourCall == null) return inline ? esc(r.flight) : `<p>${esc(r.flight)}</p>`;
   const call = SHORT;
   const ellis =
     r.yourCall === 'unknown'
@@ -571,12 +576,8 @@ export function bindRoom(handlers) {
         if (['roundEnd', 'seasonEnd'].includes(g.beat)) g.room = g.beat;
       },
       'next-round': () => nextRound(),
-      'show-debrief': () => {
-        g.room = 'debrief';
-      },
-      'debrief-done': () => {
-        g.room = g.beat;
-      },
+      'probe-command': () => advanceProbe(true),
+      'probe-wait': () => advanceProbe(false),
       present: () => present(id),
       'plan-done': () => {
         finishPlan(plan);
@@ -586,14 +587,13 @@ export function bindRoom(handlers) {
       chair: () => chair(id),
       'offer-take': () => answerFirstOffer(true),
       'offer-decline': () => answerFirstOffer(false),
-      again: () => handlers.again(),
       'game-new': () => {
+        openGameRoom();
         confirmNew = true;
-        g.roomVersion++;
       },
       'game-cancel': () => {
         confirmNew = false;
-        g.room = null;
+        g.room = g.beat === 'seasonEnd' ? 'seasonEnd' : null;
       },
       'game-new-go': () => {
         confirmNew = false;

@@ -2,12 +2,44 @@
 // offer or was passed over, and taking it jumps the calendar to Gemini 4 on the NASA path.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newGame, g, morning, answerFirstOffer } from '../js/game.js';
+import { newGame, g, morning, answerFirstOffer, nextIndex, rejoinIndex } from '../js/game.js';
 import '../js/mercury.js'; // the crewed modules register their beats with game.js; this test reaches Mercury
-import { SEASON } from '../js/data/campaign.js';
+import { SEASON, onPath } from '../js/data/campaign.js';
 import { pendingOffer } from '../js/career/record.js';
 
 const at = id => SEASON.findIndex(r => r.id === id);
+
+test('an appended shared mission plays in calendar order on either route', () => {
+  stranded();
+  const gemini = SEASON[at('gem-4')];
+  const shared = { id: 'test-shared', start: SEASON[at('mariner-4')].start - 1, path: ['jpl', 'nasa'] };
+  SEASON.push(shared);
+  try {
+    assert.equal(SEASON[nextIndex()], shared);
+    shared.start = gemini.start - 1;
+    assert.equal(SEASON[rejoinIndex('nasa')], shared);
+    g.record.path = 'nasa';
+    assert.equal(SEASON[nextIndex(at('gem-5'))].id, 'gem-6');
+  } finally {
+    SEASON.pop();
+  }
+});
+
+test('a shared mission can be listed on both career routes', () => {
+  const shared = { path: ['jpl', 'nasa'] };
+  assert.equal(onPath(shared), true);
+  assert.equal(onPath(shared, 'nasa'), true);
+});
+
+test('Ranger 7 offers the career choice at a normal round ending', () => {
+  stranded();
+  morning('roundEnd');
+  assert.ok(pendingOffer(g.record));
+  assert.equal(g.record.offers.at(-1).path, 'nasa');
+  assert.equal(g.saved.record.offers.at(-1).path, 'nasa');
+  morning('roundEnd');
+  assert.equal(g.record.offers.filter(o => o.path === 'nasa').length, 1);
+});
 
 // A JPL-path player written up through Ranger 7: stayed junior, never took the NASA offer, stranded at the season end.
 function stranded() {
@@ -30,7 +62,7 @@ test('at the end of the uncrewed years, Houston offers Gemini', () => {
   morning('seasonEnd');
   const o = g.record.offers[g.record.offers.length - 1];
   assert.equal(o.seat, 'flight');
-  assert.ok(o.made, 'the offer is made however the record stands: it is the branch\u2019s last round');
+  assert.ok(o.made, 'the offer is made however the record stands');
   assert.equal(o.path, 'nasa');
   assert.ok(o.text.includes('Houston is staffing Gemini'));
   assert.ok(pendingOffer(g.record));
@@ -47,11 +79,12 @@ test('taking it joins Houston and jumps the calendar to Gemini 4', () => {
   assert.equal(g.away.to, 'Wednesday 2 June 1965'); // Gemini 4's first morning; the launch itself is two days in
 });
 
-test('turning it down keeps the uncrewed ending, and the offer is not remade', () => {
+test('turning it down opens Mariner 4 and the offer is not remade', () => {
   stranded();
   morning('seasonEnd');
   answerFirstOffer(false);
-  assert.equal(g.beat, 'seasonEnd');
+  assert.equal(g.beat, 'roundEnd');
+  assert.equal(SEASON[nextIndex()].id, 'mariner-4');
   assert.notEqual(g.record.path, 'nasa');
   assert.equal(g.record.seat, 'junior');
   const count = g.record.offers.length;

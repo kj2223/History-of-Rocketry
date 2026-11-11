@@ -14,18 +14,13 @@ import {
   tankGauge,
   fly,
   wreckage,
-  hasIgniterFault,
-  hasPumpFault,
-  hasLinerFault,
-  hasInjectorFault,
-  causesPresent,
   ellisReading,
   crewInspect,
   stationCall,
 } from './truth/round.js';
 import { TRAITS } from './world/people.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
-import { KITS, SHORT, FAILED_BECAUSE, FAULT_AT_SPOT } from './data/kits.js';
+import { KITS, SHORT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
@@ -194,7 +189,6 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
     structuredClone({
       seed: from.seed,
       roundIndex: at,
-      roundStart: SEASON[at].start,
       programme: from.programme,
       record: from.record,
       round: from.round,
@@ -214,6 +208,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
       crewSwaps: from.crewSwaps ?? {},
     }),
   );
+  g.roundStart = roundStartOf(at);
   setVehicle();
   if (from.crewSwaps == null) {
     const losses = [];
@@ -255,7 +250,7 @@ export function roundIndexOf(saved) {
   }
   const vehicle = saved.round?.vehicle;
   if (!vehicle || SEASON[saved.roundIndex]?.vehicle === vehicle) return saved.roundIndex;
-  const fits = SEASON.map((r, i) => [r, i]).filter(([r]) => r.vehicle === vehicle && r.start <= saved.day);
+  const fits = SEASON.map((r, i) => [r, i]).filter(([r]) => !r.probe && r.vehicle === vehicle && r.start <= saved.day);
   return fits.length ? fits[fits.length - 1][1] : saved.roundIndex;
 }
 
@@ -468,16 +463,10 @@ function startRound(i) {
   for (const cause of SEASON[i].adopt || []) adopt(g.programme, cause);
   const round = newRound(g.seed + i * 7919, { ...g.programme, ...SEASON[i].risk }, g.vehicle);
   if (SEASON[i].risk?.seg51Risk != null) round.seg51Risk = SEASON[i].risk.seg51Risk;
-  round.initial = {
-    faults: { ...round.faults },
-    igniter: hasIgniterFault(round),
-    pump: hasPumpFault(round),
-    liner: hasLinerFault(round),
-    injector: hasInjectorFault(round),
-  };
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
   if (g.crewed) return CREWED.startMission();
+  if (SEASON[i].probe) return morning('probeHandover');
   morning('brief');
 }
 
@@ -498,8 +487,20 @@ const MORNING_BEATS = [
   'sApollo8',
   'lCruise',
   'lEncounter',
+  'probeHandover',
+  'probeEncounter',
+  'probePlayback',
 ];
 export function morning(beat) {
+  if (
+    (beat === 'roundEnd' || beat === 'seasonEnd') &&
+    SEASON[g.roundIndex].id === 'ranger-7' &&
+    g.record.path !== 'nasa' &&
+    !g.record.offers.some(o => o.seat === 'flight')
+  ) {
+    turningPoint(g.record, GEMINI_OFFER, g.day);
+    note('Houston is staffing Gemini. Ellis put your name forward.');
+  }
   g.saved = structuredClone({
     seed: g.seed,
     roundIndex: g.roundIndex,
@@ -537,6 +538,7 @@ export function checkCheckpoint(saved) {
   need(MORNING_BEATS.includes(saved.beat), 'beat');
   need(Number.isInteger(saved.day) && saved.day >= 0 && Number.isFinite(saved.clock), 'day');
   need(Number.isInteger(saved.seed) && Number.isInteger(saved.roundIndex) && SEASON[saved.roundIndex], 'season');
+  if (saved.beat.startsWith('probe')) need(SEASON[roundIndexOf(saved)].probe, 'probe');
   need(
     saved.programme &&
       typeof saved.programme.weldRisk === 'number' &&
@@ -544,7 +546,13 @@ export function checkCheckpoint(saved) {
       Array.isArray(saved.programme.adopted),
     'programme',
   );
-  need(saved.record && Array.isArray(saved.record.rounds) && Number.isFinite(saved.record.trust), 'record');
+  need(
+    saved.record &&
+      Array.isArray(saved.record.rounds) &&
+      Array.isArray(saved.record.offers) &&
+      Number.isFinite(saved.record.trust),
+    'record',
+  );
   need(
     saved.round && ['physical', 'observation', 'forecast'].every(k => Number.isInteger(saved.round.rng?.[k]?.state)),
     'round',
@@ -629,6 +637,15 @@ export function setBeat(name, objective) {
 }
 
 const BEATS = {
+  probeHandover() {
+    g.objective = 'The launch team has handed off the spacecraft. Go to the technical office for the tracking report.';
+  },
+  probeEncounter() {
+    g.objective = 'It is encounter day. Go to the technical office to review tracking and make the science call.';
+  },
+  probePlayback() {
+    g.objective = 'Go to the technical office to confirm the first images are coming down.';
+  },
   brief() {
     if (conducting()) {
       g.objective =
@@ -801,13 +818,6 @@ const BEATS = {
     if (!g.away) g.room = 'roundEnd';
   },
   seasonEnd() {
-    // The way back from the uncrewed years (C1): Houston staffs Gemini and asks JPL for its range man. Made here, at the
-    // branch's last round, for a player who declined the 1959 offer or was passed over — and for a save written before
-    // this existed, which lands here on load. Never remade once answered or made.
-    if (nextIndex() == null && g.record.path !== 'nasa' && !g.record.offers.some(o => o.seat === 'flight')) {
-      turningPoint(g.record, GEMINI_OFFER, g.day);
-      note('Houston is staffing Gemini. Ellis put your name forward.');
-    }
     g.objective = 'Your years on the range are written up. Your record, and what comes next, are in the office.';
     if (!g.away) g.room = 'seasonEnd';
   },
@@ -816,6 +826,7 @@ const BEATS = {
 // ---- Rooms: what each building offers right now ----
 export function roomFor(id) {
   if (g.crewed) return CREWED.missionRoomFor(id);
+  if (g.beat.startsWith('probe')) return id === 'office' ? g.beat : 'watch';
   if (id === 'hangar')
     return g.beat === 'brief' && (!conducting() || g.plan?.inspector === 'you') ? 'inspect' : 'watch';
   if (id === 'office' && CREWED.lunarRoom?.()) return CREWED.lunarRoom();
@@ -835,6 +846,31 @@ export function roomFor(id) {
   if (id === 'blockhouse') return g.beat === 'countReady' || g.count ? 'count' : 'watch';
   if (id === 'truck') return g.beat === 'recovery' ? 'recovery' : 'watch';
   return 'watch';
+}
+
+export function advanceProbe(command = false) {
+  const round = SEASON[g.roundIndex],
+    probe = round.probe;
+  if (!probe) return;
+  const handover = g.beat === 'probeHandover';
+  const encounter = g.beat === 'probeEncounter';
+  if (!handover && !encounter && g.beat !== 'probePlayback') return;
+  if (handover || (encounter && command && probe.playback)) {
+    const day = handover ? probe.encounter : probe.playback;
+    const report = handover ? probe.tracking : probe.recorded;
+    note(report);
+    g.away = { from: dateText(g.day), to: dateText(day), lines: [report] };
+    g.day = day;
+    g.clock = day * 1440 + START_MINUTE;
+    g.room = 'away';
+    morning(handover ? 'probeEncounter' : 'probePlayback');
+    return;
+  }
+  const flight = encounter && !command ? probe.missed : probe.received;
+  note(flight);
+  addRound(g.record, { id: round.id, vehicle: round.vehicle, name: round.name, day: round.start, flight });
+  g.room = null;
+  morning(nextIndex() == null ? 'seasonEnd' : 'roundEnd');
 }
 
 // ---- Planning the round, as test conductor ----
@@ -1483,10 +1519,19 @@ export function finishReview(entry) {
   const scene = g.crewed ? CREWED.sceneAfterReview?.() : null;
   morning(scene || (nextIndex() != null ? 'roundEnd' : 'seasonEnd'));
 }
-// The next round on your path, or null when your years in this build are done.
+// Keep roster indices stable for seeded rounds and older saves. Play the eligible rounds in calendar order.
+function firstRoundOnPath(path, eligible) {
+  let next = null;
+  for (const [i, round] of SEASON.entries()) {
+    if (!onPath(round, path) || !eligible(round, i)) continue;
+    if (next == null || round.start < SEASON[next].start) next = i;
+  }
+  return next;
+}
+
 export function nextIndex(from = g.roundIndex) {
-  for (let i = from + 1; i < SEASON.length; i++) if (onPath(SEASON[i], g.record.path)) return i;
-  return null;
+  const start = SEASON[from].start;
+  return firstRoundOnPath(g.record.path, (round, i) => round.start > start || (round.start === start && i > from));
 }
 
 // Ellis's opening line for a round: what the team changed since the last one, then the job.
@@ -1520,7 +1565,7 @@ function jumpTo(i) {
     const fresh = newFixes(g.programme);
     if (fresh.length) lines.push(`What the reviews decided goes into the build: ${fresh.join(' ')}`);
   }
-  if (!next.crewed) lines.push(`The crew built ${next.name} in the hangar.`);
+  if (!next.crewed && !next.probe) lines.push(`The crew built ${next.name} in the hangar.`);
   // The other side, from 1966, as Houston heard of it.
   if (next.crewed && next.crewed !== 'mercury')
     lines.push(...raceNews(g.seed, Math.max(from, RACE_FROM), roundStartOf(i)));
@@ -1542,36 +1587,9 @@ function jumpTo(i) {
 }
 
 // After taking an offer that switches paths (the Gemini offer from the uncrewed years): the first round on the new path
-// that starts after today and was not flown. The season array runs White Sands to Apollo with Ranger last, so the jump
-// is backwards in the array and forward in the calendar.
+// that starts after today and was not flown.
 export function rejoinIndex(path, day = g.day) {
-  return SEASON.findIndex(r => onPath(r, path) && r.start > day && !g.record.rounds.some(flown => flown.id === r.id));
-}
-
-// The prototype's own debrief: the hidden truth laid open, for testing whether the round felt fair.
-export function debrief() {
-  const r = g.round,
-    f = r.flight,
-    initial = r.initial,
-    spots = kit().spots;
-  const planned = dateText(g.roundStart + PLANNED_LAUNCH_DAY),
-    flown = dateText(g.launchDay);
-  const faults = Object.entries(initial.faults).map(
-    ([id, kind]) => `${FAULT_AT_SPOT[kind]} at the ${spots[id].name.toLowerCase()}`,
-  );
-  if (initial.igniter) faults.push('A WAC igniter prone to hang-fire (on a WAC, the rough start on the stand)');
-  if (initial.pump) faults.push('A worn V-2 turbopump and steam generator (the low, rough start on the stand)');
-  if (initial.liner) faults.push('A sustainer chamber liner coming unbonded (the hot wall on a full-duration firing)');
-  if (initial.injector)
-    faults.push('A Vanguard first-stage injector prone to burn through (the rough start on the stand)');
-  return {
-    outcome: f.failure ? `Failed: ${FAILED_BECAUSE[f.failure]}.` : `Flew to ${f.apogee.toFixed(0)} km.`,
-    dates: flown === planned ? `Flown on ${flown}, on schedule.` : `Flown on ${flown}; the plan was ${planned}.`,
-    faults: faults.length ? faults : ['None. This round was sound from the start.'],
-    caught: r.events,
-    stillThere: causesPresent(r).map(cause => SHORT[cause]),
-    review: g.review,
-  };
+  return firstRoundOnPath(path, r => r.start > day && !g.record.rounds.some(flown => flown.id === r.id)) ?? -1;
 }
 
 // The first promotion offer: take the seat, or turn it down and keep your own. Taking one that switches paths (the
@@ -1580,11 +1598,11 @@ export function answerFirstOffer(take) {
   const before = g.record.path;
   const o = answerOffer(g.record, take);
   if (!o) return;
-  const stranded = nextIndex() == null;
+  const rangerChoice = SEASON[g.roundIndex].id === 'ranger-7' && o.path === 'nasa';
   const line = take
     ? "Good. They'll be glad of you. Come and see me when you need a second opinion."
-    : stranded
-      ? "Then JPL keeps you, and the uncrewed years are yours to finish. It's been a pleasure."
+    : rangerChoice
+      ? 'Then JPL keeps you. Mariner 4 is your next assignment.'
       : 'Your seat here is yours as long as you want it. They may ask again.';
   if (!g.people.ellis.hidden) say('ellis', line, take ? 'go' : '', 8);
   else if (g.crewed)

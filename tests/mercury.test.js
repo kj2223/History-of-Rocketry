@@ -91,9 +91,10 @@ test('after Pioneer 4 the paths split: Mercury Control if you take the offer, Ra
   assert.ok(nasa.includes('gem-12') && !nasa.includes('ranger-7'));
   assert.deepEqual(
     SEASON.filter(r => onPath(r, 'jpl'))
+      .sort((a, b) => a.start - b.start)
       .map(r => r.id)
-      .slice(-2),
-    ['pioneer-4', 'ranger-7'],
+      .slice(-4),
+    ['pioneer-4', 'mariner-2', 'ranger-7', 'mariner-4'],
   );
   assert.ok(SEASON.find(r => r.id === 'mr-1').start > SEASON[p4].start);
 });
@@ -129,7 +130,7 @@ test('turn it down and you stay at JPL for Ranger 7', () => {
   o.made = true;
   o.answer = null;
   advance(false);
-  assert.equal(SEASON[g.roundIndex].id, 'ranger-7');
+  assert.equal(SEASON[g.roundIndex].id, 'mariner-2');
   assert.notEqual(g.record.path, 'nasa');
 });
 

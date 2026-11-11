@@ -324,7 +324,7 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     ...(vehicle === 'saturn5' ? { lightning, throttle } : {}),
     ...(vehicle === 'shuttle' ? { cold: !!p.cold, boostRisk: p.boostRisk } : {}),
     ...(vehicle === 'sls' ? { boostRisk: p.boostRisk } : {}),
-    events: [], // what happened, for the debrief
+    events: [], // what the crew did and found
   };
 }
 
@@ -348,17 +348,6 @@ export const hasHolddownFault = round => Object.values(round.faults).includes('h
 export const hasLinerFault = round =>
   round.physical.latentMechanisms.includes('pm-07') &&
   (round.sustainer || 'aerobee-sustainer/r1') === 'aerobee-sustainer/r1';
-// The faults the round really has right now, by cause.
-export const causesPresent = round =>
-  [...new Set(Object.values(round.faults))].concat(
-    hasIgniterFault(round) ? ['ignition'] : [],
-    hasPumpFault(round) ? ['turbopump'] : [],
-    hasLinerFault(round) ? ['liner'] : [],
-    hasTurbineFault(round) ? ['cutoff'] : [],
-    hasInjectorFault(round) ? ['injector'] : [],
-    hasDepletionFault(round) ? ['depletion'] : [],
-    hasAgenaFault(round) ? ['agena'] : [],
-  );
 
 const FOUND = {
   camera: 'arcing camera supply',

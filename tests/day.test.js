@@ -112,6 +112,17 @@ test('a bad or foreign save is refused and never resumed', () => {
   assert.equal(readSave(storage, checkCheckpoint), null);
 });
 
+test('a checkpoint missing its offer history falls back to the last good checkpoint', () => {
+  newGame(3);
+  const storage = memoryStorage();
+  writeSave(storage, checkpoint());
+  newGame(4);
+  const damaged = structuredClone(checkpoint());
+  delete damaged.record.offers;
+  storage.setItem(KEYS.current, exportSave(damaged));
+  assert.equal(readSave(storage, checkCheckpoint).seed, 3);
+});
+
 // What the player sees never reads the hidden truth: the site drawing and the rooms import nothing from js/truth,
 // and the only parts of the round they read are the drawing office's estimate and the player's own propellant choice.
 test('the site and the rooms only see what the player could see', () => {

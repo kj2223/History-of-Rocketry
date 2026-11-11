@@ -31,7 +31,9 @@ import { playRound, advance } from './play.js';
 test('a season runs through every round on its own dates and ends with your record', () => {
   newGame(11);
   // Turning down every offer keeps you with JPL: every round on that path, in order.
-  const path = SEASON.map((r, i) => [r, i]).filter(([r]) => onPath(r, 'jpl'));
+  const path = SEASON.map((r, i) => [r, i])
+    .filter(([r]) => onPath(r, 'jpl'))
+    .sort(([a], [b]) => a.start - b.start);
   path.forEach(([r, i], n) => {
     assert.equal(g.roundIndex, i);
     assert.equal(dateText(g.roundStart), dateText(r.start));
@@ -44,7 +46,7 @@ test('a season runs through every round on its own dates and ends with your reco
   });
   assert.equal(g.beat, 'seasonEnd');
   assert.equal(g.record.rounds.length, path.length);
-  assert.ok(g.record.rounds.every(r => /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon/.test(r.flight)));
+  assert.ok(g.record.rounds.every(r => /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon|radiometer scans|images of Mars/.test(r.flight)));
 });
 
 test("the review's conclusion becomes a fix that changes how later rounds are built, even if it is the wrong one", () => {

@@ -106,11 +106,12 @@ export function lunarLive() {
 
 function plotBacking(ctx, w, h) {
   const glass = ctx.createLinearGradient(0, 0, 0, h);
-  glass.addColorStop(0, '#151f2b');
-  glass.addColorStop(1, '#0b1018');
+  glass.addColorStop(0, '#202d31');
+  glass.addColorStop(0.4, '#151f25');
+  glass.addColorStop(1, '#0a1016');
   ctx.fillStyle = glass;
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#202d3b';
+  ctx.strokeStyle = '#243238';
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = 16; x < w; x += 16) {
@@ -122,8 +123,14 @@ function plotBacking(ctx, w, h) {
     ctx.lineTo(w - 8, y + 0.5);
   }
   ctx.stroke();
-  ctx.strokeStyle = '#334456';
+  ctx.strokeStyle = '#34444b';
   ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  ctx.strokeStyle = '#4c585b';
+  ctx.beginPath();
+  ctx.moveTo(2, h - 2);
+  ctx.lineTo(2, 2);
+  ctx.lineTo(w - 2, 2);
+  ctx.stroke();
 }
 
 // Earth on the left, the Moon on the right, her track between them; a short shot's track turns back.
@@ -145,6 +152,22 @@ function drawMap(c, L) {
   ctx.fillStyle = earth;
   ctx.beginPath();
   ctx.arc(x0, mid, 12, 0, 7);
+  ctx.fill();
+  ctx.strokeStyle = '#92b7bd';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x0, mid, 12, 3.3, 5.2);
+  ctx.stroke();
+  ctx.fillStyle = '#789287';
+  ctx.beginPath();
+  ctx.moveTo(x0 - 8, mid - 4);
+  ctx.lineTo(x0 - 2, mid - 8);
+  ctx.lineTo(x0 + 3, mid - 5);
+  ctx.lineTo(x0 + 1, mid - 2);
+  ctx.lineTo(x0 - 3, mid - 1);
+  ctx.lineTo(x0 - 4, mid + 5);
+  ctx.lineTo(x0 - 7, mid + 2);
+  ctx.closePath();
   ctx.fill();
   moonDisc(ctx, x1, mid, 8);
   ctx.setLineDash([3, 4]);
@@ -175,6 +198,9 @@ function drawMap(c, L) {
   ctx.beginPath();
   ctx.arc(px(L.dist), py(L.dist) + (back ? 10 * (1 - L.dist / peak) + 4 : 0), 3.5, 0, 7);
   ctx.fill();
+  ctx.strokeStyle = '#25292a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
   ctx.fillStyle = '#a9b0bb';
   ctx.font = '11px Georgia, serif';
   ctx.fillText('Earth', x0 - 14, mid + 26);
@@ -194,25 +220,60 @@ function drawMap(c, L) {
 
 function moonDisc(ctx, cx, cy, r) {
   const light = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.45, 0, cx, cy, r);
-  light.addColorStop(0, '#eee8d6');
-  light.addColorStop(0.7, '#cfcab8');
-  light.addColorStop(1, '#918a7c');
+  light.addColorStop(0, '#eee5cf');
+  light.addColorStop(0.56, '#c7bda8');
+  light.addColorStop(1, '#817b72');
   ctx.fillStyle = light;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
-  for (const [a, b, rx, ry, tilt] of [
-    [-0.39, -0.29, 0.27, 0.16, -0.43],
-    [-0.28, -0.11, 0.19, 0.26, 0.58],
-    [0.28, -0.32, 0.21, 0.15, 0.2],
-    [0.49, 0.02, 0.17, 0.25, -0.48],
-    [0.11, 0.24, 0.18, 0.1, -0.4],
+  ctx.fillStyle = 'rgba(70, 75, 75, .23)';
+  for (const [start, ...rim] of [
+    [
+      [-0.65, -0.33],
+      [-0.45, -0.47],
+      [-0.25, -0.43],
+      [-0.16, -0.24],
+      [-0.25, -0.1],
+      [-0.23, 0.09],
+      [-0.42, 0.15],
+      [-0.54, -0.02],
+    ],
+    [
+      [0.09, -0.34],
+      [0.2, -0.49],
+      [0.4, -0.45],
+      [0.49, -0.29],
+      [0.4, -0.14],
+      [0.23, -0.19],
+    ],
+    [
+      [0.35, -0.04],
+      [0.49, -0.12],
+      [0.62, -0.01],
+      [0.67, 0.16],
+      [0.54, 0.28],
+      [0.35, 0.13],
+    ],
+    [
+      [-0.05, 0.19],
+      [0.11, 0.12],
+      [0.29, 0.17],
+      [0.2, 0.28],
+      [0.04, 0.31],
+    ],
   ]) {
-    ctx.fillStyle = 'rgba(76, 76, 72, .23)';
     ctx.beginPath();
-    ctx.ellipse(cx + a * r, cy + b * r, rx * r, ry * r, tilt, 0, Math.PI * 2);
+    ctx.moveTo(cx + start[0] * r, cy + start[1] * r);
+    for (const [x, y] of rim) ctx.lineTo(cx + x * r, cy + y * r);
+    ctx.closePath();
     ctx.fill();
   }
+  ctx.strokeStyle = 'rgba(255, 245, 219, .48)';
+  ctx.lineWidth = Math.max(0.5, r * 0.008);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - ctx.lineWidth / 2, 3.4, 5.15);
+  ctx.stroke();
   ctx.lineWidth = Math.max(0.5, r * 0.012);
   for (const [a, b, size] of [
     [-0.34, 0.44, 0.07],
@@ -232,6 +293,10 @@ function moonDisc(ctx, cx, cy, r) {
     ctx.beginPath();
     ctx.arc(x, y, crater, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(63, 57, 52, .34)';
+    ctx.beginPath();
+    ctx.arc(x, y, crater * 0.78, 3.4, 5.65);
+    ctx.stroke();
     ctx.strokeStyle = 'rgba(255, 247, 224, .48)';
     ctx.beginPath();
     ctx.arc(x, y, crater, 0.1, 2.6);
@@ -268,11 +333,18 @@ function drawMoon(c, L) {
     ctx.arc(tx, ty, 5, 0, 7);
     ctx.stroke();
     if (L.video) {
-      ctx.fillStyle = '#1d232b';
-      ctx.fillRect(w - 112, 10, 100, 76);
-      ctx.fillStyle = `rgba(200,195,180,${0.35 + 0.4 * Math.random()})`;
-      for (let i = 0; i < 18; i++)
-        ctx.fillRect(w - 108 + Math.random() * 90, 14 + Math.random() * 66, 4 + Math.random() * 10, 2);
+      ctx.fillStyle = '#3c4646';
+      ctx.fillRect(w - 113, 9, 102, 78);
+      ctx.fillStyle = '#151a1d';
+      ctx.fillRect(w - 109, 13, 94, 70);
+      // The raster follows the reported frame count so the inset holds still between pictures.
+      for (let y = 17; y < 82; y += 4) {
+        const signal = (y * 37 + L.pictures * 13) % 59;
+        ctx.fillStyle = 'rgba(170, 166, 149, .18)';
+        ctx.fillRect(w - 107, y, 90, 1);
+        ctx.fillStyle = 'rgba(200, 195, 180, .46)';
+        ctx.fillRect(w - 106 + signal, y, 8 + (signal % 21), 2);
+      }
       ctx.fillStyle = '#a9b0bb';
       ctx.font = '10px Georgia, serif';
       ctx.fillText('Video', w - 108, 98);

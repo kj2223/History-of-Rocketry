@@ -157,12 +157,12 @@ test('a round that breaks loose on the stand goes to the range plot, the recover
   assert.fail('no seed broke loose');
 });
 
-test('the JPL path, every offer declined, runs from 1945 to the season end at Ranger 7', () => {
+test('the JPL path, every offer declined, runs from 1945 to the Mars flyby', () => {
   newGame(13);
   for (let i = 0; i < SEASON.length; i++) {
     playRound(() => 'unknown');
     if (i + 1 < SEASON.length) advance(false);
   }
   assert.equal(g.beat, 'seasonEnd');
-  assert.equal(SEASON.at(-1).id, 'ranger-7');
+  assert.equal(g.record.rounds.at(-1).id, 'mariner-4');
 });

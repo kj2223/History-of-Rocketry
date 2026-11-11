@@ -18,6 +18,7 @@ import {
   consoleInsertion,
   consolePack,
   consoleRetro,
+  consoleShift,
   consoleDecide,
   shutdownChoose,
   apollo8Brief,
@@ -368,8 +369,22 @@ function plot(canvas, c) {
     max = 20;
   const x = t => 30 + (t / span) * (w - 40),
     y = d => h / 2 - (d / max) * (h / 2 - 12);
-  ctx.fillStyle = '#10161c';
+  const glass = ctx.createLinearGradient(0, 0, 0, h);
+  glass.addColorStop(0, '#233138');
+  glass.addColorStop(0.22, '#141e24');
+  glass.addColorStop(1, '#0d141a');
+  ctx.fillStyle = glass;
   ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#35464a';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  ctx.strokeStyle = '#253239';
+  ctx.beginPath();
+  for (let t = 10; t < span; t += 10) {
+    ctx.moveTo(x(t), 18);
+    ctx.lineTo(x(t), h - 10);
+  }
+  ctx.stroke();
   ctx.fillStyle = 'rgba(110,200,120,.12)';
   ctx.fillRect(30, y(ABORT_LIMIT), w - 40, y(-ABORT_LIMIT) - y(ABORT_LIMIT));
   ctx.strokeStyle = '#c94';
@@ -414,7 +429,8 @@ export const CONTROL_ACTS = {
   'm-shutdown': id => shutdownChoose(id),
   a8: id => apollo8Decide(id),
   'a8-done': apollo8Done,
-  'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go'),
+  'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go' ? true : id === 'nogo' ? false : id),
+  'm-shift': id => consoleShift(id),
   'm-pack': id => consolePack(id),
   'm-retro': id => consoleRetro(id),
   pad: id => padChoose(id),

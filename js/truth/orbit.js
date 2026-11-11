@@ -81,17 +81,26 @@ export function atlasAscent(
     drift = failure === names.guidance ? (d.sign < 0.5 ? -1 : 1) * 0.25 : 0,
     t0 = 60 + Math.round(90 * d.start);
   const steps = [];
+  const stageNames =
+    round.vehicle === 'titan' ? ['First stage', 'Second stage'] :
+    round.vehicle === 'atlas' ? ['Boosters and sustainer', 'Sustainer'] : null;
   let breakupAt = null;
   for (let t = 0; t <= burn; t++) {
     const k = t / P.burn,
       v = vEnd * k ** 1.4;
+    // Game load curves, independent of the trajectory approximation. Each powered phase builds load as the stack lightens.
+    const staged = t >= 130;
+    const acc = stageNames
+      ? staged ? 1.4 + 4.5 * ((t - 130) / (P.burn - 130)) ** 1.5 : 1.3 + 3.4 * (t / 130) ** 1.5
+      : (1.3 + 6.5 * k ** 1.8) * (staged ? 0.55 + 0.45 * k : 1);
     const off = disp * smooth((t - 10) / (P.burn - 10)) + (drift && t > t0 ? drift * (t - t0) : 0);
     steps.push({
       t,
       v,
       gamma: orbitGamma(t) + off,
       off,
-      acc: (1.3 + 6.5 * k ** 1.8) * (t < 130 ? 1 : 0.55 + 0.45 * k),
+      acc,
+      stage: stageNames?.[Number(staged)],
       h: P.cutoffH * k ** 1.3,
       x: 1400 * k ** 2.4,
     });
@@ -177,7 +186,7 @@ export function goddard(round) {
 
 // What happens at insertion: 'go' keeps her up, 'nogo' fires the retros at once and brings her down in the last abort area.
 // A go on an orbit that will not hold brings her down within the first orbit, far from any ship.
-export function insertion(round, go) {
+export function insertion(round, go, correction = 0) {
   const e = round.end;
   if (!go)
     return Object.assign(e, {
@@ -186,7 +195,7 @@ export function insertion(round, go) {
       capsule: 'safe',
       entryG: 9,
     });
-  if (e.margin < 0)
+  if (e.margin + correction < 0)
     return Object.assign(e, {
       outcome: 'decay',
       landing: 5500 + 3000 * Math.min(1, -e.margin * 10),

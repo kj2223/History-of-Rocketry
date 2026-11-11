@@ -18,6 +18,7 @@ import {
   finishPlan,
   chair,
   nextRound,
+  advanceProbe,
   answerFirstOffer,
 } from '../js/game.js';
 import { pendingOffer } from '../js/career/record.js';
@@ -36,6 +37,13 @@ export const nextDay = () => {
   endDay();
   until(() => !g.fading);
   closeAway();
+  if (g.beat.startsWith('probe')) {
+    while (g.beat.startsWith('probe')) {
+      advanceProbe(true);
+      closeAway();
+    }
+    return;
+  }
 };
 
 // Play the current round end to end the way a careful but quiet player would, and give `call` at the review.

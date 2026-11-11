@@ -6,6 +6,27 @@ import { newRound } from '../js/truth/round.js';
 import { flightTruth, resolve } from '../js/truth/flights.js';
 import { initProgramme } from '../js/world/programme.js';
 import { FLIGHTS } from '../js/data/flights.js';
+import { g, newGame } from '../js/game.js';
+import { flightCause, startFlight, tickFlight } from '../js/houston.js';
+
+test('a lunar alarm becomes review evidence only when its flight step runs', () => {
+  newGame(5);
+  const c = { kind: 'flight', flightId: 'apollo-11', round: g.round };
+  startFlight(c);
+  c.round.flightTruth.flags.alarm = true;
+  assert.equal(flightCause(c.round), null);
+  const alarm = FLIGHTS[c.flightId].steps.findIndex(s => s.if === 'alarm');
+  c.flight.step = alarm;
+  c.flight.state.earthOnly = true;
+  tickFlight(c, 2, () => {});
+  assert.equal(flightCause(c.round), null);
+
+  c.flight.step = alarm;
+  c.flight.state.earthOnly = false;
+  c.flight.wait = 0;
+  tickFlight(c, 2, () => {});
+  assert.equal(flightCause(c.round), 'alarm');
+});
 
 const round = (id, s, withFaults = {}) => {
   const r = newRound(s, initProgramme(), 'saturn5');

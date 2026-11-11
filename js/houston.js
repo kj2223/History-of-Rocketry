@@ -53,6 +53,12 @@ export function startFlight(c) {
     phaseNo: 1,
   };
   c.phase = 'mission';
+  if (c.insertionPlan) {
+    const { reserve, reduced, delay } = c.insertionPlan;
+    Object.assign(c.flight.state, { reserve, reduced, rendezvousDelay: delay });
+    c.flight.status.RESERVE = [`${reserve}%`, reserve < 60];
+    c.flight.status.OBJECTIVE = [reduced ? 'orbital checkout' : 'rendezvous'];
+  }
   if (g.people.crew2 && crewName(1)) g.people.crew2.name = crewName(1);
   note(`${plan.craft} is in orbit. The flight plan: ${plan.objective}. The mission rules: ${plan.rules.join(' ')}`);
   roomChanged();
@@ -61,7 +67,30 @@ export function startFlight(c) {
 // The flight plan, a step at a time.
 export function tickFlight(c, dt, speak) {
   const f = c.flight;
-  if (f.decision) return;
+  if (f.decision) {
+    const d = f.decision;
+    if (d.remaining == null) return;
+    const elapsed = Math.min(d.remaining, dt * Math.min(4, g.speed));
+    d.remaining -= elapsed;
+    f.at += elapsed / 60;
+    g.clock += elapsed;
+    g.day = Math.floor(g.clock / 1440);
+    if (d.remaining <= 0) return answer(c, 'stand-down', speak);
+    if (d.fixIn != null) {
+      d.fixIn -= elapsed;
+      if (d.fixIn <= 0) {
+        d.fixIn = null;
+        const reset = f.status.COMPUTER?.[0] === 'resets';
+        const report = reset
+          ? 'FIDO: the new ground fix is steady. EECOM confirms the onboard reset invalidated its solution.'
+          : 'FIDO: the new ground fix agrees with the onboard solution.';
+        f.status['GROUND FIX'] = ['confirmed'];
+        speak(c, 'morgan', report, 'go', 8);
+        note(report);
+      }
+    }
+    return;
+  }
   f.wait -= dt * Math.min(4, g.speed);
   if (f.wait > 0) return;
   const plan = FLIGHTS[f.id];
@@ -113,6 +142,10 @@ function advanceTo(c, at, s) {
 
 function runStep(c, s, speak) {
   const f = c.flight;
+  if (s.if && c.kind === 'flight') {
+    const seen = (c.round.flightFaultsSeen ??= []);
+    if (!seen.includes(s.if)) seen.push(s.if);
+  }
   if (s.phase && s.phase !== f.phase) {
     f.phase = s.phase;
     f.phaseNo += 1;
@@ -146,6 +179,15 @@ function ask(c, id, speak) {
     speak(c, c.flight.decision.who, `${D.q} ${D.options[D.auto]}`, 'warn', 6);
     return answer(c, D.auto, speak);
   }
+  if (id === 'rdvplan' && c.kind === 'flight') {
+    const d = c.flight.decision;
+    d.remaining = 30 - (c.flight.state.rendezvousDelay || 0);
+    d.options = { ...d.options, 'request-fix': 'Request a fresh ground fix' };
+    c.flight.status['GROUND FIX'] = ['provisional', true];
+  }
+  if (id === 'navcheck' && c.kind === 'flight' && g.record.seat === 'flight') {
+    c.flight.decision.options = { send: 'Authorize Retro to uplink.', check: 'Ask for an independent check before authorizing.' };
+  }
   speak(
     c,
     c.kind === 'flight' && g.record.seat !== 'flight' ? 'dorsey' : 'kessler',
@@ -160,10 +202,21 @@ function ask(c, id, speak) {
 export function answer(c, choice, speak) {
   const f = c.flight,
     d = f.decision;
-  if (!d || !d.options[choice]) return;
+  if (!d) return;
+  if (choice === 'request-fix' && d.options[choice]) {
+    delete d.options[choice];
+    d.fixIn = 8;
+    speak(c, 'morgan', 'FIDO: fresh tracking requested. Expect a solution in eight mission minutes.', '', 6);
+    roomChanged();
+    return;
+  }
+  const timedOut = choice === 'stand-down' && d.remaining === 0;
+  const option = timedOut ? 'Stand down. The intercept window closed.' : d.options[choice];
+  if (!option) return;
   f.decision = null;
+  if (d.remaining != null) f.state.groundFix = f.status['GROUND FIX'][0];
   const r = resolve(c.round, d.id, choice, f.state);
-  if (d.mine) speak(c, 'you', d.options[choice], '', 5);
+  if (d.mine) speak(c, timedOut ? 'morgan' : 'you', option, timedOut ? 'warn' : '', 5);
   for (const [who, text, tone] of r.lines) speak(c, who, text, tone || '', 6);
   Object.assign(f.state, r.set);
   if (r.hurt) f.state.hurt = Math.max(f.state.hurt || 0, r.hurt);
@@ -191,7 +244,7 @@ export function answer(c, choice, speak) {
   });
   if (c.kind === 'flight') {
     note(
-      `${d.mine ? 'You' : d.who === 'hollis' ? 'Hollis' : 'Dorsey'} decided: ${d.options[choice]}${r.note ? ` ${r.note}` : ''}`,
+      timedOut ? option : `${d.mine ? 'You' : d.who === 'hollis' ? 'Hollis' : 'Dorsey'} decided: ${option}${r.note ? ` ${r.note}` : ''}`,
     );
     if (r.endAt != null) note(`${c.flight.craft} comes home early, at about ${Math.round(f.endAt)} hours.`);
   }
@@ -315,13 +368,9 @@ export const DECISION_NAMES = {
 };
 // What the flight's own troubles were, in flight-plan order, for the review: the first one that showed.
 export function flightCause(round) {
-  const t = round.flightTruth;
   if (round.shutdownSeen) return 'shutdown';
-  if (!t) return null;
-  const plan = FLIGHTS[t.id],
-    shown = new Set(plan.steps.filter(s => s.if).map(s => s.if));
-  for (const k of plan.steps.filter(s => s.if).map(s => s.if)) if (shown.has(k) && t.flags[k]) return k;
-  if (t.flags.chute && round.end?.chute) return 'chute';
-  if (t.flags.navdata && round.end && round.end.nav) return 'navdata';
+  if (round.flightFaultsSeen?.length) return round.flightFaultsSeen[0];
+  if (flag(round, 'chute') && round.end?.chute) return 'chute';
+  if (flag(round, 'navdata') && round.end?.nav) return 'navdata';
   return null;
 }

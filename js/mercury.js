@@ -195,7 +195,7 @@ export const MERCURY_BEATS = {
       walk('pilot', 2050);
       say(
         'pilot',
-        engineer() ? 'Morning. Is she a good one?' : 'Morning, Retro. Get me a good splashdown point.',
+        engineer() ? 'Morning. Is she a good one?' : flightDirector() ? 'Morning, Flight. The crew is ready.' : 'Morning, Retro. Get me a good splashdown point.',
         '',
         6,
       );
@@ -438,12 +438,18 @@ export function consolePoll(go) {
     );
   const poll = con.poll;
   con.poll = null;
+  const flight = flightDirector() && !con.auto;
+  const station = flight ? 'Flight' : 'Retro';
+  if (flight) {
+    speak(con, 'reyes', ok ? 'Flight, Recovery is go.' : 'Flight, Recovery is no-go.', ok ? 'go' : 'warn');
+    speak(con, 'tate', ok ? 'Retro concurs. The recovery area is ready.' : 'Retro concurs with the recovery hold.', ok ? 'go' : 'warn');
+  }
   // The man on top has his own say at the final poll, and his no is binding.
   if (go && poll === 'final' && con.kind === 'flight' && pilotId()) {
-    speak(con, retroWho(con), 'Retro is go.', 'go');
+    speak(con, retroWho(con), `${station} is go.`, 'go');
     const t = CREW_TRAITS[pilotId()],
       ok = consents(t, { sea: b.sea, late: con.cond.late });
-    speak(con, 'hollis', `${first()}, are you go?`);
+    speak(con, flight ? 'you' : 'hollis', `${first()}, are you go?`);
     if (impatient(t, con.holds))
       speak(con, 'pilot', "Why don't you fix your little problem and light this candle?", 'warn', 6);
     if (ok) {
@@ -469,7 +475,7 @@ export function consolePoll(go) {
     return;
   }
   if (go) {
-    speak(con, retroWho(con), 'Retro is go.', 'go');
+    speak(con, retroWho(con), `${station} is go.`, 'go');
     if (sim && con.phase === 'poll') {
       con.phase = 'count';
       con.clock = 10;
@@ -480,20 +486,20 @@ export function consolePoll(go) {
   // NO-GO: a ship off station is waited for; a rough sea scrubs the day; a clean board is a hold while Hollis asks why.
   if (con.cond.seaState > SEA_LIMIT) {
     lamp(con, 'RECOVERY', 'SEA ROUGH', 'SCRUB', 'warn');
-    speak(con, retroWho(con), `Retro is no-go. Sea state ${b.sea} in the recovery area. The rule says four.`, 'bad');
-    speak(con, 'hollis', 'Agreed. We scrub for today.', 'warn');
+    speak(con, retroWho(con), `${station} is no-go. Sea state ${b.sea} in the recovery area. The rule says four.`, 'bad');
+    speak(con, flight ? 'you' : 'hollis', flight ? 'Scrub for today.' : 'Agreed. We scrub for today.', 'warn');
     return endCount('scrub');
   }
   if (con.cond.late) {
     speak(
       con,
       retroWho(con),
-      `Retro is no-go until ${unitsOf(con)[con.cond.late].split(',')[0].toLowerCase()} is on station.`,
+      `${station} is no-go until ${unitsOf(con)[con.cond.late].split(',')[0].toLowerCase()} is on station.`,
       'bad',
     );
     lamp(con, 'RECOVERY', '1 SHIP', 'NOT ON STN', 'warn');
     lamp(con, 'RETRO', 'NO-GO', 'HOLDING', 'warn');
-    speak(con, 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
+    speak(con, flight ? 'you' : 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
     con.phase = 'hold';
     con.holdLeft = 3;
     con.holdFor = 'ship';
@@ -502,11 +508,12 @@ export function consolePoll(go) {
     return;
   }
   lamp(con, 'RETRO', 'NO-GO', 'LOOKING', 'warn');
-  speak(con, retroWho(con), 'Retro is no-go.', 'bad');
+  speak(con, retroWho(con), `${station} is no-go.`, 'bad');
   speak(
     con,
-    'hollis',
-    'Retro, I have every ship on station and a flat sea. What are you seeing? Holding while you look.',
+    flight ? 'reyes' : 'hollis',
+    flight ? 'Flight, Recovery has all ships on station. Standing by during the hold.' :
+      'Retro, I have every ship on station and a flat sea. What are you seeing? Holding while you look.',
     'warn',
   );
   con.phase = 'hold';
@@ -542,7 +549,11 @@ export function consoleAim(which) {
   if (con.orbital) {
     const where = which === 'planned' ? 'the planned point' : km(con.ip[which]) + ' of the planned point';
     const radar = con.flightId ? 'the tracking ship' : 'Grand Turk';
-    speak(
+    if (flightDirector() && !con.auto) {
+      speak(con, 'tate', `Flight, Retro: the computer's splashdown estimate is ${km(con.ip.retro)} of the planned point.`);
+      speak(con, 'you', which === 'radar' ? 'Flight to Recovery: proceed on the tracking ship’s fix when it comes in.' :
+        `Flight to Recovery: proceed to ${where}.`, 'go');
+    } else speak(
       con,
       retroWho(con),
       which === 'radar'
@@ -671,7 +682,9 @@ export function tickConsole(dt) {
     while (con.next < MERCURY_COUNT.length && MERCURY_COUNT[con.next].at >= con.clock) {
       const s = MERCURY_COUNT[con.next++];
       if (con.kind === 'sim' && s.at > 10) continue; // a sim picks up at the recovery poll, then counts the last ten seconds
-      speak(con, s.who, s.text, s.tone || '', s.quick ? 1 : 4);
+      const flight = flightDirector() && !con.auto;
+      const text = flight && s.poll === 'recovery' ? 'Flight, Recovery and Retro are ready to report.' : s.text;
+      speak(con, flight && s.poll === 'recovery' ? 'reyes' : s.who, text, s.tone || '', s.quick ? 1 : 4);
       if (s.poll) {
         con.poll = s.poll;
         con.clock = s.at;
@@ -689,7 +702,8 @@ export function tickConsole(dt) {
     g.clock += (con.t - before) / 60;
     for (let t = Math.floor(before) + 1; t <= Math.floor(con.t); t++) {
       const s = stepAt(a, t);
-      con.trace.push({ t, gamma: s.gamma + flutter(con.round.seed, t), off: s.off, v: s.v, acc: s.acc });
+      const priorStage = con.trace.at(-1)?.stage;
+      con.trace.push({ t, gamma: s.gamma + flutter(con.round.seed, t), off: s.off, v: s.v, acc: s.acc, stage: s.stage });
       if (
         con.kind === 'flight' &&
         pilotId() &&
@@ -722,12 +736,34 @@ export function tickConsole(dt) {
         );
       }
       if (t === 60) speak(con, 'albrecht', 'Booster: one minute, steady.', 'go');
-      if (con.orbital && t === 130)
-        speak(con, 'albrecht', 'Booster engines cutoff. Staging. The sustainer is carrying her.', 'go');
-      if (con.orbital && t === 155) speak(con, 'morgan', 'Escape tower jettisoned.', 'go');
+      if (priorStage && s.stage !== priorStage)
+        speak(con, 'albrecht', con.round.vehicle === 'titan'
+          ? 'First stage cutoff and separation. Second stage ignition confirmed.'
+          : 'Booster engines cutoff. The sustainer is still burning.', 'go');
+      if (con.orbital && con.round.vehicle !== 'titan' && t === 155)
+        speak(con, 'morgan', 'Escape tower jettisoned.', 'go');
       if (a.breakupAt != null && t >= a.breakupAt) return breakup(con);
     }
+    if (con.shift?.pending) {
+      con.shift.pending.left -= con.t - before;
+      if (con.shift.pending.left <= 0) finishShiftReport(con);
+    }
     if (con.t >= a.burn) finishAscent(con);
+    return;
+  }
+  if (con.phase === 'insertion' && con.shift) {
+    const shift = con.shift;
+    const elapsed = Math.min(shift.remaining, dt * Math.min(4, g.speed));
+    shift.remaining -= elapsed;
+    g.clock += elapsed;
+    g.day = Math.floor(g.clock / 1440);
+    if (shift.pending) {
+      shift.pending.left -= elapsed;
+      if (shift.pending.left <= 0) finishShiftReport(con);
+    }
+    if (shift.remaining <= 0) {
+      consoleInsertion('expire');
+    }
     return;
   }
   if (con.phase === 'mission') return tickFlight(con, dt, speak);
@@ -759,6 +795,8 @@ function liftoff(con) {
     ? atlasAscent(con.round, con.kind === 'sim' ? orbitSimFailure(con) : null, boosterOf(con).names)
     : ascent(con.round, con.kind === 'sim' ? simFailure(con.scenario) : null);
   con.burn = a.burn; // the planned burn, from the flight plan: player-visible, and all the wall map needs
+  if (con.kind === 'flight' && con.flightId === 'gem-6' && flightDirector() && !con.auto)
+    con.shift = { plan: 'rendezvous', reports: {} };
   if (con.kind === 'flight') {
     g.launchDay = g.day;
     g.rocket.where = 'flying';
@@ -1394,12 +1432,9 @@ function flightEvidence(a, end) {
     lines[0] = `${lines[0]} It starts at about ${a.controlFrom} seconds.`;
   const t = g.round.flightTruth;
   if (t) {
+    const cause = flightCause(g.round);
     for (const [k, l] of Object.entries(FLIGHT_EVIDENCE))
-      if (
-        k === flightCause(g.round) ||
-        (k !== 'navdata' && t.flags[k] && (flightOf(t.id)?.steps || []).some(s => s.if === k))
-      )
-        lines.push(...l);
+      if (k === cause || g.round.flightFaultsSeen?.includes(k)) lines.push(...l);
     if (!lines.slice(1).length && !a.failure)
       lines.push('The spacecraft systems stayed in their bands from insertion to retrofire.');
   }
@@ -1558,7 +1593,8 @@ function finishAtlas(con) {
   if (con.kind === 'flight') g.rocket.where = 'gone';
   if (end.outcome === 'orbit') {
     con.goddard = goddard(con.round);
-    speak(con, 'albrecht', `Sustainer engine cutoff at ${a.burn} seconds. Capsule separation.`, 'go');
+    const engine = con.round.vehicle === 'titan' ? 'Second stage' : con.round.vehicle === 'atlas' ? 'Sustainer' : 'Final powered stage';
+    speak(con, 'albrecht', `${engine} cutoff at ${a.burn} seconds. Capsule separation.`, 'go');
     speak(
       con,
       'morgan',
@@ -1571,6 +1607,13 @@ function finishAtlas(con) {
         `At cutoff the plot showed ${con.goddard.v.toFixed(3)} km/s, ${con.goddard.gammaOff.toFixed(1)} degrees off the planned angle (orbit needs about ${ORBIT_PLAN.need} km/s, level). Goddard said ${con.goddard.go ? 'GO' : 'NO-GO'}.`,
       );
     con.phase = 'insertion';
+    if (con.shift) {
+      con.shift.remaining = 12;
+      if (con.shift.pending?.desk === 'network') {
+        con.shift.pending.left = 4;
+        con.insertionFix = 4;
+      } else if (con.shift.pending) finishShiftReport(con);
+    }
     return roomChanged();
   }
   const shuttle = con.round.vehicle === 'shuttle';
@@ -1612,27 +1655,100 @@ export function consoleDecide(choice) {
   answer(con, choice, speak);
 }
 
-// Retro's call at insertion: go for orbit, or bring her down now while the ships in the abort area can reach her.
-export function consoleInsertion(go) {
+export function consoleShift(action) {
+  const c = g.console, shift = c?.shift;
+  if (!shift || !['ascent', 'insertion'].includes(c.phase)) return;
+  if (action === 'checkout' || action === 'rendezvous') {
+    shift.plan = action;
+    note(`Flight's working plan: ${action === 'checkout' ? 'orbital checkout only' : 'rendezvous'}.`);
+  } else {
+    if (shift.pending || !['booster', 'network'].includes(action)) return;
+    if (c.phase === 'insertion') {
+      if (action !== 'network' || c.insertionFix) return;
+      c.insertionFix = 4;
+    }
+    shift.pending = { desk: action, left: c.phase === 'ascent' ? 12 : 4 };
+    speak(c, 'you', action === 'booster' ? 'Booster, confirm the active stage and thrust.' : 'Network, give me an independent tracking fix.');
+  }
+  roomChanged();
+}
+
+function finishShiftReport(c) {
+  const shift = c.shift, { desk } = shift.pending;
+  shift.pending = null;
+  const last = c.trace.at(-1);
+  let report;
+  if (desk === 'booster') {
+    report = c.phase === 'insertion' ? 'Booster: cutoff confirmed.' :
+      `Booster: ${last.stage || 'boost'} active, ${last.acc.toFixed(1)} g.`;
+  } else if (c.phase === 'insertion') {
+    c.goddard = goddard(c.round);
+    report = `Network: independent fix reads ${c.goddard.go ? 'a holding orbit' : 'an orbit below the limit'}.`;
+  } else {
+    report = `Network: tracking puts us ${Math.abs(last.off).toFixed(1)}° off the planned path. Orbit fix follows cutoff.`;
+  }
+  shift.reports[desk] = report;
+  speak(c, desk === 'booster' ? 'albrecht' : 'morgan', report, 'go', 7);
+  note(report);
+  roomChanged();
+}
+
+// Flight's call at insertion: commit the working plan or return while the abort area is still reachable.
+export function consoleInsertion(choice) {
   const con = g.console;
   if (!con || con.phase !== 'insertion') return;
+  const gemini = con.kind === 'flight' && con.flightId === 'gem-6' && !con.auto;
+  if (choice === 'fix') {
+    if (!gemini || con.insertionFix) return;
+    if (con.shift) return consoleShift('network');
+    con.insertionFix = 4;
+    g.clock += con.insertionFix;
+    g.day = Math.floor(g.clock / 1440);
+    con.goddard = goddard(con.round);
+    const report = `Network: second fix is in. Goddard reads ${con.goddard.go ? 'a holding orbit' : 'an orbit below the limit'}. Four minutes spent.`;
+    speak(con, 'morgan', report, 'warn', 7);
+    note(report);
+    return roomChanged();
+  }
+  const expired = choice === 'expire' && con.shift?.remaining === 0;
+  if (!expired && typeof choice !== 'boolean' && (!gemini || !['correct', 'reduced'].includes(choice))) return;
+  const go = choice !== false && !expired;
+  const correction = choice === 'correct' ? 0.04 : 0;
   const end = con.round.end,
-    good = end.margin >= 0;
+    good = end.margin + correction >= 0;
   con.calls.insertion = { go, right: go === good, goddard: con.goddard.go };
-  insertion(con.round, go);
+  insertion(con.round, go, correction);
+  if (gemini && go) {
+    con.insertionPlan = {
+      reserve: correction ? 55 : 100,
+      reduced: choice === 'reduced' || con.shift?.plan === 'checkout',
+      delay: con.shift ? 12 - con.shift.remaining : con.insertionFix || 0,
+    };
+    if (correction) speak(con, 'kessler', 'Orbit correction committed. We have 55 percent of the maneuver reserve left.', 'warn');
+    if (con.insertionPlan.reduced) speak(con, 'you', 'Keep the orbital checkout. Stand down the rendezvous team.', 'warn');
+  }
   if (con.kind === 'flight')
     note(
-      `Insertion: ${con.auto ? 'Tate' : 'you'} called ${go ? 'GO for orbit' : 'NO-GO'}${go === con.goddard.go ? ', with Goddard' : ', against Goddard'}.`,
+      expired ? 'The insertion decision window closed. The team executed the early return.' :
+        `Insertion: ${con.auto ? 'Tate' : 'you'} called ${go ? 'GO for orbit' : 'NO-GO'}${go === con.goddard.go ? ', with Goddard' : ', against Goddard'}.`,
     );
   if (!go) {
-    speak(con, retroWho(con), 'Flight, Retro: no-go. Bring her down in the abort area.', 'bad');
-    speak(con, 'hollis', "Fire the retros. Recovery, she's yours.", 'warn');
+    if (expired) {
+      speak(con, 'tate', 'Retro: the window closed. Executing the early return.', 'warn');
+    } else if (flightDirector() && !con.auto) {
+      speak(con, 'you', 'Flight is no-go for orbit. Retro, bring her down in the abort area.', 'bad');
+      speak(con, 'tate', 'Retro copies. Recovery, stand by for the early return.', 'warn');
+    } else {
+      speak(con, retroWho(con), 'Flight, Retro: no-go. Bring her down in the abort area.', 'bad');
+      speak(con, 'hollis', "Fire the retros. Recovery, she's yours.", 'warn');
+    }
     con.aim = null;
     con.phase = 'coast';
     con.coastLeft = 3;
     return roomChanged();
   }
-  speak(con, retroWho(con), 'Flight, Retro: we are go for orbit.', 'go');
+  const directing = flightDirector() && !con.auto;
+  speak(con, retroWho(con), directing ? 'Flight is go for orbit.' : 'Flight, Retro: we are go for orbit.', 'go');
   if (end.outcome === 'decay') {
     speak(con, 'hollis', 'We have a go!', 'go');
     speak(
@@ -1652,7 +1768,7 @@ export function consoleInsertion(go) {
     return roomChanged();
   }
   if (con.flightId) {
-    speak(con, 'hollis', 'We have a go!', 'go');
+    if (!directing) speak(con, 'hollis', 'We have a go!', 'go');
     if (con.kind === 'sim') return finishSim(con);
     return startFlight(con);
   }

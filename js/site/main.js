@@ -24,7 +24,7 @@ import { consoleLocked } from '../mercury.js';
 import { CONTROL_ACTS } from '../scenes/control.js';
 import { talk } from '../data/talk.js';
 import { SEASON } from '../data/campaign.js';
-import { writeSave, readSave, startOver, readBackup, swapBackup } from '../core/save.js';
+import { writeSave, readSave, startOver, readBackup, swapBackup, memoryStorage } from '../core/save.js';
 import { drawInterior, interiorOf, interiorButtonAt } from './interiors.js';
 import { lookAt } from '../game.js';
 import {
@@ -291,6 +291,10 @@ function hud() {
     .join('');
 }
 
+// Seeded replays keep their checkpoints and backups separate from the active campaign.
+const seed = Number(new URLSearchParams(location.search).get('seed')) || undefined;
+const storage = seed ? memoryStorage() : localStorage;
+
 // The game menu: start again from 1945, keeping the game you were playing as the backup, or go back to the backup.
 const where = c => `${cap(SEASON[roundIndexOf(c)].name)}, ${dateText(c.day)}`;
 const cap = s => s[0].toUpperCase() + s.slice(1);
@@ -300,17 +304,17 @@ const fresh = () => {
 };
 bindRoom({
   again: () => {
-    startOver(localStorage, checkCheckpoint);
+    startOver(storage, checkCheckpoint);
     newGame();
     fresh();
   },
   backup: () => {
-    const c = readBackup(localStorage, checkCheckpoint);
+    const c = readBackup(storage, checkCheckpoint);
     return c ? where(c) : null;
   },
   restore: () => {
-    if (!swapBackup(localStorage, checkCheckpoint)) return;
-    const c = readSave(localStorage, checkCheckpoint);
+    if (!swapBackup(storage, checkCheckpoint)) return;
+    const c = readSave(storage, checkCheckpoint);
     if (c) newGame(c.seed, c);
     else newGame();
     fresh();
@@ -323,7 +327,7 @@ function autosave() {
   if (g.savedVersion === savedVersion) return;
   savedVersion = g.savedVersion;
   try {
-    writeSave(localStorage, checkpoint());
+    writeSave(storage, checkpoint());
   } catch {
     /* storage full or blocked: play on unsaved */
   }
@@ -360,8 +364,7 @@ function frame(now) {
 }
 
 // ?seed=123 replays the same round, for comparing notes. Otherwise carry on from the saved morning, if there is one.
-const seed = Number(new URLSearchParams(location.search).get('seed')) || undefined;
-const saved = seed ? null : readSave(localStorage, checkCheckpoint);
+const saved = readSave(storage, checkCheckpoint);
 if (saved) newGame(saved.seed, saved);
 else newGame(seed);
 resize();

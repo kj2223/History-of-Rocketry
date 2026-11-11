@@ -90,7 +90,11 @@ function room(ctx, s, wall, floor) {
   wallLight.addColorStop(1, '#38352e');
   ctx.fillStyle = wallLight;
   ctx.fillRect(0, 0, s.w, floorY);
-  ctx.fillStyle = floor;
+  const floorLight = ctx.createLinearGradient(0, floorY, 0, Math.max(floorY + 1, s.h));
+  floorLight.addColorStop(0, '#3c3831');
+  floorLight.addColorStop(0.42, floor);
+  floorLight.addColorStop(1, floor);
+  ctx.fillStyle = floorLight;
   ctx.fillRect(0, floorY, s.w, s.h - floorY);
   ctx.fillStyle = 'rgba(0,0,0,.28)';
   ctx.fillRect(0, floorY - 8 * s.k, s.w, 8 * s.k);
@@ -107,6 +111,18 @@ function room(ctx, s, wall, floor) {
   ctx.stroke();
   ctx.translate(s.ox, s.oy);
   ctx.scale(s.k, s.k);
+}
+
+function roomLight(ctx, x, y, rx, ry, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(rx, ry);
+  const light = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  light.addColorStop(0, color);
+  light.addColorStop(1, 'transparent');
+  ctx.fillStyle = light;
+  ctx.fillRect(-1, -1, 2, 2);
+  ctx.restore();
 }
 
 function doorSign(ctx, s) {
@@ -231,23 +247,28 @@ function seatedBack(ctx, x, y, p, t) {
   ctx.fillRect(x - 4, y + 100, 8, FLOOR - y - 100);
   ctx.fillRect(x - 26, FLOOR - 6, 52, 6);
   if (!p) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(1.35, 1.35);
+  ctx.globalAlpha = 0.62;
   ctx.fillStyle = p.color;
   ctx.beginPath();
-  ctx.roundRect(x - 34, y, 68, 62, 12);
+  ctx.roundRect(-34, 0, 68, 62, 12);
   ctx.fill();
   ctx.fillStyle = '#e2b993';
-  ctx.fillRect(x - 7, y - 10, 14, 12);
+  ctx.fillRect(-7, -10, 14, 12);
   ctx.fillStyle = p.id === 'ellis' ? '#6b4a32' : '#3a2c22';
   ctx.beginPath();
-  ctx.arc(x, y - 26, 22, 0, 7);
+  ctx.arc(0, -26, 22, 0, 7);
   ctx.fill();
   if (p.hat) {
     ctx.fillStyle = p.hat;
     ctx.beginPath();
-    ctx.ellipse(x, y - 40, 24, 9, 0, 0, 7);
+    ctx.ellipse(0, -40, 24, 9, 0, 0, 7);
     ctx.fill();
   }
-  if (p.id === 'you') youMark(ctx, x, y - 64);
+  ctx.restore();
+  if (p.id === 'you') youMark(ctx, x + 58, y - 42);
   if (p.working) {
     ctx.fillStyle = Math.sin(t * 20) > 0 ? '#ffe28a' : '#fff';
     ctx.fillRect(x + 30, y - 10 + Math.sin(t * 9) * 4, 4, 4);
@@ -372,6 +393,9 @@ function drawBlockhouse(ctx, g, s) {
   // Board marks from the concrete formwork, and the heavy roof beam.
   ctx.fillStyle = 'rgba(0,0,0,.07)';
   for (let y = 40; y < FLOOR; y += 46) ctx.fillRect(-2000, y, 5000, 2);
+  ctx.fillStyle = 'rgba(217,207,181,.12)';
+  for (let y = 42; y < FLOOR; y += 46) ctx.fillRect(-2000, y, 5000, 1);
+  roomLight(ctx, built ? 615 : 360, 130, built ? 700 : 460, 410, 'rgba(249,218,158,.27)');
   ctx.fillStyle = '#4e4b45';
   ctx.fillRect(-2000, 0, 5000, 34);
   // The lights: one bulb on a flex in the old blockhouse; strip lights in the new.
@@ -415,6 +439,10 @@ function drawBlockhouse(ctx, g, s) {
     ctx.fillStyle = '#5b5f66';
     ctx.fillRect(cx + r + 6, 34, 18, cy - 34 + 20);
     ctx.fillRect(cx + r - 8, cy + 6, 46, 26); // tube and eyepiece
+    ctx.fillStyle = '#34352f';
+    ctx.beginPath();
+    ctx.arc(cx + 5, cy + 8, r + 15, 0, 7);
+    ctx.fill();
     ctx.fillStyle = '#b08a4a';
     ctx.beginPath();
     ctx.arc(cx, cy, r + 9, 0, 7);
@@ -437,6 +465,11 @@ function drawBlockhouse(ctx, g, s) {
     ctx.lineTo(cx, cy + r);
     ctx.stroke();
     ctx.restore();
+    ctx.strokeStyle = 'rgba(255,230,175,.52)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 5, Math.PI * 1.05, Math.PI * 1.58);
+    ctx.stroke();
     ctx.fillStyle = '#d8d2c0';
     ctx.font = '12px Georgia, serif';
     ctx.textAlign = 'center';
@@ -486,6 +519,7 @@ function drawBlockhouse(ctx, g, s) {
   const here = new Set(inside(g, 'blockhouse', 180).map(p => p.id));
   if (c) here.add('you');
   const deskY = 300,
+    shoulderY = deskY + 128,
     stW = 250,
     gap = 22,
     x0 = (DW - (4 * stW + 3 * gap)) / 2;
@@ -498,6 +532,13 @@ function drawBlockhouse(ctx, g, s) {
   ctx.fillStyle = '#4a433a';
   ctx.fillRect(x0 - 24, deskY + 148, 4 * stW + 3 * gap + 48, FLOOR - deskY - 148);
   shadeRight(ctx, x0 - 24, deskY + 148, 4 * stW + 3 * gap + 48, FLOOR - deskY - 148, 0.02);
+  ctx.fillStyle = 'rgba(26,22,18,.3)';
+  ctx.fillRect(x0 - 24, deskY + 148, 4 * stW + 3 * gap + 48, 8);
+  ctx.fillStyle = '#c8ba98';
+  ctx.fillRect(x0 + 16, deskY + 134, 53, 10);
+  ctx.fillStyle = '#6d6855';
+  ctx.fillRect(x0 + 21, deskY + 137, 31, 1);
+  ctx.fillRect(x0 + 21, deskY + 141, 37, 1);
   const heads = [];
   COUNT_STATIONS.forEach((st, i) => {
     const x = x0 + i * (stW + gap),
@@ -518,14 +559,14 @@ function drawBlockhouse(ctx, g, s) {
     stationFace(ctx, st.id, x, deskY + 40, stW, 76, c, t);
     const away = id => g.jobs.some(j => (j.who || []).includes(id));
     const present = who && !who.hidden && (c ? !away(who.id) : here.has(who.id));
-    seatedBack(ctx, x + stW / 2, deskY + 200, present ? who : null, t);
-    if (present) heads.push([who, x + stW / 2, deskY + 150]);
+    seatedBack(ctx, x + stW / 2, shoulderY, present ? who : null, t);
+    if (present) heads.push([who, x + stW / 2, shoulderY - 68]);
   });
   // Anyone else in the blockhouse stands at the back: Hoyt on the V-2 rounds, Brandt for the Navy, the pad crew back in.
   const standers = [...here].map(id => g.people[id]).filter(p => p && !Object.values(seat).includes(p.id));
   standers.forEach((p, i) => {
     const x = i % 2 ? 1150 - (i >> 1) * 70 : 60 + (i >> 1) * 70;
-    heads.push([p, x, standing(ctx, x, p, t, 3.4)]);
+    heads.push([p, x, standing(ctx, x, p, t, 5.7)]);
   });
   bubbles(ctx, heads);
 }
@@ -637,7 +678,17 @@ function drawDugout(ctx, g, s) {
       ctx.beginPath();
       ctx.roundRect(x, y, 76, 27, 9);
       ctx.fill();
+      ctx.fillStyle = 'rgba(235,204,152,.13)';
+      ctx.fillRect(x + 11, y + 3, 52, 2);
+      ctx.fillStyle = 'rgba(51,37,24,.18)';
+      ctx.fillRect(x + 56, y + 17, 12, 1);
     }
+  roomLight(ctx, 600, 225, 570, 305, 'rgba(153,192,189,.34)');
+  const wallShadow = ctx.createLinearGradient(0, 244, 0, FLOOR);
+  wallShadow.addColorStop(0, 'transparent');
+  wallShadow.addColorStop(1, 'rgba(39,29,22,.48)');
+  ctx.fillStyle = wallShadow;
+  ctx.fillRect(-2000, 244, 5000, FLOOR - 244);
   ctx.fillStyle = '#5a4630';
   ctx.fillRect(-2000, 0, 5000, 40);
   for (const px of [60, 1140]) ctx.fillRect(px - 16, 0, 32, FLOOR);
@@ -650,6 +701,10 @@ function drawDugout(ctx, g, s) {
     sh = 160;
   ctx.fillStyle = '#2e2f31';
   ctx.fillRect(sx - 18, sy - 18, sw + 36, sh + 36);
+  ctx.fillStyle = '#66605a';
+  ctx.fillRect(sx - 18, sy + sh + 9, sw + 36, 9);
+  ctx.fillStyle = '#969189';
+  ctx.fillRect(sx - 15, sy + sh + 9, sw + 30, 2);
   sitePicture(ctx, g, sx, sy, sw, sh, PLACES.stand.x + 60, 0.86, 200, c2 => {
     standStructure(c2, PLACES.stand);
     if (g.rocket.where === 'stand') roundShape(c2, g, PLACES.stand.x + 60, GROUND - 40, 0, false);
@@ -682,12 +737,18 @@ function drawDugout(ctx, g, s) {
   ctx.fillRect(sx, sy, sw, sh); // the glass
   ctx.fillStyle = 'rgba(255,255,255,.12)';
   ctx.fillRect(sx + 40, sy + 8, 10, sh - 16);
+  ctx.fillStyle = 'rgba(20,28,30,.19)';
+  ctx.fillRect(sx, sy, sw, 7);
 
   // The instrument shelf under the slit: the count clock, the gauges and the recorder.
   ctx.fillStyle = '#4a3f33';
   ctx.fillRect(100, 262, 1000, 230);
   ctx.fillStyle = '#3a3128';
   ctx.fillRect(90, 488, 1020, 16);
+  ctx.fillStyle = '#826f57';
+  ctx.fillRect(90, 488, 1020, 3);
+  ctx.fillStyle = 'rgba(26,21,15,.30)';
+  ctx.fillRect(100, 504, 1000, 9);
   const phase = st ? st.phase : null;
   const clock = !st
     ? '—'
@@ -860,10 +921,26 @@ function drawHangar(ctx, g, s) {
     // Hangar S: white walls, a clean floor, the maker's banner
     ctx.fillStyle = '#e8e6df';
     ctx.fillRect(-2000, 0, 5000, 60);
+    ctx.fillStyle = 'rgba(82,102,105,.15)';
+    ctx.fillRect(-2000, 269, 5000, 5);
+    ctx.fillRect(-2000, 278, 5000, 16);
     for (const lx of [200, 600, 1000]) {
+      roomLight(ctx, lx, 250, 285, 460, 'rgba(255,255,237,.36)');
+      ctx.fillStyle = '#787e7b';
+      ctx.fillRect(lx - 93, 56, 186, 15);
       ctx.fillStyle = '#fbfaf4';
       ctx.fillRect(lx - 90, 60, 180, 10);
     }
+    ctx.fillStyle = '#9da3a0';
+    ctx.fillRect(110, 489, 137, 72);
+    ctx.fillStyle = '#5d6c70';
+    ctx.fillRect(107, 483, 143, 9);
+    ctx.fillRect(119, 559, 12, 11);
+    ctx.fillRect(226, 559, 12, 11);
+    ctx.fillStyle = '#bec5c1';
+    ctx.fillRect(117, 503, 123, 2);
+    ctx.fillRect(117, 524, 123, 2);
+    ctx.fillRect(117, 545, 123, 2);
     ctx.fillStyle = '#2b3f6b';
     ctx.fillRect(380, 96, 440, 44);
     ctx.fillStyle = '#fff';
@@ -897,6 +974,7 @@ function drawHangar(ctx, g, s) {
       ctx.stroke();
     }
     for (const lx of [300, 600, 900]) {
+      roomLight(ctx, lx, 340, 260, 365, 'rgba(244,194,117,.24)');
       ctx.strokeStyle = '#222';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -923,6 +1001,17 @@ function drawHangar(ctx, g, s) {
     ctx.fillRect(60, 470, 300, 12);
     ctx.fillRect(70, 482, 8, 128);
     ctx.fillRect(342, 482, 8, 128);
+    ctx.fillStyle = '#262521';
+    ctx.fillRect(78, 482, 264, 5);
+    ctx.fillStyle = '#b9a783';
+    ctx.fillRect(146, 461, 78, 9);
+    ctx.fillStyle = '#8c7b5b';
+    ctx.fillRect(154, 464, 52, 1);
+    ctx.fillRect(154, 467, 37, 1);
+    ctx.fillStyle = '#585d50';
+    ctx.fillRect(265, 448, 72, 22);
+    ctx.fillStyle = '#b2aa95';
+    ctx.fillRect(286, 455, 28, 2);
     ctx.fillStyle = '#4a4034';
     ctx.fillRect(70, 360, 280, 96);
     ctx.strokeStyle = '#b8b2a6';
@@ -1252,6 +1341,12 @@ function drawSim(ctx, g, s) {
   const c = g.console && g.console.kind === 'sim' ? g.console : null,
     t = g.time;
   room(ctx, s, '#2a2f36', '#34312c');
+  roomLight(ctx, 377, 259, 480, 380, 'rgba(100,157,167,.27)');
+  roomLight(ctx, 1040, 225, 255, 290, 'rgba(158,174,192,.2)');
+  ctx.fillStyle = '#242931';
+  ctx.fillRect(-2000, 391, 5000, 15);
+  ctx.fillStyle = '#4b5156';
+  ctx.fillRect(-2000, 391, 5000, 2);
   ctx.fillStyle = 'rgba(255,255,255,.04)';
   for (let x = -400; x < 1700; x += 90) ctx.fillRect(x, 0, 2, FLOOR);
   // The lit sign over the door: nobody forgets this is a sim.
@@ -1289,6 +1384,8 @@ function drawSim(ctx, g, s) {
   // The sim supervisor's window, top right: him at his desk with the failures he can throw at you.
   ctx.fillStyle = '#181b1f';
   ctx.fillRect(920, 100, 240, 200);
+  ctx.fillStyle = '#6b7278';
+  ctx.fillRect(920, 297, 240, 3);
   ctx.fillStyle = '#3a4a5a';
   ctx.fillRect(932, 112, 216, 176);
   ctx.fillStyle = '#5d6a78';
@@ -1303,6 +1400,13 @@ function drawSim(ctx, g, s) {
   for (let i = 0; i < 5; i++) ctx.fillRect(950 + i * 38, 256, 24, 8);
   ctx.fillStyle = 'rgba(255,255,255,.08)';
   ctx.fillRect(950, 116, 16, 168);
+  ctx.fillStyle = 'rgba(182,216,233,.10)';
+  ctx.beginPath();
+  ctx.moveTo(1097, 112);
+  ctx.lineTo(1121, 112);
+  ctx.lineTo(1034, 288);
+  ctx.lineTo(1010, 288);
+  ctx.fill();
   ctx.fillStyle = '#d8d2c0';
   ctx.font = '12px Georgia, serif';
   ctx.textAlign = 'center';
