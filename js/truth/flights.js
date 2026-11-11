@@ -11,7 +11,8 @@ import { ORBIT_RECOVERY } from './orbit.js';
 
 const DEG = Math.PI / 180;
 // A fixed number of physical draws for every long flight.
-export const FLIGHT_DRAWS = 16;
+// d[0] to d[15] serve the Gemini and Apollo calls; d[17] to d[25] the Skylab, Apollo-Soyuz and Shuttle calls.
+export const FLIGHT_DRAWS = 26;
 // How often each trouble comes out as it really did: the fuel cells settling, a hatch that will not seal, a stuck
 // computer coming back.
 export const ODDS = {
