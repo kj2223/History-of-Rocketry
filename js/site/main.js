@@ -37,7 +37,7 @@ import {
 } from '../core/save.js';
 import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
 import { startDevMenu, clearDevFlag } from './dev-menu.js';
-import { drawInterior, interiorOf, interiorButtonAt } from './interiors.js';
+import { drawInterior, interiorOf, interiorButtonAt, doorRight } from './interiors.js';
 import { lookAt } from '../game.js';
 import {
   render as renderRoom,
@@ -248,6 +248,7 @@ document.querySelector('header').addEventListener('click', e => {
   if (b.id === 'pause') g.paused = !g.paused;
   if (b.id === 'endday') endDay();
   if (b.id === 'notes') toggleNotebook();
+  if (b.id === 'waiting' && awayFrom()) openRoom(awayFrom().place);
   if (b.id === 'game') openGameMenu();
 });
 function openGameMenu() {
@@ -296,10 +297,34 @@ $('notebook').addEventListener('click', e => {
     showNotebook();
   }
 });
+// While a count or a flight runs without you in its room (you closed it to look at the site), the bar says where it is
+// and takes you back; when a call there is yours to make, it lights up. Before this, a question asked while you were on
+// the site was only a speech bubble, and the site cannot be walked during a flight.
+function awayFrom() {
+  const c = g.console;
+  if (g.crewed && c && c.kind === 'flight' && c.live && g.room !== 'console') {
+    const mine =
+      !!c.flight?.decision?.mine ||
+      (c.auto
+        ? ['pack', 'retro'].includes(c.phase)
+        : !!c.poll || ['poll', 'ip', 'pad', 'shutdown', 'insertion', 'pack', 'retro'].includes(c.phase));
+    return { place: 'office', mine };
+  }
+  if (!g.crewed && g.count && g.room !== 'count') return { place: 'blockhouse', mine: !!g.count.poll };
+  if (!g.crewed && g.lunar?.poll && !['cruise', 'encounter'].includes(g.room)) return { place: 'office', mine: true };
+  return null;
+}
 function hud() {
   $('date').textContent = `${dateText()} · ${clockText()}`;
   $('objective').textContent = g.objective;
   $('endday').hidden = !g.dayDone;
+  const away = awayFrom();
+  $('waiting').hidden = !away;
+  if (away) {
+    const where = placeName(away.place);
+    $('waiting').textContent = away.mine ? `Your call is waiting in ${where}` : `Back to ${where}`;
+    $('waiting').classList.toggle('call', away.mine);
+  }
   $('pause').textContent = g.paused ? '▶' : '❚❚';
   document
     .querySelectorAll('[data-speed]')
@@ -309,6 +334,8 @@ function hud() {
   $('notes').classList.toggle('fresh', fresh > 0);
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
   $('loop').classList.toggle('in-interior', !!interiorOf(g));
+  // In a walk-in room the loop sits to the right of the way-out button, whatever the button's size, so it never covers it.
+  $('loop').style.left = interiorOf(g) ? `${Math.round(doorRight / (window.devicePixelRatio || 1)) + 16}px` : '';
   // The walking hints are for the site; in launch control and the walk-in rooms they only cover the scene.
   $('help').hidden = g.room === 'console' || !!interiorOf(g) || !!g.flight;
   $('loop').classList.toggle(

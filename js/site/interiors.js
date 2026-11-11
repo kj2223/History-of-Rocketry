@@ -125,6 +125,8 @@ function roomLight(ctx, x, y, rx, ry, color) {
   ctx.restore();
 }
 
+// Where the way-out button ends, in canvas pixels: the radio loop is placed clear of it (main.js).
+export let doorRight = 0;
 function doorSign(ctx, s) {
   const bw = 150 * s.k,
     bh = 34 * s.k,
@@ -143,6 +145,7 @@ function doorSign(ctx, s) {
   ctx.fillText('◂ Out to the site', x + bw / 2, y + bh * 0.65);
   ctx.textAlign = 'left';
   hits.push({ act: 'leave', x, y, w: bw, h: bh });
+  doorRight = x + bw;
 }
 
 // A round dial with its normal band in green and a needle, as on the panels.
@@ -250,7 +253,6 @@ function seatedBack(ctx, x, y, p, t) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(1.35, 1.35);
-  ctx.globalAlpha = 0.62;
   ctx.fillStyle = p.color;
   ctx.beginPath();
   ctx.roundRect(-34, 0, 68, 62, 12);
@@ -560,7 +562,8 @@ function drawBlockhouse(ctx, g, s) {
     const away = id => g.jobs.some(j => (j.who || []).includes(id));
     const present = who && !who.hidden && (c ? !away(who.id) : here.has(who.id));
     seatedBack(ctx, x + stW / 2, shoulderY, present ? who : null, t);
-    if (present) heads.push([who, x + stW / 2, shoulderY - 68]);
+    // A seated controller's words go above the console, pointing down at the station, so they never cover a panel.
+    if (present) heads.push([who, x + stW / 2, deskY - 2]);
   });
   // Anyone else in the blockhouse stands at the back: Hoyt on the V-2 rounds, Brandt for the Navy, the pad crew back in.
   const standers = [...here].map(id => g.people[id]).filter(p => p && !Object.values(seat).includes(p.id));
