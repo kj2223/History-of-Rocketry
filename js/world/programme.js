@@ -318,6 +318,18 @@ export function adopt(programme, cause) {
   programme.adopted.push(cause);
   return fix.text;
 }
+// A round the history makes likelier to go wrong (data/campaign.js: risk) is built at that higher chance, but a fix the
+// team has already made still counts: the round's chance is cut by as much as the fix cut the standing one. Without this, a
+// season's figure replaced the programme's and the fix was forgotten. base: the build standard before any fix.
+export function withSeasonRisk(programme, risk = {}, base = {}) {
+  const out = { ...programme };
+  for (const [k, v] of Object.entries(risk)) {
+    const now = programme[k],
+      was = base[k];
+    out[k] = k.endsWith('Risk') && now != null && was > 0 && now < was ? v * (now / was) : v;
+  }
+  return out;
+}
 // The standing fixes so far, in Ellis's words, for the news between rounds.
 export const fixesInForce = programme => programme.adopted.map(c => FIXES[c]?.text).filter(Boolean);
 // The standing fixes not yet told in a "while you were away", marked as told: each is news once, not at every jump.
