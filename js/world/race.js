@@ -119,9 +119,10 @@ export function skylabShield(seed) {
 
 // Apollo 1's plugs-out test, January 1967: whether the chafed wiring sparks in the pure-oxygen cabin. Seeded from the
 // game, like the Soviet attempts: the programme's cabin hazard at that time, never a script.
+// About one game in five (Aaron, 11 November 2026: the fire is not a given, and it counts toward the 1.2 crews a game).
 export function apolloFire(seed, programme) {
   const s = newStreams((seed ^ 0x2a7f4c19) >>> 0).forecast;
-  return draw(s) < Math.min(0.9, (programme.cabinRisk ?? 0.15) * 3.5);
+  return draw(s) < Math.min(0.9, (programme.cabinRisk ?? 0.15) * 1.4);
 }
 
 // What reached Houston between two days: the lines for the "while you were away" notes.

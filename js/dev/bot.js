@@ -148,6 +148,7 @@ import {
   shutdownChoose,
 } from '../mercury.js';
 import { SEASON } from '../data/campaign.js';
+import { resolve } from '../truth/flights.js';
 
 // Play rounds, taking every offer and making sure it is made, until the round with this id.
 export function toRoundId(id, call = () => 'nominal') {
@@ -235,6 +236,25 @@ function work(c, opts) {
       tick(0.05);
     }
   }
+}
+// A long flight's question answered as a careful player would, who reads every warning on the loop: the option that
+// keeps the crew, then the one the review calls good. It looks at the hidden layer to do it, so it stands in for a player
+// who reads the board well; it is for the dev menu and the balance check, never for the game itself.
+const SAFETY = o => (o.set?.lost || o.set?.stranded ? 0 : 10) + ({ good: 3, fair: 2, bad: 0 }[o.verdict] ?? 1);
+export function carefulDecide(d, c) {
+  let best = null,
+    score = -1;
+  for (const k of Object.keys(d.options)) {
+    if (k === 'request-fix') continue;
+    let s = 1;
+    try {
+      s = SAFETY(resolve(c.round, d.id, k, structuredClone(c.flight.state)));
+    } catch {
+      // An answer the hidden layer cannot price is taken as middling.
+    }
+    if (s > score) [best, score] = [k, s];
+  }
+  return best;
 }
 export const MERCURY_DEFAULTS = {
   poll: c => c.cond.seaState <= 4 && !c.cond.late,

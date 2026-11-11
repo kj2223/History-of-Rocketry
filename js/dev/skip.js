@@ -4,7 +4,7 @@
 import { g, newGame, nextRound, closeAway } from '../game.js';
 import { routeArgue, routeDone, apollo8Decide, apollo8Done } from '../mercury.js';
 import { SEASON } from '../data/campaign.js';
-import { playRound, playMission, advance, nextDay } from './bot.js';
+import { playRound, playMission, advance, nextDay, carefulDecide } from './bot.js';
 
 // Which route a round is on: the shared years before Pioneer 4 are on both.
 export const routeOf = round => round.path ?? 'both';
@@ -46,7 +46,8 @@ export function skipTo(id, { seed, route = 'nasa', stop = 'morning' } = {}) {
       continue;
     }
     if (g.beat === 'seasonEnd') throw new Error(`the game ended at ${SEASON[g.roundIndex].id} before reaching ${id}`);
-    if (g.crewed) playMission();
+    // Played carefully, so a skip does not lose crews a player reading the board would have kept.
+    if (g.crewed) playMission({ decide: carefulDecide });
     else playRound(() => 'nominal', BOT_PLAN);
     // An offer the round made but the record has not marked as put yet (as the tests' campaign does).
     const o = g.record.offers[g.record.offers.length - 1];
