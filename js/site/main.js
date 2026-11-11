@@ -36,7 +36,7 @@ import {
   KEYS,
 } from '../core/save.js';
 import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
-import { drawInterior, interiorOf, interiorButtonAt } from './interiors.js';
+import { drawInterior, interiorOf, interiorButtonAt, doorRight } from './interiors.js';
 import { lookAt } from '../game.js';
 import {
   render as renderRoom,
@@ -295,6 +295,8 @@ function hud() {
   $('notes').textContent = `Notebook (${g.notes.length})`;
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
   $('loop').classList.toggle('in-interior', !!interiorOf(g));
+  // In a walk-in room the loop sits to the right of the way-out button, whatever the button's size, so it never covers it.
+  $('loop').style.left = interiorOf(g) ? `${Math.round(doorRight / (window.devicePixelRatio || 1)) + 16}px` : '';
   // The walking hints are for the site; in launch control and the walk-in rooms they only cover the scene.
   $('help').hidden = g.room === 'console' || !!interiorOf(g) || !!g.flight;
   $('loop').classList.toggle(
