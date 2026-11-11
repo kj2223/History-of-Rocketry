@@ -10,7 +10,9 @@
     "test": "node --test tests/*.test.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "dist": "electron-builder --win --publish never"
+    "predist": "node desktop/stamp-build.mjs",
+    "dist": "electron-builder --win --publish never",
+    "playtest-report": "node tools/playtest-report.mjs"
   },
   "devDependencies": {
     "electron": "^45.2.3",

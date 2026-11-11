@@ -24,7 +24,18 @@ import { consoleLocked } from '../mercury.js';
 import { CONTROL_ACTS } from '../scenes/control.js';
 import { talk } from '../data/talk.js';
 import { SEASON } from '../data/campaign.js';
-import { writeSave, readSave, startOver, readBackup, swapBackup, memoryStorage } from '../core/save.js';
+import {
+  writeSave,
+  readSave,
+  parseSave,
+  exportSave,
+  startOver,
+  readBackup,
+  swapBackup,
+  memoryStorage,
+  KEYS,
+} from '../core/save.js';
+import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
 import { drawInterior, interiorOf, interiorButtonAt } from './interiors.js';
 import { lookAt } from '../game.js';
 import {
@@ -91,6 +102,7 @@ canvas.addEventListener('click', e => {
   if (g.room === 'console') {
     const ratio = window.devicePixelRatio || 1;
     const hit = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio);
+    trace('hit', { act: hit?.act ?? null, id: hit?.id ?? null, live: !!CONTROL_ACTS[hit?.act] });
     if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id);
     return;
   }
@@ -98,13 +110,15 @@ canvas.addEventListener('click', e => {
   if (interiorOf(g)) {
     const ratio = window.devicePixelRatio || 1,
       hit = interiorButtonAt(g, e.offsetX * ratio, e.offsetY * ratio);
+    trace('hit', { act: hit?.act ?? null, id: hit?.id ?? null });
     if (hit) ({ leave: () => closeRoom(), look: () => lookAt(hit.id) })[hit.act]?.() ?? CONTROL_ACTS[hit.act]?.(hit.id);
     return;
   }
-  if (locked()) return;
+  if (locked()) return trace('hit', { locked: true });
   const w = toWorld(e),
     p = personAt(w),
     pl = placeAt(w);
+  trace('hit', { x: Math.round(w.x), person: p?.id ?? null, place: pl?.[0] ?? null });
   if (p)
     return goTo(p.x + (you().x < p.x ? -14 : 14), () => {
       say(p.id, talk(p.id, g.beat));
@@ -333,8 +347,9 @@ function autosave() {
   savedVersion = g.savedVersion;
   try {
     writeSave(storage, checkpoint());
-  } catch {
+  } catch (e) {
     /* storage full or blocked: play on unsaved */
+    traceError('save-failed', e);
   }
 }
 
@@ -347,6 +362,7 @@ function panelReserve() {
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
+  playtestFrame(now - last);
   last = now;
   // One bad frame must not kill the loop (a shape-valid save could throw in a room render); report and carry on.
   try {
@@ -368,8 +384,34 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// What is on screen, for the playtest log.
+const sceneOf = () => {
+  if (g.flight?.view === 'board') return 'tracking';
+  if (g.room === 'console' && g.console) return 'control-room';
+  const inside = interiorOf(g);
+  if (inside) return `interior:${inside}`;
+  if (g.away) return 'away';
+  return g.room ? `site, panel ${g.room}` : 'site';
+};
+startPlaytest({
+  seed,
+  storage,
+  game: () => g,
+  scene: sceneOf,
+  saveText: () => (g?.saved ? exportSave(g.saved) : null),
+});
+
 // ?seed=123 replays the same round, for comparing notes. Otherwise carry on from the saved morning, if there is one.
+// A save that cannot be read is noted in the playtest log with the reason, before falling back to the last good one.
+const savedText = storage.getItem(KEYS.current);
+if (savedText !== null)
+  try {
+    parseSave(savedText, checkCheckpoint);
+  } catch (e) {
+    traceError('save-rejected', e);
+  }
 const saved = readSave(storage, checkCheckpoint);
+trace('load', { found: !!saved, beat: saved?.beat ?? null, day: saved?.day ?? null, round: saved?.roundId ?? null });
 if (saved) newGame(saved.seed, saved);
 else newGame(seed);
 resize();

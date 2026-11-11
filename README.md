@@ -73,6 +73,29 @@ Run the test suite with:
 npm test
 ```
 
+### Playtest log
+
+While you play, the game keeps a log of the session so bugs can be found without describing them: the beats and scenes
+you went through, your clicks, keys and decisions, the faults each round rolled and how it came out, the fixes adopted,
+the radio-loop calls, both clocks (the game's and the mission's) at each turn, every caught error, the window size and
+the build. It is bounded (the newest 2,500 events, 400 calls, 100 distinct errors, 40 marks; well under a megabyte),
+stays on your computer, and is kept apart from the save, so it never changes or blocks one.
+
+- **F8** marks a problem: the moment, a screenshot and a copy of the save go into the log.
+- The desktop app writes it to `%APPDATA%\Ad Astra\playtest`: `log.json`, `save.json` (the latest checkpoint) and
+  `marks\`. The **Playtest** menu (press Alt to show the menu bar) opens that folder, starts a fresh log (the old one is
+  kept as `log-previous.json`), and switches the log off or on.
+- In a browser the log is kept in localStorage under `pa-playtest-log`. Seeded replays (`?seed=`) are not logged.
+
+To read one back:
+
+```sh
+npm run playtest-report -- "%APPDATA%\Ad Astra\playtest"
+```
+
+It prints the builds and sessions, errors with where they happened, each F8 mark with the 25 entries that led up to it,
+the rounds and outcomes, any mismatch between a cruise's clock and the game's, and the last 60 entries.
+
 ## The long view
 
 From the first uncertain firings at White Sands to the decisions made in Mission Control, *Ad Astra* is about earning progress one test at a time.

@@ -1,8 +1,9 @@
 // THE DESKTOP SHELL: opens the game in its own Electron window instead of a browser tab.
 // The game itself is unchanged. This file only makes the window and serves the game's files to it.
 // Files are served under app://game/ rather than file:// so ES modules load and the saves (localStorage) have a fixed home.
-import { app, BrowserWindow, Menu, dialog, protocol, net, session } from 'electron';
+import { app, BrowserWindow, Menu, dialog, protocol, net, session, ipcMain, shell } from 'electron';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
@@ -55,7 +56,12 @@ function openWindow() {
     backgroundColor: '#000000',
     title: `Ad Astra v${app.getVersion()}`,
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      preload: path.join(GAME_FOLDER, 'desktop', 'preload.cjs'),
+    },
   });
   // Keep the version in the title bar (the page's own <title> would replace it), so testers can say which build they played.
   window.on('page-title-updated', event => event.preventDefault());
@@ -67,12 +73,147 @@ function openWindow() {
     window.webContents.setZoomFactor(Math.max(1, Math.min(2.5, height / 1200)));
   };
   window.on('resize', fit);
+  // F8 marks a problem for the playtest log, wherever the player is.
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F8' && !input.isAutoRepeat) {
+      event.preventDefault();
+      window.webContents.send('playtest:mark-request');
+    }
+  });
   window.webContents.on('did-finish-load', fit);
   window.loadURL(START);
 }
 
+// ---- The playtest log ----
+// The game keeps a log of each session (js/core/telemetry.js) and sends it here; it is written, with a copy of the current
+// save, to the playtest folder beside the saves: %APPDATA%\Ad Astra\playtest on Windows. F8 marks a problem: a
+// screenshot and the save at that moment go in playtest\marks. Nothing is sent anywhere. Read it back with
+// tools/playtest-report.mjs.
+const PLAYTEST_ON_BY_DEFAULT = true;
+const MAX_MARKS = 40;
+const playtestDir = () => path.join(app.getPath('userData'), 'playtest');
+const playtestFile = name => path.join(playtestDir(), name);
+const settingsFile = () => playtestFile('settings.json');
+function playtestOn() {
+  try {
+    return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')).enabled !== false;
+  } catch {
+    return PLAYTEST_ON_BY_DEFAULT;
+  }
+}
+// Written to a temporary file first, so a crash mid-write never leaves half a log.
+function writeAtomic(file, text) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(`${file}.tmp`, text);
+  fs.renameSync(`${file}.tmp`, file);
+}
+const LIMIT = 8 * 1024 * 1024; // refuse anything bigger: the log is bounded well under this
+function buildInfo() {
+  let stamp = {};
+  try {
+    stamp = JSON.parse(fs.readFileSync(path.join(GAME_FOLDER, 'desktop', 'build-info.json'), 'utf8'));
+  } catch {
+    // npm start from the working folder: read the commit straight from git's files
+    try {
+      const head = fs.readFileSync(path.join(GAME_FOLDER, '.git', 'HEAD'), 'utf8').trim();
+      const ref = head.startsWith('ref: ') ? head.slice(5) : null;
+      const commit = ref ? fs.readFileSync(path.join(GAME_FOLDER, '.git', ref), 'utf8').trim() : head;
+      stamp = { commit: commit.slice(0, 7), branch: ref?.replace('refs/heads/', '') ?? null, fromGitFolder: true };
+    } catch {
+      /* no stamp and no git: the version alone */
+    }
+  }
+  return {
+    version: app.getVersion(),
+    ...stamp,
+    packaged: app.isPackaged,
+    electron: process.versions.electron,
+    os: `${process.platform} ${os.release()}`,
+  };
+}
+ipcMain.on('playtest:build', event => (event.returnValue = buildInfo()));
+ipcMain.on('playtest:enabled', event => (event.returnValue = playtestOn()));
+ipcMain.on('playtest:read', event => {
+  try {
+    event.returnValue = fs.readFileSync(playtestFile('log.json'), 'utf8');
+  } catch {
+    event.returnValue = null;
+  }
+});
+ipcMain.on('playtest:write', (_, log, save) => {
+  try {
+    if (typeof log === 'string' && log.length < LIMIT) writeAtomic(playtestFile('log.json'), log);
+    if (typeof save === 'string' && save.length < LIMIT) writeAtomic(playtestFile('save.json'), save);
+  } catch {
+    /* a full disk must not stop the game */
+  }
+});
+ipcMain.handle('playtest:mark', async (event, n, save) => {
+  const marks = playtestFile('marks');
+  fs.mkdirSync(marks, { recursive: true });
+  const base = `mark-${String(n).padStart(3, '0')}`;
+  const files = [];
+  const image = await event.sender.capturePage();
+  fs.writeFileSync(path.join(marks, `${base}.png`), image.toPNG());
+  files.push(`marks/${base}.png`);
+  if (typeof save === 'string' && save.length < LIMIT) {
+    fs.writeFileSync(path.join(marks, `${base}-save.json`), save);
+    files.push(`marks/${base}-save.json`);
+  }
+  // Keep the newest marks only.
+  const all = [
+    ...new Set(
+      fs
+        .readdirSync(marks)
+        .map(f => f.match(/^mark-(\d+)/)?.[1])
+        .filter(Boolean),
+    ),
+  ].sort();
+  for (const old of all.slice(0, Math.max(0, all.length - MAX_MARKS)))
+    for (const f of fs.readdirSync(marks)) if (f.startsWith(`mark-${old}`)) fs.rmSync(path.join(marks, f));
+  return files;
+});
+const focused = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+// A new log: the old one is kept as log-previous.json, and the marks move to marks-previous.
+function freshLog() {
+  for (const [from, to] of [
+    ['log.json', 'log-previous.json'],
+    ['marks', 'marks-previous'],
+  ]) {
+    const a = playtestFile(from),
+      b = playtestFile(to);
+    if (!fs.existsSync(a)) continue;
+    fs.rmSync(b, { recursive: true, force: true });
+    fs.renameSync(a, b);
+  }
+  focused()?.reload();
+}
+
 const menu = Menu.buildFromTemplate([
   { label: 'Game', submenu: [{ role: 'reload' }, { type: 'separator' }, { role: 'quit' }] },
+  {
+    label: 'Playtest',
+    submenu: [
+      {
+        label: 'Mark a problem here',
+        accelerator: 'F8',
+        registerAccelerator: false, // the window catches F8 itself (below), menu bar shown or not
+        click: () => focused()?.webContents.send('playtest:mark-request'),
+      },
+      { label: 'Open the playtest folder', click: () => shell.openPath(playtestDir()) },
+      { type: 'separator' },
+      {
+        label: 'Keep a playtest log',
+        type: 'checkbox',
+        checked: playtestOn(),
+        click: item => {
+          writeAtomic(settingsFile(), JSON.stringify({ enabled: item.checked }));
+          focused()?.webContents.send('playtest:toggle', item.checked);
+        },
+      },
+      { label: 'Start a fresh log', click: freshLog },
+    ],
+  },
   {
     label: 'View',
     submenu: [
