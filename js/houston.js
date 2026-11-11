@@ -64,17 +64,24 @@ export function startFlight(c) {
   roomChanged();
 }
 
+// Mission time passing: the clock moves on, and the calendar with it.
+export function passMinutes(minutes) {
+  g.clock += minutes;
+  g.day = Math.floor(g.clock / 1440);
+}
+// How much of a timed decision window a real-time tick spends: a mission minute a second, faster at speed (up to 4x).
+export const windowMinutes = (left, dt) => Math.min(left, dt * Math.min(4, g.speed));
+
 // The flight plan, a step at a time.
 export function tickFlight(c, dt, speak) {
   const f = c.flight;
   if (f.decision) {
     const d = f.decision;
     if (d.remaining == null) return;
-    const elapsed = Math.min(d.remaining, dt * Math.min(4, g.speed));
+    const elapsed = windowMinutes(d.remaining, dt);
     d.remaining -= elapsed;
     f.at += elapsed / 60;
-    g.clock += elapsed;
-    g.day = Math.floor(g.clock / 1440);
+    passMinutes(elapsed);
     if (d.remaining <= 0) return answer(c, 'stand-down', speak);
     if (d.fixIn != null) {
       d.fixIn -= elapsed;
@@ -132,8 +139,7 @@ function advanceTo(c, at, s) {
   if (gap <= 0) return;
   f.at = at;
   if (c.kind !== 'flight') return;
-  g.clock += Math.round(gap * 60);
-  g.day = Math.floor(g.clock / 1440);
+  passMinutes(Math.round(gap * 60));
   if (gap >= SHIFT_HOURS)
     note(
       `Handover, ${Math.round(at)} hours into the flight: ${s.offShift || 'the other shifts had a quiet flight. Nothing for your team.'}`,

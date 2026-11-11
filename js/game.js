@@ -877,7 +877,9 @@ export function advanceProbe(command = false) {
   }
   const flight = encounter && !command ? probe.missed : probe.received;
   note(flight);
-  addRound(g.record, { id: round.id, vehicle: round.vehicle, name: round.name, day: round.start, flight });
+  // Dated the day the round closes (the encounter, or the playback after it), not the handover: a probe's result comes
+  // months after its launch, and the season-end page dates your years by the last round's record.
+  addRound(g.record, { id: round.id, vehicle: round.vehicle, name: round.name, day: g.day, flight });
   g.room = null;
   morning(nextIndex() == null ? 'seasonEnd' : 'roundEnd');
 }

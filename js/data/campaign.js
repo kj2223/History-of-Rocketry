@@ -517,6 +517,8 @@ export const SEASON = [
 export const LAST_WORD = {
   'ranger-7':
     "Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.",
+  'mariner-4':
+    "Mariner 4's twenty-one pictures showed a cratered Mars, more like the Moon than anyone had hoped, and its radio signal, passing through the planet's air, showed that air to be thinner than the thinnest guess. Mariners 6 and 7 flew past in 1969, and Mariner 9 went into orbit in 1971. That is as far as the uncrewed years go in this build.",
   'artemis-3':
     'Artemis III came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole grows through 2029 and 2030, and the flights keep coming. This is where the build ends.',
 };
