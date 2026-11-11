@@ -1949,6 +1949,7 @@ export const FLIGHTS = {
       'No launch with the sea above state 4 in the primary landing area.',
       'Dock on the third revolution; the crew has two free drift orbits in hand.',
       'A leaking thruster quad is watched hour by hour: if it worsens, the mission comes home.',
+      'With two quads leaking, a rescue Apollo is readied on the pad: ten days from rollout to launch.',
       'One spacewalk a day, never two: the suits must dry out between them.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
@@ -1967,6 +1968,20 @@ export const FLIGHTS = {
         show: { 'RCS QUAD': ['leaking', true] },
       },
       { at: 8.2, decide: 'quad' },
+      {
+        at: 130,
+        when: 'stayed',
+        not: 'short',
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: a second quad on the service module is leaking now. Two good quads left. She can still fly home on them, but nothing's spare.",
+            'bad',
+          ],
+        ],
+        show: { 'RCS QUAD': ['two leaking', true] },
+      },
+      { at: 130.2, when: 'stayed', not: 'short', decide: 'quad2' },
       {
         at: 200,
         offShift:
@@ -2208,6 +2223,7 @@ export const FLIGHTS = {
     objective: 'return the fleet to flight on the redesigned joint, and bring every one of them home',
     rules: [
       'The redesigned joint flies with heaters on and seals warm; no launch if any seal reads cold.',
+      'The relay satellite is deployed only by a crew working inside its own limits: cabin no hotter than thirty degrees.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
     steps: [
@@ -2224,7 +2240,26 @@ export const FLIGHTS = {
         show: { 'SRB JOINT': ['heaters good'] },
       },
       {
-        at: 5,
+        at: 3,
+        where: [0.02, 'Earth orbit'],
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the flash evaporator has iced up. The cabin's warming: twenty-nine degrees.",
+            'warn',
+          ],
+        ],
+        show: { CABIN: ['29 °C, evaporator iced', true] },
+      },
+      {
+        at: 4.5,
+        if: 'hotCabin',
+        say: [['kessler', 'Flight, EECOM: cabin is thirty-two degrees and still climbing.', 'bad']],
+        show: { CABIN: ['32 °C, climbing', true] },
+      },
+      { at: 5, phase: 'The deploy', decide: 'tdrs' },
+      {
+        at: 8,
         where: [0.02, 'Earth orbit'],
         offShift: 'The satellite is up. The crew keeps the timeline loose and the loop quiet. Nothing for your team.',
       },
@@ -2243,6 +2278,7 @@ export const FLIGHTS = {
     rules: [
       'No spacewalk without a partner at the airlock and a ready path home.',
       'The corrective optics are installed only with the telescope latched and the aperture closed.',
+      'Old hardware that will not stow safely for the trip home is let go, not fought.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
     steps: [
@@ -2258,6 +2294,20 @@ export const FLIGHTS = {
         ],
         show: { TELESCOPE: ['on the arm', true] },
       },
+      {
+        at: 18,
+        phase: 'The spacewalks',
+        where: [0.02, 'Earth orbit'],
+        say: [
+          [
+            'crew2',
+            "Houston, one of the old solar arrays won't roll up. It went two-thirds of the way and stopped. The boom looks kinked from here, but it's hard to say.",
+            'warn',
+          ],
+        ],
+        show: { 'OLD ARRAY': ['will not roll', true] },
+      },
+      { at: 18.2, decide: 'array' },
       {
         at: 30,
         phase: 'The repair',
@@ -2386,6 +2436,7 @@ export const FLIGHTS = {
     rules: [
       'No launch while thunderstorms stand within ten miles of the pad.',
       'Docking is automatic; the crew takes over only on the system\u2019s own say-so.',
+      'Hold at twenty metres: the capsule closes the last stretch only when the station and the capsule\u2019s teams both say go.',
       'Four good parachutes or she does not leave the station.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
@@ -2396,13 +2447,31 @@ export const FLIGHTS = {
         where: [0.02, 'Earth orbit'],
         say: [
           [
-            'kessler',
-            'Flight, EECOM: the approach is automatic and clean. The crew is riding along like passengers.',
+            'pilot',
+            'Houston, holding at two hundred metres. I flew her by hand for a few minutes there: she handles like the simulator. Giving her back to the automatics.',
             'go',
           ],
         ],
-        show: { DOCKING: ['automatic'] },
+        show: { DOCKING: ['200 m hold'] },
       },
+      {
+        at: 6.6,
+        if: 'ranging',
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the capsule's laser ranging dropped out twice on the way in. It came back each time, and the camera solution agrees with it now.",
+            'warn',
+          ],
+        ],
+        show: { RANGING: ['dropped out twice', true] },
+      },
+      {
+        at: 7,
+        say: [['pilot', 'Houston, holding at twenty metres. Standing by for go.', '']],
+        show: { DOCKING: ['20 m hold'] },
+      },
+      { at: 7.1, decide: 'waypoint' },
       {
         at: 8,
         where: [0.02, 'Earth orbit'],
@@ -2590,6 +2659,7 @@ export const FLIGHTS = {
       'No launch with the sea above state 4 in the primary landing area.',
       'Docking is the lander’s automatic system; the crew takes over only if it drops out.',
       'No crew into the lander until her cabin pressure has held for an hour.',
+      'The lander is certified for the Moon only on two clean days of checkout with a crew aboard.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
     steps: [
@@ -2642,6 +2712,21 @@ export const FLIGHTS = {
         offShift:
           "Two days of tests with the crew aboard the lander: her life support, her suits' connections, and her radios to the ground. Nothing for your team.",
       },
+      {
+        at: 88,
+        where: [0.02, 'Earth orbit'],
+        not: 'noDock',
+        if: 'landerLeak',
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the lander's cabin lost a tenth of a psi overnight with the hatch closed. The company can't find where it went.",
+            'warn',
+          ],
+        ],
+        show: { LANDER: ['slow leak, cause unknown', true] },
+      },
+      { at: 90, not: 'noDock', decide: 'certify' },
       {
         at: 96,
         where: [0.02, 'Earth orbit'],
@@ -3095,6 +3180,52 @@ export const DECISIONS = {
     options: {
       edwards: 'The lakebed at Edwards. The long, sure way down.',
       cape: "The Cape's runway. Home in one hop, with less margin.",
+    },
+  },
+  waypoint: {
+    q: 'Dragon is holding at twenty metres, the last go/no-go before she touches the station. Go for the final approach on the automatics, or back her out to two hundred metres for the capsule\u2019s team to look again?',
+    auto: 'go',
+    rule: 2,
+    options: {
+      go: 'Go for the final approach.',
+      back: 'Back her out to two hundred metres and run the sensors again. An orbit late.',
+    },
+  },
+  tdrs: {
+    q: 'Six hours in, and the relay satellite is due out of the bay: the first deploy since Challenger. The cabin is hot. Deploy on the timeline, or spend an orbit on the cooling first?',
+    auto: 'deploy',
+    rule: 1,
+    options: {
+      deploy: 'Deploy on the timeline. The crew has trained for it hot and cold.',
+      cool: 'Point her tail at the Sun, thaw the evaporator, and deploy an orbit late.',
+    },
+  },
+  quad2: {
+    q: 'A second quad is leaking. Two good quads are enough to fly home on, with nothing spare. Roll the rescue Apollo out to the pad as a standby, bring them home now, or carry on without one?',
+    auto: 'standby',
+    rule: 3,
+    options: {
+      standby: 'Roll the rescue ship out as a standby. The crew stays aboard and works.',
+      home: 'Bring them home now, on the two good quads.',
+      press: 'Carry on without a rescue ship. Watch the quads.',
+    },
+  },
+  array: {
+    q: 'An old solar array will not roll up for the trip home. Let it go from the arm, or have the spacewalkers try to roll it by hand?',
+    auto: 'jettison',
+    rule: 2,
+    options: {
+      jettison: 'Release it from the arm and let it drift off. Keep the day for the optics.',
+      roll: 'Have them try to roll it by hand and bring it home for the engineers.',
+    },
+  },
+  certify: {
+    q: 'Two days of checkout with a crew aboard the lander. Certify her for the landing on Artemis IV, or ask for another test first?',
+    auto: 'certify',
+    rule: 3,
+    options: {
+      certify: 'Certify her for the Moon.',
+      retest: 'Not yet. Find and fix anything open, then test again.',
     },
   },
   hubblefix: {
