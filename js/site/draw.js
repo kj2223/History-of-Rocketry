@@ -1211,22 +1211,26 @@ function truck(ctx, x, g) {
   ctx.font = 'bold 8px sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText(g.site === 'cape' ? 'U.S. NAVY' : 'U.S. ARMY', x + 8, y - 16);
-  // The recovery party rides in the cab and the bed while the truck is rolling out.
+  // The recovery party rides out with the truck: the driver and his mate seen through the cab window, and one man
+  // sitting up at the front of the bed, behind the cab, clear of anything the truck carries.
   if (g.truck.follow) {
-    ctx.fillStyle = '#2e3236';
-    for (const [px, py] of [
-      [x + 74, y - 26],
-      [x + 82, y - 26],
-    ]) {
-      ctx.beginPath();
-      ctx.arc(px, py - 8, 4, 0, 7);
-      ctx.fill();
-      ctx.fillRect(px - 4, py - 5, 8, 10);
-    }
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(x + 20, y - 36, 4, 0, 7);
+    ctx.rect(x + 72, y - 36, 12, 10);
+    ctx.clip();
+    ctx.fillStyle = '#2e3236';
+    for (const px of [x + 75, x + 81]) {
+      ctx.beginPath();
+      ctx.arc(px, y - 31, 2.6, 0, 7);
+      ctx.fill();
+      ctx.fillRect(px - 3, y - 28.5, 6, 4);
+    }
+    ctx.restore();
+    ctx.fillStyle = '#2e3236';
+    ctx.beginPath();
+    ctx.arc(x + 56, y - 41, 3.5, 0, 7);
     ctx.fill();
-    ctx.fillRect(x + 16, y - 33, 8, 9);
+    ctx.fillRect(x + 52.5, y - 38, 7, 8);
   }
 }
 
@@ -1251,17 +1255,52 @@ function rocketOnSite(ctx, g) {
   }
 }
 
-// The round riding the truck's bed, drawn after the truck so it sits on it.
+// The round riding out, drawn after the truck so it sits on it. Every round is longer than the truck's bed, so its
+// tail sits on the bed and the rest rides a pole trailer hitched behind: nothing hangs off the back in mid-air.
+// length: tail to nose; fin: how far the fins stand out from the axis; body: the half-width of the body.
+const TRUCK_LOADS = {
+  wac: { length: 86, fin: 9, body: 5 },
+  aerobee: { length: 86, fin: 9, body: 5 },
+  v2: { length: 104, fin: 16, body: 7 },
+  bumper: { length: 190, fin: 16, body: 7 },
+  viking: { length: 118, fin: 13, body: 5 },
+  vanguard: { length: 210, fin: 8, body: 6 },
+  juno: { length: 218, fin: 12, body: 8 },
+  ranger: { length: 270, fin: 17, body: 8 },
+};
 function rocketOnTruck(ctx, g) {
-  // The round stands on the bed, clear of the rear edge and its tail fins.
-  roundShape(
-    ctx,
-    g,
-    g.truck.x + (g.vehicle === 'wac' || g.vehicle === 'aerobee' ? 16 : 24),
-    GROUND - 2,
-    -Math.PI / 2,
-    true,
-  );
+  const load = TRUCK_LOADS[g.vehicle] || TRUCK_LOADS.v2,
+    bed = GROUND - 2, // the top of the truck's bed
+    tail = g.truck.x + 14,
+    axis = bed - load.fin,
+    nose = tail - load.length;
+  // The pole trailer: a beam from the truck's tail board back to under the nose, on a pair of wheels at the back.
+  const back = nose + 8;
+  if (back < g.truck.x) {
+    ctx.fillStyle = '#3f4b30';
+    ctx.fillRect(back - 6, bed, g.truck.x - back + 6, 5);
+    ctx.fillStyle = '#4d5b3a';
+    ctx.fillRect(back - 4, bed + 5, 34, GROUND + 18 - bed - 5); // the trailer's axle frame, down to the wheels
+    ctx.fillStyle = '#1e1e1e';
+    for (const wx of [back + 6, back + 22]) {
+      ctx.beginPath();
+      ctx.arc(wx, GROUND + 22, 6, 0, 7);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#8a8a8a';
+    for (const wx of [back + 6, back + 22]) {
+      ctx.beginPath();
+      ctx.arc(wx, GROUND + 22, 2.5, 0, 7);
+      ctx.fill();
+    }
+    // Cradles under the body, up from the beam.
+    ctx.fillStyle = '#6a5a44';
+    for (const f of [0.45, 0.8]) {
+      const cx = tail - load.length * f;
+      if (cx > back) ctx.fillRect(cx - 3, axis + load.body, 6, bed - axis - load.body);
+    }
+  }
+  roundShape(ctx, g, tail, axis, -Math.PI / 2, true);
 }
 
 // The shape of the current vehicle, drawn from its tail at (x, y) along angle (0 = straight up). One dispatch, shared by
@@ -1585,6 +1624,9 @@ export function controlTelevision(ctx, g, x, y, w, h) {
   const c = g.console;
   const last = c?.trace?.at(-1);
   const live = c?.phase === 'ascent';
+  // Once she is in the flight proper the climb is history: the screen carries the flight's own status board instead
+  // of the last ascent sample, hours or days stale.
+  if (c?.flight && !['ascent', 'insertion'].includes(c.phase)) return flightStatusBoard(ctx, c.flight, x, y, w, h);
   if (!last || (live && last.t < 13)) return padPicture(ctx, g, x, y, w, h);
 
   const size = Math.min(w / 28, h / 5);
@@ -1618,6 +1660,37 @@ export function controlTelevision(ctx, g, x, y, w, h) {
     ctx.fillStyle = '#b7efb0';
     ctx.fillText(value, left, top + h * 0.14);
   }
+  ctx.restore();
+}
+
+// The flight's status board on the front wall: the spacecraft, the phase of the flight plan, and the status lines the
+// controllers keep (reserve, objective and the rest), amber when one is out of limits.
+function flightStatusBoard(ctx, f, x, y, w, h) {
+  const size = Math.min(w / 28, h / 5);
+  ctx.save();
+  ctx.fillStyle = '#0c1a19';
+  ctx.fillRect(x, y, w, h);
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#81af9e';
+  ctx.font = `${size * 0.82}px monospace`;
+  const phases = f.phases ? ` · phase ${Math.min(f.phaseNo, f.phases)} of ${f.phases}` : '';
+  ctx.fillText(`${f.craft || 'Flight'}${phases}`, x + w * 0.04, y + h * 0.16, w * 0.92);
+  ctx.fillRect(x + w * 0.04, y + h * 0.27, w * 0.92, 1);
+  ctx.font = `bold ${size * 1.15}px monospace`;
+  ctx.fillStyle = '#b7efb0';
+  ctx.fillText(f.phase || '', x + w * 0.04, y + h * 0.42, w * 0.92);
+  const status = Object.entries(f.status || {}).slice(0, 4);
+  status.forEach(([key, [value, warn]], i) => {
+    const left = x + w * (i % 2 ? 0.53 : 0.04),
+      top = y + h * (i < 2 ? 0.6 : 0.82);
+    ctx.font = `${size * 0.7}px monospace`;
+    ctx.fillStyle = '#81af9e';
+    ctx.fillText(key, left, top, w * 0.42);
+    ctx.font = `bold ${size * 0.85}px monospace`;
+    ctx.fillStyle = warn ? '#e8c66a' : '#b7efb0';
+    ctx.fillText(String(value), left, top + h * 0.09, w * 0.42);
+  });
   ctx.restore();
 }
 
@@ -1712,6 +1785,10 @@ const STATION_DUTY = {
   tate: 'retro',
   dorsey: 'flight',
 };
+// From Gemini on, Hollis runs flight operations from the back of the room rather than flying the shift.
+const opsDirector = (g, id) => id === 'hollis' && /operations/i.test(g.people.hollis?.role || '');
+const deskLabel = (g, id) => (opsDirector(g, id) ? 'FLIGHT OPS' : ROOM_SEATS[id]);
+const deskDuty = (g, id) => (opsDirector(g, id) ? 'ops' : STATION_DUTY[id]);
 const SEAT_DUTY = {
   retro: 'retro',
   flight: 'flight',
@@ -1831,11 +1908,20 @@ export function drawControlRoom(ctx, g, view) {
     rowRight = galleryX - w * 0.01,
     rowMid = (leftW + rowRight) / 2,
     availW = rowRight - leftW - 40;
+  // One desk per job: the job that is yours is your desk at the front, so nobody else sits at it on the back row, and
+  // once Hollis has moved up to director of flight operations his desk says so.
+  const yourDuty = SEAT_DUTY[g.record.seat] || 'flight';
   const back = ['hollis', 'dorsey', 'albrecht', 'tate', 'morgan', 'reyes', 'vega', 'kessler'].filter(
-    id => g.people[id] && !g.people[id].hidden,
+    id => g.people[id] && !g.people[id].hidden && deskDuty(g, id) !== yourDuty,
   );
+  // The back row is further away, so its desks are never drawn bigger than the front row's.
+  const roomK = Math.max(1, h / 900); // a bigger canvas (4K) gets bigger desks, not a wider empty floor
+  const frontK = Math.max(0.55, Math.min(1.4 * roomK, (availW - 4 * 24) / (4 * 190 + 460)));
   const backGap = 16,
-    backK = Math.max(0.55, Math.min(1.25, (availW - (back.length - 1) * backGap) / (back.length * 190)));
+    backK = Math.max(
+      0.55,
+      Math.min(1.25 * roomK, frontK * 0.9, (availW - (back.length - 1) * backGap) / (back.length * 190)),
+    );
   const bSpan = back.length * 190 * backK + (back.length - 1) * backGap;
   back.forEach((id, i) =>
     consoleDesk(
@@ -1844,15 +1930,14 @@ export function drawControlRoom(ctx, g, view) {
       wallH + floor * 0.16,
       backK,
       g.people[id],
-      ROOM_SEATS[id],
+      deskLabel(g, id),
       c,
       false,
-      STATION_DUTY[id],
+      deskDuty(g, id),
     ),
   );
   const front = [['capcom'], ['fido'], null, ['surgeon'], ['guidance']],
     frontGap = 24;
-  const frontK = Math.max(0.55, Math.min(1.4, (availW - 4 * frontGap) / (4 * 190 + 460)));
   let fx = rowMid - ((4 * 190 + 460) * frontK + 4 * frontGap) / 2;
   const frontY = wallH + floor * 0.6;
   for (const seat of front) {
@@ -2111,13 +2196,16 @@ function drawConsolePanel(ctx, g, x, y, w, h) {
   const bh = Math.max(30, Math.round(h * 0.05)),
     gap = 8;
   const buttonsTop = P.buttons.length ? y + h - P.buttons.length * (bh + gap) - 10 : y + h;
-  for (const line of P.lines.slice(0, 9)) {
-    if (cy > buttonsTop - 22) break;
+  // The font is set before the wrap measures, so the lines are broken for the type they are drawn in and never run
+  // past the panel's edge; a line that would reach the calls is not drawn.
+  ctx.font = `${Math.max(9, Math.round(w * 0.042))}px monospace`;
+  ctx.fillStyle = '#9fdc9a';
+  const lineH = Math.max(15, Math.round(w * 0.05));
+  lines: for (const line of P.lines.slice(0, 9)) {
     for (const l of wrap(ctx, line, w - 20)) {
-      ctx.fillStyle = '#9fdc9a';
-      ctx.font = `${Math.max(9, Math.round(w * 0.042))}px monospace`;
+      if (cy + lineH > buttonsTop) break lines;
       ctx.fillText(l, x + 10, cy + 11);
-      cy += Math.max(15, Math.round(w * 0.05));
+      cy += lineH;
     }
     cy += 4;
   }
@@ -2208,8 +2296,12 @@ export function monitorScreen(ctx, g, x, y, w, h) {
     trace = c && c.trace;
   const maxT = c && c.burn ? c.burn : 1,
     limit = 6; // Mercury's abort rule: six degrees off the planned line
+  // The title has its own band across the top, so the limit lines never run through it.
+  const titleSize = Math.max(7, Math.round(w / 26)),
+    top = y + titleSize + 8,
+    mid = (top + y + h) / 2;
   const px = t => x + 6 + (t / maxT) * (w - 12),
-    py = d => y + h / 2 - (d / limit) * (h / 2 - 6);
+    py = d => mid - (d / limit) * (mid - top - 4);
   ctx.strokeStyle = '#31413a';
   ctx.lineWidth = 1;
   for (const d of [limit, -limit]) {
@@ -2242,13 +2334,17 @@ export function monitorScreen(ctx, g, x, y, w, h) {
     ctx.fillStyle = '#5a6a60';
     ctx.font = `${Math.max(8, Math.round(w / 22))}px monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText('STANDBY', x + w / 2, y + h / 2);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('STANDBY', x + w / 2, (py(limit) + py(0)) / 2);
+    ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
   }
   ctx.fillStyle = '#5a6a60';
-  ctx.font = `${Math.max(7, Math.round(w / 26))}px monospace`;
+  ctx.font = `${titleSize}px monospace`;
   ctx.textAlign = 'left';
-  ctx.fillText('FLIGHT-PATH ANGLE', x + 6, y + 12);
+  ctx.textBaseline = 'top';
+  ctx.fillText('FLIGHT-PATH ANGLE', x + 6, y + 4);
+  ctx.textBaseline = 'alphabetic';
 }
 
 // The clocks strip: three panels under the map — the count, the mission, the site clock.
@@ -2258,7 +2354,7 @@ function clocksStrip(ctx, g, x, y, w, h) {
   ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
   const dash = '—';
   const panels = [
-    ['COUNT', controlReadout(c)[0] || dash],
+    ['COUNT', countClock(c) || dash],
     ['MISSION', missionClock(c)],
     ['SITE', siteClock(g)],
   ];
@@ -2276,6 +2372,14 @@ function clocksStrip(ctx, g, x, y, w, h) {
     ctx.fillText(label, px + (pw - 8) / 2, y + h * 0.92);
   });
   ctx.textAlign = 'left';
+}
+
+// The count clock carries only the count: the time to go while it runs, LIFTOFF once she is away. The speed and the
+// mission clock have their own places on the wall.
+function countClock(c) {
+  if (!c) return '';
+  if (c.phase === 'count' || c.poll || c.phase === 'hold') return controlReadout(c)[0];
+  return (c.trace && c.trace.length) || c.flight || c.orbitT != null ? 'LIFTOFF' : '';
 }
 
 // The mission clock as the consoles carry it: GET in flight, the orbit clock in orbit, otherwise the count in progress.
@@ -2343,8 +2447,12 @@ export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
     ? [
         a,
         b,
-        lastTrace ? lastTrace.v.toFixed(2) + ' km/s' : '0.00 km/s',
-        lastTrace ? (lastTrace.off >= 0 ? '+' : '') + lastTrace.off.toFixed(1) + '° OFF' : '0.0° OFF',
+        ...(c && c.flight && !['ascent', 'insertion'].includes(c.phase)
+          ? [`PHASE ${Math.min(c.flight.phaseNo || 1, c.flight.phases || 99)}`, (c.flight.craft || '').toUpperCase()] // the climb's numbers are history
+          : [
+              lastTrace ? lastTrace.v.toFixed(2) + ' km/s' : '0.00 km/s',
+              lastTrace ? (lastTrace.off >= 0 ? '+' : '') + lastTrace.off.toFixed(1) + '° OFF' : '0.0° OFF',
+            ]),
       ]
     : [a, b];
   const screens = yours
@@ -2545,6 +2653,17 @@ export function junoShape(ctx, x, y, angle) {
 }
 
 // Atlas-Agena B with Ranger: the Atlas's steel balloon, its booster skirt, the slim Agena and the shroud over the Ranger.
+// Lettering painted up a rocket's body, `along` units from the tail, in the shape's own frame (rotated by angle). It reads
+// bottom to top when she stands; lying nose-left (on a truck, on hangar cradles) it is turned so it never reads upside down.
+function bodyText(ctx, text, along, angle) {
+  const flip = Math.cos(angle - Math.PI / 2) < -0.01;
+  ctx.save();
+  ctx.rotate(flip ? Math.PI / 2 : -Math.PI / 2);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, flip ? -along : along, 0);
+  ctx.restore();
+}
+
 export function atlasAgenaShape(ctx, x, y, angle) {
   ctx.save();
   ctx.translate(x, y);
@@ -2556,10 +2675,7 @@ export function atlasAgenaShape(ctx, x, y, angle) {
   ctx.fillStyle = '#3e4652';
   ctx.font = 'bold 7px sans-serif';
   ctx.textAlign = 'center';
-  ctx.save();
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText('UNITED STATES', 100, 3);
-  ctx.restore();
+  bodyText(ctx, 'UNITED STATES', 100, angle);
   ctx.fillStyle = '#e8e6df';
   ctx.fillRect(-7, -232, 14, 62); // the Agena
   ctx.fillStyle = '#f2f0e9';
@@ -2585,10 +2701,7 @@ export function mercuryAtlasShape(ctx, x, y, angle) {
   ctx.fillStyle = '#3e4652';
   ctx.font = 'bold 7px sans-serif';
   ctx.textAlign = 'center';
-  ctx.save();
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText('UNITED STATES', 100, 3);
-  ctx.restore();
+  bodyText(ctx, 'UNITED STATES', 100, angle);
   ctx.fillStyle = '#d8d4c8';
   ctx.beginPath();
   ctx.moveTo(-14, -170);
@@ -2632,10 +2745,7 @@ export function geminiTitanShape(ctx, x, y, angle) {
   ctx.fillStyle = '#3e4652';
   ctx.font = 'bold 7px sans-serif';
   ctx.textAlign = 'center';
-  ctx.save();
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText('UNITED STATES', 90, 3);
-  ctx.restore();
+  bodyText(ctx, 'UNITED STATES', 90, angle);
   ctx.restore();
 }
 
@@ -2671,10 +2781,7 @@ export function shuttleShape(ctx, x, y, angle) {
   ctx.fillStyle = '#3e4652';
   ctx.font = 'bold 7px sans-serif';
   ctx.textAlign = 'center';
-  ctx.save();
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText('UNITED STATES', 100, 3);
-  ctx.restore();
+  bodyText(ctx, 'UNITED STATES', 100, angle);
   ctx.restore();
 }
 
@@ -2788,10 +2895,7 @@ export function saturnVShape(ctx, x, y, angle) {
   ctx.fillStyle = '#3e4652';
   ctx.font = 'bold 8px sans-serif';
   ctx.textAlign = 'center';
-  ctx.save();
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText('USA', 200, 3);
-  ctx.restore();
+  bodyText(ctx, 'USA', 200, angle);
   ctx.restore();
 }
 
@@ -2818,10 +2922,7 @@ export function vanguardShape(ctx, x, y, angle) {
   ctx.fillStyle = '#2b3f6b';
   ctx.font = 'bold 6px sans-serif';
   ctx.textAlign = 'center';
-  ctx.save();
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText('NAVY', 90, 2);
-  ctx.restore();
+  bodyText(ctx, 'NAVY', 90, angle);
   ctx.restore();
 }
 

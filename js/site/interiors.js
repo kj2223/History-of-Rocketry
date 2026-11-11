@@ -519,7 +519,7 @@ function drawBlockhouse(ctx, g, s) {
   const here = new Set(inside(g, 'blockhouse', 180).map(p => p.id));
   if (c) here.add('you');
   const deskY = 300,
-    shoulderY = deskY + 128,
+    shoulderY = deskY + 184, // low enough that the heads sit below the instruments, not over them
     stW = 250,
     gap = 22,
     x0 = (DW - (4 * stW + 3 * gap)) / 2;
@@ -941,12 +941,15 @@ function drawHangar(ctx, g, s) {
     ctx.fillRect(117, 503, 123, 2);
     ctx.fillRect(117, 524, 123, 2);
     ctx.fillRect(117, 545, 123, 2);
-    ctx.fillStyle = '#2b3f6b';
-    ctx.fillRect(380, 96, 440, 44);
-    ctx.fillStyle = '#fff';
+    // The banner grows to fit the building's name (the later names are long), and the name never runs off it.
+    const banner = placeName('hangar').toUpperCase();
     ctx.font = 'bold 20px sans-serif';
+    const bannerW = Math.min(760, Math.max(440, ctx.measureText(banner).width + 48));
+    ctx.fillStyle = '#2b3f6b';
+    ctx.fillRect(600 - bannerW / 2, 96, bannerW, 44);
+    ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText(placeName('hangar').toUpperCase(), 600, 126);
+    ctx.fillText(banner, 600, 126, bannerW - 24);
     ctx.textAlign = 'left';
   } else {
     // the quonset's arched roof and its ribs, the hanging lamps with their light
@@ -998,28 +1001,29 @@ function drawHangar(ctx, g, s) {
     }
     // The bench along the back wall, tools on the board above it, and the chalkboard with the round on it.
     ctx.fillStyle = '#6a5a44';
-    ctx.fillRect(60, 470, 300, 12);
-    ctx.fillRect(70, 482, 8, 128);
-    ctx.fillRect(342, 482, 8, 128);
+    // (Kept short, left of the round's cradles, so the round never lies across it.)
+    ctx.fillRect(40, 470, 200, 12);
+    ctx.fillRect(50, 482, 8, 128);
+    ctx.fillRect(222, 482, 8, 128);
     ctx.fillStyle = '#262521';
-    ctx.fillRect(78, 482, 264, 5);
+    ctx.fillRect(58, 482, 164, 5);
     ctx.fillStyle = '#b9a783';
-    ctx.fillRect(146, 461, 78, 9);
+    ctx.fillRect(70, 461, 70, 9);
     ctx.fillStyle = '#8c7b5b';
-    ctx.fillRect(154, 464, 52, 1);
-    ctx.fillRect(154, 467, 37, 1);
+    ctx.fillRect(78, 464, 46, 1);
+    ctx.fillRect(78, 467, 33, 1);
     ctx.fillStyle = '#585d50';
-    ctx.fillRect(265, 448, 72, 22);
+    ctx.fillRect(160, 448, 62, 22);
     ctx.fillStyle = '#b2aa95';
-    ctx.fillRect(286, 455, 28, 2);
+    ctx.fillRect(178, 455, 26, 2);
     ctx.fillStyle = '#4a4034';
-    ctx.fillRect(70, 360, 280, 96);
+    ctx.fillRect(50, 360, 180, 96);
     ctx.strokeStyle = '#b8b2a6';
     ctx.lineWidth = 3;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 4; i++) {
       ctx.beginPath();
-      ctx.moveTo(90 + i * 38, 376);
-      ctx.lineTo(90 + i * 38 + (i % 2 ? 8 : -6), 436);
+      ctx.moveTo(78 + i * 40, 376);
+      ctx.lineTo(78 + i * 40 + (i % 2 ? 8 : -6), 436);
       ctx.stroke();
     }
     ctx.strokeStyle = '#222';
@@ -1126,8 +1130,12 @@ function drawRoundOnCradles(ctx, g, s, list, seenOf, flaggedOf, actionable, act)
   const [len0, half] = SHAPE[g.vehicle] || [100, 10];
   const mated = !!g.rocket.mated,
     len = (g.vehicle === 'wac' || g.vehicle === 'aerobee') && mated ? 86 : g.vehicle === 'bumper' && mated ? 160 : len0;
-  const k = Math.min(940 / len, 120 / half),
-    tailX = 600 + (len * k) / 2,
+  // She lies between the bench on the left and the room's right wall, clear of both (the longest rounds are scaled to fit).
+  // (The WAC keeps its old place: the White Sands backdrop is drawn around it.)
+  const wacRoom = g.vehicle === 'wac',
+    mid = wacRoom ? 600 : 640,
+    k = Math.min((wacRoom ? 940 : 760) / len, 120 / half),
+    tailX = mid + (len * k) / 2,
     cy = 410;
   // Cradles under her, then the round itself.
   const steel = g.crewed ? '#8a8f96' : '#6a5a44';
@@ -1140,7 +1148,8 @@ function drawRoundOnCradles(ctx, g, s, list, seenOf, flaggedOf, actionable, act)
       ctx.fillRect(cx - 24, cy - 55, 48, 7);
       ctx.fillRect(cx - 24, cy + 48, 48, 7);
     } else {
-      ctx.fillRect(cx - 24, cy + Math.min(half * k, 60) * 0.6, 48, FLOOR - cy);
+      const top = cy + Math.min(half * k, 60) * 0.6;
+      ctx.fillRect(cx - 24, top, 48, FLOOR - 10 - top); // the post stands on its foot, not through the floor
       ctx.fillRect(cx - 40, FLOOR - 10, 80, 10);
     }
   }
@@ -1195,7 +1204,7 @@ function drawRoundOnCradles(ctx, g, s, list, seenOf, flaggedOf, actionable, act)
   }
   ctx.fillStyle = 'rgba(0,0,0,.2)';
   ctx.beginPath();
-  if (g.vehicle !== 'wac') ctx.ellipse(600, FLOOR + 6, (len * k) / 2, 10, 0, 0, 7);
+  if (g.vehicle !== 'wac') ctx.ellipse(mid, FLOOR + 6, (len * k) / 2, 10, 0, 0, 7);
   ctx.fill();
   list.forEach((sp, i) => {
     const bx = g.vehicle === 'wac' && sp.id === 'fitting' ? fittingX : tailX - sp.f * len * k,

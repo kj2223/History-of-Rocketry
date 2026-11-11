@@ -588,7 +588,7 @@ export function say(id, text, tone = '', seconds = 4.5) {
   const p = g.people[id];
   if (!p || typeof text !== 'string' || !text) return; // nothing to say: never put an empty bubble on the site
   p.bubble = { text, tone, until: g.time + seconds };
-  g.loop.push({ who: p.name, text, tone, at: clockText() });
+  g.loop.push({ who: p.name, text, tone, at: clockText(), day: g.day });
   if (g.loop.length > 40) g.loop.shift();
 }
 export const walk = (id, x) => {
