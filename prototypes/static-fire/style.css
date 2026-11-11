@@ -1,0 +1,25 @@
+/* Field office look, 1945-57: manila card, typewriter ink, rubber-stamp buttons. Prototype only. */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0d0c0a; overflow: hidden; font-family: 'Courier New', Courier, monospace; color: #2b261c; }
+#stage { position: absolute; inset: 40px 0 96px 0; }
+#stage canvas { display: block; }
+#bar { position: absolute; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; gap: 18px; padding: 0 14px; background: #3c3f2a; color: #eadfbf; font-size: 14px; border-bottom: 2px solid #23251a; }
+#bar #date { color: #e8c66a; font-weight: bold; white-space: nowrap; }
+#bar #objective { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#bar .right { display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+#bar select, #bar button { font: inherit; font-size: 13px; background: #eadfbf; color: #2b261c; border: 1px solid #23251a; padding: 3px 8px; cursor: pointer; }
+#strip { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; display: flex; align-items: center; gap: 20px; padding: 0 22px; background: #e9dcb5; border-top: 3px solid #8b7a52; box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.4); }
+#say { flex: 1; font-size: 16px; line-height: 1.35; }
+#say b { text-transform: uppercase; letter-spacing: 0.04em; }
+#actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; max-width: 60%; }
+#actions button { font: inherit; font-size: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 16px; background: #f4ecd4; color: #2b261c; border: 2px solid #2b261c; cursor: pointer; }
+#actions button:hover, #actions button:focus-visible { background: #2b261c; color: #f4ecd4; outline: none; }
+#actions button.stop { border-color: #8e2a1c; color: #8e2a1c; }
+#actions button.stop:hover { background: #8e2a1c; color: #f4ecd4; }
+#actions button.on { background: #3c3f2a; color: #eadfbf; }
+#actions kbd { font: inherit; font-size: 12px; opacity: 0.7; margin-right: 6px; }
+#readout { position: absolute; top: 52px; right: 12px; width: 300px; background: rgba(233, 220, 181, 0.96); border: 2px solid #2b261c; padding: 10px 14px; font-size: 14px; line-height: 1.5; }
+#readout h2 { font-size: 14px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+#readout dl { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; margin: 0; }
+#readout dt { font-weight: bold; }
+#readout dd { margin: 0; }

@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "predist": "node desktop/stamp-build.mjs",
     "dist": "electron-builder --win --publish never",
-    "playtest-report": "node tools/playtest-report.mjs"
+    "playtest-report": "node tools/playtest-report.mjs",
+    "proto": "electron prototypes/static-fire/main.js"
   },
   "devDependencies": {
     "electron": "^45.2.3",

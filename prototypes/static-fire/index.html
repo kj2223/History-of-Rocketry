@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ad Astra prototype: WAC static fire</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header id="bar">
+      <span id="date">Wednesday 10 October 1945 · 08:53</span>
+      <span id="objective"></span>
+      <span class="right">
+        <label>Stage on the stand
+          <select id="scenario">
+            <option value="random">Random (as in the game)</option>
+            <option value="12">Healthy</option>
+            <option value="3">Leaking acid feed fitting</option>
+            <option value="7">Igniter hang-fire fault</option>
+            <option value="6">Leak and igniter fault</option>
+          </select>
+        </label>
+        <button id="readout-toggle" title="Show every reading as text (R)">Readings (R)</button>
+      </span>
+    </header>
+    <div id="stage"></div>
+    <aside id="readout" hidden></aside>
+    <footer id="strip">
+      <div id="say"></div>
+      <div id="actions"></div>
+    </footer>
+    <script type="module" src="scene.js"></script>
+  </body>
+</html>
