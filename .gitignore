@@ -44,3 +44,6 @@ work/wac-slice/
 /.claude/settings.local.json
 /.claude/release-ok
 /.claude/.tests-passed
+
+# Written by desktop/stamp-build.mjs before each Windows build.
+/desktop/build-info.json
