@@ -483,9 +483,10 @@ function startRound(i) {
   g.roundIndex = i;
   const before = Object.keys(SUCCESSIONS).map(id => ({ id, ...g.people[id] }));
   setVehicle();
-  // A handover since the last round goes in the notebook.
+  // A handover since the last round goes in the notebook, for the people the player works with this round (on the JPL
+  // route Houston's desks change hands too, but nobody at JPL meets them).
   for (const p of before)
-    if (i > 0 && p.name !== g.people[p.id].name)
+    if (i > 0 && p.name !== g.people[p.id].name && !g.people[p.id].hidden)
       note(
         `${p.name} has ${/Cmdr\./.test(p.name) ? 'been posted away' : 'retired'}. ${g.people[p.id].name} takes over: ${g.people[p.id].role}.`,
       );
