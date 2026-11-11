@@ -11,6 +11,10 @@ button.primary { background: #2f4a3a; border-color: #6fae84; }
 button.danger { background: #5a1f1a; border-color: #d0634f; font-weight: bold; letter-spacing: .05em; }
 button.go { background: #23502f; border-color: #6fc88a; font-weight: bold; }
 #endday { background: #3a3220; border-color: #e8c66a; }
+#waiting { white-space: nowrap; background: #3a3220; border-color: #e8c66a; color: #f1e6c8; }
+#waiting.call { background: #e8c66a; color: #111; font-weight: bold; animation: waiting 1.2s ease-in-out infinite alternate; }
+@keyframes waiting { from { box-shadow: 0 0 0 rgba(232,198,106,0); } to { box-shadow: 0 0 14px rgba(232,198,106,.8); } }
+@media (prefers-reduced-motion: reduce) { #waiting.call { animation: none; } }
 #site { position: fixed; inset: 44px 0 0 0; width: 100%; height: calc(100% - 44px); display: block; }
 #room, #notebook { position: fixed; top: 56px; right: 12px; width: 470px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid #4a5464; border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
 #notebook { left: 12px; right: auto; width: 520px; background: #14181e; } /* solid, so the loop log under it does not show through */
