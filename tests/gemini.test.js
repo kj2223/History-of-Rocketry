@@ -683,6 +683,14 @@ test('Apollo 15 flies three days at Hadley, and the landings run out at Apollo 1
   // No seat above the shift: the player stays a flight director to the end (Aaron, 8 November 2026).
   assert.ok(!g.record.offers.some(o => o.seat === 'director'), g.record.offers.map(o => o.seat).join());
   advance(true);
+  // May 1973: the workshop goes up empty, and Mission Control meets before the first crew flies.
+  assert.equal(g.beat, 'sWorkshop');
+  const { workshopDecide, workshopDone } = await import('../js/mercury.js');
+  workshopDecide('attitude', 'pitch');
+  workshopDecide('crew', 'wait');
+  workshopDone();
+  const { nextRound } = await import('../js/game.js');
+  nextRound();
   g.room = null; // the workshop years begin: Skylab 2 on the Saturn IB
   assert.equal(SEASON[g.roundIndex].id, 'skylab-2');
   playMission({ sims: 0 });

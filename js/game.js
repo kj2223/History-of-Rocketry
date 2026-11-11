@@ -518,6 +518,7 @@ const MORNING_BEATS = [
   'mPadSafe',
   'sRoute',
   'sApollo8',
+  'sWorkshop',
   'lCruise',
   'lEncounter',
   'probeHandover',

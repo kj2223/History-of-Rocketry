@@ -82,7 +82,7 @@ import { addSim, shiftTrust, TRUST } from './career/record.js';
 import { ROUTE_DAY, ROUTE_MODES, ROUTE_ANNOUNCED } from './data/route.js';
 import { adopt } from './world/programme.js';
 import { dayOf } from './core/calendar.js';
-import { raceHeard } from './world/race.js';
+import { raceHeard, skylabShield } from './world/race.js';
 import {
   startFlight,
   tickFlight,
@@ -269,6 +269,12 @@ export const MERCURY_BEATS = {
     g.objective = `${nameOf('hollis')} has called a meeting in Mission Control about the next Apollo flight. Go in.`;
     say('hollis', "Closed door this morning. Nobody outside this room hears what we're about to talk about.", '', 8);
   },
+  // 14 May 1973: the workshop is in orbit on the last Saturn V, and the first crew is due in a day.
+  sWorkshop() {
+    seatPeople();
+    g.objective = `The workshop went up this morning. ${nameOf('hollis')} wants you in Mission Control. Go in.`;
+    say('hollis', 'The workshop is up. Come and look at what the telemetry says before we send anyone to her.', '', 8);
+  },
   mRecovery() {
     g.objective = 'Recovery is reporting. Read the board, then go to the review.';
     g.room = 'splash';
@@ -354,6 +360,7 @@ export function missionRoomFor(id) {
   }
   if (id === 'office' && g.beat === 'sRoute') return 'route';
   if (id === 'office' && g.beat === 'sApollo8') return 'apollo8';
+  if (id === 'office' && g.beat === 'sWorkshop') return 'workshop';
   if (id === 'office')
     return ['mLaunch', 'mFlight'].includes(g.beat)
       ? 'console'
@@ -2122,6 +2129,11 @@ const orbitSimFailure = con => (Object.values(boosterOf(con).names).includes(con
 // After a round whose SEASON entry has `after: 'route'`: the calendar goes to the meeting, once.
 export function sceneAfterReview() {
   const after = SEASON[g.roundIndex].after;
+  if (after === 'workshop' && !g.record.scenes?.workshop?.done) {
+    g.day = Math.max(g.day, WORKSHOP_DAY);
+    g.clock = g.day * 1440 + 14 * 60;
+    return 'sWorkshop';
+  }
   if (after === 'apollo8' && !g.record.scenes?.apollo8) {
     g.day = Math.max(g.day, APOLLO8_DAY);
     g.clock = g.day * 1440 + 8 * 60;
@@ -2224,6 +2236,60 @@ export function apollo8Decide(choice) {
 }
 export function apollo8Done() {
   if (g.beat !== 'sApollo8' || !g.record.scenes?.apollo8) return;
+  g.room = null;
+  morning(nextIndexFn() != null ? 'roundEnd' : 'seasonEnd');
+}
+
+// ---- The workshop, 14 May 1973 ----
+// Skylab went up on the last Saturn V. Whether her shield tore away in the climb is the hidden layer's draw from the
+// game's seed (skylabShield), but once she is in orbit the telemetry shows it to everyone: the temperatures climb, and
+// the main wings never report deployed. The room decides how to fly her empty, and when the crew goes.
+export const WORKSHOP_DAY = dayOf(1973, 5, 14);
+export const WORKSHOP_CALLS = {
+  attitude: {
+    q: 'How does she fly until the crew gets there?',
+    options: {
+      pitch:
+        "Pitch her nose up off the Sun, about fifty degrees. The inside comes down toward forty degrees, and the telescope mount's wings give less power: the batteries will cycle hard.",
+      sun: 'Keep her pointed at the Sun for full power from the telescope mount, and let the inside bake past fifty.',
+    },
+  },
+  crew: {
+    q: 'When does the first crew go?',
+    options: {
+      wait: 'Hold them ten days. Build the parasol and the sail, and try them and the cable cutters in the Huntsville water tank first.',
+      rush: 'Fly them as soon as the stack is ready, with whatever shade the engineers can build in a week.',
+    },
+  },
+};
+// What the room can see: the workshop's telemetry.
+export function workshopBrief() {
+  return { shield: skylabShield(g.seed), done: g.record.scenes?.workshop || {} };
+}
+// The open calls, in order: none at all if she came up whole.
+export const workshopOpen = () => {
+  const b = workshopBrief();
+  return b.shield ? Object.keys(WORKSHOP_CALLS).filter(k => !b.done[k]) : [];
+};
+export function workshopDecide(call, choice) {
+  if (g.beat !== 'sWorkshop' || !WORKSHOP_CALLS[call]?.options[choice] || workshopOpen()[0] !== call) return;
+  (g.record.scenes = g.record.scenes || {}).workshop = { ...g.record.scenes.workshop, [call]: choice, day: g.day };
+  const lines = {
+    pitch: ["Pitch her up, then. EECOM, watch those batteries like they're your own.", 'go'],
+    sun: ["Full power it is. She'll be an oven when they open the hatch.", 'warn'],
+    wait: [
+      'Ten days. Huntsville gets the tank tonight, and the crew gets the parasol in their hands before they fly.',
+      'go',
+    ],
+    rush: ["We fly as soon as the stack's ready. They'll have to work it out up there.", 'warn'],
+  }[choice];
+  say('hollis', lines[0], lines[1], 9);
+  note(`The workshop meeting: ${WORKSHOP_CALLS[call].options[choice]}`);
+  roomChanged();
+}
+export function workshopDone() {
+  if (g.beat !== 'sWorkshop' || workshopOpen().length) return;
+  (g.record.scenes = g.record.scenes || {}).workshop = { ...g.record.scenes.workshop, done: true };
   g.room = null;
   morning(nextIndexFn() != null ? 'roundEnd' : 'seasonEnd');
 }

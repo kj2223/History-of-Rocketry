@@ -32,7 +32,7 @@ import {
   answerFirstOffer,
 } from '../game.js';
 import { pendingOffer } from '../career/record.js';
-import { routeArgue, routeDone, apollo8Decide, apollo8Done } from '../mercury.js';
+import { routeArgue, routeDone, apollo8Decide, apollo8Done, workshopDecide, workshopDone } from '../mercury.js';
 import { newGame } from '../game.js';
 import { lunarMidcourse, lunarLead } from '../lunar.js';
 
@@ -173,6 +173,15 @@ export function campaignTo(seed, id, opts = {}) {
     if (g.beat === 'sRoute') {
       routeArgue('lor');
       routeDone();
+      nextRound();
+      g.room = null;
+      continue;
+    }
+    if (g.beat === 'sWorkshop') {
+      // The calls the room really made: pitch her up, and wait for the tank.
+      workshopDecide('attitude', 'pitch');
+      workshopDecide('crew', 'wait');
+      workshopDone();
       nextRound();
       g.room = null;
       continue;
