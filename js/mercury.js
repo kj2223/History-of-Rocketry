@@ -851,7 +851,7 @@ function liftoff(con) {
       g.rocket.where = 'tower';
       g.rocket.padAbort = true;
       note(
-        "At ignition the engine lit and shut down at once. The booster rose about an inch and settled back on the pad. The escape tower fired away and the capsule's parachutes came out on top of the rocket.",
+        "At ignition the engine lit and shut down at once. The booster rose about four inches and settled back on the pad. The escape tower fired away and the capsule's parachutes came out on top of the rocket.",
       );
     }
     roomChanged();

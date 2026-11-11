@@ -116,7 +116,7 @@ export function ascent(round, force = null) {
     asis: d.asis < ASIS,
     padAbort: failure === 'plug',
   };
-  // The Redstone that rose an inch: the engine shut down as the tail plug came out, and the capsule sat on the pad.
+  // The Redstone that rose about four inches: the engine shut down as the tail plug came out, and the capsule sat on the pad.
   if (a.padAbort) {
     a.steps = [{ t: 0, v: 0, gamma: 90, off: 0, acc: 0, h: 0, x: 0 }];
     a.burn = 0;
