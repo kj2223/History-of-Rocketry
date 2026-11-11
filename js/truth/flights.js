@@ -31,6 +31,12 @@ export const ODDS = {
   // A rover that quits past the walkback limit; a landing on two parachutes that hurts.
   roverBreaks: 0.25,
   twoChutesHard: 0.3,
+  // The later flights' calls (11 November 2026).
+  rangingDrops: 0.3,
+  cabinRunsHot: 0.35,
+  arrayWontRoll: 0.6,
+  landerLeaks: 0.3,
+  thirdQuad: 0.2,
 };
 // The navigation error Gemini 5 really had: the ground sent a wrong number for the Earth's rotation, and she came down
 // about 80 miles short.
@@ -65,6 +71,13 @@ export function flightTruth(round, id, campaignSeed = round.seed) {
   // The workshop's launch damage rides with the seed, not the round: the same station meets every crew.
   if (/^skylab/.test(id)) t.flags.shield = skylabShield(campaignSeed);
   t.fuelcellRecovers = d[0] < ODDS.fuelcellRecovers;
+  // The later flights' own troubles, from draws no other call on that flight uses: Dragon's laser ranging dropping out on
+  // the approach (d[20]), Discovery's iced flash evaporator running the cabin hot (d[18]), Endeavour's bent solar-array
+  // boom (d[25]), and the commercial lander losing cabin pressure overnight (d[19]).
+  t.flags.ranging = id === 'demo-2' && d[20] < ODDS.rangingDrops;
+  t.flags.hotCabin = id === 'sts-26' && d[18] < ODDS.cabinRunsHot;
+  t.flags.arrayJams = id === 'sts-61' && d[25] < ODDS.arrayWontRoll;
+  t.flags.landerLeak = id === 'artemis-3' && d[19] < ODDS.landerLeaks;
   return (round.flightTruth = t);
 }
 export const flag = (round, name) => !!round.flightTruth?.flags[name];
@@ -999,11 +1012,12 @@ const RESOLVE = {
           'The quad worsened in the sixth week, and the mission came home a month short of its plan, under thruster control that was down to two good quads.';
         return out;
       }
+      out.set.stayed = true;
       out.verdict = 'good';
-      out.judge =
-        'The leak held its line to the hour, the way leaks do when the watches are kept. Fifty-nine days, flown in full.';
+      out.judge = 'The first leak held its line to the hour, the way leaks do when the watches are kept.';
       return out;
     }
+    out.endAt = 30;
     out.verdict = 'fair';
     out.judge =
       "They came home early with a spacecraft in good shape and a science programme half done. Safe, and it shortened the workshop's year.";
@@ -1095,9 +1109,10 @@ const RESOLVE = {
       "She rolled out on the Cape's runway with margin to spare. It was the schedule's call, not the margin's.";
     return out;
   },
-  hubblefix(choice, { d, out }) {
+  hubblefix(choice, { d, out, state }) {
     if (choice === 'install') {
-      if (d[23] < 0.2) {
+      // A morning lost to the old array leaves the optics' spacewalks with no slack.
+      if (d[23] < (state.lateEva ? 0.5 : 0.2)) {
         out.set.fixed = true;
         out.set.hurt = 0.08;
         out.verdict = 'fair';
@@ -1156,6 +1171,140 @@ const RESOLVE = {
     out.verdict = 'good';
     out.judge =
       'One wing the first day, the second after an overnight check. Slower than the plan, and cleaner for it.';
+    return out;
+  },
+  // Demo-2's last hold, twenty metres out: the station and the capsule's teams both say go, or she backs out.
+  waypoint(choice, { f, out }) {
+    if (choice === 'go') {
+      if (f.ranging) {
+        out.lines.push([
+          'kessler',
+          "Flight, EECOM: she drifted off the docking axis at five metres and the automatics backed her out. The laser ranging was lying. She'll try again next orbit on the camera solution.",
+          'bad',
+        ]);
+        out.verdict = 'bad';
+        out.judge =
+          'The ranging had dropped out twice on the way in, and we sent her in on it anyway. The automatics caught it at five metres. They should not have had to.';
+        return out;
+      }
+      out.verdict = 'good';
+      out.judge =
+        'Both teams said go at twenty metres, and she closed the last stretch at a walking pace, straight down the axis.';
+      return out;
+    }
+    if (f.ranging) {
+      out.lines.push([
+        'kessler',
+        "Flight, EECOM: backed out to two hundred metres. The capsule's team reset the laser ranging and it's holding steady now.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge =
+        'The ranging had dropped out twice. Backing her out cost an orbit and bought a clean approach on sensors that agreed.';
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge =
+      'Nothing was wrong at twenty metres. Backing out cost an orbit, and the crew got another look at the station.';
+    return out;
+  },
+  // STS-26: the flash evaporator iced on the first day, and the cabin ran hot. Deploy the relay satellite on time?
+  tdrs(choice, { f, out }) {
+    if (choice === 'deploy') {
+      if (f.hotCabin) {
+        out.lines.push([
+          'pilot',
+          "Houston, we skipped a step in the deploy checklist and had to back up. It's thirty-two in here. TDRS is away, one orbit late.",
+          'warn',
+        ]);
+        out.verdict = 'bad';
+        out.judge =
+          'The cabin was at thirty-two degrees and climbing, and we held the crew to the deploy timeline. They lost a step in the heat. The satellite went an orbit late anyway.';
+        return out;
+      }
+      out.verdict = 'good';
+      out.judge =
+        'The cabin was warm but steady, and the crew deployed the relay satellite six hours in, as planned. The first deploy since Challenger went by the book.';
+      return out;
+    }
+    out.lines.push([
+      'kessler',
+      "Flight, EECOM: we've pointed her tail at the Sun and the evaporator is thawing. Cabin's coming down. Deploy on the next orbit.",
+      'go',
+    ]);
+    out.verdict = f.hotCabin ? 'good' : 'fair';
+    out.judge = f.hotCabin
+      ? 'The cabin was running away from them. An orbit spent on the cooling gave the deploy a crew that could think.'
+      : 'The cabin was holding its own. The deploy went an orbit late for a problem that was not growing.';
+    return out;
+  },
+  // Skylab 3: a second quad, and a rescue Apollo that can be on the pad in ten days.
+  quad2(choice, { d, out }) {
+    if (choice === 'standby') {
+      out.verdict = 'good';
+      out.judge =
+        'A second quad went and we rolled the rescue Apollo out as a standby, with the crew still aboard. She never had to fly. The workshop got its fifty-nine days.';
+      return out;
+    }
+    if (choice === 'home') {
+      out.set.short = true;
+      out.endAt = 140;
+      out.verdict = 'fair';
+      out.judge =
+        'Home a month early on the two good quads. Safe, and half the science left in orbit with nobody to do it.';
+      return out;
+    }
+    if (d[24] < ODDS.thirdQuad) {
+      out.set.short = true;
+      out.set.hurt = 0.05;
+      out.verdict = 'bad';
+      out.judge =
+        'A third quad started to weep in the eighth week, and there was no ship on the pad to fetch them. They came home on what was left, and it was too close.';
+      return out;
+    }
+    out.verdict = 'fair';
+    out.judge = 'No rescue ship, and nothing else failed. For seven weeks nobody had a ride home if it had.';
+    return out;
+  },
+  // STS-61: one of the old solar arrays will not roll up for the trip home.
+  array(choice, { f, out }) {
+    if (choice === 'jettison') {
+      out.lines.push(['crew2', 'Houston, the array is released. She is floating away, flapping like a bird.', 'go']);
+      out.verdict = f.arrayJams ? 'good' : 'fair';
+      out.judge = f.arrayJams
+        ? 'The boom was bent and the array was never going to roll. We let it go from the arm and kept the day for the optics.'
+        : 'The array might have rolled with one more try. We let it go and kept the day; the engineers lost their piece of evidence.';
+      return out;
+    }
+    if (f.arrayJams) {
+      out.set.lateEva = true;
+      out.lines.push([
+        'crew2',
+        "Houston, it won't go. The boom is bent. We've used the morning and it's no closer.",
+        'warn',
+      ]);
+      out.verdict = 'bad';
+      out.judge =
+        'The boom was bent. The spacewalkers spent half a day on an array that could never roll, and the optics went in a day behind.';
+      return out;
+    }
+    out.verdict = 'good';
+    out.judge = 'It rolled up on the second try, by hand, and came home for the engineers to study.';
+    return out;
+  },
+  // Artemis III: certify the lander for the landing, or ask for another test first.
+  certify(choice, { f, out }) {
+    if (choice === 'certify') {
+      out.verdict = f.landerLeak ? 'bad' : 'good';
+      out.judge = f.landerLeak
+        ? 'Her cabin lost pressure overnight and nobody found why, and we certified her for the Moon anyway. The review sent the certificate back.'
+        : 'Her cabin held, her radios held, and her life support ran two days with a crew aboard. She is ready for the Moon.';
+      return out;
+    }
+    out.verdict = f.landerLeak ? 'good' : 'fair';
+    out.judge = f.landerLeak
+      ? "An unexplained leak in the lander's cabin, and we asked for it found before anyone lands in her. That is what this flight was for."
+      : 'She had passed everything we asked of her. Another test buys confidence, and the company a longer year.';
     return out;
   },
   // Apollo 16's ascent-engine checkout, reading low. Going early is the historical call; holding costs surface time.
