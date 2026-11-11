@@ -1081,7 +1081,12 @@ function hangarRack(ctx, g) {
     ctx.fillRect(p.x + 200, GROUND - 22, 40, 22);
   }
   if (!g.rocket.mated && g.rocket.where !== 'gone') {
-    if (g.vehicle === 'wac' || g.vehicle === 'aerobee') boosterShape(ctx, p.x + p.w - 90, GROUND - 14, 0);
+    if (g.vehicle === 'wac' || g.vehicle === 'aerobee') {
+      // The Tiny Tim on its own low rack, fins clear of the floor.
+      boosterShape(ctx, p.x + p.w - 90, GROUND - 20, 0);
+      ctx.fillStyle = '#6a5a44';
+      for (const at of [p.x + p.w - 112, p.x + p.w - 94]) ctx.fillRect(at, GROUND - 15, 3, 15);
+    }
     else if (g.vehicle === 'bumper') wacShape(ctx, p.x + p.w - 30, GROUND - 26, -Math.PI / 2, false);
   }
   ctx.fillStyle = '#d9c39a';
@@ -1380,10 +1385,13 @@ function rocketOnSite(ctx, g) {
     wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
   if (r.where === 'hangar') {
-    roundShape(ctx, g, PLACES.hangar.x + (wac ? 160 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated);
-    if (wac) cradle(ctx, PLACES.hangar.x + 160, r.mated);
+    roundShape(ctx, g, PLACES.hangar.x + (wac ? 200 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated);
+    if (wac) cradle(ctx, PLACES.hangar.x + 200, r.mated);
     else trailer(ctx, PLACES.hangar.x + 130);
-  } else if (r.where === 'carried') roundShape(ctx, g, r.x + (wac ? -24 : 50), GROUND - 22, -Math.PI / 2, false);
+  } else if (r.where === 'carried') {
+    // Shoulder height, centred between the two carriers so each has an end: the WAC is 60 long, tail to nose.
+    roundShape(ctx, g, r.x + (wac ? 30 : 50), GROUND - (wac ? 27 : 22), -Math.PI / 2, false);
+  }
   else if (r.where === 'stand') roundShape(ctx, g, PLACES.stand.x + 60, GROUND - 40, 0, false);
   else if (r.where === 'tower') roundShape(ctx, g, PLACES.tower.x + 25, GROUND - 8, 0, true);
   else if (r.where === 'flying') {
@@ -3144,11 +3152,14 @@ export function v2Shape(ctx, x, y, angle, withWac) {
   }
 }
 
+// The hangar stands under a round lying nose-left with its tail at x: a post with a saddle under the body, and one
+// more under the booster once it is mated. Every post stands under the round, none out past its tail.
 function cradle(ctx, x, mated) {
   ctx.fillStyle = '#6a5a44';
-  ctx.fillRect(x - 6, GROUND - 22, 4, 22);
-  ctx.fillRect(x + 30, GROUND - 22, 4, 22);
-  if (mated) ctx.fillRect(x + 70, GROUND - 22, 4, 22);
+  for (const at of mated ? [x - 14, x - 46, x - 76] : [x - 18, x - 48]) {
+    ctx.fillRect(at - 2, GROUND - 21, 4, 21);
+    ctx.fillRect(at - 6, GROUND - 23, 12, 3);
+  }
 }
 
 // WAC Corporal upper stage (and the Tiny Tim booster under it when mated), drawn from its tail at (x, y), pointing along angle
