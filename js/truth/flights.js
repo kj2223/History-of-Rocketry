@@ -37,6 +37,7 @@ export const ODDS = {
   arrayWontRoll: 0.6,
   landerLeaks: 0.3,
   thirdQuad: 0.2,
+  arrayBinds: 0.25,
 };
 // The navigation error Gemini 5 really had: the ground sent a wrong number for the Earth's rotation, and she came down
 // about 80 miles short.
@@ -83,6 +84,8 @@ export function flightTruth(round, id, campaignSeed = round.seed) {
   t.flags.hotCabin = id === 'sts-26' && d[18] < ODDS.cabinRunsHot;
   t.flags.arrayJams = id === 'sts-61' && d[25] < ODDS.arrayWontRoll;
   t.flags.landerLeak = id === 'artemis-3' && d[19] < ODDS.landerLeaks;
+  // STS-31: the stalled array is a real mechanical bind, not the monitor being fussy (d[23]: no other call on STS-31).
+  t.flags.arrayBind = id === 'sts-31' && d[23] < ODDS.arrayBinds;
   return (round.flightTruth = t);
 }
 export const flag = (round, name) => !!round.flightTruth?.flags[name];
@@ -1193,6 +1196,49 @@ const RESOLVE = {
     out.verdict = 'good';
     out.judge =
       'One wing the first day, the second after an overnight check. Slower than the plan, and cleaner for it.';
+    return out;
+  },
+  // STS-31: the telescope's second array stalls on the arm.
+  hubbledeploy(choice, { f, out }) {
+    if (choice === 'override') {
+      if (f.arrayBind) {
+        out.lines.push([
+          'kessler',
+          'Flight, EECOM: the array went out under override, but it buckled at the bind. It is making about two thirds of its power.',
+          'bad',
+        ]);
+        out.verdict = 'bad';
+        out.judge =
+          'The current had spiked: the array was caught on something. We drove the motor through it and bent the array. The telescope works on short power until somebody brings her new ones.';
+        return out;
+      }
+      out.lines.push([
+        'kessler',
+        "Flight, EECOM: override sent. The second array is out and locked. She's making full power.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge =
+        'The tension monitor had tripped on nothing. The ground overrode it and the array rolled out clean. The spacewalkers got out of their suits.';
+      return out;
+    }
+    if (choice === 'eva') {
+      out.lines.push([
+        'crew2',
+        f.arrayBind
+          ? 'Houston, found it: a guide wire snagged on the edge. Freed it and cranked her out by hand. She is out and locked.'
+          : 'Houston, we cranked her out by hand. Nothing caught that we could see.',
+        'go',
+      ]);
+      out.verdict = f.arrayBind ? 'good' : 'fair';
+      out.judge = f.arrayBind
+        ? 'There was a real snag on the array. Hands found it and freed it, and the telescope went off with full power.'
+        : 'The array was free all along; the monitor had tripped on nothing. A spacewalk the ground could have saved.';
+      return out;
+    }
+    out.verdict = 'bad';
+    out.judge =
+      'We let her go with one array half out. The rule says both, and the telescope spent her first months on short power while the ground worked it.';
     return out;
   },
   // Demo-2's last hold, twenty metres out: the station and the capsule's teams both say go, or she backs out.

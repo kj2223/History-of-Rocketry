@@ -19,7 +19,13 @@ const CALLS = {
   'sts-61': 'array',
   'artemis-3': 'certify',
 };
-const TROUBLE = { 'demo-2': 'ranging', 'sts-26': 'hotCabin', 'sts-61': 'arrayJams', 'artemis-3': 'landerLeak' };
+const TROUBLE = {
+  'sts-31': 'arrayBind',
+  'demo-2': 'ranging',
+  'sts-26': 'hotCabin',
+  'sts-61': 'arrayJams',
+  'artemis-3': 'landerLeak',
+};
 
 test('each new call is written out, with a rule on its flight and an answer for every option', () => {
   for (const [flight, id] of Object.entries(CALLS)) {
@@ -54,6 +60,7 @@ test('the troubles are hidden draws: some flights have them, some do not, and on
 test('reading the cue pays: with the trouble, the cautious answer is the good one; without it, pressing on is', () => {
   const cases = [
     ['demo-2', 'waypoint', 'ranging', 'back', 'go'],
+    ['sts-31', 'hubbledeploy', 'arrayBind', 'eva', 'override'],
     ['sts-26', 'tdrs', 'hotCabin', 'cool', 'deploy'],
     ['sts-61', 'array', 'arrayJams', 'jettison', 'roll'],
     ['artemis-3', 'certify', 'landerLeak', 'retest', 'certify'],
@@ -72,7 +79,11 @@ test('reading the cue pays: with the trouble, the cautious answer is the good on
 for (const flight of Object.keys(CALLS))
   test(`${flight} asks its call in a played flight`, () => {
     const asked = [];
-    const opts = { sims: 0, decide: d => (asked.push(d.id), Object.keys(d.options)[0]) };
+    // Backing off to reset the lander's sensors always docks, so the certificate is always asked.
+    const opts = {
+      sims: 0,
+      decide: d => (asked.push(d.id), d.id === 'landerdock' ? 'reset' : Object.keys(d.options)[0]),
+    };
     campaignTo(11, flight, { sims: 0 });
     playMission(opts);
     assert.equal(g.record.rounds.at(-1).id, flight);

@@ -387,6 +387,17 @@ export const SEASON = [
     name: 'STS-26, the return to flight',
   }, // launched 29 September 1988
   {
+    id: 'sts-31',
+    vehicle: 'shuttle',
+    site: 'cape',
+    crewed: 'shuttle',
+    orbital: true,
+    crew: ['brennan', 'okeke', 'ellison'],
+    path: 'nasa',
+    start: dayOf(1990, 4, 22),
+    name: 'STS-31, the telescope goes up',
+  }, // launched 24 April 1990
+  {
     id: 'sts-61',
     vehicle: 'shuttle',
     site: 'cape',
@@ -1290,8 +1301,11 @@ export const BETWEEN = {
   'sts-26': [
     'The fleet stood down for thirty-two months while the joints were redesigned and the whole agency asked itself what it had missed. The countdown for the return to flight is the most watched in years.',
   ],
+  'sts-31': [
+    "The fleet is flying again on the redesigned joints. The space telescope, built for the Shuttle and kept on the ground since Challenger, is in Discovery's bay: the biggest thing a Shuttle has carried up, to be let go above the air.",
+  ],
   'sts-61': [
-    '1990: the telescope went up and could not focus - a mirror ground to the wrong figure, a mistake known only from orbit. The repair has been rehearsed for a year in the pool at Huntsville.',
+    'Weeks after the telescope went up, her first pictures would not focus: the main mirror had been ground to the wrong figure, a mistake nobody found until she was in orbit. The repair has been rehearsed for a year in the pool at Huntsville.',
   ],
   'sts-88': [
     'The station era: Russia is a partner now, and the first module has been up alone for a fortnight, waiting for a visitor.',
