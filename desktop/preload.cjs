@@ -13,7 +13,4 @@ contextBridge.exposeInMainWorld('adAstraDesktop', {
     onMark: fn => ipcRenderer.on('playtest:mark-request', () => fn()),
     onToggle: fn => ipcRenderer.on('playtest:toggle', (_, on) => fn(on)),
   },
-  dev: {
-    onOpen: fn => ipcRenderer.on('dev:open', () => fn()),
-  },
 });

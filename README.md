@@ -82,7 +82,8 @@ the build. It is bounded (the newest 2,500 events, 400 calls, 100 distinct error
 stays on your computer, and is kept apart from the save, so it never changes or blocks one.
 
 - **F8** marks a problem: the moment, a screenshot and a copy of the save go into the log.
-- **F9** (or the **Jump (F9)** button, or Playtest > Jump to a stage) opens the dev menu: pick a round on the NASA route
+- **Ctrl+Shift+F9** switches the hidden dev menu on (or off again) on this computer. While it is on, **F9** or the
+  **Jump (F9)** button opens it: pick a round on the NASA route
   or the JPL route, and its first morning or launch morning. A bot plays every round before it in a second or two, so
   the record, fixes, crews and offers behind you are believable. Your game before the first jump is kept as the backup
   (Game > go back to your backup). Each jump is noted in the log with its seed.

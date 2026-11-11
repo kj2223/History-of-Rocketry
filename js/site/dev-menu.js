@@ -1,4 +1,4 @@
-// THE DEV MENU (F9, or Playtest > Jump to a stage): start a playtest at any round on either route, with the bot having
+// THE DEV MENU: start a playtest at any round on either route, with the bot having
 // played every round before it. For testing only. The game you were playing is kept as the backup the first time, so
 // Game > "Go back to your backup" brings it back; a game the menu made is not kept as the backup over it.
 import { g, dateText, newGame } from '../game.js';
@@ -6,6 +6,11 @@ import { SEASON } from '../data/campaign.js';
 import { stagesFor, skipWithRetries, STOPS } from '../dev/skip.js';
 import { startOver, readSave } from '../core/save.js';
 import { trace, traceError } from './playtest.js';
+
+// The menu is hidden from players. Ctrl+Shift+F9 switches it on or off on this computer (kept in localStorage); while it
+// is on, F9 and the Jump button in the bar open it.
+const DEV_ON = 'pa-dev-menu-on';
+const unlocked = () => storage?.getItem(DEV_ON) !== null;
 
 // Marks the current save as one the menu made, so the next jump does not push the real game out of the backup.
 const DEV_FLAG = 'pa-dev-jumped';
@@ -42,14 +47,26 @@ export function startDevMenu(opts) {
   panel.addEventListener('click', onClick);
   panel.addEventListener('change', onChange);
   window.addEventListener('keydown', e => {
-    if (e.key === 'F9') {
+    if (e.key === 'F9' && e.ctrlKey && e.shiftKey) {
+      e.preventDefault();
+      if (unlocked()) {
+        storage.removeItem(DEV_ON);
+        closeDevMenu();
+      } else storage.setItem(DEV_ON, '1');
+      showButton();
+      trace('dev-menu', { on: unlocked() });
+    } else if (e.key === 'F9' && unlocked()) {
       e.preventDefault();
       toggleDevMenu();
     } else if (e.key === 'Escape' && !panel.hidden) closeDevMenu();
   });
   $('dev-open')?.addEventListener('click', () => toggleDevMenu());
-  window.adAstraDesktop?.dev?.onOpen(() => toggleDevMenu());
+  showButton();
 }
+const showButton = () => {
+  const b = $('dev-open');
+  if (b) b.hidden = !unlocked();
+};
 // A new game or a restore from the game menu is a real game again: the next jump keeps it as the backup.
 export const clearDevFlag = () => storage?.removeItem(DEV_FLAG);
 
@@ -100,7 +117,7 @@ function render() {
             .join('')}</div>`,
       )
       .join('')}
-    <p class="muted">Your game before the first jump is kept as the backup: Game, then "Go back to your backup". Launch morning does not apply to the robotic missions, which start in the office.</p>`;
+    <p class="muted">Ctrl+Shift+F9 hides this menu and its button again. Your game before the first jump is kept as the backup: Game, then "Go back to your backup". Launch morning does not apply to the robotic missions, which start in the office.</p>`;
 }
 
 // The round's name up to its first comma, as in the record: "Apollo 11", "Viking 7", "STS-51-L".
