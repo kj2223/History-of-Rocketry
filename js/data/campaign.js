@@ -529,14 +529,426 @@ export const SEASON = [
       missed: 'The flyby is over. JPL has tracking but no images because encounter mode was never enabled.',
     },
   },
+  // JPL's robotic missions after Mariner 4 (Aaron, option B, 11 November 2026). Each starts at the handover from the
+  // launch team and runs through its decision days (probe.steps; see advanceProbe in game.js). The launches are
+  // told, not played. Days marked Provisional are a plausible day for a call whose exact date is not on record; a
+  // choice marked Divergence is the game's own, not what happened. Risks are the hidden layer's odds of loss.
+  // Sources: NASA planetary chronology (nssdc.gsfc.nasa.gov/planetary/chronology.html) and the mission pages.
+  {
+    id: 'viking-mars',
+    name: 'Viking 1 and 2, the Mars landers',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1975, 8, 20), // Viking 1 launched 20 August 1975; Viking 2 on 9 September
+    probe: {
+      tracking:
+        "The Titan–Centaur has sent Viking 1 toward Mars, and Viking 2 follows on 9 September. Each is an orbiter carrying a lander. The project is Langley's; the flight team is at JPL, and you are on it.",
+      steps: [
+        {
+          day: dayOf(1976, 6, 22), // Provisional: Viking 1 went into orbit on 19 June 1976
+          title: 'Viking 1: certify the landing site',
+          report: "Viking 1 went into orbit round Mars on 19 June. The orbiter's cameras are on the landing site.",
+          evidence:
+            "The landing is set for the Fourth of July, the Bicentennial, at site A1 in Chryse Planitia. The orbiter's pictures show A1 rougher than the Mariner 9 maps did: channels, scarps and craters the lander's legs were not built for. The date is wanted in Washington. Whether the site is safe is the flight team's call.",
+          choices: [
+            {
+              label: 'Hold Viking 1 in orbit and look for a safer site',
+              note: 'Viking 1 stays in orbit. The orbiter looks farther west in Chryse for smoother ground, and the Fourth of July goes by.',
+              set: 'v1hold',
+            },
+            {
+              label: 'Certify A1 for the Fourth of July', // Divergence
+              note: 'You certify A1. The lander will separate on the Fourth of July.',
+              set: 'v1july',
+            },
+          ],
+        },
+        {
+          day: dayOf(1976, 7, 4),
+          when: 'v1july',
+          title: 'Viking 1: landing day',
+          evidence:
+            'The lander has separated and is on its way down to A1: the aeroshell, the parachute, then the terminal engines. The signal takes nineteen minutes to reach Earth, so it is down, one way or the other, before you hear.',
+          choices: [
+            {
+              label: 'Wait for the signal from the surface',
+              risk: 0.35,
+              result:
+                'Viking 1 landed at A1 on 4 July 1976, among the boulders, and sent back the first pictures from the surface of Mars.',
+              lost: "Lost Viking 1's lander on 4 July 1976: the signal stopped at touchdown on the rough ground at A1. The orbiter carries on mapping.",
+            },
+          ],
+        },
+        {
+          day: dayOf(1976, 7, 20),
+          when: 'v1hold',
+          title: 'Viking 1: landing day',
+          report: 'The orbiter found smoother ground in western Chryse Planitia. The lander goes down today.',
+          evidence:
+            'The lander has separated and is on its way down: the aeroshell, the parachute, then the terminal engines. The signal takes nineteen minutes to reach Earth, so it is down, one way or the other, before you hear.',
+          choices: [
+            {
+              label: 'Wait for the signal from the surface',
+              risk: 0.03,
+              result:
+                'Viking 1 landed in western Chryse Planitia on 20 July 1976 and sent back the first pictures from the surface of Mars.',
+              lost: "Lost Viking 1's lander on 20 July 1976: the signal stopped at touchdown. The orbiter carries on mapping.",
+            },
+          ],
+        },
+        {
+          day: dayOf(1976, 8, 10), // Provisional: Viking 2 went into orbit on 7 August 1976
+          title: 'Viking 2: choose the landing site',
+          report: 'Viking 2 went into orbit round Mars on 7 August. Her orbiter is looking at the sites.',
+          evidence:
+            "Viking 2's site, B1 at Cydonia, looks as rough as A1 did. The science team wants to go north to Utopia Planitia, where there should be more water in the air and the ground. But Utopia is beyond the reach of the Earth radars that checked the other sites for roughness: the orbiter's pictures are all you would have. A site farther south has been checked by radar, and has less to find.",
+          choices: [
+            {
+              label: 'Go north to Utopia Planitia',
+              note: 'Viking 2 will land in Utopia Planitia, on the pictures alone.',
+              set: 'v2north',
+            },
+            {
+              label: 'Take the radar-checked site in the south', // Divergence
+              note: 'Viking 2 will land at the radar-checked site in the south.',
+              set: 'v2south',
+            },
+          ],
+        },
+        {
+          day: dayOf(1976, 9, 3),
+          when: 'v2north',
+          title: 'Viking 2: landing day',
+          evidence:
+            'The lander has separated and is on its way down to Utopia Planitia. Nobody has seen this ground except from orbit.',
+          choices: [
+            {
+              label: 'Wait for the signal from the surface',
+              risk: 0.12,
+              result:
+                'Viking 2 landed in Utopia Planitia on 3 September 1976, on a plain strewn with boulders, tilted where one footpad rests on a rock. In the northern winter her camera saw frost on the ground.',
+              lost: "Lost Viking 2's lander on 3 September 1976: the signal stopped at touchdown among the boulders of Utopia.",
+            },
+          ],
+        },
+        {
+          day: dayOf(1976, 9, 3),
+          when: 'v2south',
+          title: 'Viking 2: landing day',
+          evidence: 'The lander has separated and is on its way down to the radar-checked site.',
+          choices: [
+            {
+              label: 'Wait for the signal from the surface',
+              risk: 0.04,
+              result:
+                'Viking 2 landed on 3 September 1976 at the radar-checked site in the south. The ground is smooth, and the water readings are thin.',
+              lost: "Lost Viking 2's lander on 3 September 1976: the signal stopped at touchdown.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: 'voyager',
+    name: 'Voyager 2 and 1, the outer planets',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1977, 8, 20), // Voyager 2 launched first, on 20 August 1977; Voyager 1 on 5 September
+    probe: {
+      tracking:
+        'The Titan–Centaur has sent Voyager 2 on her way, the first of the pair. Voyager 1 goes on 5 September on a faster path and will pass her before Jupiter. The flight team at JPL keeps both.',
+      steps: [
+        {
+          day: dayOf(1978, 4, 6), // Provisional: April 1978
+          title: 'Voyager 2: the receiver',
+          report:
+            "Voyager 1 left the Cape on 5 September. Her Titan's core stage burned short, and the Centaur made up the speed with seconds of fuel to spare. Both are on course for Jupiter.",
+          evidence:
+            "Voyager 2's main radio receiver has failed, and the spacecraft has switched to the backup. The backup's tracking loop is broken: it hears only a narrow band of frequencies, and the band moves as the receiver warms or cools. Commands sent the usual way go unheard.",
+          choices: [
+            {
+              label: "Work out the receiver's frequency from its temperature for every command",
+              note: "From now on every command to Voyager 2 goes up on a frequency worked out from her receiver's temperature. She hears them.",
+            },
+            {
+              label: 'Sweep the uplink across the band until she answers', // Divergence
+              risk: 0.5,
+              note: 'A sweep found her receiver, more by luck than design. From then on the team works the frequency out from her temperature.',
+              lost: 'Lost Voyager 2 in April 1978: the sweeps never found her broken receiver, and she flew on to Jupiter deaf.',
+              setLost: 'v2lost',
+            },
+          ],
+        },
+        {
+          day: dayOf(1979, 7, 9),
+          unless: 'v2lost',
+          title: 'Voyager 2 at Jupiter',
+          report:
+            'Voyager 1 passed Jupiter on 5 March and found volcanoes erupting on Io, and a thin ring round the planet.',
+          evidence:
+            "Voyager 2 closes on Jupiter today. Her encounter sequence was rewritten after Voyager 1's pass, to watch Io's volcanoes again and to look at the ring.",
+          choices: [
+            {
+              label: 'Run the encounter sequence',
+              result:
+                "Voyager 2 passed Jupiter on 9 July 1979 and sent back the closest look yet at Europa's cracked ice.",
+            },
+          ],
+        },
+        {
+          day: dayOf(1980, 8, 22), // Provisional: the Titan aim is the game's call day
+          title: 'Voyager 1: Titan or Pluto',
+          report: 'Voyager 1 is closing on Saturn.',
+          evidence:
+            "Voyager 1 can pass close by Titan, Saturn's largest moon and the only moon known to have air. The pass would bend her up out of the plane of the planets for good. Or she can leave Titan alone and fly on toward Pluto. If Voyager 1 does not do Titan, Voyager 2 must, and Voyager 2 would then never reach Uranus or Neptune.",
+          choices: [
+            { label: 'Aim Voyager 1 at Titan', note: 'Voyager 1 will pass close by Titan.', set: 'titan' },
+            {
+              label: 'Send Voyager 1 on toward Pluto', // Divergence
+              note: 'Voyager 1 will pass Saturn at a distance and fly on toward Pluto.',
+              set: 'pluto',
+            },
+          ],
+        },
+        {
+          day: dayOf(1980, 11, 12),
+          when: 'titan',
+          title: 'Voyager 1 at Titan',
+          evidence:
+            'Voyager 1 passes Titan today and goes behind it, so her radio signal passes through its air on the way to Earth.',
+          choices: [
+            {
+              label: 'Run the encounter sequence',
+              result:
+                "Voyager 1 passed Titan on 12 November 1980. The haze hid the ground, but her radio, passing through the air, found it thicker than Earth's and mostly nitrogen.",
+            },
+          ],
+        },
+        {
+          day: dayOf(1980, 11, 12),
+          when: 'pluto',
+          title: 'Voyager 1 at Saturn',
+          evidence: 'Voyager 1 passes Saturn today at a distance, on her way to Pluto.',
+          choices: [
+            {
+              label: 'Run the encounter sequence',
+              result:
+                'Voyager 1 passed Saturn on 12 November 1980 and is on her way to Pluto. Titan was left to Voyager 2.',
+            },
+          ],
+        },
+        {
+          day: dayOf(1981, 8, 25), // closest approach 26 August UTC, the evening of the 25th in Pasadena
+          when: 'pluto',
+          unless: 'v2lost',
+          title: 'Voyager 2 at Titan',
+          evidence:
+            'With Voyager 1 gone toward Pluto, Voyager 2 has been aimed at Titan. The pass throws her off the path to Uranus.',
+          choices: [
+            {
+              label: 'Run the encounter sequence',
+              result: 'Voyager 2 passed Saturn and Titan in August 1981. Uranus and Neptune are out of her reach.',
+            },
+          ],
+        },
+        {
+          day: dayOf(1981, 8, 25),
+          when: 'titan',
+          unless: 'v2lost',
+          title: 'Voyager 2 at Saturn',
+          evidence:
+            "Voyager 2 passes Saturn tonight, and Saturn's pull sends her on to Uranus. Behind the planet her cameras run on a timed sequence, pointed by the scan platform.",
+          choices: [
+            {
+              label: 'Run the encounter sequence',
+              note: 'Voyager 2 passed Saturn on 25 August 1981. Her scan platform stuck for a while behind the planet, and the team worked it free. She is on her way to Uranus.',
+            },
+          ],
+        },
+        {
+          day: dayOf(1989, 8, 24), // closest approach 25 August UTC, the evening of the 24th in Pasadena
+          when: 'titan',
+          unless: 'v2lost',
+          title: 'Voyager 2 at Neptune',
+          report:
+            'Voyager 2 passed Uranus on 24 January 1986 and found ten new moons. She has three and a half more years to go.',
+          evidence:
+            "Voyager 2 reaches Neptune tonight, twelve years out. Her signal takes four hours to get here and is fainter than ever: the Deep Space Network's dishes are arrayed with the Very Large Array in New Mexico to catch it.",
+          choices: [
+            {
+              label: 'Run the encounter sequence',
+              result:
+                'Voyager 2 passed Neptune on 24 August 1989 and found a great dark storm in its blue air, and geysers on its moon Triton.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: 'pathfinder',
+    name: 'Mars Pathfinder and Sojourner',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1996, 12, 4), // launched 4 December 1996
+    probe: {
+      tracking:
+        'The Delta II has sent Mars Pathfinder on her way: a lander, and a rover the size of a microwave oven, to come down on a parachute, rockets and airbags.',
+      steps: [
+        {
+          day: dayOf(1997, 7, 4),
+          title: 'Pathfinder: the rover ramp',
+          report: 'Seven months on, Pathfinder is falling into the Martian air.',
+          evidence:
+            "Pathfinder bounced down on her airbags in Ares Vallis this morning, and the petals opened. The lander's first pictures show a fold of airbag still bunched up in front of a ramp. Sojourner is waiting on her petal to drive off.",
+          choices: [
+            {
+              label: 'Lift the petal, pull the airbag in again, and use the rear ramp',
+              risk: 0.02,
+              result:
+                'Pathfinder landed in Ares Vallis on 4 July 1997. With the airbag pulled in, Sojourner drove down the rear ramp on the second day and went to work on the rocks.',
+              lost: "Lost Sojourner on the ramp: she tipped as she came off. The lander's camera and weather station carry on.",
+            },
+            {
+              label: 'Drive Sojourner off now, past the airbag', // Divergence
+              risk: 0.4,
+              result:
+                'Pathfinder landed in Ares Vallis on 4 July 1997. Sojourner squeezed past the airbag on the first day and went to work on the rocks.',
+              lost: "Lost Sojourner on 4 July 1997: she snagged on the airbag at the foot of the ramp and never got clear. The lander's camera and weather station carry on.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: 'cassini',
+    name: 'Cassini and Huygens, to Saturn and Titan',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1997, 10, 15), // launched 15 October 1997
+    probe: {
+      tracking:
+        "The Titan IVB–Centaur has sent Cassini on her way, with the European Space Agency's Huygens probe for Titan on her side. She swings past Venus twice, then Earth and Jupiter, to reach Saturn in 2004.",
+      steps: [
+        {
+          day: dayOf(2001, 7, 2), // Provisional: the flaw was found in 2000; the fix was settled in 2001
+          title: "Huygens's radio link",
+          report: 'A test of the probe link, run from Earth through Cassini in 2000, turned up a fault.',
+          evidence:
+            "The receiver on Cassini that is to catch Huygens's signal during the descent cannot keep lock when the Doppler shift is as large as the plan gives it. Fly the plan and most of the probe's data is lost. The joint team can redesign Cassini's first orbits so she passes Titan at a different angle, with a smaller shift, and release the probe later.",
+          choices: [
+            {
+              label: 'Redesign the first orbits and release Huygens later',
+              note: "Cassini's first orbits are redesigned. Huygens will go down to Titan in January 2005.",
+              set: 'relay',
+            },
+            {
+              label: 'Keep the plan and the November 2004 descent', // Divergence
+              note: 'The plan stands. Huygens goes down to Titan in November 2004.',
+              set: 'plan',
+            },
+          ],
+        },
+        {
+          day: dayOf(2004, 6, 30), // the evening of 30 June in Pasadena, 1 July UTC
+          title: 'Saturn orbit insertion',
+          report: 'Cassini is at Saturn, about to cross the ring plane.',
+          evidence:
+            'Tonight Cassini fires her main engine for an hour and a half to brake into orbit round Saturn. It runs on her own sequence, out of reach of commands from Earth.',
+          choices: [
+            {
+              label: 'Let the burn run',
+              risk: 0.03,
+              note: 'Cassini is in orbit round Saturn.',
+              lost: 'Lost Cassini on 30 June 2004: the engine shut down early and she flew on past Saturn, with Huygens still on her side.',
+              setLost: 'cassiniLost',
+            },
+          ],
+        },
+        {
+          day: dayOf(2005, 1, 14),
+          when: 'relay',
+          unless: 'cassiniLost',
+          title: 'Huygens at Titan',
+          report: 'Huygens left Cassini on 25 December and is falling toward Titan.',
+          evidence: "Huygens is going down through Titan's haze. Cassini, on the new geometry, is listening.",
+          choices: [
+            {
+              label: 'Wait for the relay from Cassini',
+              result:
+                "Huygens came down through Titan's haze on 14 January 2005 and landed on damp, pebbled ground. Cassini kept lock on the probe's signal all the way down.",
+            },
+          ],
+        },
+        {
+          day: dayOf(2004, 11, 27), // Divergence: the original plan's arrival
+          when: 'plan',
+          unless: 'cassiniLost',
+          title: 'Huygens at Titan',
+          report: 'Huygens left Cassini three weeks ago and is falling toward Titan.',
+          evidence: "Huygens is going down through Titan's haze. Cassini, on the old geometry, is listening.",
+          choices: [
+            {
+              label: 'Wait for the relay from Cassini',
+              result:
+                "Huygens came down on Titan on 27 November 2004, but Cassini's receiver lost lock on the probe's signal for most of the descent. A few pictures came through; most of the science did not.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: 'perseverance',
+    name: 'Mars 2020, Perseverance',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(2020, 7, 30), // launched 30 July 2020
+    probe: {
+      tracking:
+        'The Atlas V has sent Mars 2020 on her way: the rover Perseverance, with a small helicopter, Ingenuity, under her belly.',
+      steps: [
+        {
+          day: dayOf(2021, 2, 18),
+          title: 'Perseverance: the landing',
+          report: 'Seven months on, Perseverance is at Mars.',
+          evidence:
+            "Perseverance is coming in to Jezero crater, to an old river delta. The landing ellipse is full of cliffs, dunes and boulder fields. Terrain-Relative Navigation, flying for the first time, will match the descent camera's view against the maps and steer her to the safest ground it can reach. Or it can be switched off, and she comes down where the parachute puts her.",
+          choices: [
+            {
+              label: 'Land with Terrain-Relative Navigation',
+              risk: 0.03,
+              result:
+                'Perseverance landed in Jezero crater on 18 February 2021, on safe ground Terrain-Relative Navigation picked for her near the delta. Ingenuity flew in April.',
+              lost: 'Lost Perseverance on 18 February 2021: the signal stopped at touchdown in Jezero.',
+            },
+            {
+              label: 'Switch it off and land where the parachute puts her', // Divergence
+              risk: 0.25,
+              result:
+                'Perseverance landed in Jezero crater on 18 February 2021, on clear ground, by luck. Ingenuity flew in April.',
+              lost: 'Lost Perseverance on 18 February 2021: she came down on the hazards of the crater floor and the signal stopped.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 // The last word on the season-end page: what came after the last round you worked, and where this build stops.
 export const LAST_WORD = {
   'ranger-7':
     "Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.",
-  'mariner-4':
-    "Mariner 4's twenty-one pictures showed a cratered Mars, more like the Moon than anyone had hoped, and its radio signal, passing through the planet's air, showed that air to be thinner than the thinnest guess. Mariners 6 and 7 flew past in 1969, and Mariner 9 went into orbit in 1971. That is as far as the uncrewed years go in this build.",
+  perseverance:
+    'Perseverance is still at work in Jezero, filling sealed tubes with rock cores for some later mission to fetch home. The Voyagers still call in from beyond the planets on a few watts. That is as far as the uncrewed years go in this build.',
   'artemis-4':
     'Artemis IV came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole is planned for the years after, and the flights keep coming. This is where the build ends.',
 };
@@ -782,6 +1194,26 @@ export const BETWEEN = {
     "In April 1961 Yuri Gagarin orbited the Earth, and in May Alan Shepard flew from the Cape. On 25 May President Kennedy asked Congress to land a man on the Moon before the decade was out. Apollo needs to know what the Moon's surface is like.",
     "JPL's Ranger was meant to find out, and six Rangers failed. Rangers 1 and 2, in 1961, were left in low orbit when the Agena did not restart. Ranger 3 missed the Moon. Ranger 4 hit the far side, dead. Ranger 5 lost its power and missed. In February 1964 Ranger 6 hit the Sea of Tranquility on time, and its cameras never came on.",
     'Congress has held hearings. The papers call Ranger a shoot-and-hope programme. Every day this round slips is reported to Washington.',
+  ], // JPL's robotic missions after Mariner 4: what happened in the years the calendar jumps.
+  'viking-mars': [
+    'Ten years went by at JPL. Mariners 6 and 7 flew past Mars in 1969, the summer men first walked on the Moon. Mariner 9 went into orbit round Mars in 1971, waited out a dust storm that hid the whole planet, and then mapped it: volcanoes, a canyon as long as America, and dry river beds.',
+    'Viking is the next step: two orbiters, each carrying a lander, to set down on Mars and look for life in the soil. Langley runs the project. The flight team is at JPL.',
+  ],
+  voyager: [
+    'The Viking landers went on working through the Martian seasons, and their orbiters kept mapping.',
+    'In the late 1970s the outer planets line up as they do once in about 175 years: one spacecraft can use the pull of each planet to reach the next. JPL is sending two Voyagers.',
+  ],
+  pathfinder: [
+    "After Neptune the Voyagers went on toward the edge of the Sun's reach, still calling in. Magellan mapped Venus by radar from 1990, and Galileo went into orbit round Jupiter in December 1995. Mars Observer fell silent in August 1993, just before it reached Mars.",
+    'Pathfinder is meant to be cheap and quick, and to test a new way down: a parachute, rockets, and a cocoon of airbags that bounces across the ground.',
+  ],
+  cassini: [
+    'Sojourner and the Pathfinder lander worked for nearly three months, far longer than planned, until the lander fell silent in late September.',
+    "Cassini is the biggest planetary spacecraft JPL has built, with a probe from the European Space Agency to drop into Titan's air.",
+  ],
+  perseverance: [
+    'Cassini spent thirteen years at Saturn. Out of fuel, she was sent into the planet on 15 September 2017, still sending.',
+    'Spirit and Opportunity landed on Mars in January 2004, and Curiosity in August 2012, lowered to the ground on cables from a rocket-powered sky crane. Perseverance comes down the same way, to a place that once held a lake.',
   ],
 };
 

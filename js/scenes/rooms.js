@@ -26,6 +26,7 @@ import {
   closeAway,
   nextRound,
   advanceProbe,
+  probeStep,
   kit,
   answerFirstOffer,
   conducting,
@@ -263,10 +264,14 @@ const ROOMS = {
   probeHandover() {
     const { name, probe } = SEASON[g.roundIndex];
     return `<h2>${esc(name)}</h2><p>${esc(probe.tracking)}</p>
-      <button class="primary" data-act="probe-command">Accept handover and jump to encounter</button>`;
+      <button class="primary" data-act="probe-command">${probe.steps ? 'Accept the handover' : 'Accept handover and jump to encounter'}</button>`;
   },
   probeEncounter() {
     const { name, probe } = SEASON[g.roundIndex];
+    const step = probeStep();
+    if (step)
+      return `<h2>${esc(name)}</h2><h3>${esc(step.title)}</h3><p>${esc(step.evidence)}</p>
+      ${step.choices.map((c, i) => `<button${i ? '' : ' class="primary"'} data-act="probe-choice" data-id="${i}">${esc(c.label)}</button>`).join('\n      ')}`;
     return `<h2>${esc(name)}</h2><p>${esc(probe.evidence)}</p>
       <button class="primary" data-act="probe-command">${esc(probe.action)}</button>
       <button data-act="probe-wait">${esc(probe.alternate)}</button>`;
@@ -465,7 +470,7 @@ const ROOMS = {
   },
   seasonEnd() {
     const cap = t => t[0].toUpperCase() + t.slice(1);
-    const boss = g.record.path === 'nasa' ? 'Your bosses' : 'Ellis';
+    const boss = g.record.path === 'nasa' ? 'Your bosses' : g.people.ellis.name.split(' ').pop();
     const backed = n =>
       n === 0
         ? `${boss} never went with your reading.`
@@ -578,6 +583,7 @@ export function bindRoom(handlers) {
       'next-round': () => nextRound(),
       'probe-command': () => advanceProbe(true),
       'probe-wait': () => advanceProbe(false),
+      'probe-choice': () => advanceProbe(Number(id)),
       present: () => present(id),
       'plan-done': () => {
         finishPlan(plan);
