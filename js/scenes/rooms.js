@@ -46,6 +46,7 @@ import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
 import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
+import { fixesForCard } from '../world/programme.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
 import { PLACES } from '../data/white-sands.js';
 
@@ -464,7 +465,7 @@ const ROOMS = {
       next = i != null ? SEASON[i] : null;
     const o = g.record.offers[g.record.offers.length - 1],
       here = o && o.day >= r.day;
-    return `<h2>Written up: ${esc(r.name)}</h2>${recordLine(r)}
+    return `<h2>Written up: ${esc(r.name)}</h2>${recordLine(r)}${carriesForward()}
       ${here ? offerCard(o) : ''}
       ${next && !pendingOffer(g.record) ? `<p>Next: ${esc(next.name)}, from ${esc(dateText(roundStartOf(i)))}.</p><button class="primary" data-act="next-round">Carry on to the next round</button>` : ''}`;
   },
@@ -519,6 +520,21 @@ function offerCard(o) {
 }
 
 // One round of your record, in words: the flight as the range saw it, your call, Ellis's conclusion and the fix.
+// What the reviews so far have put into the build, so the next rounds are seen to be built differently: this round's new
+// fixes first, then the ones already standing. Only what the team decided, never the hidden cause of a flight.
+function carriesForward() {
+  const fixes = fixesForCard(g.programme),
+    fresh = fixes.filter(f => f.fresh),
+    standing = fixes.filter(f => !f.fresh);
+  const list = fs => `<ul class="fixes">${fs.map(f => `<li>${esc(f.text)}</li>`).join('')}</ul>`;
+  return `<div class="carries"><p><strong>What carries into the next build</strong></p>
+    ${fresh.length ? list(fresh) : '<p class="muted">No new fix from this round.</p>'}
+    ${
+      standing.length
+        ? `<details><summary>Fixes already standing in the build (${standing.length})</summary>${list(standing)}</details>`
+        : ''
+    }</div>`;
+}
 function recordLine(r, inline = false) {
   if (r.yourCall == null) return inline ? esc(r.flight) : `<p>${esc(r.flight)}</p>`;
   const call = SHORT;
