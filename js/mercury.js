@@ -89,6 +89,8 @@ import {
   recordCapabilities,
   flightJudgement,
   flightCause,
+  passMinutes,
+  windowMinutes,
 } from './houston.js';
 import { flightPredictions, flightRecoveryHours } from './truth/flights.js';
 import { GEMINI_TAPES, GEMINI_SIMS, GEMINI_SPOTS, GEMINI_QUALS } from './data/gemini.js';
@@ -740,7 +742,10 @@ export function tickConsole(dt) {
         speak(con, 'albrecht', con.round.vehicle === 'titan'
           ? 'First stage cutoff and separation. Second stage ignition confirmed.'
           : 'Booster engines cutoff. The sustainer is still burning.', 'go');
-      if (con.orbital && con.round.vehicle !== 'titan' && t === 155)
+      // Stacks without named stages in the ascent model stage at T+130 too (truth/orbit.js): call it the same way.
+      if (con.orbital && s.stage === undefined && t === 130 && STAGING_CALL[con.round.vehicle])
+        speak(con, 'albrecht', STAGING_CALL[con.round.vehicle], 'go');
+      if (con.orbital && TOWER_VEHICLES.has(con.round.vehicle) && t === 155)
         speak(con, 'morgan', 'Escape tower jettisoned.', 'go');
       if (a.breakupAt != null && t >= a.breakupAt) return breakup(con);
     }
@@ -753,10 +758,9 @@ export function tickConsole(dt) {
   }
   if (con.phase === 'insertion' && con.shift) {
     const shift = con.shift;
-    const elapsed = Math.min(shift.remaining, dt * Math.min(4, g.speed));
+    const elapsed = windowMinutes(shift.remaining, dt);
     shift.remaining -= elapsed;
-    g.clock += elapsed;
-    g.day = Math.floor(g.clock / 1440);
+    passMinutes(elapsed);
     if (shift.pending) {
       shift.pending.left -= elapsed;
       if (shift.pending.left <= 0) finishShiftReport(con);
@@ -780,6 +784,16 @@ export function tickConsole(dt) {
     if (con.coastLeft <= 0) splash(con);
   }
 }
+// The staging call for orbital stacks the ascent model does not name stages for, and the stacks that carry an escape
+// tower to jettison (Titan's Gemini and the Shuttle have none; Crew Dragon's abort engines stay with the capsule).
+const STAGING_CALL = {
+  saturnib: 'First stage cutoff and separation. S-IVB ignition.',
+  saturn5: 'First stage cutoff and separation. Second stage ignition.',
+  shuttle: 'Booster separation. The main engines are carrying her.',
+  dragon: 'Main engine cutoff and stage separation. Second stage ignition.',
+  sls: 'Booster separation. The core stage is carrying her.',
+};
+const TOWER_VEHICLES = new Set(['atlas', 'saturnib', 'saturn5', 'sls']);
 // The telemetry needle's flutter: depends only on the round and the second, so the plot holds still when time does.
 function flutter(seed, t) {
   let h = Math.imul((seed | 0) ^ Math.imul(t + 7, 2654435761), 2246822507);
@@ -1702,8 +1716,7 @@ export function consoleInsertion(choice) {
     if (!gemini || con.insertionFix) return;
     if (con.shift) return consoleShift('network');
     con.insertionFix = 4;
-    g.clock += con.insertionFix;
-    g.day = Math.floor(g.clock / 1440);
+    passMinutes(con.insertionFix);
     con.goddard = goddard(con.round);
     const report = `Network: second fix is in. Goddard reads ${con.goddard.go ? 'a holding orbit' : 'an orbit below the limit'}. Four minutes spent.`;
     speak(con, 'morgan', report, 'warn', 7);

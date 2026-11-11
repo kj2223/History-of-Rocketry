@@ -105,11 +105,13 @@ function carryOverSaves() {
     fs.rmSync(staging, { recursive: true, force: true });
   }
 }
+// A failed copy must not stop the game opening (if it quit, the same failure would stop it on every launch): the game
+// starts without the old saves, which stay in their folder, and the player is told where they are.
+let carryOverError = null;
 try {
   carryOverSaves();
 } catch (error) {
-  dialog.showErrorBox('Could not copy the old saves', `Ad Astra will retry next time it starts.\n\n${error.message}`);
-  app.exit(1);
+  carryOverError = error;
 }
 
 app.whenReady().then(() => {
@@ -117,6 +119,11 @@ app.whenReady().then(() => {
   protocol.handle('app', serve);
   Menu.setApplicationMenu(menu);
   openWindow();
+  if (carryOverError)
+    dialog.showErrorBox(
+      'Could not copy the old saves',
+      `Ad Astra has started without your Project Vanguard saves. They are still in ${path.join(app.getPath('appData'), 'Project Vanguard')}.\n\n${carryOverError.message}`,
+    );
 });
 
 app.on('window-all-closed', () => app.quit());

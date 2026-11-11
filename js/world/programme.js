@@ -3,52 +3,10 @@
 // reviews decided, right or wrong: a fix for the wrong cause changes nothing that matters, and the real fault stays as
 // likely as before.
 
+import { DEFAULT_PROGRAMME } from '../truth/round.js';
 // How likely each fault is on a new round before any fix (hidden from the player, but the team's fixes move them).
-export const initProgramme = () => ({
-  igniter: 'wac-upper/r1',
-  turbopump: 'v2/r1',
-  sustainer: 'aerobee-sustainer/r1',
-  viking: 'viking/r1',
-  vanguard: 'vanguard-1/r1',
-  juno: 'jupiter/r1',
-  ranger: 'agena/r1',
-  cameraRisk: 0.4,
-  plugRisk: 0.5,
-  controlRisk: 0.15,
-  loxRisk: 0.15,
-  thrustRisk: 0.3,
-  guidanceRisk: 0.1,
-  shortburnRisk: 0.1,
-  shieldRisk: 0.12,
-  scannerRisk: 0.25,
-  titanctlRisk: 0.08,
-  stage2Risk: 0.08,
-  fuelcellRisk: 0.2,
-  hatchRisk: 0.2,
-  computerRisk: 0.15,
-  navRisk: 0.1,
-  shutdownRisk: 0.05,
-  thrusterRisk: 0.08,
-  saturnctlRisk: 0.05,
-  j2Risk: 0.3,
-  pogoRisk: 0.5,
-  relightRisk: 0.25,
-  spsRisk: 0.05,
-  tankRisk: 0.05,
-  cabinRisk: 0.15,
-  alarmRisk: 0.4,
-  ascentRisk: 0.08,
-  chuteRisk: 0.1,
-  lightningRisk: 0.08,
-  finRisk: 0.35,
-  holddownRisk: 0.3,
-  weldRisk: 0.55,
-  leakRisk: 0.45,
-  vaneRisk: 0.4,
-  sepRisk: 0.35,
-  flights: [],
-  adopted: [],
-});
+// The build standard is the one newRound falls back on (truth/round.js), so the two can never disagree.
+export const initProgramme = () => ({ ...DEFAULT_PROGRAMME, flights: [], adopted: [] });
 
 // What the review decided, turned into a standing change to how rounds are built. Returns the line Ellis gives, or null.
 const FIXES = {
