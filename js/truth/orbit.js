@@ -198,7 +198,8 @@ export function goddard(round) {
     e = round.end;
   const seen = { v: e.v + noise, gammaOff: e.gammaOff };
   const go = insertionMargin(seen.v, seen.gammaOff) >= 0 !== wrong;
-  return (round.goddard = { ...seen, go });
+  // need: the planned figure Goddard checks against, which the room knows; it goes up on the console with the reading.
+  return (round.goddard = { ...seen, need: ORBIT_PLAN.need, go });
 }
 
 // What happens at insertion: 'go' keeps her up, 'nogo' fires the retros at once and brings her down in the last abort area.

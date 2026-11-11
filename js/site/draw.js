@@ -1086,8 +1086,7 @@ function hangarRack(ctx, g) {
       boosterShape(ctx, p.x + p.w - 90, GROUND - 20, 0);
       ctx.fillStyle = '#6a5a44';
       for (const at of [p.x + p.w - 112, p.x + p.w - 94]) ctx.fillRect(at, GROUND - 15, 3, 15);
-    }
-    else if (g.vehicle === 'bumper') wacShape(ctx, p.x + p.w - 30, GROUND - 26, -Math.PI / 2, false);
+    } else if (g.vehicle === 'bumper') wacShape(ctx, p.x + p.w - 30, GROUND - 26, -Math.PI / 2, false);
   }
   ctx.fillStyle = '#d9c39a';
   ctx.fillRect(p.x + 12, GROUND - 2, p.w - 24, 2);
@@ -1391,8 +1390,7 @@ function rocketOnSite(ctx, g) {
   } else if (r.where === 'carried') {
     // Shoulder height, centred between the two carriers so each has an end: the WAC is 60 long, tail to nose.
     roundShape(ctx, g, r.x + (wac ? 30 : 50), GROUND - (wac ? 27 : 22), -Math.PI / 2, false);
-  }
-  else if (r.where === 'stand') roundShape(ctx, g, PLACES.stand.x + 60, GROUND - 40, 0, false);
+  } else if (r.where === 'stand') roundShape(ctx, g, PLACES.stand.x + 60, GROUND - 40, 0, false);
   else if (r.where === 'tower') roundShape(ctx, g, PLACES.tower.x + 25, GROUND - 8, 0, true);
   else if (r.where === 'flying') {
     const rise = flyingRise(g);
@@ -2158,7 +2156,8 @@ export function controlButtonAt(g, x, y) {
 // board or readouts when they carry information, and the calls that are yours as buttons.
 function consolePanelModel(c) {
   const [clock, word] = controlReadout(c);
-  const P = { clock, state: word, lines: [], buttons: [] };
+  // ask: the call in plain words, drawn above the readouts whenever the call is yours.
+  const P = { clock, state: word, ask: null, lines: [], buttons: [] };
   const auto = !!c.auto;
   const btn = (act, id, label, tone) => P.buttons.push({ act, id, label, tone });
   const last = c.trace ? c.trace[c.trace.length - 1] : null;
@@ -2183,6 +2182,7 @@ function consolePanelModel(c) {
       return P;
     }
     P.state = c.poll === 'final' ? 'FINAL STATUS CHECK' : 'RECOVERY POLL';
+    if (!auto) P.ask = c.poll === 'final' ? 'Final status check. Are we go?' : 'Is Recovery ready? Give your status.';
     if (c.cond) {
       P.lines.push(`Sea state: ${c.cond.seaState}`);
       const units = c.orbital ? ORBIT_UNITS : UNITS;
@@ -2218,10 +2218,12 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'insertion') {
     P.state = 'GO / NO-GO FOR ORBIT';
+    if (!auto) P.ask = 'The engines are off. Go for orbit, or bring her home?';
     if (c.goddard)
       P.lines.push(
         `Cutoff: ${c.goddard.v.toFixed(3)} km/s`,
         `${c.goddard.gammaOff.toFixed(1)} degrees off level`,
+        ...(c.goddard.need ? [`Orbit needs about ${c.goddard.need} km/s, level`] : []),
         `Goddard: ${c.goddard.go ? 'GO' : 'NO-GO'}`,
       );
     if (!auto) {
@@ -2239,8 +2241,12 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'ip') {
     P.state = 'SPLASHDOWN POINT';
+    P.ask = 'Where does Recovery send the helicopters?';
     if (c.orbital) {
-      P.lines.push(`The spacecraft's computer: ${km(c.ip.retro)} of the planned point`);
+      P.lines.push(
+        `The spacecraft's computer: ${km(c.ip.retro)} of the planned point`,
+        'Radar: a fix after the blackout, good to about 15 km; the helicopters wait about 20 min for it',
+      );
       if (!(auto && g.record.seat !== 'flight')) {
         btn('m-aim', 'retro', "The computer's point", 'go');
         btn('m-aim', 'radar', 'Wait for the radar');
@@ -2269,13 +2275,17 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'pack') {
     P.state = 'THE RETRO PACK';
-    P.lines.push('Segment 51 says the landing bag is down.');
+    P.ask = 'What does he do with the retro pack after retrofire?';
+    P.lines.push('Segment 51 says the landing bag is down: the heat shield may be loose.');
     for (const [id, text] of Object.entries(PACK_OPTIONS))
       btn('m-pack', id, id === 'keep' ? 'KEEP THE PACK' : 'JETTISON IT', id === 'keep' ? 'go' : undefined);
     return P;
   }
   if (c.phase === 'retro') {
     P.state = 'RETROFIRE';
+    P.ask = 'The retros fire on the automatic system unless you call it. Automatic, or by hand?';
+    P.lines.push('Where she lands depends on her attitude when the retros fire.');
+    if (c.status?.window) P.lines.push(`The pilot over Muchea: "${c.status.window}"`);
     P.lines.push(`Fuel left: ${Math.round((c.status?.fuel ?? 1) * 100)}%`);
     for (const [id] of Object.entries(RETRO_OPTIONS))
       btn('m-retro', id, id === 'auto' ? 'FIRE AUTOMATIC' : 'FIRE BY HAND');
@@ -2295,7 +2305,7 @@ function consolePanelModel(c) {
       return P;
     }
     P.state = 'YOUR CALL';
-    P.lines.push(d.q);
+    P.ask = d.q;
     if (d.remaining != null)
       P.lines.push(
         `Intercept window: ${Math.ceil(d.remaining)} min.${d.fixIn != null ? ' New ground fix pending.' : ''}`,
@@ -2306,14 +2316,14 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'shutdown') {
     P.state = 'SHUTDOWN ON THE PAD';
-    P.lines.push('How hard do we look before we try again?');
+    P.ask = 'How hard do we look before we try again?';
     btn('m-shutdown', 'plug', 'RE-SEAT AND RECYCLE: A DAY', 'go');
     btn('m-shutdown', 'teardown', 'TEARDOWN: FIND EVERY CAUSE', 'danger');
     return P;
   }
   if (c.phase === 'pad') {
     P.state = 'CAPSULE ON THE PAD';
-    P.lines.push('The booster is fuelled and the pyrotechnics are armed.');
+    P.ask = 'The booster is fuelled and the pyrotechnics are armed. What do we do with her?';
     for (const [id, text] of Object.entries(PAD_OPTIONS))
       btn('pad', id, id === 'wait' ? 'LEAVE HER OVERNIGHT' : id === 'now' ? 'SAFE HER NOW' : 'SHOOT THE TANKS');
     return P;
@@ -2338,7 +2348,7 @@ function drawPanelButton(ctx, x, y, w, h, btn) {
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#f1e6c8';
-  ctx.font = `${Math.max(9, Math.round(h * 0.3))}px sans-serif`;
+  ctx.font = `${Math.max(11, Math.round(h * 0.3))}px sans-serif`;
   ctx.textAlign = 'center';
   const lines = wrap(ctx, btn.label, w - 14).slice(0, 2),
     lh = h * 0.34;
@@ -2368,21 +2378,33 @@ function drawConsolePanel(ctx, g, x, y, w, h) {
   ctx.fillText(P.clock, x + w / 2, cy + 31);
   cy += 58;
   if (P.state) {
-    ctx.fillStyle = '#c9d2da';
-    ctx.font = `${Math.max(9, Math.round(w * 0.042))}px sans-serif`;
+    ctx.fillStyle = P.ask ? '#e8c66a' : '#c9d2da';
+    ctx.font = `${P.ask ? 'bold ' : ''}${Math.max(12, Math.round(w * 0.05))}px sans-serif`;
     ctx.fillText(P.state, x + w / 2, cy + 10);
     cy += 30;
   }
-  // The room's lines: the board, the readouts, the prompt - as many as fit above the calls.
   ctx.textAlign = 'left';
-  const bh = Math.max(30, Math.round(h * 0.05)),
+  const bh = Math.max(32, Math.round(h * 0.05)),
     gap = 8;
   const buttonsTop = P.buttons.length ? y + h - P.buttons.length * (bh + gap) - 10 : y + h;
-  // The font is set before the wrap measures, so the lines are broken for the type they are drawn in and never run
-  // past the panel's edge; a line that would reach the calls is not drawn.
-  ctx.font = `${Math.max(9, Math.round(w * 0.042))}px monospace`;
+  // The call in plain words, when it is yours: what is being asked, above what the room knows about it.
+  if (P.ask) {
+    ctx.font = `${Math.max(13, Math.round(w * 0.056))}px sans-serif`;
+    ctx.fillStyle = '#f1e6c8';
+    const askH = Math.max(17, Math.round(w * 0.072));
+    for (const l of wrap(ctx, P.ask, w - 20)) {
+      if (cy + askH > buttonsTop) break;
+      ctx.fillText(l, x + 10, cy + 12);
+      cy += askH;
+    }
+    cy += 10;
+  }
+  // The room's lines: the board, the readouts - as many as fit above the calls. The font is set before the wrap
+  // measures, so the lines are broken for the type they are drawn in and never run past the panel's edge; a line that
+  // would reach the calls is not drawn.
+  ctx.font = `${Math.max(12, Math.round(w * 0.05))}px monospace`;
   ctx.fillStyle = '#9fdc9a';
-  const lineH = Math.max(15, Math.round(w * 0.05));
+  const lineH = Math.max(16, Math.round(w * 0.064));
   lines: for (const line of P.lines.slice(0, 9)) {
     for (const l of wrap(ctx, line, w - 20)) {
       if (cy + lineH > buttonsTop) break lines;
