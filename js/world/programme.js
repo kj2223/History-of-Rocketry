@@ -305,6 +305,9 @@ export function newFixes(programme) {
 export const LOT_ROUNDS = 2;
 export function recordFlight(programme, { vehicle = 'wac', load, apogee, failure, hidden = false }) {
   programme.flights.push({ vehicle, load, apogee: failure ? null : apogee, failure: failure || null });
+  // A lot is one vehicle's: a new vehicle starts clean.
+  if (programme.lotVehicle !== vehicle) programme.batch = {};
+  programme.lotVehicle = vehicle;
   const batch = (programme.batch ??= {});
   for (const c of Object.keys(batch)) if (--batch[c] <= 0) delete batch[c];
   if (failure && !hidden && !programme.adopted.includes(failure)) batch[failure] = LOT_ROUNDS;

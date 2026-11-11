@@ -28,13 +28,32 @@ export const BASE = {
 };
 
 // What each revision really does to true values (the coupled performance cost included).
+// The corrective revisions show in the flight: a clean start loses less of the burn, so the round climbs higher and
+// leaves the tower straighter. The rebonded Aerobee liner is heavier and costs height.
 export const REVISION_EFFECTS = {
   'aerobee-sustainer/r2': { 'aerobee-sustainer.wall-temp': -20, 'vehicle.apogee': -6 },
   'wac-upper/r2': { 'v2|wac-upper.separation': -0.1, 'vehicle.apogee': 4 },
+  'wac-upper/r3': { 'wac-upper.chamber-pressure': 0.8, 'vehicle.apogee': 4, 'vehicle.deviation': -0.6 },
+  'v2/r2': { 'v2.chamber-pressure': 0.6, 'vehicle.apogee': 9 },
+  'viking/r2': { 'viking.chamber-pressure': 0.5, 'vehicle.apogee': 6 },
+  'vanguard-1/r2': { 'vanguard-1.chamber-pressure': 0.6, 'vehicle.apogee': 20, 'vehicle.deviation': -0.3 },
 };
 
-// Relative noise of the true value from article to article and run to run.
+// The standing fixes that are a way of building rather than a new part (world/programme.js: FIXES) show in the flight too.
+// apogee: share of the peak gained or lost; deviation: degrees. A thicker seam weighs more; tight fittings hold the tank
+// pressure to burnout; sound vanes and fins steer straighter; clean separations waste nothing at staging.
+export const FIX_EFFECTS = {
+  weld: { apogee: -0.02 },
+  leak: { apogee: 0.03 },
+  vanes: { deviation: -1 },
+  fin: { apogee: -0.01, deviation: -0.5 },
+  separation: { apogee: 0.03 },
+};
+
+// Relative noise of the true value from article to article and run to run. No two rounds are built or fly quite alike:
+// the peak and the lean off the vertical vary from round to round far more than a gauge reading does.
 export const SCATTER = 0.015;
+export const SCATTER_OF = { 'vehicle.apogee': 0.05, 'vehicle.deviation': 0.25 };
 
 // Mechanisms present in hardware. A mechanism acts on revisions of its stage unless a revision in the
 // chain is listed in `absentFrom`. `effects` show whenever it is active; `onFailure` shows only on the

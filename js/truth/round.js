@@ -180,7 +180,7 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   const faults = {};
   // A cause that brought down a round from the same production lot, and was never fixed, is likelier again
   // (world/programme.js: batch). Only the thresholds move, never the draws.
-  const lot = cause => !!p.batch?.[cause];
+  const lot = cause => p.lotVehicle === vehicle && !!p.batch?.[cause];
   const put = (kind, risk, chance, where) => {
     const ids = Object.keys(spots).filter(id => spots[id].fault === kind);
     const r = lot(kind) ? Math.min(0.9, risk * 1.6) : risk;
@@ -324,6 +324,8 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     juno: p.juno, // Juno II's Jupiter: r2 has the recalibrated propellant utilisation
     ranger: p.ranger, // Ranger's Agena: r2 has the reworked restart system
     propellantLoad: 1,
+    adopted: [...(p.adopted ?? [])], // the standing fixes this round is built with (truth/physical.js: FIX_EFFECTS)
+    wind: windOf(seed),
     ...(vehicle === 'redstone' ? { thrust } : {}),
     ...(vehicle === 'titan' ? { navdata, dustcap } : {}),
     ...(vehicle === 'saturn5' ? { lightning, throttle } : {}),
@@ -617,6 +619,14 @@ export const standRework = round => {
 // when time does, and reading it every frame takes nothing from the round's streams.
 export const tankGauge = (round, s) =>
   23 - (hasLeak(round) ? Math.min(6, s * 0.012) : 0) + flutter((round.seed ?? 1) | 0, Math.floor(s / 4));
+// The wind on the range for the count: km/h at the tower, and how far it leans the round off the vertical (degrees: a
+// rocket weathercocks into the wind as it leaves the tower). Taken from the seed, not the round's streams, so it moves no
+// draw. Mostly light; now and then a stiff breeze.
+export function windOf(seed) {
+  const u = flutter((seed ?? 1) | 0, 7001) / 0.3 + 0.5,
+    kmh = Math.round(4 + 36 * u * u);
+  return { kmh, lean: kmh * 0.1 };
+}
 function flutter(seed, step) {
   let h = Math.imul(seed ^ Math.imul(step + 1, 2654435761), 2246822507);
   h = Math.imul(h ^ (h >>> 13), 3266489909);

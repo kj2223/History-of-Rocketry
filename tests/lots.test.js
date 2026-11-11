@@ -51,3 +51,12 @@ test('the lot moves no draws: a round with no lot in play is unchanged', () => {
   assert.deepEqual(a.faults, b.faults);
   assert.deepEqual(a.physical.latentMechanisms, b.physical.latentMechanisms);
 });
+
+test('a lot belongs to one vehicle: a V-2 round does not inherit a WAC lot', () => {
+  const p = initProgramme();
+  recordFlight(p, { vehicle: 'wac', load: 1, failure: 'weld' });
+  const v2 = initProgramme();
+  assert.equal(share(p, weldBad, 'v2'), share(v2, weldBad, 'v2'));
+  recordFlight(p, { vehicle: 'v2', load: 1, apogee: 160 });
+  assert.deepEqual(p.batch, {});
+});
