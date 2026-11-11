@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { FLIGHTS, DECISIONS } from '../js/data/flights.js';
+import { FLIGHT_DRAWS } from '../js/truth/flights.js';
 
 const said = id => JSON.stringify(FLIGHTS[id].steps);
 
@@ -26,4 +27,10 @@ test('The packaged app is tamper-checked: electron fuses on', () => {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(pkg.build.electronFuses.onlyLoadAppFromAsar, true);
   assert.equal(pkg.build.electronFuses.enableEmbeddedAsarIntegrityValidation, true);
+});
+
+test('every draw a long-flight call reads is one the flight actually makes', () => {
+  const src = readFileSync(new URL('../js/truth/flights.js', import.meta.url), 'utf8');
+  const used = [...src.matchAll(/\bd\[(\d+)\]/g)].map(m => +m[1]);
+  assert.ok(Math.max(...used) < FLIGHT_DRAWS, `d[${Math.max(...used)}] read, ${FLIGHT_DRAWS} drawn`);
 });
