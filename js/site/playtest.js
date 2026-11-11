@@ -14,6 +14,7 @@ import {
   recordMark,
   observe,
   clocks,
+  issueReport,
 } from '../core/telemetry.js';
 
 const desktop = typeof window !== 'undefined' ? window.adAstraDesktop?.playtest : undefined;
@@ -60,13 +61,33 @@ const showButton = () => {
   if (b) b.hidden = !enabled;
 };
 let noteTimer = 0;
-function tell(text) {
+// The note under the bar. With a mark, it offers to file it on GitHub, and stays up long enough to choose.
+function tell(text, entry = null) {
   const el = document.getElementById('bug-note');
   if (!el) return;
   el.textContent = text;
+  if (entry) {
+    const b = document.createElement('button');
+    b.textContent = 'File it on GitHub';
+    b.title = 'Opens a GitHub issue filled in with this report, for you to read, describe and submit';
+    b.addEventListener('click', () => {
+      fileIssue(entry);
+      el.hidden = true;
+    });
+    el.append(' ', b);
+  }
   el.hidden = false;
   clearTimeout(noteTimer);
-  noteTimer = setTimeout(() => (el.hidden = true), 5000);
+  noteTimer = setTimeout(() => (el.hidden = true), entry ? 15000 : 5000);
+}
+
+// Opens the filled-in issue page in the browser, and the marks folder so the screenshot can be dragged in.
+function fileIssue(entry) {
+  const { url } = issueReport(log, entry);
+  record(log, game(), 'file-issue', { n: entry.n });
+  dirty = true;
+  if (desktop) desktop.fileIssue(url, entry.n);
+  else window.open(url, '_blank', 'noopener');
 }
 
 function load() {
@@ -162,16 +183,16 @@ export function mark() {
   record(log, g, 'mark', { n: entry.n });
   dirty = true;
   flush(true);
-  const thanks = `Bug ${entry.n} noted: what led up to it, a copy of the save${desktop ? ' and a screenshot' : ''} are kept. Carry on playing.`;
+  const thanks = `Bug ${entry.n} noted: what led up to it, a copy of the save${desktop ? ' and a screenshot' : ''} are kept. Carry on playing, or file it now.`;
   // The note shows after the screenshot is taken, so it is not in the picture.
-  if (!desktop) return tell(thanks);
+  if (!desktop) return tell(thanks, entry);
   desktop
     .mark(entry.n, saveText())
     .then(files => {
       entry.files = files;
       dirty = true;
       flush();
-      tell(thanks);
+      tell(thanks, entry);
     })
     .catch(e => {
       traceError('mark', e);

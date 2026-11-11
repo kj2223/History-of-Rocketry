@@ -18,6 +18,7 @@ import {
   observe,
   clocks,
   clamp,
+  issueReport,
 } from '../js/core/telemetry.js';
 import { campaignTo, nextDay, until, playRound, advance } from './play.js';
 
@@ -109,4 +110,27 @@ test('big or odd fields are cut down, and marks carry both clocks', () => {
 test('lunar cruise clocks are recorded side by side', () => {
   const fake = { day: 1, clock: 600, speed: 1, lunar: { phase: 'cruise', h: 2, start: 300 } };
   assert.deepEqual(clocks(fake).lunar, { phase: 'cruise', h: 2, sinceInjectionH: 5 });
+});
+
+test('a mark files as a GitHub issue link that fits, carrying the build, place, errors and steps', () => {
+  newGame(9);
+  const log = createLog();
+  startSession(log, { build: { version: '0.7.0', commit: 'abc1234', os: 'win32 10' }, window: { w: 1600, h: 900 } });
+  let seen = observe(log, g, null, 'site');
+  for (let i = 0; i < 3000; i++) record(log, g, 'click', { on: 'canvas#site', text: 'x'.repeat(200) });
+  recordError(log, g, 'error', 'boom', 'Error: boom\n    at draw (draw.js:1:1)');
+  const m = recordMark(log, g, {
+    scene: 'site',
+    clocks: clocks(g),
+    objective: g.objective,
+    files: ['marks/mark-001.png'],
+  });
+  const { url, body, title } = issueReport(log, m);
+  assert.ok(url.startsWith('https://github.com/kj2223/History-of-Rocketry/issues/new?'));
+  assert.ok(url.length <= 8192, `link is ${url.length} long`);
+  assert.match(body, /v0\.7\.0 abc1234/);
+  assert.match(body, /boom/);
+  assert.match(body, /mark-001\.png/);
+  assert.match(title, new RegExp(SEASON[0].id));
+  assert.ok(seen);
 });

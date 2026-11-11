@@ -221,3 +221,63 @@ function roundStarted(log, g) {
     clocks: clocks(g),
   });
 }
+
+// ---- Filing a mark on GitHub ----
+// The player chooses to file each one: the game opens GitHub's new-issue page filled in with this report, and they
+// read it, add what went wrong, sign in and submit. No token is ever in the game. The report is cut to fit a link.
+export const ISSUE_URL = 'https://github.com/kj2223/History-of-Rocketry/issues/new';
+const URL_ROOM = 7000;
+
+// One step, short. A round's hidden faults stay out of the issue: the player reads it before submitting.
+const brief = e => {
+  const { t, s, d, c, r, b, k, faults, ...fields } = e;
+  const hm = Number.isFinite(c)
+    ? `${String(Math.floor((c % 1440) / 60)).padStart(2, '0')}:${String(Math.floor(c % 60)).padStart(2, '0')}`
+    : '';
+  const what = k ? `${k} ${JSON.stringify(fields)}` : `${e.who}: ${e.text}`;
+  return `${hm} ${b ?? ''} ${cut(what, 160)}`;
+};
+
+export function issueReport(log, markEntry, lines = 20) {
+  const session = log.sessions.find(s => s.n === markEntry.s) ?? log.sessions.at(-1) ?? {};
+  const build = session.build ?? {};
+  const title = `Playtest bug: ${markEntry.r ?? 'menu'}, ${markEntry.b || 'no beat'} (${markEntry.scene ?? ''})`;
+  const errors = log.errors.filter(e => e.last.t <= markEntry.t + 1000 && e.last.s === markEntry.s).slice(-5);
+  const lead = [...log.events, ...log.calls]
+    .filter(e => e.t <= markEntry.t && e.s === markEntry.s)
+    .sort((a, b) => a.t - b.t);
+  const make = n =>
+    [
+      '**What went wrong:** (please describe it here)',
+      '',
+      ...(markEntry.files?.some(f => f.endsWith('.png'))
+        ? [
+            `_Screenshot: drag in mark-${String(markEntry.n).padStart(3, '0')}.png from the folder the game opened._`,
+            '',
+          ]
+        : []),
+      `- Build: v${build.version ?? '?'} ${build.commit ?? ''} ${build.os ?? ''}`,
+      `- Where: ${markEntry.r ?? '-'} / ${markEntry.b ?? '-'} / ${markEntry.scene ?? '-'}, day ${markEntry.d}`,
+      `- Objective: ${cut(markEntry.objective ?? '', 200)}`,
+      `- Clocks: ${JSON.stringify(markEntry.clocks)}`,
+      `- Window: ${JSON.stringify(markEntry.window ?? session.window ?? {})}`,
+      '',
+      errors.length ? '**Errors**' : '**Errors:** none',
+      ...errors.map(
+        e => `- [${e.kind}] x${e.count} ${cut(e.message, 200)} ${cut(e.stack.split('\n')[1]?.trim() ?? '', 120)}`,
+      ),
+      '',
+      `**Last ${Math.min(n, lead.length)} steps before the mark**`,
+      '```',
+      ...lead.slice(-n).map(brief),
+      '```',
+      `_Playtest mark ${markEntry.n}, session ${markEntry.s}_`,
+    ].join('\n');
+  // Fewer steps until the whole link fits.
+  let n = lines,
+    body = make(n);
+  while (n > 0 && encodeURIComponent(body).length + encodeURIComponent(title).length > URL_ROOM) body = make((n -= 4));
+  if (encodeURIComponent(body).length > URL_ROOM) body = cut(body, 1500);
+  const url = `${ISSUE_URL}?${new URLSearchParams({ title: cut(title, 120), body, labels: 'playtest' })}`;
+  return { title, body, url };
+}
