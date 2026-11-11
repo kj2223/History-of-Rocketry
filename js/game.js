@@ -3,7 +3,7 @@
 // The player is one junior engineer on the site. Everyone else gets on with their own work, and the player can watch them.
 // The story runs in beats; each beat says what the player is asked to do and where the others go.
 import { PLACES, WORLD_W } from './data/white-sands.js';
-import { dayOf, dateLabel, weekday } from './core/calendar.js';
+import { dayOf, dateOf, dateLabel, weekday } from './core/calendar.js';
 import {
   flyLoose,
   newRound,
@@ -26,6 +26,7 @@ import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
 import { GEMINI_PEOPLE, GEMINI_ROLES, GEMINI_PLACES } from './data/gemini.js';
 import { APOLLO_PLACES } from './data/apollo.js';
+import { SUCCESSIONS, holderIn, surname, rolesIn } from './data/cast.js';
 import { ASTRONAUTS, GROUPS } from './data/crew.js';
 import { raceNews, RACE_FROM, apolloFire, skylabShield } from './world/race.js';
 import {
@@ -421,9 +422,21 @@ function setVehicle() {
         houston && GEMINI_ROLES[id] ? GEMINI_ROLES[id] : g.crewed && MERCURY_ROLES[id] ? MERCURY_ROLES[id] : role;
   if (houston && g.record.seat === 'retro') g.people.tate.role = 'Retrofire officer, back room';
   g.people.you.role = SEATS[g.record.seat];
+  // Who sits at each desk this year: the team changes over the decades (data/cast.js).
+  const year = dateOf(roundStartOf(g.roundIndex)).year;
+  for (const id of Object.keys(SUCCESSIONS)) {
+    const h = holderIn(id, year) || { ...PEOPLE[id], he: true };
+    Object.assign(g.people[id], { name: h.name, color: h.color, hat: h.hat, he: h.he });
+  }
+  if (g.crewed) for (const [id, role] of Object.entries(rolesIn(year))) g.people[id].role = role;
   g.people.ellis.role = g.record.seat === 'junior' ? 'Chief Engineer, your boss' : 'Chief Engineer, JPL';
 }
 // What a building is called now: the Cape's Mercury buildings stand where the old ones did.
+// What the room calls whoever holds a seat now, and the pronouns for them.
+export const who = id => surname(g.people[id].name);
+export const heOf = id => (g.people[id].he === false ? 'she' : 'he');
+export const himOf = id => (g.people[id].he === false ? 'her' : 'him');
+export const hisOf = id => (g.people[id].he === false ? 'her' : 'his');
 export const placeName = id =>
   (g.crewed && g.program === 'apollo' && APOLLO_PLACES[id]) ||
   (g.crewed && g.program !== 'mercury' && GEMINI_PLACES[id]) ||
@@ -465,7 +478,14 @@ export function apolloFireLines() {
 function startRound(i) {
   resetRound();
   g.roundIndex = i;
+  const before = Object.keys(SUCCESSIONS).map(id => ({ id, ...g.people[id] }));
   setVehicle();
+  // A handover since the last round goes in the notebook.
+  for (const p of before)
+    if (i > 0 && p.name !== g.people[p.id].name)
+      note(
+        `${p.name} has ${/Cmdr\./.test(p.name) ? 'been posted away' : 'retired'}. ${g.people[p.id].name} takes over: ${g.people[p.id].role}.`,
+      );
   g.roundStart = g.day = roundStartOf(i);
   g.clock = g.day * 1440 + START_MINUTE;
   // Fixes made between flights whatever the reviews said (Marshall's after MR-1 and Ham's flight).

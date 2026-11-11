@@ -9,6 +9,7 @@ import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
 import { WORLD_LAND } from '../data/world-map.js';
 import { dateOf } from '../core/calendar.js';
+import { surname } from '../data/cast.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS } from '../data/mercury.js';
 
@@ -2282,7 +2283,7 @@ function consolePanelModel(c) {
     }
     if (!d.mine) {
       P.state = 'WAITING';
-      P.lines.push(d.who === 'hollis' ? "The programme's call." : "Dorsey's call.");
+      P.lines.push(d.who === 'hollis' ? "The programme's call." : `${surname(g.people.dorsey.name)}'s call.`);
       return P;
     }
     P.state = 'YOUR CALL';

@@ -6,7 +6,8 @@
 // on the other shift, who makes the call Houston made.
 //
 // The truth behind each answer is in truth/flights.js. What the rooms read is g.console.flight, never the round.
-import { g, crewOf, note, roomChanged } from './game.js';
+import { g, crewOf, note, roomChanged, who, heOf } from './game.js';
+const cap = s => s[0].toUpperCase() + s.slice(1);
 import { FLIGHTS, DECISIONS, CAPABILITIES } from './data/flights.js';
 import { flightTruth, flag, resolve, geminiEntry, lunarEntry, measure } from './truth/flights.js';
 import { SEASON } from './data/campaign.js';
@@ -192,7 +193,10 @@ function ask(c, id, speak) {
     c.flight.status['GROUND FIX'] = ['provisional', true];
   }
   if (id === 'navcheck' && c.kind === 'flight' && g.record.seat === 'flight') {
-    c.flight.decision.options = { send: 'Authorize Retro to uplink.', check: 'Ask for an independent check before authorizing.' };
+    c.flight.decision.options = {
+      send: 'Authorize Retro to uplink.',
+      check: 'Ask for an independent check before authorizing.',
+    };
   }
   speak(
     c,
@@ -250,7 +254,9 @@ export function answer(c, choice, speak) {
   });
   if (c.kind === 'flight') {
     note(
-      timedOut ? option : `${d.mine ? 'You' : d.who === 'hollis' ? 'Hollis' : 'Dorsey'} decided: ${option}${r.note ? ` ${r.note}` : ''}`,
+      timedOut
+        ? option
+        : `${d.mine ? 'You' : who(d.who === 'hollis' ? 'hollis' : 'dorsey')} decided: ${option}${r.note ? ` ${r.note}` : ''}`,
     );
     if (r.endAt != null) note(`${c.flight.craft} comes home early, at about ${Math.round(f.endAt)} hours.`);
   }
@@ -322,7 +328,7 @@ export function recordCapabilities(c) {
     if (!list.some(x => x.id === id)) list.push({ id, text: CAPABILITIES[id], flight: f.craft, day: g.day });
   return f.capabilities.map(id => CAPABILITIES[id]);
 }
-// Hollis on the calls that were yours. Another flight director's calls are his, not yours.
+// The director of flight operations on the calls that were yours. Another flight director's calls are his, not yours.
 export function flightJudgement(decisions) {
   const out = [];
   // The August meeting, judged against what the other side did by Christmas.
@@ -331,10 +337,14 @@ export function flightJudgement(decisions) {
     const zond = sovietHas(g.seed, 'zond-crewed', g.day);
     if (g.record.apollo8 === 'earth' && zond) {
       shiftTrust(g.record, -1);
-      out.push('Hollis on the August meeting: "We waited for the lander, and the Russians went round the Moon first."');
+      out.push(
+        `${who('hollis')} on the August meeting: "We waited for the lander, and the Russians went round the Moon first."`,
+      );
     } else if (g.record.apollo8 === 'moon' && g.mission.capabilities?.length) {
       shiftTrust(g.record, 1);
-      out.push('Hollis on the August meeting: "You said send them round the Moon. They went, and they came home."');
+      out.push(
+        `${who('hollis')} on the August meeting: "You said send them round the Moon. They went, and they came home."`,
+      );
     }
   }
   for (const d of decisions || []) {
@@ -342,7 +352,7 @@ export function flightJudgement(decisions) {
     if (d.verdict === 'good') shiftTrust(g.record, 1);
     if (d.verdict === 'bad') shiftTrust(g.record, -1);
     out.push(
-      `Hollis on ${DECISION_NAMES[d.id] || d.id}: "${d.judge}"${d.against ? ' He adds: "And you went against the mission rule. Write down why."' : ''}`,
+      `${who('hollis')} on ${DECISION_NAMES[d.id] || d.id}: "${d.judge}"${d.against ? ` ${cap(heOf('hollis'))} adds: "And you went against the mission rule. Write down why."` : ''}`,
     );
   }
   return out;
