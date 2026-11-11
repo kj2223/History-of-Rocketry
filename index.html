@@ -18,12 +18,14 @@
     <button id="endday" hidden>End the day</button>
     <button id="notes" title="Your notebook (N)">Notebook</button>
     <button id="game" title="New game, or go back to your backup">Game</button>
+    <button id="dev-open" title="Dev menu: jump to any stage of the game, for testing (F9)">Jump (F9)</button>
     <button id="bug" hidden title="Something wrong? Press F8 or click here the moment you see it: a screenshot and the save are kept for the bug hunt">Report a bug (F8)</button>
   </span>
 </header>
 <canvas id="site" aria-label="The White Sands site, side-on. Click to walk, click a building to go in, click a person to talk."></canvas>
 <section id="room" hidden></section>
 <section id="notebook" hidden></section>
+<section id="dev" hidden aria-label="Dev menu: jump to a stage"></section>
 <div id="loop" aria-live="polite"></div>
 <div id="bug-note" role="status" hidden></div>
 <div id="help">Click to walk · click a building to go in · click a person to talk · drag, the wheel or Shift+A/D looks along the site · Space pauses</div>

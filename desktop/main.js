@@ -210,6 +210,12 @@ const menu = Menu.buildFromTemplate([
         click: () => focused()?.webContents.send('playtest:mark-request'),
       },
       { label: 'Open the playtest folder', click: () => shell.openPath(playtestDir()) },
+      {
+        label: 'Jump to a stage (dev menu)',
+        accelerator: 'F9',
+        registerAccelerator: false, // the page catches F9 itself
+        click: () => focused()?.webContents.send('dev:open'),
+      },
       { type: 'separator' },
       {
         label: 'Keep a playtest log',

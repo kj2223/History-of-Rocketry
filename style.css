@@ -14,6 +14,16 @@ button.go { background: #23502f; border-color: #6fc88a; font-weight: bold; }
 #site { position: fixed; inset: 44px 0 0 0; width: 100%; height: calc(100% - 44px); display: block; }
 #room, #notebook { position: fixed; top: 56px; right: 12px; width: 470px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid #4a5464; border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
 #notebook { left: 12px; right: auto; width: 520px; background: #14181e; } /* solid, so the loop log under it does not show through */
+#dev { position: fixed; top: 56px; left: 12px; width: 560px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: #14181e; border: 1px solid #6a5a2a; border-radius: 6px; z-index: 6; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+#dev h3 { margin: .9rem 0 .3rem; font-size: .95rem; color: #e8c66a; }
+#dev .dev-opts { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; }
+#dev .dev-rounds { display: flex; flex-wrap: wrap; gap: .35rem; }
+#dev .dev-rounds button { padding: .25rem .5rem; }
+#dev .dev-rounds button span { color: #a9b0bb; font-size: .85em; margin-left: .2rem; }
+#dev .dev-rounds button.here { border-color: #e8c66a; }
+#dev input[type=text] { font: inherit; color: #e8e2d0; background: #1a222d; border: 1px solid #4a5464; border-radius: 3px; padding: .15rem .4rem; }
+#dev .dev-status { min-height: 1.2em; color: #9fd0a0; }
+#dev .dev-status.bad { color: #ff8a5a; }
 #notes.fresh { border-color: #e8c66a; }
 #notebook li { margin: .3rem 0; } #notebook li span { color: #e8c66a; font-family: monospace; }
 h2 { margin: 0 0 .6rem; font-size: 1.25rem; color: #f1e6c8; }
