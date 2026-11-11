@@ -1,7 +1,7 @@
 // MERCURY CONTROL'S ROOMS: the Retrofire officer's console for the count and the flight, the simulator, the pad after a
 // shutdown, Recovery's board and the review. Panels over the site, like the rooms at White Sands. They read only what
 // Mercury Control could see: g.console and g.mission, which the game fills from the telemetry and the radars.
-import { g, dateText, clockText, placeName } from '../game.js';
+import { g, dateText, clockText, placeName, who } from '../game.js';
 import {
   consoleStart,
   consolePoll,
@@ -78,7 +78,7 @@ export const CONTROL_ROOMS = {
   splash() {
     const c = g.console;
     const lines = c ? c.lines : (g.mission && g.mission.lines) || [];
-    return `<h2>Recovery</h2><p>${dateText()}, ${clockText()}. Reyes reads the reports off the board as they come in from the ships.</p>
+    return `<h2>Recovery</h2><p>${dateText()}, ${clockText()}. ${who('reyes')} reads the reports off the board as they come in from the ships.</p>
       <ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
       <p class="muted">All of this is in your notebook.</p>
       <button class="primary" data-act="to-review">On to the review</button>`;
@@ -87,7 +87,7 @@ export const CONTROL_ROOMS = {
     const done = g.record.scenes?.apollo8,
       b = apollo8Brief();
     return `<h2>The next Saturn V, ${dateText()}</h2>
-      <p>Hollis has the door shut. Kraft's question, from Low's office: the lunar module is months late, and the spacecraft is ready. Could the next Saturn V go round the Moon in December, without the lander?</p>
+      <p>${who('hollis')} has the door shut. Kraft's question, from Low's office: the lunar module is months late, and the spacecraft is ready. Could the next Saturn V go round the Moon in December, without the lander?</p>
       <ul><li>The lander: not before the spring.</li>
       <li>The Saturn V: ${b.pogoFixed ? 'the pogo fix is in and has been tested on the ground.' : 'the last one shook in pogo; the fix is still being proved.'}</li>
       <li>The other side: ${b.zond ? 'the intelligence reports say the Russians mean to send men round the Moon in a Zond before the year is out.' : 'the intelligence reports have nothing firm.'}</li>
@@ -157,7 +157,7 @@ export const CONTROL_ROOMS = {
   mreview() {
     const k = KITS[g.vehicle] || KITS.redstone;
     return `<h2>The review, in ${esc(placeName('office'))}</h2>
-      <p>Hollis has the tapes spread on the console. Albrecht is on the line from Huntsville. "Well, Retro. What happened to her?"</p>
+      <p>${who('hollis')} has the tapes spread on the console. ${who('albrecht')} is on the line from Huntsville. "Well, Retro. What happened to her?"</p>
       <ul>${evidence()
         .map(l => `<li>${esc(l)}</li>`)
         .join('')}</ul>
@@ -183,18 +183,18 @@ function consoleView(c) {
       .join('')}</div>`;
   if (c.phase === 'pad')
     return `${head}<div class="poll"><p><strong>The capsule is sitting on the pad on a fuelled booster, its parachutes draped over the side.</strong>
-    The batteries are live and the pyrotechnics armed. Hollis turns round: "Retro, ideas?"</p>
+    The batteries are live and the pyrotechnics armed. ${who('hollis')} turns round: "Retro, ideas?"</p>
     ${Object.entries(PAD_OPTIONS)
       .map(([k, t]) => `<button data-act="pad" data-id="${k}">${esc(t)}</button>`)
       .join('')}</div>`;
   if (c.poll || c.phase === 'poll') {
     const b = board(c);
-    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> Hollis wants your status on the recovery area. The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
+    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> ${who('hollis')} wants your status on the recovery area. The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
       <ul class="reports"><li>Sea state in the recovery area: <strong>${b.sea}</strong></li>${b.units.map(u => `<li>${esc(u.text)}: <strong class="${u.on ? '' : 'danger-text'}">${u.on ? 'on station' : 'NOT on station'}</strong></li>`).join('')}</ul>
       <button class="go" data-act="m-go">GO</button><button class="danger" data-act="m-nogo">NO-GO</button></div>`;
   }
   if (c.phase === 'hold') return `${head}<p class="muted">Holding.</p>`;
-  if (c.phase === 'count') return `${head}<p class="muted">The count runs. Watch for Hollis's polls.</p>`;
+  if (c.phase === 'count') return `${head}<p class="muted">The count runs. Watch for ${who('hollis')}'s polls.</p>`;
   const P = planFor(c);
   if (c.phase === 'ascent')
     return `${head}${readouts()}<canvas data-plot width="440" height="170"></canvas>
@@ -251,7 +251,7 @@ function flightCall(c) {
   const d = c.flight.decision;
   if (!d) return '<p class="muted">The flight runs. The calendar jumps between the moments your shift is on.</p>';
   if (!d.mine)
-    return `<p class="muted">${esc(d.q)} ${d.who === 'hollis' ? "The programme's call." : "Dorsey's call."}</p>`;
+    return `<p class="muted">${esc(d.q)} ${d.who === 'hollis' ? "The programme's call." : `${who('dorsey')}'s call.`}</p>`;
   return `<div class="poll"><p><strong>${esc(d.q)}</strong></p>${d.rule ? `<p class="muted">Mission rule: ${esc(d.rule)}</p>` : ''}
     ${Object.entries(d.options)
       .map(([k, t]) => `<button data-act="m-decide" data-id="${k}">${esc(t)}</button>`)
