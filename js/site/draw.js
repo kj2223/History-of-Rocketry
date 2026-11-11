@@ -1822,7 +1822,7 @@ export function controlTelevision(ctx, g, x, y, w, h) {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#81af9e';
   ctx.font = `${size * 0.82}px monospace`;
-  ctx.fillText(`${live ? 'Ascent telemetry' : 'Last ascent sample'}  ·  T+${last.t} s`, x + w * 0.04, y + h * 0.16);
+  ctx.fillText(`${live ? 'Ascent telemetry' : 'Last ascent sample'}  ·  ${met(last.t)}`, x + w * 0.04, y + h * 0.16);
   if (last.stage) {
     ctx.textAlign = 'right';
     ctx.fillText(last.stage, x + w * 0.96, y + h * 0.16);
@@ -1927,6 +1927,13 @@ const PHASE_WORD = {
   shutdown: 'SHUTDOWN',
 };
 
+// Mission elapsed time in one form everywhere in the room, from the climb to splashdown: T+h:mm:ss. Before this the
+// climb read 'T+662 s' and orbit 'T+4:18' (hours and minutes) side by side.
+const met = sec => {
+  const s = Math.max(0, Math.floor(sec));
+  return `T+${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+};
+
 // The room's clock and the word for what is happening, as the player-visible console reports them.
 function controlReadout(c) {
   if (!c) return ['—', ''];
@@ -1939,11 +1946,7 @@ function controlReadout(c) {
     const last = c.trace[c.trace.length - 1];
     return last ? [`${last.v.toFixed(2)} km/s`, PHASE_WORD[c.phase]] : ['—', PHASE_WORD[c.phase]];
   }
-  if (c.orbitT != null)
-    return [
-      `T+${Math.floor(c.orbitT / 60)}:${String(Math.floor(c.orbitT % 60)).padStart(2, '0')}`,
-      PHASE_WORD[c.phase] || c.phase.toUpperCase(),
-    ];
+  if (c.orbitT != null) return [met(c.orbitT * 60), PHASE_WORD[c.phase] || c.phase.toUpperCase()];
   if (c.flight)
     return [
       `GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`,
@@ -2420,11 +2423,50 @@ function drawConsolePanel(ctx, g, x, y, w, h) {
   ctx.textAlign = 'left';
 }
 
-// A bank of computer racks along the left wall: units, dials and lights that blink with the room.
+// The flight plan, one step to a rack screen down the left wall: done steps dim, this one lit, the rest dark. From the
+// console's own phase (what the room is doing), never from what the flight will do.
+const ORBIT_STEPS = [
+  ['COUNT', ['count', 'hold', 'poll', 'pad', 'shutdown']],
+  ['ASCENT', ['ascent']],
+  ['INSERTION', ['insertion']],
+  ['ORBIT', ['orbit', 'mission']],
+  ['RETRO', ['pack', 'retro']],
+  ['ENTRY', ['entry', 'coast']],
+  ['SPLASH', ['ip']],
+];
+const LOB_STEPS = [
+  ['COUNT', ['count', 'hold', 'poll', 'pad', 'shutdown']],
+  ['ASCENT', ['ascent']],
+  ['SPLASH PT', ['ip']],
+  ['COAST', ['coast']],
+  ['ENTRY', ['entry']],
+];
+let stepAt = { console: null, i: 0 };
+export function flightSteps(c) {
+  if (!c || c.kind !== 'flight') return null;
+  const steps = (c.orbital || c.flight ? ORBIT_STEPS : LOB_STEPS).map(([label, phases]) => ({ label, phases }));
+  if (c.flight)
+    steps[3].label = c.flight.phases
+      ? `PHASE ${Math.min(c.flight.phaseNo, c.flight.phases)}/${c.flight.phases}`
+      : 'FLIGHT';
+  const found = c.poll ? 0 : steps.findIndex(st => st.phases.includes(c.phase));
+  // A phase with no step of its own (done, between beats) keeps the last step shown; a new flight starts at the count.
+  if (stepAt.console !== c) stepAt = { console: c, i: 0 };
+  if (found >= 0) stepAt.i = found;
+  return {
+    steps: steps.map(st => st.label),
+    at: stepAt.i,
+    sub: c.flight && c.phase === 'mission' ? c.flight.phase : null,
+  };
+}
+
+// A bank of computer racks along the left wall: units, dials and lights that blink with the room. In a flight the rack
+// screens carry the flight plan (flightSteps).
 function serverBank(ctx, x, y, w, h, g) {
   ctx.fillStyle = '#1d2126';
   ctx.fillRect(x, y, w, h);
-  const units = Math.max(4, Math.floor(h / 90));
+  const plan = flightSteps(g.console),
+    units = Math.max(4, Math.floor(h / 90), plan ? plan.steps.length : 0);
   for (let i = 0; i < units; i++) {
     const uy = y + 10 + (i * (h - 20)) / units,
       uh = (h - 20) / units - 8;
@@ -2432,6 +2474,27 @@ function serverBank(ctx, x, y, w, h, g) {
     ctx.fillRect(x + 5, uy, w - 10, uh);
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(x + 10, uy + 5, w - 20, uh - 10);
+    const step = plan && plan.steps[i];
+    if (step) {
+      const now = i === plan.at,
+        done = i < plan.at;
+      if (now) {
+        ctx.fillStyle = 'rgba(232,198,106,.16)';
+        ctx.fillRect(x + 10, uy + 5, w - 20, uh - 10);
+        ctx.strokeStyle = '#e8c66a';
+        ctx.strokeRect(x + 10.5, uy + 5.5, w - 21, uh - 11);
+      }
+      ctx.fillStyle = now ? '#e8c66a' : done ? '#86c28c' : '#4a5260';
+      ctx.font = `${now ? 'bold ' : ''}${Math.max(9, Math.round(w * 0.13))}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillText(done ? `✓ ${step}` : step, x + w / 2, uy + uh / 2 + 4, w - 24);
+      if (now && plan.sub) {
+        ctx.font = `${Math.max(8, Math.round(w * 0.1))}px sans-serif`;
+        ctx.fillText(plan.sub, x + w / 2, uy + uh / 2 + 4 + Math.max(11, w * 0.15), w - 24);
+      }
+      ctx.textAlign = 'left';
+      continue;
+    }
     for (let l = 0; l < 6; l++) {
       const on = (i * 13 + l * 7 + Math.floor(g.time * 2)) % 5 < 3;
       ctx.fillStyle = on ? '#9fdc9a' : '#31413a';
@@ -2589,8 +2652,8 @@ function countClock(c) {
 function missionClock(c) {
   if (!c) return '—';
   if (c.flight) return `GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`;
-  if (c.orbitT != null) return `T+${Math.floor(c.orbitT / 60)}:${String(Math.floor(c.orbitT % 60)).padStart(2, '0')}`;
-  if (c.phase === 'ascent' || c.phase === 'insertion') return `T+${Math.floor(c.t)} s`;
+  if (c.orbitT != null) return met(c.orbitT * 60);
+  if (c.phase === 'ascent' || c.phase === 'insertion') return met(c.t);
   if (c.phase === 'count' || c.poll || c.phase === 'hold') return '—';
   return '—';
 }

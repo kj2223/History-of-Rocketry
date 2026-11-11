@@ -20,11 +20,11 @@ test('the control-room TV hands off from the pad camera to observed telemetry', 
 
   sample.t = 13;
   controlTelevision(ctx, g, 0, 0, 480, 140);
-  assert.match(text[0], /Ascent telemetry.*T\+13/);
+  assert.match(text[0], /Ascent telemetry.*T\+0:00:13/);
   for (const value of ['1.23 km/s', '2.4 g', '76.5°', '-1.2°']) assert.ok(text.includes(value));
 
   g.console.phase = 'insertion';
   text.length = 0;
   controlTelevision(ctx, g, 0, 0, 480, 140);
-  assert.match(text[0], /Last ascent sample.*T\+13/);
+  assert.match(text[0], /Last ascent sample.*T\+0:00:13/);
 });
