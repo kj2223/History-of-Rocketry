@@ -1487,7 +1487,13 @@ export function finishReview(entry) {
       `Your budget line, fiscal ${b.fy}: ${dollars(b.spent)} spent of ${dollars(b.line)}.${b.spent > b.line ? ' Over the line.' : ''}`,
     );
   }
-  recordFlight(g.programme, { vehicle: g.vehicle, load: g.round.propellantLoad, apogee: seen, failure: f.failure });
+  recordFlight(g.programme, {
+    vehicle: g.vehicle,
+    load: g.round.propellantLoad,
+    apogee: seen,
+    failure: f.failure,
+    hidden: !!g.round.hiddenFailure,
+  });
   // After Sputnik every day lost is reported to Washington, and it goes on your record.
   if (SEASON[g.roundIndex].pressure && g.slipDays) {
     shiftTrust(g.record, -1);
@@ -1570,13 +1576,20 @@ function jumpTo(i) {
   const from = g.day,
     next = SEASON[i];
   const lines = [...(BETWEEN[next.id] || [])];
-  // The first Bumper's WAC is built to the standard the WAC rounds left behind, and the V-2s to what the V-2 round taught.
-  // Each standing fix is told once, at the first change of vehicle after it was decided.
-  if (next.vehicle !== SEASON[g.roundIndex].vehicle) {
-    const fresh = newFixes(g.programme);
-    if (fresh.length) lines.push(`What the reviews decided goes into the build: ${fresh.join(' ')}`);
+  // The next round is built to the standard the reviews left behind (the first Bumper's WAC to what the WAC rounds
+  // taught). Each standing fix is told once, at the first jump after it was decided.
+  const fresh = newFixes(g.programme);
+  if (fresh.length) lines.push(`What the reviews decided goes into the build: ${fresh.join(' ')}`);
+  if (!next.crewed && !next.probe) {
+    lines.push(`The crew built ${next.name} in the hangar.`);
+    // A cause that brought a round down and is still unfixed may be in the next rounds from the same lot.
+    const lot =
+      g.programme.lotVehicle === next.vehicle ? Object.keys(g.programme.batch ?? {}).filter(c => SHORT[c]) : [];
+    if (lot.length)
+      lines.push(
+        `She comes from the same lot as the last one, and nothing has been done yet about ${lot.map(c => SHORT[c]).join(' or ')}. If it was in that round, it may be in this one.`,
+      );
   }
-  if (!next.crewed && !next.probe) lines.push(`The crew built ${next.name} in the hangar.`);
   // The other side, from 1966, as Houston heard of it.
   if (next.crewed && next.crewed !== 'mercury')
     lines.push(...raceNews(g.seed, Math.max(from, RACE_FROM), roundStartOf(i)));
@@ -1589,6 +1602,12 @@ function jumpTo(i) {
     );
   g.away = { from: dateText(from), to: dateText(roundStartOf(i)), lines };
   startRound(i);
+  if (!next.crewed && !next.probe) {
+    const w = g.round.wind;
+    lines.push(
+      `The forecast for the count: wind about ${w.kmh} km/h at the tower.${w.kmh >= 25 ? ' She will lean into it off the rail.' : ''}`,
+    );
+  }
   // A fix the round brings with it whatever the reviews said (the redesigned booster joint at STS-26) is news now.
   if (next.adopt?.length) {
     const fresh = newFixes(g.programme);

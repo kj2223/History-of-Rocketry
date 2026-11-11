@@ -1,7 +1,7 @@
 // Physical reality (freeze §4.1). The only module that reads data/physical.js or state.physical.
 // It never reads beliefs, evidence or UI state, and it draws only from the physical stream.
 
-import { BASE, REVISION_EFFECTS, SCATTER, MECHANISMS, LATENT } from './physical.js';
+import { BASE, REVISION_EFFECTS, FIX_EFFECTS, SCATTER, SCATTER_OF, MECHANISMS, LATENT } from './physical.js';
 import { VEHICLE_QUANTITIES, lineage } from '../data/vehicles.js';
 import { draw, normal } from '../core/rng.js';
 
@@ -40,7 +40,16 @@ export const runTest = (state, jobId, { kind, vehicle, stage, stages, conditions
       for (const r of lineage(rev)) value += REVISION_EFFECTS[r]?.[quantity] ?? 0;
     for (const m of mechanisms) if (showing(m, conditions)) value += m.effects[quantity] ?? 0;
     if (failed) value += culprit.onFailure?.[quantity] ?? 0;
-    value *= 1 + SCATTER * normal(stream);
+    // A flight carries the standing fixes in its build, and leans with the wind on the day (truth/round.js).
+    if (kind === 'flight') {
+      const fx = (state.adopted ?? []).map(c => FIX_EFFECTS[c]).filter(Boolean);
+      if (quantity === 'vehicle.apogee') for (const f of fx) value *= 1 + (f.apogee ?? 0);
+      if (quantity === 'vehicle.deviation') {
+        for (const f of fx) value += f.deviation ?? 0;
+        value = Math.max(0.3, value + (state.wind?.lean ?? 0));
+      }
+    }
+    value *= 1 + (SCATTER_OF[quantity] ?? SCATTER) * normal(stream);
     if (failed && quantity === 'vehicle.apogee') value *= 0.3;
     if (failed && quantity === 'vehicle.deviation') value += 40;
     return { quantity, value };

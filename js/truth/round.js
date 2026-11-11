@@ -178,37 +178,42 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
   // Each round has at most one fault of each kind, at one of the spots where it can be. The draws are taken whatever the
   // risks and the vehicle, so a fix never shifts the rest of the round.
   const faults = {};
+  // A cause that brought down a round from the same production lot, and was never fixed, is likelier again
+  // (world/programme.js: batch). Only the thresholds move, never the draws.
+  const lot = cause => p.lotVehicle === vehicle && !!p.batch?.[cause];
   const put = (kind, risk, chance, where) => {
     const ids = Object.keys(spots).filter(id => spots[id].fault === kind);
-    if (ids.length && chance < risk) faults[ids[Math.floor(where * ids.length)]] = kind;
+    const r = lot(kind) ? Math.min(0.9, risk * 1.6) : risk;
+    if (ids.length && chance < r) faults[ids[Math.floor(where * ids.length)]] = kind;
   };
+  const latentChance = cause => (lot(cause) ? 0.8 : 0.5);
   const weld = draw(rng.physical),
     weldAt = draw(rng.physical),
     leak = draw(rng.physical),
     leakAt = draw(rng.physical);
   put('weld', p.weldRisk, weld, weldAt);
   put('leak', p.leakRisk, leak, leakAt);
-  const igniterFault = draw(rng.physical) < 0.5;
+  const igniterFault = draw(rng.physical) < latentChance('ignition');
   const vane = draw(rng.physical),
     vaneAt = draw(rng.physical),
     sep = draw(rng.physical),
     sepAt = draw(rng.physical),
-    pumpFault = draw(rng.physical) < 0.5;
-  const linerFault = draw(rng.physical) < 0.5;
+    pumpFault = draw(rng.physical) < latentChance('turbopump');
+  const linerFault = draw(rng.physical) < latentChance('liner');
   const fin = draw(rng.physical),
     finAt = draw(rng.physical),
     hold = draw(rng.physical),
     holdAt = draw(rng.physical),
-    turbineFault = draw(rng.physical) < 0.5;
+    turbineFault = draw(rng.physical) < latentChance('cutoff');
   put('fin', p.finRisk, fin, finAt);
   put('holddown', p.holddownRisk, hold, holdAt);
   put('vanes', p.vaneRisk, vane, vaneAt);
   put('separation', p.sepRisk, sep, sepAt);
   // Vanguard's injector draw is taken only on a Vanguard round, after the others, so the earlier rounds are unchanged.
-  const injectorFault = vehicle === 'vanguard' && draw(rng.physical) < 0.5;
+  const injectorFault = vehicle === 'vanguard' && draw(rng.physical) < latentChance('injector');
   // Likewise the lunar shots' own draws, taken only on their rounds.
-  const depletionFault = vehicle === 'juno' && draw(rng.physical) < 0.5;
-  const agenaFault = vehicle === 'ranger' && draw(rng.physical) < 0.5;
+  const depletionFault = vehicle === 'juno' && draw(rng.physical) < latentChance('depletion');
+  const agenaFault = vehicle === 'ranger' && draw(rng.physical) < latentChance('agena');
   if (vehicle === 'ranger') {
     const cam = draw(rng.physical),
       camAt = draw(rng.physical);
@@ -319,6 +324,8 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
     juno: p.juno, // Juno II's Jupiter: r2 has the recalibrated propellant utilisation
     ranger: p.ranger, // Ranger's Agena: r2 has the reworked restart system
     propellantLoad: 1,
+    adopted: [...(p.adopted ?? [])], // the standing fixes this round is built with (truth/physical.js: FIX_EFFECTS)
+    wind: windOf(seed),
     ...(vehicle === 'redstone' ? { thrust } : {}),
     ...(vehicle === 'titan' ? { navdata, dustcap } : {}),
     ...(vehicle === 'saturn5' ? { lightning, throttle } : {}),
@@ -612,6 +619,14 @@ export const standRework = round => {
 // when time does, and reading it every frame takes nothing from the round's streams.
 export const tankGauge = (round, s) =>
   23 - (hasLeak(round) ? Math.min(6, s * 0.012) : 0) + flutter((round.seed ?? 1) | 0, Math.floor(s / 4));
+// The wind on the range for the count: km/h at the tower, and how far it leans the round off the vertical (degrees: a
+// rocket weathercocks into the wind as it leaves the tower). Taken from the seed, not the round's streams, so it moves no
+// draw. Mostly light; now and then a stiff breeze.
+export function windOf(seed) {
+  const u = flutter((seed ?? 1) | 0, 7001) / 0.3 + 0.5,
+    kmh = Math.round(4 + 36 * u * u);
+  return { kmh, lean: kmh * 0.1 };
+}
 function flutter(seed, step) {
   let h = Math.imul(seed ^ Math.imul(step + 1, 2654435761), 2246822507);
   h = Math.imul(h ^ (h >>> 13), 3266489909);
@@ -655,6 +670,7 @@ export function fly(round) {
     which = draw(ph);
   if (!failure && hidden < (HIDDEN_FAILURE[vehicle] || 0)) {
     failure = profile.order[Math.floor(which * profile.order.length)];
+    round.hiddenFailure = true;
     round.events.push('Something failed that no inspection could have found.');
   }
   if (!failure && vehicle === 'vanguard') return orbit(round, apogee);
