@@ -222,7 +222,11 @@ const RESOLVE = {
     out.capability = 'rendezvous';
     out.set.rendezvousComplete = true;
     if (choice === 'ground' && state.groundFix === 'provisional') {
-      out.lines.push(['morgan', 'FIDO: the provisional fix got them there. They needed an extra trim before closing.', 'warn']);
+      out.lines.push([
+        'morgan',
+        'FIDO: the provisional fix got them there. They needed an extra trim before closing.',
+        'warn',
+      ]);
       out.verdict = 'fair';
       out.judge = 'The intercept worked, but the provisional ground fix cost an extra correction.';
       return out;
@@ -430,6 +434,68 @@ const RESOLVE = {
           : 'A trim burn into the middle of the corridor.';
     return out;
   },
+  // Apollo 13's lifeboat, two hours past the Moon: how fast to come home on the lander's descent engine.
+  pc2(choice, { d, out }) {
+    if (choice === 'pacific') {
+      out.lines.push(['pilot', "Burn complete. Houston, we're on our way to the Pacific.", 'go']);
+      out.lines.push([
+        'kessler',
+        "Flight, EECOM: at this load the lander's power lasts past entry, with hours to spare.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge = 'A burn for the Pacific, where the ships were, and power to spare. That was the call.';
+      out.note =
+        "The descent engine burned for four and a half minutes two hours past the Moon. Entry moved to about 142 hours, in the Pacific, inside the lander's batteries.";
+      return out;
+    }
+    if (choice === 'fast') {
+      out.endAt = 133;
+      out.hurt = 0.2;
+      out.lines.push(['pilot', "Service module's gone. Burn complete. We're coming in fast, Houston.", 'warn']);
+      out.verdict = 'fair';
+      out.judge =
+        'The fastest way home, into an ocean with no ships, and the heat shield left out in the cold for three days. It saved hours we did not need.';
+      out.note =
+        'The crew dropped the service module and burned for the fastest return, into the Indian Ocean. The heat shield spent the trip home bare to space, and nobody knew what that did to it.';
+      return out;
+    }
+    out.set.powerShort = true;
+    out.hurt = 0.4;
+    if (d[6] < 0.2) out.set.lost = true;
+    out.lines.push(['tate', 'Flight, Retro: no burn. Entry stays at about 152 hours, Indian Ocean.', 'warn']);
+    out.verdict = 'bad';
+    out.judge =
+      "The lander's batteries ran out before the free return got them home. We had the engine, and we kept it.";
+    out.note =
+      "No burn after the Moon. The free return brought them in at about 152 hours, past what the lander's batteries could give at her lowest load.";
+    return out;
+  },
+  co2(choice, { d, out }) {
+    if (choice === 'build') {
+      out.lines.push([
+        'crew2',
+        "Houston, the box is built, and it's on the hose. Bag, cardboard and tape. The gauge is coming down.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge = 'We read up the adapter before the gauge forced us to, and the air came back.';
+      out.note =
+        "The ground read up an adapter for the command module's canisters: hose, cardboard, a plastic bag and tape. The carbon dioxide came down within the hour.";
+      return out;
+    }
+    out.hurt = d[7] < 0.15 ? 0.35 : 0.15;
+    out.lines.push([
+      'kessler',
+      "Flight, EECOM: CO2 is through fifteen millimetres. They're getting headaches. We're reading the adapter up now.",
+      'bad',
+    ]);
+    out.verdict = 'fair';
+    out.judge = 'We waited on the gauge, and the crew paid for it in headaches before we built the adapter anyway.';
+    out.note =
+      'The carbon dioxide reached fifteen millimetres before the ground read up the adapter. The crew had headaches and slowed down.';
+    return out;
+  },
   tank(choice, { d, out }) {
     out.set.home = true;
     out.set.short = true;
@@ -453,6 +519,7 @@ const RESOLVE = {
       out.judge = 'The direct abort worked. Nobody knew whether the service engine would, and we bet on it.';
       return out;
     }
+    out.set.lifeboat = true;
     out.lines.push([
       'pilot',
       "Powering down the command module. We're moving into the lander. It's going to be cold.",

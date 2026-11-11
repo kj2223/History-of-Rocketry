@@ -248,7 +248,8 @@ export const SEASON = [
     name: 'Apollo 12, the pinpoint landing',
   }, // 14 November 1969
   // The third landing. The flight itself is the hidden layer's, like every round: whether oxygen tank two fails on the
-  // way out is decided when the round is made, never scripted (C3).
+  // way out is decided when the round is made, never scripted (C3). The tank that would not empty in the countdown test
+  // and was boiled dry with its heaters is a condition, like 51-L's cold: likelier, never certain.
   {
     id: 'apollo-13',
     vehicle: 'saturn5',
@@ -256,9 +257,10 @@ export const SEASON = [
     crewed: 'apollo',
     orbital: true,
     crew: ['kowalczyk', 'harlan', 'reiss'],
+    risk: { tankRisk: 0.5 },
     path: 'nasa',
     start: dayOf(1970, 4, 9),
-    name: 'Apollo 13, the third landing',
+    name: 'Apollo 13, Fra Mauro',
   }, // launched 11 April 1970
   {
     id: 'apollo-15',
@@ -485,7 +487,8 @@ export const SEASON = [
     probe: {
       encounter: dayOf(1962, 12, 14),
       tracking: 'The Atlas–Agena has sent Mariner 2 toward Venus. The deep-space stations report a usable signal.',
-      evidence: 'Tracking puts Mariner 2 on course for Venus. Telemetry shows the automatic encounter sequencer faltering. The infrared and microwave radiometers need the encounter sequence to start during the flyby.',
+      evidence:
+        'Tracking puts Mariner 2 on course for Venus. Telemetry shows the automatic encounter sequencer faltering. The infrared and microwave radiometers need the encounter sequence to start during the flyby.',
       action: 'Send the backup encounter command',
       alternate: 'Wait for the automatic sequencer',
       received: 'The radiometer scans came through. JPL has infrared and microwave observations of Venus.',
@@ -503,10 +506,12 @@ export const SEASON = [
       encounter: dayOf(1965, 7, 14), // Pasadena local date; 15 July UTC
       playback: dayOf(1965, 7, 15),
       tracking: 'The Atlas–Agena has sent Mariner 4 toward Mars. The deep-space stations report a usable signal.',
-      evidence: 'Tracking puts Mariner 4 on course for Mars. The camera will run automatically once you command encounter mode. It records to tape. The signal will drop as the spacecraft passes behind Mars.',
+      evidence:
+        'Tracking puts Mariner 4 on course for Mars. The camera will run automatically once you command encounter mode. It records to tape. The signal will drop as the spacecraft passes behind Mars.',
       action: 'Command planetary encounter mode',
       alternate: 'Keep the spacecraft in cruise mode',
-      recorded: 'Contact is back after occultation. The recorder reports a completed camera sequence. Playback starts on the next tracking day.',
+      recorded:
+        'Contact is back after occultation. The recorder reports a completed camera sequence. Playback starts on the next tracking day.',
       received: 'Playback is underway. The first images of Mars are coming down from the recorder.',
       missed: 'The flyby is over. JPL has tracking but no images because encounter mode was never enabled.',
     },
@@ -748,9 +753,12 @@ export const BETWEEN = {
     'Apollo 11 came home in July. The landing has been done: the next ones are for the science, and for landing where you mean to.',
     'Apollo 12 is to land beside Surveyor 3, a robot lander that came down in the Ocean of Storms in April 1967, and bring pieces of it home.',
   ],
+  'apollo-13': [
+    'Apollo 12 came home with pieces of Surveyor 3. Apollo 13 goes to Fra Mauro, the first landing in the hills instead of on the mare plains.',
+    'In the countdown test in March, oxygen tank two in the service module would not empty the normal way. The pad crew boiled it dry overnight with its own heaters, and it was passed for flight.',
+  ],
   'apollo-15': [
-    "Apollo 13, in April 1970: an oxygen tank in the service module failed on the way out, and the crew came home round the Moon in the lander, cold and short of water. The tank's heater switches had been welded shut when it was boiled dry on the pad.",
-    'Apollo 14, in February 1971, landed at Fra Mauro, where Apollo 13 had been going.',
+    'Apollo 14, in February 1971, landed at Fra Mauro.',
     'Apollo 15 is the first of the long expeditions: three days on the Moon, a lander stretched to carry more, and an electric car folded on its side. Apollo 18, 19 and 20 have already been cancelled.',
   ],
   'ranger-7': [
