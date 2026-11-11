@@ -1,5 +1,6 @@
 // Apollo 13 played on its own flight plan: Fra Mauro if the tank holds, the lander as a lifeboat if it does not.
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { g, newGame } from '../js/game.js';
 import { startFlight, tickFlight, answer, flightOf } from '../js/houston.js';
@@ -65,4 +66,17 @@ test('no burn after the Moon leaves the lander short of power, and waiting on th
   assert.match(said, /won't make entry/);
   assert.equal(c.flight.decisions.find(d => d.id === 'pc2').verdict, 'bad');
   assert.equal(DECISIONS.pc2.auto, 'pacific');
+});
+
+test("Apollo 13's CO2 and lifeboat-burn calls roll their own draws, shared with no other call", () => {
+  const src = readFileSync(new URL('../js/truth/flights.js', import.meta.url), 'utf8');
+  const body = name =>
+    src.slice(src.indexOf(`\n  ${name}(choice`), src.indexOf('\n  },', src.indexOf(`\n  ${name}(choice`)));
+  for (const [call, n] of [
+    ['co2', 16],
+    ['pc2', 26],
+  ]) {
+    assert.match(body(call), new RegExp(`d\\[${n}\\]`), `${call} reads d[${n}]`);
+    assert.equal(src.match(new RegExp(`\\bd\\[${n}\\]`, 'g')).length, 1, `d[${n}] is ${call}'s alone`);
+  }
 });

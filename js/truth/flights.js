@@ -11,8 +11,9 @@ import { ORBIT_RECOVERY } from './orbit.js';
 
 const DEG = Math.PI / 180;
 // A fixed number of physical draws for every long flight.
-// d[0] to d[15] serve the Gemini and Apollo calls; d[17] to d[25] the Skylab, Apollo-Soyuz and Shuttle calls.
-export const FLIGHT_DRAWS = 26;
+// d[0] to d[15] serve the Gemini and Apollo calls; d[17] to d[25] the Skylab, Apollo-Soyuz and Shuttle calls; draws 16 and
+// 26 Apollo 13's own calls (co2, pc2), so they never share a draw with another call on the same flight.
+export const FLIGHT_DRAWS = 27;
 // How often each trouble comes out as it really did: the fuel cells settling, a hatch that will not seal, a stuck
 // computer coming back.
 export const ODDS = {
@@ -532,7 +533,7 @@ const RESOLVE = {
     }
     out.set.powerShort = true;
     out.hurt = 0.4;
-    if (d[6] < 0.2) out.set.lost = true;
+    if (d[26] < 0.2) out.set.lost = true;
     out.lines.push(['tate', 'Flight, Retro: no burn. Entry stays at about 152 hours, Indian Ocean.', 'warn']);
     out.verdict = 'bad';
     out.judge =
@@ -554,7 +555,7 @@ const RESOLVE = {
         "The ground read up an adapter for the command module's canisters: hose, cardboard, a plastic bag and tape. The carbon dioxide came down within the hour.";
       return out;
     }
-    out.hurt = d[7] < 0.15 ? 0.35 : 0.15;
+    out.hurt = d[16] < 0.15 ? 0.35 : 0.15;
     out.lines.push([
       'kessler',
       "Flight, EECOM: CO2 is through fifteen millimetres. They're getting headaches. We're reading the adapter up now.",
