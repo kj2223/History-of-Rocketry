@@ -47,9 +47,26 @@ export function startPlaytest(opts) {
   desktop?.onToggle(on => setEnabled(on));
   desktop?.onMark(() => mark());
   load();
+  document.getElementById('bug')?.addEventListener('click', () => mark());
+  showButton();
   if (!enabled) return false;
   begin();
   return true;
+}
+
+// The header's "Report a bug (F8)" button shows while the log is on, so every tester knows the key.
+const showButton = () => {
+  const b = document.getElementById('bug');
+  if (b) b.hidden = !enabled;
+};
+let noteTimer = 0;
+function tell(text) {
+  const el = document.getElementById('bug-note');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => (el.hidden = true), 5000);
 }
 
 function load() {
@@ -81,6 +98,7 @@ function setEnabled(on) {
     flush(true);
     enabled = false;
   }
+  showButton();
   if (!desktop) on ? storage.removeItem(`${LOG_KEY}-off`) : storage.setItem(`${LOG_KEY}-off`, '1');
 }
 
@@ -144,14 +162,21 @@ export function mark() {
   record(log, g, 'mark', { n: entry.n });
   dirty = true;
   flush(true);
+  const thanks = `Bug ${entry.n} noted: what led up to it, a copy of the save${desktop ? ' and a screenshot' : ''} are kept. Carry on playing.`;
+  // The note shows after the screenshot is taken, so it is not in the picture.
+  if (!desktop) return tell(thanks);
   desktop
-    ?.mark(entry.n, saveText())
+    .mark(entry.n, saveText())
     .then(files => {
       entry.files = files;
       dirty = true;
       flush();
+      tell(thanks);
     })
-    .catch(e => traceError('mark', e));
+    .catch(e => {
+      traceError('mark', e);
+      tell(`Bug ${entry.n} noted in the log (the screenshot failed).`);
+    });
 }
 
 if (typeof window !== 'undefined') {
