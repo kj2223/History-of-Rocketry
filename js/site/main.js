@@ -259,7 +259,18 @@ function openGameMenu() {
 function toggleNotebook() {
   const nb = $('notebook');
   nb.hidden = !nb.hidden;
-  if (!nb.hidden) showNotebook();
+  if (!nb.hidden) {
+    lastRead = g.notes[g.notes.length - 1] || null;
+    showNotebook();
+  }
+}
+// The button counts the notes written since you last had the notebook open, not every note ever. This is the screen's
+// own memory: it is not saved. Notes written while it is open count as new, since the open page does not show them.
+// After a load or a new game, when the last note you read is gone, this round's notes count as new.
+let lastRead = null;
+function unreadNotes() {
+  const at = lastRead ? g.notes.indexOf(lastRead) : -1;
+  return at >= 0 ? g.notes.length - 1 - at : g.notes.filter(n => n.round === g.roundIndex).length;
 }
 // This round's notes, with the earlier rounds' folded away behind a count and a button to clear them.
 function showNotebook() {
@@ -292,7 +303,9 @@ function hud() {
   document
     .querySelectorAll('[data-speed]')
     .forEach(b => b.classList.toggle('on', Number(b.dataset.speed) === g.speed && !g.paused));
-  $('notes').textContent = `Notebook (${g.notes.length})`;
+  const fresh = unreadNotes();
+  $('notes').textContent = fresh ? `Notebook (${fresh} new)` : 'Notebook';
+  $('notes').classList.toggle('fresh', fresh > 0);
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
   $('loop').classList.toggle('in-interior', !!interiorOf(g));
   // The walking hints are for the site; in launch control and the walk-in rooms they only cover the scene.
