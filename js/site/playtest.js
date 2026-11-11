@@ -76,6 +76,15 @@ function tell(text, entry = null) {
     });
     el.append(' ', b);
   }
+  // Beside the room panel when one is open, so it never covers the panel's title or its close button.
+  const room = document.getElementById('room');
+  const edge = room && !room.hidden ? room.getBoundingClientRect().left : 0;
+  Object.assign(
+    el.style,
+    edge
+      ? { left: 'auto', right: `${innerWidth - edge + 12}px`, transform: 'none' }
+      : { left: '', right: '', transform: '' },
+  );
   el.hidden = false;
   clearTimeout(noteTimer);
   noteTimer = setTimeout(() => (el.hidden = true), entry ? 15000 : 5000);
