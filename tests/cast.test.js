@@ -37,3 +37,22 @@ test('Apollo 11 has the Apollo team, the Shuttle has the next one, and the hando
   assert.equal(g.people.hollis.name, 'David Okafor');
   assert.equal(g.people.morgan.he, false);
 });
+
+test('on the JPL route the notebook only hears of handovers among the people at JPL, not at Houston', async () => {
+  const { newGame } = await import('../js/game.js');
+  const { SEASON } = await import('../js/data/campaign.js');
+  const { playRound, advance } = await import('./play.js');
+  newGame(13);
+  const heard = [];
+  for (let i = 0; i < SEASON.length && g.beat !== 'seasonEnd'; i++) {
+    playRound(() => 'unknown');
+    heard.push(...g.notes.filter(n => /takes over/.test(n.text)).map(n => n.text));
+    if (g.beat !== 'seasonEnd') advance(false);
+  }
+  assert.ok(
+    heard.some(t => /Ruth Ellis has retired/.test(t)),
+    'the JPL handovers are still told',
+  );
+  for (const name of ['Frank Hollis', 'Carl Dorsey', 'Bill Tate', 'Walt Kessler', 'Kurt Albrecht', 'Luis Reyes'])
+    assert.ok(!heard.some(t => t.includes(name)), `${name} is in a JPL notebook`);
+});
