@@ -51,3 +51,91 @@ export function speedGained(rows, gamma) {
   }
   return out;
 }
+
+// ---- A ballistic round off the range's tower, a stage at a time ----
+const GK = 0.00981, // km/s²
+  DT = 0.05;
+// Thrust acceleration (km/s²) at second t of the burn, with every stage at its own mass; 0 between and after burns.
+function thrustAt(stack, t) {
+  let mass = liftoffMass(stack),
+    t0 = 0;
+  for (const s of stack.stages) {
+    if (t < t0) return 0; // coasting before this stage lights
+    if (t < t0 + s.burn) return s.thrust / ((mass - (s.prop * (t - t0)) / s.burn) * 1000);
+    mass -= s.prop + s.drop;
+    t0 += s.burn + (s.coast || 0);
+  }
+  return 0;
+}
+const stackEnd = (stack, upTo = stack.stages.length) =>
+  stack.stages.slice(0, upTo).reduce((a, s, i) => a + s.burn + (i < upTo - 1 ? s.coast || 0 : 0), 0);
+
+// Fly the round: k scales the thrust (the losses to the air the stack does not model), tilt is radians off vertical,
+// cutAt is the second all thrust ends (a failure; null for none), upTo: only the first upTo stages light.
+// Returns { path: [{ t, x, h }] one a second until she is down, apogee, burnout (s) }.
+function flyStack(stack, k, tilt, cutAt = null, upTo = stack.stages.length, wantPath = true) {
+  const end = Math.min(stackEnd(stack, upTo), cutAt ?? Infinity),
+    c = Math.cos(tilt),
+    sn = Math.sin(tilt);
+  let t = 0,
+    h = 0,
+    x = 0,
+    vh = 0,
+    vx = 0,
+    top = 0;
+  const path = wantPath ? [{ t: 0, x: 0, h: 0 }] : null;
+  // Powered flight in small steps; a round that cannot lift herself off the tower stays on it.
+  while (t < end - 1e-9) {
+    const step = Math.min(DT, end - t),
+      a = k * thrustAt(stack, t + step / 2);
+    vh += (a * c - GK) * step;
+    vx += a * sn * step;
+    if (h <= 0 && vh < 0) vh = vx = 0;
+    h = Math.max(0, h + vh * step);
+    x += vx * step;
+    t += step;
+    top = Math.max(top, h);
+    if (wantPath && Math.abs(t - Math.round(t)) < 1e-6) path.push({ t: Math.round(t), x, h });
+  }
+  const peak = vh > 0 ? h + (vh * vh) / (2 * GK) : top;
+  if (!wantPath) return { apogee: Math.max(top, peak), burnout: end };
+  // Then the coast, in whole seconds from burnout.
+  const t0 = t,
+    h0 = h,
+    x0 = x;
+  for (let s = Math.floor(t0) + 1; ; s++) {
+    const dt = s - t0,
+      hh = h0 + vh * dt - 0.5 * GK * dt * dt,
+      xx = x0 + vx * dt;
+    if (hh <= 0) {
+      path.push({ t: s, x: xx, h: 0 });
+      break;
+    }
+    path.push({ t: s, x: xx, h: hh });
+  }
+  return { path, apogee: Math.max(top, peak, ...path.map(p => p.h)), burnout: end };
+}
+
+// The thrust scale that makes a good round of this stack reach `apogee` km (or, with the stack's `fit`, makes its first
+// stages alone reach the fitted height). Bisection: a fixed number of steps, no draws.
+export function fitStack(stack, apogee, tilt) {
+  const upTo = stack.fit?.stages ?? stack.stages.length,
+    target = stack.fit?.apogee ?? apogee;
+  const reach = k => flyStack(stack, k, tilt, null, upTo, false).apogee;
+  let lo = 0,
+    hi = 1;
+  for (let i = 0; i < 40 && reach(hi) < target; i++) hi *= 2;
+  for (let i = 0; i < 50; i++) {
+    const mid = (lo + hi) / 2;
+    if (reach(mid) < target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// A round off the tower, flown a stage at a time: to the physical layer's apogee if all goes well, or from the second
+// its thrust ended if not (cutAt). fitTilt: the lean the good round's scale is fitted at.
+export function flySounding(stack, { apogee, tilt, fitTilt = tilt, cutAt = null }) {
+  const k = fitStack(stack, apogee, fitTilt);
+  return { ...flyStack(stack, k, tilt, cutAt), burn: Math.min(stackEnd(stack), cutAt ?? Infinity) };
+}

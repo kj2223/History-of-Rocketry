@@ -7,6 +7,8 @@ import { newStreams, draw, normal } from '../core/rng.js';
 import { initPhysical, runTest, sampleAt, discardTrace } from './physics.js';
 import { KITS } from '../data/kits.js';
 import { injection } from './lunar.js';
+import { flySounding } from './stages.js';
+import { SOUNDING_STACKS } from '../data/stacks.js';
 import { SPOTS, EXPLANATIONS } from '../data/wac-round.js';
 export { SPOTS, EXPLANATIONS };
 
@@ -35,34 +37,35 @@ const SPOT_FAILURE = {
 };
 // (A Ranger's camera supply is decided at the Moon, when the cameras are switched on: truth/lunar.js.)
 
-// How each kind of round flies, and how each cause cuts it short: when (s after liftoff) and what share of the peak is left.
+// How each kind of round flies, and when (s after liftoff) each cause ends its thrust; dev: degrees it throws her off her line.
+// How high she goes from there is worked out a stage at a time (truth/stages.js).
 // The order is the order the causes can strike in flight: a V-2 that dies early never tests its upper stage.
 const PROFILE = {
   wac: {
     burn: 45,
     order: ['ignition', 'weld', 'leak'],
-    fail: { ignition: { at: 2, keep: 0.3, dev: 40 }, weld: { at: 14, keep: 0.12 }, leak: { at: 24, keep: 0.35 } },
+    fail: { ignition: { at: 2, dev: 40 }, weld: { at: 14 }, leak: { at: 24 } },
   },
   v2: {
     burn: 65,
     order: ['turbopump', 'vanes', 'leak'],
-    fail: { turbopump: { at: 28, keep: 0.15 }, vanes: { at: 35, keep: 0.12, dev: 25 }, leak: { at: 45, keep: 0.4 } },
+    fail: { turbopump: { at: 28 }, vanes: { at: 35, dev: 25 }, leak: { at: 45 } },
   },
   aerobee: {
     burn: 45,
     order: ['liner', 'weld', 'leak'],
-    fail: { liner: { at: 31, keep: 0.35 }, weld: { at: 12, keep: 0.1 }, leak: { at: 25, keep: 0.35 } },
+    fail: { liner: { at: 31 }, weld: { at: 12 }, leak: { at: 25 } },
   },
   viking: {
     burn: 75,
     order: ['cutoff', 'fin', 'leak'],
-    fail: { cutoff: { at: 42, keep: 0.33 }, fin: { at: 30, keep: 0.3, dev: 20 }, leak: { at: 55, keep: 0.5 } },
+    fail: { cutoff: { at: 42 }, fin: { at: 30, dev: 20 }, leak: { at: 55 } },
   },
   // A good Vanguard does not come down: fly() puts it in orbit. The first stage burns for 145 s.
   vanguard: {
     burn: 145,
     order: ['injector', 'leak', 'separation'],
-    fail: { injector: { at: 2, keep: 0.0008 }, leak: { at: 60, keep: 0.12 }, separation: { at: 145, keep: 0.35 } },
+    fail: { injector: { at: 2 }, leak: { at: 60 }, separation: { at: 145 } },
   },
   // The lunar shots. One that gets away leaves the range plot on its way to the Moon (fly() hands it to launchProbe(), and
   // truth/lunar.js takes over for the cruise and the encounter). An Agena that will not restart is stranded (deep()).
@@ -70,24 +73,24 @@ const PROFILE = {
     burn: 180,
     order: ['leak', 'depletion', 'separation'],
     deep: ['depletion'],
-    fail: { leak: { at: 60, keep: 0.001 }, depletion: { at: 176, keep: 1 }, separation: { at: 180, keep: 0.005 } },
+    fail: { leak: { at: 60 }, depletion: { at: 176 }, separation: { at: 180 } },
   },
   ranger: {
     burn: 300,
     order: ['leak', 'agena', 'camera'],
     deep: ['agena', 'camera'],
-    fail: { leak: { at: 80, keep: 0.0012 }, agena: { at: 600, keep: 1 }, camera: { at: 900, keep: 1 } },
+    fail: { leak: { at: 80 }, agena: { at: 600 }, camera: { at: 900 } },
   },
   bumper: {
     burn: 110,
     order: ['turbopump', 'vanes', 'separation', 'ignition', 'weld', 'leak'],
     fail: {
-      turbopump: { at: 30, keep: 0.04 },
-      vanes: { at: 40, keep: 0.05, dev: 25 },
-      separation: { at: 65, keep: 0.3 },
-      ignition: { at: 65, keep: 0.35 },
-      weld: { at: 75, keep: 0.38 },
-      leak: { at: 85, keep: 0.6 },
+      turbopump: { at: 30 },
+      vanes: { at: 40, dev: 25 },
+      separation: { at: 65 },
+      ignition: { at: 65 },
+      weld: { at: 75 },
+      leak: { at: 85 },
     },
   },
 };
@@ -676,43 +679,21 @@ export function fly(round) {
   if (!failure && vehicle === 'vanguard') return orbit(round, apogee);
   if (profile.deep && failure === 'agena') return deep(round, apogee, failure);
   if (profile.deep && (!failure || profile.deep.includes(failure))) return launchProbe(round, failure);
+  // The flight, a stage at a time (truth/stages.js, data/stacks.js). A good round reaches the physical layer's apogee; a
+  // failure ends all thrust at its moment, in whatever stage is burning then, and no stage above it lights. She flies on
+  // from there by the same physics: an upper stage that never lights leaves her where the stage below threw her. Leaning
+  // by the deviation (degrees off vertical, plus the tower's 3 degrees of tilt downrange).
   const cut = failure ? profile.fail[failure] : null,
     failAt = cut ? cut.at : null;
-  if (cut) {
-    apogee *= cut.keep;
-    deviation += cut.dev || 0;
-  }
-  // A ballistic arc to the apogee: burn for the first part, coast up and fall, tilted by the deviation (degrees off vertical,
-  // plus the tower's 3 degrees of tilt downrange).
-  const g = 0.00981,
-    tilt = ((3 + deviation) * Math.PI) / 180;
+  const lean = deg => ((3 + deg) * Math.PI) / 180;
+  const flown = flySounding(SOUNDING_STACKS[vehicle], {
+    apogee,
+    fitTilt: lean(deviation),
+    tilt: lean(deviation + (cut?.dev || 0)),
+    cutAt: failAt,
+  });
   const burn = failure ? failAt : profile.burn,
-    hBurn = Math.min(apogee * 0.38, burn * apogee * 0.0085);
-  const vUp = Math.sqrt(2 * g * Math.max(0.01, apogee - hBurn)),
-    vDown = vUp * Math.tan(tilt);
-  const path = [];
-  let t = 0,
-    h = 0,
-    x = 0;
-  for (; t <= burn; t++) {
-    const f = t / burn;
-    h = hBurn * f * f;
-    x = hBurn * Math.tan(tilt) * f * f;
-    path.push({ t, x, h });
-  }
-  const t0 = burn,
-    h0 = h,
-    x0 = x;
-  for (t = burn + 1; ; t++) {
-    const dt = t - t0;
-    h = h0 + vUp * dt - 0.5 * g * dt * dt;
-    x = x0 + vDown * dt;
-    if (h <= 0) {
-      path.push({ t, x, h: 0 });
-      break;
-    }
-    path.push({ t, x, h });
-  }
+    path = flown.path;
   const result = {
     apogee: Math.max(...path.map(p => p.h)),
     range: path[path.length - 1].x,

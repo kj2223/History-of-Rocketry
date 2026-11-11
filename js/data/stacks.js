@@ -151,3 +151,70 @@ export const ORBITAL_STACKS = {
     shortburn: 1,
   },
 };
+
+// Sounding rockets and the lunar shots' first minutes off the Cape, as the range plot follows them. Same fields; `coast`
+// is seconds between a stage's burnout and the next one lighting. How high a good round really goes is the physical
+// layer's (truth/physical.js): the stack is scaled so a good round reaches it, losses to the air and all, and a round
+// that loses its thrust early, or whose upper stage never lights, flies on from there by the same physics.
+// fit: where the physical layer's figure is not a ballistic peak (an orbit, an escape), the scale is fitted instead to
+// how high the first `stages` stages alone would throw her straight up.
+export const SOUNDING_STACKS = {
+  // WAC Corporal (1945-47): the Tiny Tim booster kicks her off the tower in 0.6 s; the WAC's own motor, lit on the
+  // tower, burns on to about 45 s.
+  wac: {
+    stages: [
+      { name: 'Tiny Tim booster', burn: 0.6, thrust: 220, prop: 0.07, drop: 0.27 },
+      { name: 'WAC Corporal', burn: 44.4, thrust: 6.7, prop: 0.167, drop: 0 },
+    ],
+    dry: 0.133,
+  },
+  // A captured V-2: one stage, about 65 s.
+  v2: { stages: [{ name: 'V-2', burn: 65, thrust: 270, prop: 8.8, drop: 0 }], dry: 4 },
+  // Aerobee: the solid booster for 2.5 s, the liquid sustainer to about 45 s.
+  aerobee: {
+    stages: [
+      { name: 'Aerobee solid booster', burn: 2.5, thrust: 82, prop: 0.11, drop: 0.18 },
+      { name: 'Aerobee liquid sustainer', burn: 42.5, thrust: 11.6, prop: 0.3, drop: 0 },
+    ],
+    dry: 0.2,
+  },
+  // Viking: one gimballed motor, about 75 s.
+  viking: { stages: [{ name: 'Viking', burn: 75, thrust: 92, prop: 3.3, drop: 0 }], dry: 1.2 },
+  // Bumper (1948-50): the V-2 to about 65 s, then the WAC Corporal on its nose separates and burns for 45 s more.
+  bumper: {
+    stages: [
+      { name: 'V-2', burn: 65, thrust: 270, prop: 8.8, drop: 3.9 },
+      { name: 'WAC Corporal', burn: 45, thrust: 6.7, prop: 0.167, drop: 0 },
+    ],
+    dry: 0.133,
+  },
+  // Vanguard (1957-59): the first stage for about 145 s, then the second stage. A good round goes on to orbit; the range
+  // plot follows only the rounds that come down. A first stage flown alone (TV-2, October 1957) went about 175 km up.
+  vanguard: {
+    stages: [
+      { name: 'Vanguard first stage', burn: 145, thrust: 125, prop: 7.4, drop: 0.8 },
+      { name: 'Vanguard second stage', burn: 120, thrust: 34, prop: 1.6, drop: 0.5 },
+    ],
+    dry: 0.4,
+    fit: { stages: 1, apogee: 175 },
+  },
+  // Juno II (Pioneers 3 and 4): the Jupiter for about 180 s, then the spinning clusters of the upper stages.
+  juno: {
+    stages: [
+      { name: 'Jupiter first stage', burn: 180, thrust: 670, prop: 45, drop: 5.5 },
+      { name: 'Upper-stage clusters', burn: 20, thrust: 50, prop: 0.6, drop: 0 },
+    ],
+    dry: 0.3,
+    fit: { stages: 1, apogee: 600 },
+  },
+  // Atlas-Agena B (Ranger 7): the Atlas to about 300 s, the Agena's first burn into its parking orbit.
+  ranger: {
+    stages: [
+      { name: 'Atlas boosters and sustainer', burn: 130, thrust: 1600, prop: 86, drop: 3 },
+      { name: 'Atlas sustainer', burn: 170, thrust: 360, prop: 24, drop: 3.5 },
+      { name: 'Agena', burn: 150, thrust: 71, prop: 5.8, drop: 0 },
+    ],
+    dry: 1.1,
+    fit: { stages: 2, apogee: 1200 },
+  },
+};
