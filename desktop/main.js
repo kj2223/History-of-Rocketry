@@ -59,6 +59,15 @@ function openWindow() {
   });
   // Keep the version in the title bar (the page's own <title> would replace it), so testers can say which build they played.
   window.on('page-title-updated', event => event.preventDefault());
+  // The game is laid out for a screen about 1200 pixels high. On a bigger one at 100% Windows scaling (a 4K monitor),
+  // zoom the page so the bar, the panels and the loop grow with the window instead of shrinking to a corner. The site
+  // and the rooms are drawn at the screen's full resolution whatever the zoom.
+  const fit = () => {
+    const { height } = window.getContentBounds();
+    window.webContents.setZoomFactor(Math.max(1, Math.min(2.5, height / 1200)));
+  };
+  window.on('resize', fit);
+  window.webContents.on('did-finish-load', fit);
   window.loadURL(START);
 }
 

@@ -281,11 +281,16 @@ function hud() {
   $('notes').textContent = `Notebook (${g.notes.length})`;
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
   $('loop').classList.toggle('in-interior', !!interiorOf(g));
+  // The walking hints are for the site; in launch control and the walk-in rooms they only cover the scene.
+  $('help').hidden = g.room === 'console' || !!interiorOf(g) || !!g.flight;
   $('loop').classList.toggle(
     'in-room',
     g.room === 'console' && !!g.console && !(g.flight && g.flight.view === 'board'),
   ); // on the wall's loop board, clear of the map
-  const loop = g.loop.slice(-4);
+  // On the site, only today's calls: yesterday's (or the last round's) lines from the loop do not hang over a new morning.
+  // In launch control and in flight the loop runs on through the night.
+  const today = g.room === 'console' || g.flight ? g.loop : g.loop.filter(l => l.day == null || l.day === g.day);
+  const loop = today.slice(-4);
   $('loop').innerHTML = loop
     .map(l => `<div class="${l.tone}"><span>${l.at}</span> <b>${l.who}:</b> ${l.text.replace(/[&<>]/g, '')}</div>`)
     .join('');
