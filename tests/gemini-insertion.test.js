@@ -9,8 +9,13 @@ function atCutoff(margin) {
   g.record.seat = 'flight';
   g.round.end = { outcome: 'orbit', margin, v: 7.8, gammaOff: 0, capsule: 'safe' };
   return (g.console = {
-    phase: 'insertion', kind: 'flight', flightId: 'gem-6', round: g.round,
-    goddard: { go: margin >= 0 }, calls: {}, log: [],
+    phase: 'insertion',
+    kind: 'flight',
+    flightId: 'gem-6',
+    round: g.round,
+    goddard: { go: margin >= 0 },
+    calls: {},
+    log: [],
   });
 }
 

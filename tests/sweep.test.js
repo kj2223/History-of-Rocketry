@@ -1,4 +1,4 @@
-// A bot plays the whole campaign, 1945 to Artemis III, on a handful of seeds and both telecall answers: no stall, no
+// A bot plays the whole campaign, 1945 to Artemis IV, on a handful of seeds and both telecall answers: no stall, no
 // astronaut on a crew twice, and no one lost flies again. The seeds are fixed, so a failure here always reproduces.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,8 +11,8 @@ const SEEDS = [107, 113, 116, 124, 131, 142];
 
 for (const seed of SEEDS) {
   const joint = seed % 2 ? 'press' : 'hold';
-  test(`seed ${seed} (${joint} at the telecall) plays 1945 to the season end at Artemis III`, () => {
-    campaignTo(seed, 'artemis-3', { sims: 0, joint });
+  test(`seed ${seed} (${joint} at the telecall) plays 1945 to the season end at Artemis IV`, () => {
+    campaignTo(seed, 'artemis-4', { sims: 0, joint });
     playMission({ sims: 0, joint });
     assert.equal(g.beat, 'seasonEnd');
     const lost = lossDays();

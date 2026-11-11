@@ -33,7 +33,7 @@ test('Apollo 11 has the Apollo team, the Shuttle has the next one, and the hando
   assert.equal(who('reyes'), 'Ferrell');
   assert.equal(g.people.dorsey.name, 'Carl Dorsey', 'some of the Apollo faces stay for the Shuttle');
   assert.ok(g.notes.some(n => /Frank Hollis has retired\. Ray Castellano takes over/.test(n.text)));
-  campaignTo(11, 'artemis-3');
+  campaignTo(11, 'artemis-4');
   assert.equal(g.people.hollis.name, 'David Okafor');
   assert.equal(g.people.morgan.he, false);
 });

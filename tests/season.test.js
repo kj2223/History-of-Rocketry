@@ -46,7 +46,11 @@ test('a season runs through every round on its own dates and ends with your reco
   });
   assert.equal(g.beat, 'seasonEnd');
   assert.equal(g.record.rounds.length, path.length);
-  assert.ok(g.record.rounds.every(r => /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon|radiometer scans|images of Mars/.test(r.flight)));
+  assert.ok(
+    g.record.rounds.every(r =>
+      /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon|radiometer scans|images of Mars/.test(r.flight),
+    ),
+  );
 });
 
 test("the review's conclusion becomes a fix that changes how later rounds are built, even if it is the wrong one", () => {

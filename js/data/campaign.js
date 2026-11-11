@@ -248,7 +248,8 @@ export const SEASON = [
     name: 'Apollo 12, the pinpoint landing',
   }, // 14 November 1969
   // The third landing. The flight itself is the hidden layer's, like every round: whether oxygen tank two fails on the
-  // way out is decided when the round is made, never scripted (C3).
+  // way out is decided when the round is made, never scripted (C3). The tank that would not empty in the countdown test
+  // and was boiled dry with its heaters is a condition, like 51-L's cold: likelier, never certain.
   {
     id: 'apollo-13',
     vehicle: 'saturn5',
@@ -256,9 +257,10 @@ export const SEASON = [
     crewed: 'apollo',
     orbital: true,
     crew: ['kowalczyk', 'harlan', 'reiss'],
+    risk: { tankRisk: 0.5 },
     path: 'nasa',
     start: dayOf(1970, 4, 9),
-    name: 'Apollo 13, the third landing',
+    name: 'Apollo 13, Fra Mauro',
   }, // launched 11 April 1970
   {
     id: 'apollo-15',
@@ -430,7 +432,8 @@ export const SEASON = [
     name: 'Demo-2, the first commercial crew',
   }, // launched 30 May 2020
   // Artemis (A11): Apollo's granddaughter. One round the Moon with nobody aboard, then a crew of four on the free return,
-  // then the return to the Moon at the south pole. The campaign ends here, in 2030.
+  // then the lander tried out in Earth orbit, then the return to the Moon at the south pole. The campaign ends there, in
+  // 2028.
   {
     id: 'artemis-1',
     vehicle: 'sls',
@@ -454,8 +457,20 @@ export const SEASON = [
     start: dayOf(2026, 3, 30),
     name: 'Artemis II, a crew of four round the Moon',
   }, // launched 1 April 2026, splashed down 10 April
+  // NASA's plan since 2026: Artemis III meets the commercial lander in Earth orbit, and Artemis IV lands.
   {
     id: 'artemis-3',
+    vehicle: 'sls',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['sharma', 'vaughn', 'larsen', 'petrossian'],
+    path: 'nasa',
+    start: dayOf(2027, 8, 10),
+    name: 'Artemis III, the lander tried out in Earth orbit',
+  }, // the game's own date: NASA aims for 2027
+  {
+    id: 'artemis-4',
     vehicle: 'sls',
     site: 'cape',
     crewed: 'apollo',
@@ -464,8 +479,8 @@ export const SEASON = [
     risk: { spsRisk: 0.4 },
     path: 'nasa',
     start: dayOf(2028, 9, 8),
-    name: 'Artemis III, the return to the Moon, the south pole',
-  }, // the game's own date: NASA's plans for the first landing have moved since
+    name: 'Artemis IV, the return to the Moon, the south pole',
+  }, // the game's own date: NASA aims for 2028
   {
     id: 'ranger-7',
     vehicle: 'ranger',
@@ -485,7 +500,8 @@ export const SEASON = [
     probe: {
       encounter: dayOf(1962, 12, 14),
       tracking: 'The Atlas–Agena has sent Mariner 2 toward Venus. The deep-space stations report a usable signal.',
-      evidence: 'Tracking puts Mariner 2 on course for Venus. Telemetry shows the automatic encounter sequencer faltering. The infrared and microwave radiometers need the encounter sequence to start during the flyby.',
+      evidence:
+        'Tracking puts Mariner 2 on course for Venus. Telemetry shows the automatic encounter sequencer faltering. The infrared and microwave radiometers need the encounter sequence to start during the flyby.',
       action: 'Send the backup encounter command',
       alternate: 'Wait for the automatic sequencer',
       received: 'The radiometer scans came through. JPL has infrared and microwave observations of Venus.',
@@ -503,10 +519,12 @@ export const SEASON = [
       encounter: dayOf(1965, 7, 14), // Pasadena local date; 15 July UTC
       playback: dayOf(1965, 7, 15),
       tracking: 'The Atlas–Agena has sent Mariner 4 toward Mars. The deep-space stations report a usable signal.',
-      evidence: 'Tracking puts Mariner 4 on course for Mars. The camera will run automatically once you command encounter mode. It records to tape. The signal will drop as the spacecraft passes behind Mars.',
+      evidence:
+        'Tracking puts Mariner 4 on course for Mars. The camera will run automatically once you command encounter mode. It records to tape. The signal will drop as the spacecraft passes behind Mars.',
       action: 'Command planetary encounter mode',
       alternate: 'Keep the spacecraft in cruise mode',
-      recorded: 'Contact is back after occultation. The recorder reports a completed camera sequence. Playback starts on the next tracking day.',
+      recorded:
+        'Contact is back after occultation. The recorder reports a completed camera sequence. Playback starts on the next tracking day.',
       received: 'Playback is underway. The first images of Mars are coming down from the recorder.',
       missed: 'The flyby is over. JPL has tracking but no images because encounter mode was never enabled.',
     },
@@ -519,8 +537,8 @@ export const LAST_WORD = {
     "Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.",
   'mariner-4':
     "Mariner 4's twenty-one pictures showed a cratered Mars, more like the Moon than anyone had hoped, and its radio signal, passing through the planet's air, showed that air to be thinner than the thinnest guess. Mariners 6 and 7 flew past in 1969, and Mariner 9 went into orbit in 1971. That is as far as the uncrewed years go in this build.",
-  'artemis-3':
-    'Artemis III came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole grows through 2029 and 2030, and the flights keep coming. This is where the build ends.',
+  'artemis-4':
+    'Artemis IV came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole is planned for the years after, and the flights keep coming. This is where the build ends.',
 };
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
 export const SITES = {
@@ -644,7 +662,10 @@ export const BETWEEN = {
     'Orion flew round the Moon with nobody aboard and came home at eleven kilometres a second, inside her corridor. The four of them have trained together for two years.',
   ],
   'artemis-3': [
-    'The lander is up, checked out in lunar orbit by the last flight. The south pole is where the ice is, and where nobody has ever stood.',
+    'Artemis II came home. The next step is a lander, and NASA is buying it from companies. Before anyone trusts one at the Moon, a crew meets it in Earth orbit, docks, and climbs in.',
+  ],
+  'artemis-4': [
+    'The lander is up, waiting in lunar orbit. The south pole is where the ice is, and where nobody has ever stood.',
   ],
   'vanguard-tv0': [
     'Vikings 10, 11 and 12 flew from White Sands without you. Viking 11, in May 1954, reached 254 km, the highest any single-stage rocket had gone.',
@@ -748,9 +769,12 @@ export const BETWEEN = {
     'Apollo 11 came home in July. The landing has been done: the next ones are for the science, and for landing where you mean to.',
     'Apollo 12 is to land beside Surveyor 3, a robot lander that came down in the Ocean of Storms in April 1967, and bring pieces of it home.',
   ],
+  'apollo-13': [
+    'Apollo 12 came home with pieces of Surveyor 3. Apollo 13 goes to Fra Mauro, the first landing in the hills instead of on the mare plains.',
+    'In the countdown test in March, oxygen tank two in the service module would not empty the normal way. The pad crew boiled it dry overnight with its own heaters, and it was passed for flight.',
+  ],
   'apollo-15': [
-    "Apollo 13, in April 1970: an oxygen tank in the service module failed on the way out, and the crew came home round the Moon in the lander, cold and short of water. The tank's heater switches had been welded shut when it was boiled dry on the pad.",
-    'Apollo 14, in February 1971, landed at Fra Mauro, where Apollo 13 had been going.',
+    'Apollo 14, in February 1971, landed at Fra Mauro.',
     'Apollo 15 is the first of the long expeditions: three days on the Moon, a lander stretched to carry more, and an electric car folded on its side. Apollo 18, 19 and 20 have already been cancelled.',
   ],
   'ranger-7': [

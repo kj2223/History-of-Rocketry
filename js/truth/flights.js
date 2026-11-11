@@ -222,7 +222,11 @@ const RESOLVE = {
     out.capability = 'rendezvous';
     out.set.rendezvousComplete = true;
     if (choice === 'ground' && state.groundFix === 'provisional') {
-      out.lines.push(['morgan', 'FIDO: the provisional fix got them there. They needed an extra trim before closing.', 'warn']);
+      out.lines.push([
+        'morgan',
+        'FIDO: the provisional fix got them there. They needed an extra trim before closing.',
+        'warn',
+      ]);
       out.verdict = 'fair';
       out.judge = 'The intercept worked, but the provisional ground fix cost an extra correction.';
       return out;
@@ -430,6 +434,137 @@ const RESOLVE = {
           : 'A trim burn into the middle of the corridor.';
     return out;
   },
+  // Artemis III: whether the lander's sensor dropouts are a real fault is a draw, never shown. Resetting always works and
+  // costs an orbit; the automatics or the commander can make it or not.
+  landerdock(choice, { d, out }) {
+    const real = d[4] < 0.35;
+    if (choice === 'reset') {
+      out.lines.push([
+        'pilot',
+        "Backing off. … Houston, the sensors are steady after the reset. Closing again. Contact, and capture. We're docked.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge = real
+        ? 'The sensors had a real fault, and an orbit for the reset fixed it. That was the call.'
+        : 'The sensors were fine. The reset cost an orbit, and nobody minds an orbit.';
+      return out;
+    }
+    if (!real) {
+      out.lines.push(['pilot', 'Contact, and capture. Houston, we are docked.', 'go']);
+      out.verdict = 'good';
+      out.judge = 'The dropouts were noise. The docking was clean.';
+      return out;
+    }
+    if (choice === 'manual' && d[5] < 0.7) {
+      out.lines.push(['pilot', 'I have her. Ten metres… three… contact. Capture. Houston, I flew her in.', 'go']);
+      out.verdict = 'fair';
+      out.judge = 'The sensors had a real fault, and the commander flew it in by hand. It worked, and it was close.';
+      return out;
+    }
+    out.set.noDock = true;
+    out.set.short = true;
+    out.hurt = 0.1;
+    out.lines.push(['pilot', 'Houston, we hit her off-centre and bounced. Backing away. No capture.', 'bad']);
+    out.verdict = 'bad';
+    out.judge =
+      'The sensors had a real fault, and we flew into it. No docking, and the lander goes to the Moon untested with a crew.';
+    out.note = 'Orion struck the lander off-centre and backed away. The docking and the crewed checkout were lost.';
+    return out;
+  },
+  // Artemis: the upper stage only raises the orbit; Orion's own engine makes the injection a day later. A short orbit
+  // raise (the restart bottle) is Orion's to make up, and the same draw decides whether she has the margin.
+  tlio(choice, ctx) {
+    const out = RESOLVE.tli(choice, ctx),
+      orion = text =>
+        text
+          .replace(
+            "Flight, Booster: no ignition on the S-IVB. She's staying in Earth orbit.",
+            "Flight, EECOM: the orbit raise came up too short for Orion to make up. She's staying in Earth orbit.",
+          )
+          .replace(
+            "Flight, Booster: good burn. Cutoff. She's on her way to the Moon.",
+            "Flight, EECOM: Orion's engine, good burn. Cutoff. She's on her way to the Moon.",
+          );
+    out.lines = out.lines.map(([who, text, tone]) => [who === 'albrecht' ? 'kessler' : who, orion(text), tone]);
+    out.judge = out.judge
+      .replace(
+        'The restart bottle was leaking. She might not have lit.',
+        "The upper stage's burn came up short. Orion might not have had the margin.",
+      )
+      .replace('The third stage was good.', 'The spacecraft was good.')
+      .replace(
+        'The third stage would not relight. We tried, and nobody was hurt by trying.',
+        "Orion couldn't make up the short orbit raise. We tried, and nobody was hurt by trying.",
+      )
+      .replace(
+        'The third stage relit on a low bottle. It worked, and it was close.',
+        'Orion made up the short orbit raise. It worked, and it was close.',
+      );
+    return out;
+  },
+  // Apollo 13's lifeboat, two hours past the Moon: how fast to come home on the lander's descent engine.
+  pc2(choice, { d, out }) {
+    if (choice === 'pacific') {
+      out.lines.push(['pilot', "Burn complete. Houston, we're on our way to the Pacific.", 'go']);
+      out.lines.push([
+        'kessler',
+        "Flight, EECOM: at this load the lander's power lasts past entry, with hours to spare.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge = 'A burn for the Pacific, where the ships were, and power to spare. That was the call.';
+      out.note =
+        "The descent engine burned for four and a half minutes two hours past the Moon. Entry moved to about 142 hours, in the Pacific, inside the lander's batteries.";
+      return out;
+    }
+    if (choice === 'fast') {
+      out.endAt = 133;
+      out.hurt = 0.2;
+      out.lines.push(['pilot', "Service module's gone. Burn complete. We're coming in fast, Houston.", 'warn']);
+      out.verdict = 'fair';
+      out.judge =
+        'The fastest way home, into an ocean with no ships, and the heat shield left out in the cold for three days. It saved hours we did not need.';
+      out.note =
+        'The crew dropped the service module and burned for the fastest return, into the Indian Ocean. The heat shield spent the trip home bare to space, and nobody knew what that did to it.';
+      return out;
+    }
+    out.set.powerShort = true;
+    out.hurt = 0.4;
+    if (d[6] < 0.2) out.set.lost = true;
+    out.lines.push(['tate', 'Flight, Retro: no burn. Entry stays at about 152 hours, Indian Ocean.', 'warn']);
+    out.verdict = 'bad';
+    out.judge =
+      "The lander's batteries ran out before the free return got them home. We had the engine, and we kept it.";
+    out.note =
+      "No burn after the Moon. The free return brought them in at about 152 hours, past what the lander's batteries could give at her lowest load.";
+    return out;
+  },
+  co2(choice, { d, out }) {
+    if (choice === 'build') {
+      out.lines.push([
+        'crew2',
+        "Houston, the box is built, and it's on the hose. Bag, cardboard and tape. The gauge is coming down.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge = 'We read up the adapter before the gauge forced us to, and the air came back.';
+      out.note =
+        "The ground read up an adapter for the command module's canisters: hose, cardboard, a plastic bag and tape. The carbon dioxide came down within the hour.";
+      return out;
+    }
+    out.hurt = d[7] < 0.15 ? 0.35 : 0.15;
+    out.lines.push([
+      'kessler',
+      "Flight, EECOM: CO2 is through fifteen millimetres. They're getting headaches. We're reading the adapter up now.",
+      'bad',
+    ]);
+    out.verdict = 'fair';
+    out.judge = 'We waited on the gauge, and the crew paid for it in headaches before we built the adapter anyway.';
+    out.note =
+      'The carbon dioxide reached fifteen millimetres before the ground read up the adapter. The crew had headaches and slowed down.';
+    return out;
+  },
   tank(choice, { d, out }) {
     out.set.home = true;
     out.set.short = true;
@@ -453,6 +588,7 @@ const RESOLVE = {
       out.judge = 'The direct abort worked. Nobody knew whether the service engine would, and we bet on it.';
       return out;
     }
+    out.set.lifeboat = true;
     out.lines.push([
       'pilot',
       "Powering down the command module. We're moving into the lander. It's going to be cold.",
@@ -729,7 +865,7 @@ const RESOLVE = {
         found:
           'At Shorty crater the crew found orange soil underfoot: volcanic glass from a fire fountain three and a half billion years old.',
       },
-      'artemis-3': {
+      'artemis-4': {
         rock: 'Twenty minutes. And here in the shadow line at the crater wall, Houston: the drill came up with ice in its first metre. Water, where the Sun has never reached.',
         broke:
           'The drill sled broke down out at the crater wall. The crew walked back three kilometres over the rim country and reached the lander with their suits almost empty.',
