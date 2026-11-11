@@ -2267,6 +2267,65 @@ export const FLIGHTS = {
     ],
   },
 
+  // Discovery, STS-31, April 1990: the telescope goes up, and one of her solar arrays stops unrolling.
+  'sts-31': {
+    program: 'shuttle',
+    craft: 'Discovery, STS-31',
+    entry: 'orbit',
+    completes: null,
+    phases: 3,
+    objective: 'carry the space telescope up, open her out on the arm, and let her go working',
+    rules: [
+      'No spacewalk without a partner at the airlock and a ready path home.',
+      'The telescope is released only with both solar arrays out and making power.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      ...STS,
+      {
+        at: 18,
+        phase: 'The deploy',
+        where: [0.02, 'Earth orbit, 600 km'],
+        say: [
+          [
+            'crew2',
+            'Houston, the telescope is out of the bay on the arm. First solar array is unrolling. Pretty as a picture.',
+            'go',
+          ],
+        ],
+        show: { TELESCOPE: ['on the arm'], 'ARRAY 1': ['out'] },
+      },
+      {
+        at: 19,
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: the second array has stopped part way. The tension monitor tripped and shut the motor off. Two spacewalkers are suiting up in the airlock as a precaution.',
+            'warn',
+          ],
+        ],
+        show: { 'ARRAY 2': ['stalled part way', true] },
+      },
+      {
+        at: 19.1,
+        if: 'arrayBind',
+        say: [['kessler', 'Flight, EECOM: the motor current spiked hard just before it stopped.', 'warn']],
+        show: { 'ARRAY 2': ['stalled, current spike', true] },
+      },
+      { at: 19.2, decide: 'hubbledeploy' },
+      {
+        at: 22,
+        say: [['pilot', 'Houston, the telescope is released. She is flying on her own.', 'go']],
+        show: { TELESCOPE: ['released'] },
+      },
+      {
+        at: 40,
+        offShift:
+          'The crew is watching the telescope from a distance in case she needs them. She does not. Nothing for your team.',
+      },
+      { at: 118, retro: true },
+    ],
+  },
   // STS-61, December 1993: the repair flight, four spacewalks to fix the telescope's eyesight.
   'sts-61': {
     program: 'shuttle',
@@ -3226,6 +3285,16 @@ export const DECISIONS = {
     options: {
       certify: 'Certify her for the Moon.',
       retest: 'Not yet. Find and fix anything open, then test again.',
+    },
+  },
+  hubbledeploy: {
+    q: 'The second solar array has stalled part way out. Have the ground command it on with the tension monitor overridden, send the spacewalkers out to crank it by hand, or release the telescope as she is?',
+    auto: 'override',
+    rule: 1,
+    options: {
+      override: 'Override the tension monitor from the ground and drive the array out.',
+      eva: 'Send the spacewalkers out to crank it by hand.',
+      release: 'Release her as she is. The telescope teams can work the array from the ground later.',
     },
   },
   hubblefix: {

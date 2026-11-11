@@ -48,7 +48,7 @@ test('a season runs through every round on its own dates and ends with your reco
   assert.equal(g.record.rounds.length, path.length);
   assert.ok(
     g.record.rounds.every(r =>
-      /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon|radiometer scans|images of Mars|landed|Neptune|Pluto|Titan/.test(
+      /Radar peak|Lost|In orbit|Passed the Moon|Hit the Moon|radiometer scans|images of Mars|landed|mapped|Europa|Neptune|Pluto|Titan/.test(
         r.flight,
       ),
     ),
