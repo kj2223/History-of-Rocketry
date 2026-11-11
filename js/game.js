@@ -639,6 +639,8 @@ export function clearNotes() {
   }
   return before - g.notes.length;
 }
+// How far apart two carriers walk: a hand at each end of the round.
+const CARRY_GAP = 40;
 const arrived = ids => ids.every(id => Math.abs(g.people[id].x - g.people[id].target) < 1);
 export const roomChanged = () => {
   g.roomVersion++;
@@ -1848,9 +1850,14 @@ export function tick(dt) {
       g.clock,
       Math.min(g.day * 1440 + EVENING, g.clock + (realTime ? dt / 60 : MINUTES_PER_SECOND * k * dt)),
     );
+  // Two men carrying a round keep to its length: the one ahead waits for the other rather than walk off with it.
+  const carriers = g.rocket.where === 'carried' ? [g.people.kowalski, g.people.delgado] : null;
   for (const p of Object.values(g.people)) {
     const d = p.target - p.x,
       step = WALK * k * dt;
+    const mate = carriers?.includes(p) && carriers.find(c => c !== p);
+    if (mate && Math.abs(p.x + Math.sign(d) * step - mate.x) > CARRY_GAP && Math.sign(d) === Math.sign(p.x - mate.x))
+      continue;
     if (Math.abs(d) > 0.5) {
       p.face = Math.sign(d);
       p.x += Math.sign(d) * Math.min(Math.abs(d), step);
