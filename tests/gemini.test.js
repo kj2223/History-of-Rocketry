@@ -415,8 +415,9 @@ test("as flight director you fly Apollo 6, and the programme's call is Hollis's"
 
 test("Apollo 1's fire is the hidden layer's, not a script: some games have it and some do not, and it brings the cabin fix", async () => {
   const { apolloFire } = await import('../js/world/race.js');
-  const fires = Array.from({ length: 30 }, (_, i) => apolloFire(i + 1, initProgramme())).filter(Boolean).length;
-  assert.ok(fires > 5 && fires < 25, `${fires}`);
+  // About one game in five (Aaron, 11 November 2026: not a given).
+  const fires = Array.from({ length: 400 }, (_, i) => apolloFire(i + 1, initProgramme())).filter(Boolean).length;
+  assert.ok(fires > 50 && fires < 120, `${fires}`);
   assert.equal(apolloFire(3, { ...initProgramme(), cabinRisk: 0 }), false);
 });
 
