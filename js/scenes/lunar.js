@@ -41,7 +41,7 @@ export const LUNAR_ROOMS = {
     return `<h2>The technical office: JPL's tracking</h2>
       <p>The teletype from JPL chatters in the corner. Morgan reads off each report and moves a pin on the plot: where she is, and which station has her.
       ${ranger ? 'Early on there is one decision to make: when to fire the midcourse motor.' : 'Pioneer has no motor of her own. All anyone can do now is watch.'}</p>
-      <p><strong data-live="lhour">Hour 0</strong> of about ${fmt(L.total)} · <span data-live="lstation"></span> · <span data-live="ldist"></span></p>
+      <p><strong data-live="lhour">Hour 0</strong> of about ${fmt(L.arrive ?? L.total)} · <span data-live="lstation"></span> · <span data-live="ldist"></span></p>
       <canvas width="400" height="170" data-lunar="map"></canvas>
       ${poll}${logHTML(L)}`;
   },

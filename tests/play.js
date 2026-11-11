@@ -72,14 +72,14 @@ export function playRound(
   nextDay();
   until(() => g.beat === 'countReady');
   countStart();
-  const flown = () => g.beat === 'recovery' || g.beat === 'lLaunched' || (g.count && g.count.poll);
+  const flown = () => g.beat === 'recovery' || g.beat === 'lCruise' || (g.count && g.count.poll);
   until(flown);
   if (stopAt === 'poll') return;
   while (g.count && g.count.poll) {
     countAnswer(true);
     until(flown);
   }
-  if (g.beat === 'lLaunched') followProbe(lunar);
+  if (g.beat === 'lCruise') followProbe(lunar);
   rideOut();
   until(() => g.room === 'recovery');
   returnFromRecovery();
@@ -90,7 +90,6 @@ export function playRound(
 // A lunar shot after the Cape: follow her out from the technical office, make the midcourse and camera calls, and on to
 // the tracking reports.
 export function followProbe({ midcourse = 'wait', lead = 17 } = {}) {
-  nextDay();
   assert.equal(g.beat, 'lCruise');
   g.room = 'cruise';
   until(() => g.beat !== 'lCruise' || g.lunar.poll);
@@ -99,10 +98,8 @@ export function followProbe({ midcourse = 'wait', lead = 17 } = {}) {
     until(() => g.beat !== 'lCruise');
   }
   if (g.beat === 'recovery') return;
-  assert.equal(g.beat, 'lCruised');
-  nextDay();
   assert.equal(g.beat, 'lEncounter');
-  g.room = 'encounter';
+  assert.equal(g.room, 'encounter');
   if (g.lunar.poll === 'lead') lunarLead(lead);
   until(() => g.beat === 'recovery');
 }
