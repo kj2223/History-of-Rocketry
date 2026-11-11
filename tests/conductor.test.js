@@ -124,7 +124,7 @@ test('turning the offer down keeps you a junior engineer on the Aerobee rounds, 
   }
   assert.equal(g.record.seat, 'junior');
   assert.equal(conducting(), false);
-  // Turning everything down keeps you with JPL through the Mars flyby.
+  // Turning everything down keeps you with JPL to Perseverance.
   for (let i = 7; i < 60 && g.beat !== 'seasonEnd'; i++) {
     playRound(() => 'nominal');
     if (g.beat !== 'seasonEnd') advance(false);
@@ -135,7 +135,7 @@ test('turning the offer down keeps you a junior engineer on the Aerobee rounds, 
     2,
     'a second turning point after the Aerobee rounds',
   );
-  assert.equal(g.record.rounds.at(-1).id, 'mariner-4');
+  assert.equal(g.record.rounds.at(-1).id, 'perseverance');
   checkCheckpoint(JSON.parse(JSON.stringify(checkpoint())));
 });
 

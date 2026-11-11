@@ -57,6 +57,14 @@ export function playRound(
   lunar = { midcourse: 'wait', lead: 17 },
 ) {
   closeAway();
+  // A probe round is worked from the technical office only: take the first call each day until it is written up.
+  if (g.beat.startsWith('probe')) {
+    while (g.beat.startsWith('probe')) {
+      advanceProbe(true);
+      closeAway();
+    }
+    return;
+  }
   if (conducting()) {
     finishPlan(plan);
     if (g.plan.inspector !== 'you') until(() => g.beat === 'board');

@@ -4,6 +4,7 @@
 // The story runs in beats; each beat says what the player is asked to do and where the others go.
 import { PLACES, WORLD_W } from './data/white-sands.js';
 import { dayOf, dateOf, dateLabel, weekday } from './core/calendar.js';
+import { draw } from './core/rng.js';
 import {
   flyLoose,
   newRound,
@@ -403,6 +404,8 @@ function setVehicle() {
     'saturn5',
   ].includes(g.vehicle);
   g.site = SEASON[g.roundIndex].site || 'white-sands';
+  // A probe round starts after the launch team has handed the spacecraft over: her rocket is long gone from the site.
+  if (SEASON[g.roundIndex].probe && g.rocket) g.rocket.where = 'gone';
   // A Mercury round: Mercury Control's people are on site, Ellis is back at JPL, and the others have Mercury jobs.
   g.crewed = !!SEASON[g.roundIndex].crewed;
   for (const id of Object.keys(MERCURY_PEOPLE)) g.people[id].hidden = !g.crewed;
@@ -670,7 +673,10 @@ const BEATS = {
     g.objective = 'The launch team has handed off the spacecraft. Go to the technical office for the tracking report.';
   },
   probeEncounter() {
-    g.objective = 'It is encounter day. Go to the technical office to review tracking and make the science call.';
+    const step = probeStep();
+    g.objective = step
+      ? `${step.title}. Go to the technical office for the tracking report and make the call.`
+      : 'It is encounter day. Go to the technical office to review tracking and make the science call.';
   },
   probePlayback() {
     g.objective = 'Go to the technical office to confirm the first images are coming down.';
@@ -877,10 +883,76 @@ export function roomFor(id) {
   return 'watch';
 }
 
+// A robotic mission written as a run of decision days (probe.steps): each step has its day, what the tracking reports
+// told on the way there (report), the evidence on the day and the calls you can make (choices). A step can wait on a
+// flag an earlier call set (when) or be skipped by one (unless). A call can carry a risk: the hidden layer draws on the
+// round's own seeded stream, so the same seed and the same calls always end the same way. What is decided is kept on
+// the round (g.round.probe), which the checkpoint saves.
+const probeState = () => (g.round.probe ??= { flags: [], results: [] });
+const stepApplies = (step, flags) =>
+  (!step.when || flags.includes(step.when)) && (!step.unless || !flags.includes(step.unless));
+// The step after index `after` that applies, given the flags set so far.
+function nextProbeStep(probe, after = -1) {
+  const flags = probeState().flags;
+  for (let i = after + 1; i < probe.steps.length; i++) if (stepApplies(probe.steps[i], flags)) return i;
+  return -1;
+}
+// The step being worked today, or null.
+export function probeStep() {
+  const probe = SEASON[g.roundIndex].probe;
+  if (!probe?.steps || g.beat !== 'probeEncounter') return null;
+  const flags = probeState().flags;
+  return probe.steps.find(s => s.day === g.day && stepApplies(s, flags)) || null;
+}
+// The tracking report on the way to the next day goes in the notebook (the call just made is already there).
+function jumpToProbeDay(day, lines, beat, report) {
+  if (report) note(report);
+  g.away = { from: dateText(g.day), to: dateText(day), lines };
+  g.day = day;
+  g.clock = day * 1440 + START_MINUTE;
+  g.room = 'away';
+  morning(beat);
+}
+function advanceSteps(round, command) {
+  const probe = round.probe,
+    st = probeState();
+  if (g.beat === 'probeHandover') {
+    const i = nextProbeStep(probe);
+    const first = probe.steps[i];
+    return jumpToProbeDay(first.day, [probe.tracking, first.report].filter(Boolean), 'probeEncounter', first.report);
+  }
+  const step = probeStep();
+  if (!step) return;
+  const at = probe.steps.indexOf(step);
+  const pick = typeof command === 'number' ? command : command ? 0 : 1;
+  const choice = step.choices[Math.max(0, Math.min(step.choices.length - 1, pick))];
+  const lost = choice.risk > 0 && draw(g.round.rng.physical) < choice.risk;
+  const said = lost ? choice.lost : choice.result || choice.note;
+  if (said) note(said);
+  if (lost) st.results.push(choice.lost);
+  else if (choice.result) st.results.push(choice.result);
+  for (const f of [].concat((lost ? choice.setLost : choice.set) || [])) if (!st.flags.includes(f)) st.flags.push(f);
+  const next = choice.end ? -1 : nextProbeStep(probe, at);
+  if (next >= 0) {
+    const ahead = probe.steps[next];
+    return jumpToProbeDay(ahead.day, [said, ahead.report].filter(Boolean), 'probeEncounter', ahead.report);
+  }
+  // The round closes today. Losses lead the record, so the season-end page counts the round as one that went wrong.
+  const flight = [...st.results.filter(r => /^Lost/.test(r)), ...st.results.filter(r => !/^Lost/.test(r))].join(' ');
+  addRound(g.record, { id: round.id, vehicle: round.vehicle, name: round.name, day: g.day, flight });
+  g.room = null;
+  morning(nextIndex() == null ? 'seasonEnd' : 'roundEnd');
+}
+
+// command: true for the first call on the day, false for the other, or the index of the call (probe.steps rounds).
 export function advanceProbe(command = false) {
   const round = SEASON[g.roundIndex],
     probe = round.probe;
   if (!probe) return;
+  if (probe.steps) {
+    if (g.beat === 'probeHandover' || g.beat === 'probeEncounter') advanceSteps(round, command);
+    return;
+  }
   const handover = g.beat === 'probeHandover';
   const encounter = g.beat === 'probeEncounter';
   if (!handover && !encounter && g.beat !== 'probePlayback') return;

@@ -2,8 +2,8 @@
 // astronaut on a crew twice, and no one lost flies again. The seeds are fixed, so a failure here always reproduces.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { campaignTo, playMission } from './play.js';
-import { g, crewOf, lossDays } from '../js/game.js';
+import { campaignTo, playMission, playRound, advance } from './play.js';
+import { g, crewOf, lossDays, newGame, checkpoint, checkCheckpoint } from '../js/game.js';
 import '../js/mercury.js';
 import { SEASON } from '../js/data/campaign.js';
 
@@ -32,3 +32,23 @@ for (const seed of SEEDS) {
     }
   });
 }
+
+// The same bot on the JPL route: every offer turned down, through the robotic missions to Perseverance.
+for (const seed of SEEDS)
+  test(`seed ${seed} plays the JPL route, 1945 to the season end at Perseverance`, () => {
+    newGame(seed);
+    for (let guard = 0; guard < 80 && g.beat !== 'seasonEnd'; guard++) {
+      playRound(() => 'nominal');
+      if (g.beat !== 'seasonEnd') advance(false);
+    }
+    assert.equal(g.beat, 'seasonEnd');
+    assert.notEqual(g.record.path, 'nasa');
+    assert.equal(g.record.rounds.at(-1).id, 'perseverance');
+    const ids = g.record.rounds.map(r => r.id);
+    assert.equal(new Set(ids).size, ids.length, 'no round twice');
+    assert.ok(
+      g.record.rounds.every((r, i) => i === 0 || r.day >= g.record.rounds[i - 1].day),
+      'the record runs forward',
+    );
+    checkCheckpoint(JSON.parse(JSON.stringify(checkpoint())));
+  });

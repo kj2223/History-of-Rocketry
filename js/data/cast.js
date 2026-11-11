@@ -5,6 +5,12 @@
 // Handovers are staggered, as they were in the real rooms: a few faces from Apollo are still there for the Shuttle.
 
 export const SUCCESSIONS = {
+  // The chief engineer at JPL, your boss on the uncrewed route.
+  ellis: [
+    { from: 1975, name: 'Martin Feld', color: '#566a7c', he: true },
+    { from: 1996, name: 'Linda Sato', color: '#5e5a7a', he: false },
+    { from: 2018, name: 'Nadia Kerr', color: '#4f6470', he: false },
+  ],
   // Director of flight operations, from Gemini on (in Mercury, the flight director).
   hollis: [
     { from: 1981, name: 'Ray Castellano', color: '#45506a', he: true },

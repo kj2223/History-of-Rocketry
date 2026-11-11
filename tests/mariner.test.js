@@ -47,6 +47,6 @@ test('a Mariner 4 flyby left in cruise mode records tracking without images', ()
   const round = SEASON[at('mariner-4')];
   newGame(14, { ...checkpoint(), roundId: round.id, day: round.probe.encounter, beat: 'probeEncounter' });
   advanceProbe(false);
-  assert.equal(game.g.beat, 'seasonEnd');
+  assert.equal(game.g.beat, 'roundEnd');
   assert.match(game.g.record.rounds.at(-1).flight, /tracking but no images/);
 });
