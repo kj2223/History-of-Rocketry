@@ -60,3 +60,16 @@ test('a lot belongs to one vehicle: a V-2 round does not inherit a WAC lot', () 
   recordFlight(p, { vehicle: 'v2', load: 1, apogee: 160 });
   assert.deepEqual(p.batch, {});
 });
+
+test('a flight keeps a thinned track for the range plot, and the plot shows the last few of that vehicle', async () => {
+  const { earlierTracks } = await import('../js/world/programme.js');
+  const p = initProgramme();
+  const path = [...Array(300).keys()].map(t => ({ t, x: t * 0.1, h: Math.sin(t / 95) * 70 }));
+  for (let i = 0; i < 5; i++) recordFlight(p, { vehicle: 'wac', load: 1, apogee: 70, path, failAt: null });
+  recordFlight(p, { vehicle: 'v2', load: 1, apogee: 160, path });
+  recordFlight(p, { vehicle: 'wac', load: 1, apogee: 70 }); // no track (an orbit or a deep shot)
+  const t = earlierTracks(p, 'wac');
+  assert.equal(t.length, 3);
+  assert.ok(t[0].trace.length <= 61 && t[0].trace.length >= 50);
+  assert.deepEqual(t[0].trace.at(-1), [29.9, Math.round(Math.sin(299 / 95) * 700) / 10]);
+});

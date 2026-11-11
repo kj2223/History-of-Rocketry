@@ -6,6 +6,7 @@
 import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
+import { earlierTracks } from '../world/programme.js';
 import { WORLD_LAND } from '../data/world-map.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS } from '../data/mercury.js';
@@ -1900,7 +1901,8 @@ function consolePanelModel(c) {
     P.lines.push(`Plan: ${shift.plan === 'checkout' ? 'Orbital checkout' : 'Rendezvous'}`);
     if (shift.remaining != null) P.lines.push(`Return window: ${Math.ceil(shift.remaining)} min`);
     if (shift.pending) P.lines.push(`${shift.pending.desk === 'booster' ? 'Booster' : 'Network'} report pending`);
-    else if (shift.reports.network || shift.reports.booster) P.lines.push(shift.reports.network || shift.reports.booster);
+    else if (shift.reports.network || shift.reports.booster)
+      P.lines.push(shift.reports.network || shift.reports.booster);
   }
   if (c.poll || c.phase === 'poll') {
     // a pending poll outranks the count: it is the call the room is waiting on
@@ -2028,7 +2030,9 @@ function consolePanelModel(c) {
     P.state = 'YOUR CALL';
     P.lines.push(d.q);
     if (d.remaining != null)
-      P.lines.push(`Intercept window: ${Math.ceil(d.remaining)} min.${d.fixIn != null ? ' New ground fix pending.' : ''}`);
+      P.lines.push(
+        `Intercept window: ${Math.ceil(d.remaining)} min.${d.fixIn != null ? ' New ground fix pending.' : ''}`,
+      );
     if (d.rule) P.lines.push('Rule: ' + d.rule);
     for (const [id, text] of Object.entries(d.options)) btn('m-decide', id, text);
     return P;
@@ -3078,13 +3082,17 @@ export function drawTracking(ctx, g, view) {
   }
   // The plot's scale grows with the round: a WAC peaks near 70 km, a V-2 over 150, a Bumper several hundred.
   const deep = !!f.result.deep,
-    top = Math.max(80, deep ? 0 : g.round.estimate.high * 1.15, f.result.apogee * 1.1),
+    // The earlier rounds of this vehicle, faint behind this one: what the range has seen her kind do before.
+    before = deep || f.result.orbit ? [] : earlierTracks(g.programme, g.vehicle),
+    beforeTop = Math.max(0, ...before.flatMap(b => b.trace.map(q => q[1]))),
+    beforeRange = Math.max(0, ...before.flatMap(b => b.trace.map(q => q[0]))),
+    top = Math.max(80, deep ? 0 : g.round.estimate.high * 1.15, f.result.apogee * 1.1, beforeTop * 1.1),
     hStep = niceStep(top);
-  const range = f.result.range,
+  const range = Math.max(f.result.range, beforeRange),
     maxH = Math.ceil(top / hStep) * hStep,
     xStep = range <= 40 ? 5 : range <= 120 ? 10 : niceStep(range * 1.1);
   const pad = 70,
-    maxX = Math.max(30, Math.ceil(f.result.range / xStep) * xStep + xStep);
+    maxX = Math.max(30, Math.ceil(range / xStep) * xStep + xStep);
   const px = x => pad + (x / maxX) * (w - pad * 2),
     py = km => h - pad - (km / maxH) * (h - pad * 2);
   ctx.strokeStyle = '#1f3b2d';
@@ -3126,6 +3134,22 @@ export function drawTracking(ctx, g, view) {
     ctx.fillStyle = 'rgba(232,198,106,.6)';
     ctx.fillText('drawing-office estimate', w - pad - 190, py(g.round.estimate.high) - 6);
   }
+  // Earlier rounds: a dim track each, labelled where it came down with what the range wrote of it.
+  ctx.font = '11px monospace';
+  before.forEach((b, n) => {
+    ctx.strokeStyle = 'rgba(143,214,168,.22)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    b.trace.forEach(([x, hh], i) => (i ? ctx.lineTo(px(x), py(hh)) : ctx.moveTo(px(x), py(hh))));
+    ctx.stroke();
+    const peak = b.trace.reduce((a, q) => (q[1] > a[1] ? q : a), b.trace[0]);
+    ctx.fillStyle = 'rgba(143,214,168,.5)';
+    ctx.fillText(
+      `${before.length - n === 1 ? 'last round' : `${before.length - n} rounds back`}: ${b.failure ? `lost at ${b.failAt} s` : `${Math.round(b.apogee ?? peak[1])} km`}`,
+      px(peak[0]) + 6,
+      py(peak[1]) - 4 - 12 * n,
+    );
+  });
   ctx.beginPath();
   for (let i = 0; i <= upto; i++) {
     const p = path[i];

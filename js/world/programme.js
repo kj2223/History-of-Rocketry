@@ -303,8 +303,24 @@ export function newFixes(programme) {
 // LOT_ROUNDS rounds from the same lot (truth/round.js). A failure no inspection could have found (hidden) says nothing
 // about the lot. Fixing the cause clears it (adopt).
 export const LOT_ROUNDS = 2;
-export function recordFlight(programme, { vehicle = 'wac', load, apogee, failure, hidden = false }) {
-  programme.flights.push({ vehicle, load, apogee: failure ? null : apogee, failure: failure || null });
+// path: the flight's track ([{ t, x, h }], km), kept thinned so the range plot can show the earlier rounds faintly.
+export function recordFlight(
+  programme,
+  { vehicle = 'wac', load, apogee, failure, hidden = false, path = null, failAt = null, name = null },
+) {
+  const step = path ? Math.max(1, Math.ceil(path.length / 60)) : 1;
+  const trace = path
+    ? path
+        .filter((_, i) => i % step === 0 || i === path.length - 1)
+        .map(q => [Math.round(q.x * 10) / 10, Math.round(q.h * 10) / 10])
+    : null;
+  programme.flights.push({
+    vehicle,
+    load,
+    apogee: failure ? null : apogee,
+    failure: failure || null,
+    ...(trace ? { trace, failAt, name } : {}),
+  });
   // A lot is one vehicle's: a new vehicle starts clean.
   if (programme.lotVehicle !== vehicle) programme.batch = {};
   programme.lotVehicle = vehicle;
@@ -312,6 +328,9 @@ export function recordFlight(programme, { vehicle = 'wac', load, apogee, failure
   for (const c of Object.keys(batch)) if (--batch[c] <= 0) delete batch[c];
   if (failure && !hidden && !programme.adopted.includes(failure)) batch[failure] = LOT_ROUNDS;
 }
+// The earlier rounds of this vehicle the range plot shows faintly behind the one in flight: the last few with a track.
+export const earlierTracks = (programme, vehicle, n = 3) =>
+  programme.flights.filter(f => f.vehicle === vehicle && f.trace).slice(-n);
 // The highest peak the radar has seen on this range so far, in km (0 before anything has flown well).
 export const rangeRecord = programme => Math.max(0, ...programme.flights.map(f => f.apogee ?? 0));
 

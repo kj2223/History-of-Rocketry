@@ -1493,6 +1493,9 @@ export function finishReview(entry) {
     apogee: seen,
     failure: f.failure,
     hidden: !!g.round.hiddenFailure,
+    path: f.deep || f.orbit ? null : f.path,
+    failAt: f.failAt,
+    name: SEASON[g.roundIndex].name,
   });
   // After Sputnik every day lost is reported to Washington, and it goes on your record.
   if (SEASON[g.roundIndex].pressure && g.slipDays) {
