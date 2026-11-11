@@ -216,22 +216,42 @@ export const FLIGHTS = {
       {
         at: 2.7,
         when: 'poweredDown',
-        say: [['dorsey', 'The rendezvous pod is away, but the chase is cancelled. Preserve power for the crew and recovery.', 'warn']],
+        say: [
+          [
+            'dorsey',
+            'The rendezvous pod is away, but the chase is cancelled. Preserve power for the crew and recovery.',
+            'warn',
+          ],
+        ],
         show: { EXPERIMENTS: ['rendezvous cancelled', true], 'FUEL CELLS': ['minimum load', true] },
       },
       {
         at: 21,
         when: 'poweredDown',
         not: 'batteries',
-        offShift: 'The night shift watched the fuel-cell pressure fall to twelve psi and hold there under minimum load.',
-        say: [['kessler', 'EECOM handover: the pressure fell to twelve psi and held there overnight. It is still steady under minimum load.', 'go']],
+        offShift:
+          'The night shift watched the fuel-cell pressure fall to twelve psi and hold there under minimum load.',
+        say: [
+          [
+            'kessler',
+            'EECOM handover: the pressure fell to twelve psi and held there overnight. It is still steady under minimum load.',
+            'go',
+          ],
+        ],
         show: { 'O2 PRESSURE': ['12 psi, steady'], 'FUEL CELLS': ['minimum load', true] },
       },
       {
         at: 21,
         when: 'batteries',
-        offShift: 'The night shift watched the fuel-cell pressure keep falling. The cells are off the line, and she is on batteries for recovery.',
-        say: [['kessler', 'EECOM handover: pressure kept falling. The fuel cells are off the line. We are on batteries for recovery.', 'bad']],
+        offShift:
+          'The night shift watched the fuel-cell pressure keep falling. The cells are off the line, and she is on batteries for recovery.',
+        say: [
+          [
+            'kessler',
+            'EECOM handover: pressure kept falling. The fuel cells are off the line. We are on batteries for recovery.',
+            'bad',
+          ],
+        ],
         show: { 'O2 PRESSURE': ['no usable supply', true], 'FUEL CELLS': ['off line', true] },
       },
       { at: 26, when: 'poweredDown', not: 'batteries', decide: 'fuelcell2' },
@@ -973,11 +993,11 @@ export const FLIGHTS = {
         say: [
           [
             'tate',
-            'Flight, Retro: the tracking has her landing point four thousand two hundred feet downrange of the target.',
+            'Flight, Retro: the tracking has her landing point four thousand two hundred feet short of the target.',
             'warn',
           ],
         ],
-        show: { 'LANDING POINT': ['4,200 ft long', true] },
+        show: { 'LANDING POINT': ['4,200 ft short', true] },
       },
       { at: 110.42, moon: true, not: 'noLanding', decide: 'landpoint' },
       {
@@ -2171,7 +2191,7 @@ export const FLIGHTS = {
     rules: [
       'No launch with the sea above state 4 in the primary landing area.',
       'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',
-      'The free return is the plan; nobody aboard can change it.',
+      'The flight plan is set before launch; nobody aboard can change it.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
     steps: [
@@ -2203,7 +2223,7 @@ export const FLIGHTS = {
         say: [
           [
             'morgan',
-            "Flight, Network: she's behind the Moon on the free return, sixty-eight kilometres over the far side at closest. Out of sight for half an hour.",
+            "Flight, Network: she's behind the Moon, a hundred and thirty kilometres over the far side at closest, swinging out to the distant orbit. Out of sight for half an hour.",
             'warn',
           ],
         ],
@@ -2211,7 +2231,13 @@ export const FLIGHTS = {
       {
         at: 82,
         moon: true,
-        say: [['morgan', 'Flight, Network: we have her. Coming home on the free return, exactly as aimed.', 'go']],
+        say: [
+          [
+            'morgan',
+            'Flight, Network: we have her. Out to the distant orbit and home on the plan, exactly as aimed.',
+            'go',
+          ],
+        ],
       },
       { at: 200, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
       { at: 228, lunar: true, decide: 'mcc' },
@@ -2281,7 +2307,7 @@ export const FLIGHTS = {
         say: [
           [
             'pilot',
-            "Houston, we're about to lose her behind the Moon. Sixty-eight kilometres over the far side. Tell everybody to look up.",
+            "Houston, we're about to lose you behind the Moon. Six and a half thousand kilometres over the far side. Tell everybody to look up.",
             'warn',
           ],
         ],
@@ -2603,7 +2629,7 @@ export const DECISIONS = {
     options: { land: 'Let him fly. Call out the seconds.', abort: 'Call the abort at bingo.' },
   },
   landpoint: {
-    q: "The tracking says the lander will come down four thousand two hundred feet long of the target. Retro can uplink the correction to the lander's computer now, or the commander can fly it out by eye at the end.",
+    q: "The tracking says the lander will come down four thousand two hundred feet short of the target. Retro can uplink the correction to the lander's computer now, or the commander can fly it out by eye at the end.",
     auto: 'update',
     options: { update: 'Uplink the correction.', eye: 'Leave it. He flies it by eye at the end.' },
   },
