@@ -432,7 +432,8 @@ export const SEASON = [
     name: 'Demo-2, the first commercial crew',
   }, // launched 30 May 2020
   // Artemis (A11): Apollo's granddaughter. One round the Moon with nobody aboard, then a crew of four on the free return,
-  // then the return to the Moon at the south pole. The campaign ends here, in 2030.
+  // then the lander tried out in Earth orbit, then the return to the Moon at the south pole. The campaign ends there, in
+  // 2028.
   {
     id: 'artemis-1',
     vehicle: 'sls',
@@ -456,8 +457,20 @@ export const SEASON = [
     start: dayOf(2026, 3, 30),
     name: 'Artemis II, a crew of four round the Moon',
   }, // launched 1 April 2026, splashed down 10 April
+  // NASA's plan since 2026: Artemis III meets the commercial lander in Earth orbit, and Artemis IV lands.
   {
     id: 'artemis-3',
+    vehicle: 'sls',
+    site: 'cape',
+    crewed: 'apollo',
+    orbital: true,
+    crew: ['sharma', 'vaughn', 'larsen', 'petrossian'],
+    path: 'nasa',
+    start: dayOf(2027, 8, 10),
+    name: 'Artemis III, the lander tried out in Earth orbit',
+  }, // the game's own date: NASA aims for 2027
+  {
+    id: 'artemis-4',
     vehicle: 'sls',
     site: 'cape',
     crewed: 'apollo',
@@ -466,8 +479,8 @@ export const SEASON = [
     risk: { spsRisk: 0.4 },
     path: 'nasa',
     start: dayOf(2028, 9, 8),
-    name: 'Artemis III, the return to the Moon, the south pole',
-  }, // the game's own date: NASA's plans for the first landing have moved since
+    name: 'Artemis IV, the return to the Moon, the south pole',
+  }, // the game's own date: NASA aims for 2028
   {
     id: 'ranger-7',
     vehicle: 'ranger',
@@ -524,8 +537,8 @@ export const LAST_WORD = {
     "Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.",
   'mariner-4':
     "Mariner 4's twenty-one pictures showed a cratered Mars, more like the Moon than anyone had hoped, and its radio signal, passing through the planet's air, showed that air to be thinner than the thinnest guess. Mariners 6 and 7 flew past in 1969, and Mariner 9 went into orbit in 1971. That is as far as the uncrewed years go in this build.",
-  'artemis-3':
-    'Artemis III came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole grows through 2029 and 2030, and the flights keep coming. This is where the build ends.',
+  'artemis-4':
+    'Artemis IV came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole is planned for the years after, and the flights keep coming. This is where the build ends.',
 };
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
 export const SITES = {
@@ -649,7 +662,10 @@ export const BETWEEN = {
     'Orion flew round the Moon with nobody aboard and came home at eleven kilometres a second, inside her corridor. The four of them have trained together for two years.',
   ],
   'artemis-3': [
-    'The lander is up, checked out in lunar orbit by the last flight. The south pole is where the ice is, and where nobody has ever stood.',
+    'Artemis II came home. The next step is a lander, and NASA is buying it from companies. Before anyone trusts one at the Moon, a crew meets it in Earth orbit, docks, and climbs in.',
+  ],
+  'artemis-4': [
+    'The lander is up, waiting in lunar orbit. The south pole is where the ice is, and where nobody has ever stood.',
   ],
   'vanguard-tv0': [
     'Vikings 10, 11 and 12 flew from White Sands without you. Viking 11, in May 1954, reached 254 km, the highest any single-stage rocket had gone.',

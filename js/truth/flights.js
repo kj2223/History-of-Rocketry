@@ -434,6 +434,75 @@ const RESOLVE = {
           : 'A trim burn into the middle of the corridor.';
     return out;
   },
+  // Artemis III: whether the lander's sensor dropouts are a real fault is a draw, never shown. Resetting always works and
+  // costs an orbit; the automatics or the commander can make it or not.
+  landerdock(choice, { d, out }) {
+    const real = d[4] < 0.35;
+    if (choice === 'reset') {
+      out.lines.push([
+        'pilot',
+        "Backing off. … Houston, the sensors are steady after the reset. Closing again. Contact, and capture. We're docked.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge = real
+        ? 'The sensors had a real fault, and an orbit for the reset fixed it. That was the call.'
+        : 'The sensors were fine. The reset cost an orbit, and nobody minds an orbit.';
+      return out;
+    }
+    if (!real) {
+      out.lines.push(['pilot', 'Contact, and capture. Houston, we are docked.', 'go']);
+      out.verdict = 'good';
+      out.judge = 'The dropouts were noise. The docking was clean.';
+      return out;
+    }
+    if (choice === 'manual' && d[5] < 0.7) {
+      out.lines.push(['pilot', 'I have her. Ten metres… three… contact. Capture. Houston, I flew her in.', 'go']);
+      out.verdict = 'fair';
+      out.judge = 'The sensors had a real fault, and the commander flew it in by hand. It worked, and it was close.';
+      return out;
+    }
+    out.set.noDock = true;
+    out.set.short = true;
+    out.hurt = 0.1;
+    out.lines.push(['pilot', 'Houston, we hit her off-centre and bounced. Backing away. No capture.', 'bad']);
+    out.verdict = 'bad';
+    out.judge =
+      'The sensors had a real fault, and we flew into it. No docking, and the lander goes to the Moon untested with a crew.';
+    out.note = 'Orion struck the lander off-centre and backed away. The docking and the crewed checkout were lost.';
+    return out;
+  },
+  // Artemis: the upper stage only raises the orbit; Orion's own engine makes the injection a day later. A short orbit
+  // raise (the restart bottle) is Orion's to make up, and the same draw decides whether she has the margin.
+  tlio(choice, ctx) {
+    const out = RESOLVE.tli(choice, ctx),
+      orion = text =>
+        text
+          .replace(
+            "Flight, Booster: no ignition on the S-IVB. She's staying in Earth orbit.",
+            "Flight, EECOM: the orbit raise came up too short for Orion to make up. She's staying in Earth orbit.",
+          )
+          .replace(
+            "Flight, Booster: good burn. Cutoff. She's on her way to the Moon.",
+            "Flight, EECOM: Orion's engine, good burn. Cutoff. She's on her way to the Moon.",
+          );
+    out.lines = out.lines.map(([who, text, tone]) => [who === 'albrecht' ? 'kessler' : who, orion(text), tone]);
+    out.judge = out.judge
+      .replace(
+        'The restart bottle was leaking. She might not have lit.',
+        "The upper stage's burn came up short. Orion might not have had the margin.",
+      )
+      .replace('The third stage was good.', 'The spacecraft was good.')
+      .replace(
+        'The third stage would not relight. We tried, and nobody was hurt by trying.',
+        "Orion couldn't make up the short orbit raise. We tried, and nobody was hurt by trying.",
+      )
+      .replace(
+        'The third stage relit on a low bottle. It worked, and it was close.',
+        'Orion made up the short orbit raise. It worked, and it was close.',
+      );
+    return out;
+  },
   // Apollo 13's lifeboat, two hours past the Moon: how fast to come home on the lander's descent engine.
   pc2(choice, { d, out }) {
     if (choice === 'pacific') {
@@ -796,7 +865,7 @@ const RESOLVE = {
         found:
           'At Shorty crater the crew found orange soil underfoot: volcanic glass from a fire fountain three and a half billion years old.',
       },
-      'artemis-3': {
+      'artemis-4': {
         rock: 'Twenty minutes. And here in the shadow line at the crater wall, Houston: the drill came up with ice in its first metre. Water, where the Sun has never reached.',
         broke:
           'The drill sled broke down out at the crater wall. The crew walked back three kilometres over the rim country and reached the lander with their suits almost empty.',

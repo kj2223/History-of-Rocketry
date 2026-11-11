@@ -2499,7 +2499,7 @@ export const FLIGHTS = {
       'fly a crew of four round the Moon on the free return, farther than anyone has gone since 1972, and home',
     rules: [
       'No launch with the sea above state 4 in the primary landing area.',
-      'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',
+      'Go for translunar injection only with a good spacecraft after a day of checkout in high Earth orbit.',
       'The free return is the plan; the engine is there to change it, not to rely on.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
@@ -2510,13 +2510,17 @@ export const FLIGHTS = {
         at: 2.4,
         if: 'relight',
         say: [
-          ['albrecht', "Flight, Booster: the upper stage's restart bottle pressure is low. She may not light.", 'warn'],
+          [
+            'albrecht',
+            "Flight, Booster: the upper stage's restart bottle pressure is low. Her burn to high orbit may come up short, and Orion will have to make it up.",
+            'warn',
+          ],
         ],
         show: { 'UPPER STAGE': ['bottle pressure low', true] },
       },
-      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      { at: 25, phase: 'Translunar injection', where: [0.05, 'High Earth orbit'], decide: 'tlio' },
       {
-        at: 11,
+        at: 30,
         lunar: true,
         phase: 'Translunar coast',
         where: [0.3, '120,000 km out'],
@@ -2572,17 +2576,91 @@ export const FLIGHTS = {
     ],
   },
 
-  // Artemis III: the return to the Moon, at the south pole, in the build's last year.
+  // Artemis III: Orion and the commercial lander meet in Earth orbit, the rehearsal for the landing. NASA's own plan
+  // since 2026; the date is the game's.
   'artemis-3': {
     program: 'apollo',
     craft: 'Artemis III',
+    entry: 'orbit',
+    completes: 'landerdock',
+    phases: 4,
+    objective:
+      'meet the commercial lander in Earth orbit, dock, and check her out with a crew aboard before anyone trusts her at the Moon',
+    rules: [
+      'No launch with the sea above state 4 in the primary landing area.',
+      'Docking is the lander’s automatic system; the crew takes over only if it drops out.',
+      'No crew into the lander until her cabin pressure has held for an hour.',
+      'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+    ],
+    steps: [
+      {
+        at: 0.2,
+        phase: 'Launch and Earth orbit',
+        where: [0.02, 'Earth orbit'],
+        say: [
+          [
+            'kessler',
+            'Flight, EECOM: Orion is in orbit. Platform good. The lander is two hundred kilometres ahead.',
+            'go',
+          ],
+        ],
+        show: { ORION: ['in orbit'], LANDER: ['ahead, station-keeping'] },
+      },
+      ...EARLY,
+      {
+        at: 20,
+        phase: 'Rendezvous and docking',
+        where: [0.02, 'Earth orbit'],
+        say: [
+          [
+            'pilot',
+            "Houston, three hundred metres and closing. The lander's docking sensors have dropped a channel and come back twice.",
+            'warn',
+          ],
+        ],
+        show: { DOCKING: ['sensor channel dropping', true] },
+      },
+      { at: 20.2, decide: 'landerdock' },
+      {
+        at: 24,
+        where: [0.02, 'Earth orbit'],
+        not: 'noDock',
+        phase: 'Lander checkout',
+        say: [
+          [
+            'crew2',
+            "Houston, the hatch is open and we're in the lander. Her cabin held its pressure for the hour. It's big in here.",
+            'go',
+          ],
+        ],
+        show: { LANDER: ['docked, crew aboard'] },
+      },
+      {
+        at: 60,
+        where: [0.02, 'Earth orbit'],
+        not: 'noDock',
+        offShift:
+          "Two days of tests with the crew aboard the lander: her life support, her suits' connections, and her radios to the ground. Nothing for your team.",
+      },
+      {
+        at: 96,
+        where: [0.02, 'Earth orbit'],
+        say: [['pilot', "Houston, undocked and backing away. She'll do.", 'go']],
+      },
+      { at: 100, retro: true },
+    ],
+  },
+  // Artemis IV: the return to the Moon, at the south pole, in the build's last year.
+  'artemis-4': {
+    program: 'apollo',
+    craft: 'Artemis IV',
     entry: 'lunar',
     completes: 'landing',
     phases: 9,
     objective: 'land at the south pole of the Moon, the first landing in more than fifty years, and bring them home',
     rules: [
       'No launch with the sea above state 4 in the primary landing area.',
-      'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',
+      'Go for translunar injection only with a good spacecraft after a day of checkout in high Earth orbit.',
       'No lunar orbit insertion without a service engine that has passed its checks: without it there is no way home.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
       'In the descent, abort on any computer alarm that stops the computer flying the lander.',
@@ -2595,13 +2673,17 @@ export const FLIGHTS = {
         at: 2.4,
         if: 'relight',
         say: [
-          ['albrecht', "Flight, Booster: the upper stage's restart bottle pressure is low. She may not light.", 'warn'],
+          [
+            'albrecht',
+            "Flight, Booster: the upper stage's restart bottle pressure is low. Her burn to high orbit may come up short, and Orion will have to make it up.",
+            'warn',
+          ],
         ],
         show: { 'UPPER STAGE': ['bottle pressure low', true] },
       },
-      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      { at: 25, phase: 'Translunar injection', where: [0.05, 'High Earth orbit'], decide: 'tlio' },
       {
-        at: 11,
+        at: 30,
         lunar: true,
         phase: 'Translunar coast',
         where: [0.3, '120,000 km out'],
@@ -2812,6 +2894,22 @@ export const DECISIONS = {
     auto: 'go',
     rule: 1,
     options: { go: 'Go for translunar injection.', nogo: 'No-go. Stay in Earth orbit and test the spacecraft there.' },
+  },
+  tlio: {
+    q: "Translunar injection. After a day's checkout in high Earth orbit, Orion's own engine burns for six minutes and sends them to the Moon. Go or no-go?",
+    auto: 'go',
+    rule: 1,
+    options: { go: 'Go for translunar injection.', nogo: 'No-go. Stay in Earth orbit and test the spacecraft there.' },
+  },
+  landerdock: {
+    q: "The lander's docking sensors keep dropping a channel at three hundred metres. Let the automatic system fly it in, have the commander take over and fly it in by hand, or back off an orbit while the lander's team resets the sensors?",
+    auto: 'reset',
+    rule: 1,
+    options: {
+      auto: 'Let the automatics fly it in.',
+      manual: 'The commander flies it in by hand.',
+      reset: 'Back off an orbit and reset the sensors.',
+    },
   },
   loi: {
     q: 'Lunar orbit insertion. The service engine burns behind the Moon, out of contact. If it does not burn they swing round and come home on their own. If it burns and will not burn again, they never come home. Go?',
@@ -3041,6 +3139,7 @@ export const CAPABILITIES = {
   fourdays: 'Four days in orbit in Gemini',
   rendezvous: 'A rendezvous in orbit, Gemini 6A with Gemini 7, closing to a foot',
   docking: 'A docking in orbit, Gemini 8 with an Agena target',
+  landerdock: 'Orion docked to a commercial lander in Earth orbit, and a crew checked her out',
   threedays: 'Three days of docked work with an Agena',
   lunarentry: 'An entry at the speed of a return from the Moon, Apollo command module heat shield',
   csmorbit: 'Ten days in Earth orbit in the Apollo command and service module',
