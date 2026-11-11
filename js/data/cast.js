@@ -13,9 +13,9 @@ export const SUCCESSIONS = {
   ],
   // Director of flight operations, from Gemini on (in Mercury, the flight director).
   hollis: [
-    { from: 1981, name: 'Ray Castellano', color: '#45506a', he: true },
+    { from: 1981, name: 'Ray Halvorsen', color: '#45506a', he: true },
     { from: 1993, name: 'Joan Whitlock', color: '#5a4660', he: false },
-    { from: 2020, name: 'David Okafor', color: '#3c4c5e', he: true },
+    { from: 2020, name: 'David Oduya', color: '#3c4c5e', he: true },
   ],
   // The flight director on the other shift.
   dorsey: [
@@ -25,7 +25,7 @@ export const SUCCESSIONS = {
   ],
   // Retrofire officer.
   tate: [
-    { from: 1981, name: 'Ken Ostrowski', color: '#505a64', he: true },
+    { from: 1981, name: 'Ken Zielinski', color: '#505a64', he: true },
     { from: 2000, name: 'Aisha Grant', color: '#5a4a52', he: false },
   ],
   // EECOM, the spacecraft's systems.
@@ -54,13 +54,13 @@ export const SUCCESSIONS = {
   ],
   // Pad leader: Vega has had the pad since White Sands.
   vega: [
-    { from: 1975, name: 'Lou Brennan', color: '#76583e', hat: '#e2e2dc', he: true },
+    { from: 1975, name: 'Lou Calloway', color: '#76583e', hat: '#e2e2dc', he: true },
     { from: 1998, name: 'Carla Mendes', color: '#6e5440', hat: '#e2e2dc', he: false },
     { from: 2020, name: 'Tyler Kim', color: '#5e5e66', hat: '#e2e2dc', he: true },
   ],
   // The pad crew: the Army's ordnance men at White Sands, NASA's own technicians from Gemini on.
   kowalski: [
-    { from: 1965, name: 'Ed Price', color: '#6a7480', hat: '#e2e2dc', he: true },
+    { from: 1965, name: 'Ed Pruitt', color: '#6a7480', hat: '#e2e2dc', he: true },
     { from: 1990, name: 'Roy Tillman', color: '#6a7480', hat: '#e2e2dc', he: true },
     { from: 2018, name: 'Jess Harlow', color: '#6a7480', hat: '#e2e2dc', he: false },
   ],

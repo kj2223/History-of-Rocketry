@@ -8,8 +8,8 @@ import { SUCCESSIONS, holderIn } from '../js/data/cast.js';
 
 test('the first holder keeps a seat until the first handover', () => {
   assert.equal(holderIn('hollis', 1975), null);
-  assert.equal(holderIn('hollis', 1981).name, 'Ray Castellano');
-  assert.equal(holderIn('hollis', 2028).name, 'David Okafor');
+  assert.equal(holderIn('hollis', 1981).name, 'Ray Halvorsen');
+  assert.equal(holderIn('hollis', 2028).name, 'David Oduya');
 });
 
 test('handovers come in order, after Mercury, and every name is used once', () => {
@@ -29,12 +29,12 @@ test('Apollo 11 has the Apollo team, the Shuttle has the next one, and the hando
   assert.equal(g.people.hollis.name, 'Frank Hollis');
   assert.equal(who('dorsey'), 'Dorsey');
   campaignTo(11, 'sts-1');
-  assert.equal(g.people.hollis.name, 'Ray Castellano');
+  assert.equal(g.people.hollis.name, 'Ray Halvorsen');
   assert.equal(who('reyes'), 'Ferrell');
   assert.equal(g.people.dorsey.name, 'Carl Dorsey', 'some of the Apollo faces stay for the Shuttle');
-  assert.ok(g.notes.some(n => /Frank Hollis has retired\. Ray Castellano takes over/.test(n.text)));
+  assert.ok(g.notes.some(n => /Frank Hollis has retired\. Ray Halvorsen takes over/.test(n.text)));
   campaignTo(11, 'artemis-4');
-  assert.equal(g.people.hollis.name, 'David Okafor');
+  assert.equal(g.people.hollis.name, 'David Oduya');
   assert.equal(g.people.morgan.he, false);
 });
 
@@ -55,4 +55,18 @@ test('on the JPL route the notebook only hears of handovers among the people at 
   );
   for (const name of ['Frank Hollis', 'Carl Dorsey', 'Bill Tate', 'Walt Kessler', 'Kurt Albrecht', 'Luis Reyes'])
     assert.ok(!heard.some(t => t.includes(name)), `${name} is in a JPL notebook`);
+});
+
+test('nobody at a desk shares a surname with an astronaut: the room calls the staff by surname', async () => {
+  const { ASTRONAUTS } = await import('../js/data/crew.js');
+  const { surname } = await import('../js/data/cast.js');
+  const flown = new Map(Object.values(ASTRONAUTS).map(a => [surname(a.name), a.name]));
+  const staff = [
+    ...Object.values(g.people).map(p => p.name),
+    ...Object.values(SUCCESSIONS)
+      .flat()
+      .map(s => s.name),
+  ];
+  for (const name of staff)
+    assert.ok(!flown.has(surname(name)), `${name} shares a surname with the astronaut ${flown.get(surname(name))}`);
 });
