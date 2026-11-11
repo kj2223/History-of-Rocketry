@@ -360,7 +360,22 @@ const RESOLVE = {
     out.fixes = shown;
     return out;
   },
-  tli(choice, { f, d, out }) {
+  tli(choice, { f, d, out, round }) {
+    // The S-IVB spent its translunar propellant making up for an S-II that cut off early: whatever the call, she stays.
+    if (round.ascent?.tliShort) {
+      out.set.earthOnly = true;
+      out.set.short = true;
+      out.set.earthEntry = true;
+      out.endAt = 10;
+      out.lines.push([
+        'albrecht',
+        'Flight, Booster: the S-IVB burned its translunar propellant getting her into orbit. There is not enough for TLI.',
+        'warn',
+      ]);
+      out.verdict = 'fair';
+      out.judge = 'The S-IVB saved the flight when the S-II quit. The Moon was gone before we were asked.';
+      return out;
+    }
     if (choice === 'nogo') {
       out.set.earthOnly = true;
       out.set.short = true;

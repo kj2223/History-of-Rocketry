@@ -13,6 +13,7 @@
 //   call     what Booster says on the loop when it is done and the next stage takes over
 // dry: tonnes still on top after the last burn (the last stage empty, the spacecraft, any propellant kept for later).
 // maxG: the most the engines are throttled to let her pull, where they are (the Shuttle, SLS and Falcon 9).
+// reserve, spare: propellant the last stage keeps for later that it can burn to reach orbit (see saturn5).
 // shortburn: which stage an early cutoff strikes (the booster's own 'shortburn' fault: Atlas sustainer, Titan second
 // stage, Saturn's S-II or S-IVB, the Shuttle's main engines).
 // tower: second after liftoff that the escape tower is jettisoned, where she has one.
@@ -93,6 +94,10 @@ export const ORBITAL_STACKS = {
       { name: 'S-IVB', burn: 150, thrust: 1000, prop: 33, drop: 0 },
     ],
     dry: 141,
+    // Of the dry figure, tonnes of S-IVB propellant kept for translunar injection. A weak S-II is made up from it by a
+    // longer S-IVB burn (Apollo 6 and 13), and if more than `spare` tonnes go that way there is not enough left for TLI.
+    reserve: 73,
+    spare: 3.3,
     shortburn: 1,
     tower: 197,
   },
