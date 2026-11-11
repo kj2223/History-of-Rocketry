@@ -48,6 +48,7 @@ import {
   orbitPredictions,
   orbitRecoveryHours,
   orbitGamma,
+  plannedBurn,
   ORBIT_PLAN,
   FUEL_LOW,
 } from './truth/orbit.js';
@@ -147,9 +148,10 @@ const BOOSTERS = {
 };
 const boosterOf = con => BOOSTERS[con.round.vehicle] || BOOSTERS.atlas;
 // The planned flight-path angle at second t, for this console's booster.
-export const plannedAngleFor = (con, t) => (con.orbital ? orbitGamma(t) : plannedGamma(t));
+export const plannedAngleFor = (con, t) =>
+  con.orbital ? orbitGamma(t, plannedBurn(con.round.vehicle)) : plannedGamma(t);
 // The plan the console's plot is drawn against: burn time, cutoff velocity and angle.
-export const planFor = con => (con.orbital ? ORBIT_PLAN : PLAN);
+export const planFor = con => (con.orbital ? { ...ORBIT_PLAN, burn: plannedBurn(con.round.vehicle) } : PLAN);
 // Launch is planned the day after the round starts: a sim day, then launch day.
 export const LAUNCH_DAY = 1;
 // Count seconds per real second in Mercury Control, and flight seconds per real second on the trajectory plot.
@@ -700,11 +702,12 @@ export function tickConsole(dt) {
   if (con.phase === 'ascent') {
     const a = con.round.ascent,
       before = con.t;
-    con.t = Math.min(a.burn, con.t + ASCENT_RATE * (con.orbital ? 2 : 1) * Math.min(4, g.speed) * dt);
+    // An orbital climb plays in about the same real time whatever its booster: a Saturn V's 700 s run faster than an Atlas's 300.
+    const pace = con.orbital ? 2 * ((a.planned || ORBIT_PLAN.burn) / ORBIT_PLAN.burn) : 1;
+    con.t = Math.min(a.burn, con.t + ASCENT_RATE * pace * Math.min(4, g.speed) * dt);
     g.clock += (con.t - before) / 60;
     for (let t = Math.floor(before) + 1; t <= Math.floor(con.t); t++) {
       const s = stepAt(a, t);
-      const priorStage = con.trace.at(-1)?.stage;
       con.trace.push({ t, gamma: s.gamma + flutter(con.round.seed, t), off: s.off, v: s.v, acc: s.acc, stage: s.stage });
       if (
         con.kind === 'flight' &&
@@ -738,15 +741,10 @@ export function tickConsole(dt) {
         );
       }
       if (t === 60) speak(con, 'albrecht', 'Booster: one minute, steady.', 'go');
-      if (priorStage && s.stage !== priorStage)
-        speak(con, 'albrecht', con.round.vehicle === 'titan'
-          ? 'First stage cutoff and separation. Second stage ignition confirmed.'
-          : 'Booster engines cutoff. The sustainer is still burning.', 'go');
-      // Stacks without named stages in the ascent model stage at T+130 too (truth/orbit.js): call it the same way.
-      if (con.orbital && s.stage === undefined && t === 130 && STAGING_CALL[con.round.vehicle])
-        speak(con, 'albrecht', STAGING_CALL[con.round.vehicle], 'go');
-      if (con.orbital && TOWER_VEHICLES.has(con.round.vehicle) && t === 155)
-        speak(con, 'morgan', 'Escape tower jettisoned.', 'go');
+      // Staging, a stage at a time as the stack flies it (data/stacks.js), and the tower where she has one.
+      const staged = a.staging?.find(x => x.t === t);
+      if (staged?.call) speak(con, 'albrecht', staged.call, 'go');
+      if (con.orbital && a.tower === t) speak(con, 'morgan', 'Escape tower jettisoned.', 'go');
       if (a.breakupAt != null && t >= a.breakupAt) return breakup(con);
     }
     if (con.shift?.pending) {
@@ -784,16 +782,6 @@ export function tickConsole(dt) {
     if (con.coastLeft <= 0) splash(con);
   }
 }
-// The staging call for orbital stacks the ascent model does not name stages for, and the stacks that carry an escape
-// tower to jettison (Titan's Gemini and the Shuttle have none; Crew Dragon's abort engines stay with the capsule).
-const STAGING_CALL = {
-  saturnib: 'First stage cutoff and separation. S-IVB ignition.',
-  saturn5: 'First stage cutoff and separation. Second stage ignition.',
-  shuttle: 'Booster separation. The main engines are carrying her.',
-  dragon: 'Main engine cutoff and stage separation. Second stage ignition.',
-  sls: 'Booster separation. The core stage is carrying her.',
-};
-const TOWER_VEHICLES = new Set(['atlas', 'saturnib', 'saturn5', 'sls']);
 // The telemetry needle's flutter: depends only on the round and the second, so the plot holds still when time does.
 function flutter(seed, t) {
   let h = Math.imul((seed | 0) ^ Math.imul(t + 7, 2654435761), 2246822507);

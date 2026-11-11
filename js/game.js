@@ -1714,13 +1714,13 @@ function nextMorning() {
       mBrief: 'mLaunch',
       mScrub: 'mLaunch',
       mPadNight: 'mPadSafe',
-      lLaunched: 'lCruise',
-      lCruised: 'lEncounter',
     }[g.beat] || null;
   if (next) morning(next);
 }
 
 // ---- The tick: movement, jobs, bubbles, the count and the flight ----
+const lunarClock = () =>
+  !!g.lunar && ['cruise', 'encounter'].includes(g.lunar.phase) && ['lCruise', 'lEncounter'].includes(g.beat);
 export function tick(dt) {
   g.time += dt;
   if (g.fading) {
@@ -1736,8 +1736,12 @@ export function tick(dt) {
   const k = g.speed;
   // Firings, counts and flights run in real seconds; otherwise the day runs fast, and stops at evening until the day is ended.
   const realTime = g.stand && ['count', 'firing'].includes(g.stand.phase);
-  if (!g.count && !(CREWED.consoleLive?.() || false) && !g.flight?.view?.match(/site|board/))
-    g.clock = Math.min(g.day * 1440 + EVENING, g.clock + (realTime ? dt / 60 : MINUTES_PER_SECOND * k * dt));
+  // A lunar shot's cruise and encounter keep the mission's own clock (js/lunar.js), and the day's clock never runs back.
+  if (!g.count && !(CREWED.consoleLive?.() || false) && !g.flight?.view?.match(/site|board/) && !lunarClock())
+    g.clock = Math.max(
+      g.clock,
+      Math.min(g.day * 1440 + EVENING, g.clock + (realTime ? dt / 60 : MINUTES_PER_SECOND * k * dt)),
+    );
   for (const p of Object.values(g.people)) {
     const d = p.target - p.x,
       step = WALK * k * dt;

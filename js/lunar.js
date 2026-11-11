@@ -2,7 +2,7 @@
 // round; once she is away the day ends, and the next mornings follow her out on the tracking (the cruise), then in to the
 // Moon (the encounter). What the player sees is in g.lunar, copied from what the tracking stations report; the truth of
 // where she is really going is in truth/lunar.js.
-import { g, setBeat, say, note, roomChanged, registerCrewed } from './game.js';
+import { g, setBeat, morning, say, note, roomChanged, registerCrewed } from './game.js';
 import {
   firstFix,
   midcourse,
@@ -23,6 +23,8 @@ export { CAMERA_LEADS, MOON_KM, MOON_RADIUS, LATE_REACH, FIRST_FIX, SECOND_FIX, 
 // Cruise hours a real second at 1x, and encounter minutes a real second.
 const HOURS_A_SECOND = 1.5,
   MINUTES_A_SECOND = 4;
+// The encounter is the last hour before she reaches the Moon; the cruise is everything from injection up to it.
+export const ENCOUNTER_MINUTES = 60;
 const fmt = n => Math.round(n).toLocaleString('en-US');
 const km100 = n => (n < 100 ? 'less than 100' : fmt(Math.round(n / 100) * 100)),
   km1000 = n => fmt(Math.round(n / 1000) * 1000);
@@ -51,11 +53,13 @@ function log(text, tone = '', who = 'morgan') {
 }
 
 export const LUNAR_BEATS = {
+  // She is away. The mission clock starts at injection, and from here the game's clock is hers: the cruise and the
+  // encounter run on the calendar hour for hour, so a 40-hour cruise takes 40 hours of the calendar.
   lLaunched() {
-    g.objective =
-      'She is on her way to the Moon, and JPL has the tracking from here. End the day: tomorrow you follow her out.';
-    g.dayDone = true;
-    say('morgan', "She's off our plot. JPL will have the first tracking by morning.", 'go', 7);
+    const d = deep();
+    d.injectedAt ??= g.clock;
+    say('morgan', "She's off our plot. JPL has the tracking from here: it comes in to the technical office.", 'go', 7);
+    morning('lCruise');
   },
   lCruise() {
     const d = deep();
@@ -63,7 +67,10 @@ export const LUNAR_BEATS = {
       phase: 'cruise',
       vehicle: d.vehicle,
       h: 0,
-      total: d.fallsBack ? 2 * FALL_PEAK_HOUR : CRUISE_HOURS[d.vehicle],
+      // When she was injected, on the game's clock (minutes); a save from before the clock followed her starts it here.
+      start: d.injectedAt ?? g.clock,
+      total: d.fallsBack ? 2 * FALL_PEAK_HOUR : CRUISE_HOURS[d.vehicle] - ENCOUNTER_MINUTES / 60,
+      arrive: d.fallsBack ? null : CRUISE_HOURS[d.vehicle],
       dist: 0,
       trail: [0],
       station: stationAt(d.vehicle, 0),
@@ -79,16 +86,14 @@ export const LUNAR_BEATS = {
     g.objective = 'The tracking reports come in on the teletype in the technical office. Go and follow her out.';
     say('morgan', 'JPL is on the line. The tracking will come in to the technical office.', '', 6);
   },
-  lCruised() {
-    g.objective = 'She is nearly at the Moon. End the day: tomorrow is the encounter.';
-    g.dayDone = true;
-  },
   lEncounter() {
     const d = deep();
+    const start = g.lunar?.start ?? d.injectedAt ?? g.clock - (CRUISE_HOURS[d.vehicle] * 60 - ENCOUNTER_MINUTES);
     g.lunar = {
       phase: 'encounter',
       vehicle: d.vehicle,
-      minutes: 60,
+      start,
+      minutes: ENCOUNTER_MINUTES,
       log: [],
       poll: d.vehicle === 'ranger' ? 'lead' : null,
       lead: null,
@@ -101,8 +106,8 @@ export const LUNAR_BEATS = {
     };
     g.objective =
       d.vehicle === 'ranger'
-        ? 'Encounter day. Go to the technical office: Goldstone has her coming in, and the cameras are your call.'
-        : 'Encounter day. Go to the technical office: Goldstone has her coming up on the Moon.';
+        ? 'An hour out from the Moon. In the technical office Goldstone has her coming in, and the cameras are your call.'
+        : 'An hour out from the Moon. In the technical office Goldstone has her coming up on the Moon.';
   },
 };
 
@@ -149,6 +154,13 @@ export function tickLunar(dt) {
   else tickEncounter(dt);
 }
 
+// The game's clock follows the mission: injection plus the hours (or, at the encounter, the minutes) she has flown.
+function follow(minutesSinceInjection) {
+  const L = g.lunar;
+  g.clock = Math.max(g.clock, L.start + minutesSinceInjection);
+  g.day = Math.floor(g.clock / 1440);
+}
+
 function once(key, fn) {
   const L = g.lunar;
   if (!L.seen[key]) {
@@ -161,6 +173,7 @@ function tickCruise(dt) {
   const L = g.lunar,
     d = deep();
   L.h = Math.min(L.total, L.h + HOURS_A_SECOND * g.speed * dt);
+  follow(L.h * 60);
   L.dist = distanceAt(d, L.h);
   if (L.h - (L.trail.length - 1) * 0.5 >= 0.5) L.trail.push(L.dist);
   L.station = stationAt(L.vehicle, L.h);
@@ -230,9 +243,11 @@ function tickCruise(dt) {
       return; // the midcourse call is still open
     else
       once('arrive', () => {
+        // An hour out: straight on to the encounter, in the same room, on the same clock.
         L.phase = 'arrived';
-        g.room = null;
-        setBeat('lCruised');
+        morning('lEncounter');
+        g.room = 'encounter';
+        roomChanged();
       });
   }
 }
@@ -242,6 +257,7 @@ function tickEncounter(dt) {
     d = deep();
   const before = L.minutes;
   L.minutes = Math.max(0, L.minutes - MINUTES_A_SECOND * g.speed * dt);
+  follow(CRUISE_HOURS[L.vehicle] * 60 - L.minutes);
   if (L.vehicle === 'ranger') {
     if (L.minutes <= L.lead && before > L.lead) {
       encounter(g.round, L.lead);

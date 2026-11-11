@@ -9,6 +9,7 @@
 import { draw, normal } from '../core/rng.js';
 import { arc } from './capsule.js';
 import { flyEntry, MERCURY_ENTRY } from './entry.js';
+import { stackOf, stackBurn, burnStack, speedGained } from './stages.js';
 
 const DEG = Math.PI / 180;
 export const ORBIT_PLAN = { burn: 300, v: 7.84, gamma: 0, cutoffH: 160, need: 7.78, orbits: 3, period: 88, entryG: 8 };
@@ -40,7 +41,11 @@ export const ORBIT_RECOVERY = {
 };
 
 const smooth = k => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
-export const orbitGamma = t => (t < 10 ? 90 : 90 - 90 * smooth((t - 10) / (ORBIT_PLAN.burn - 10)) ** 0.8);
+// The planned flight-path angle at second t, for a climb whose planned cutoff is at `burn` seconds.
+export const orbitGamma = (t, burn = ORBIT_PLAN.burn) =>
+  t < 10 ? 90 : 90 - 90 * smooth((t - 10) / (burn - 10)) ** 0.8;
+// The planned cutoff of this booster's climb, seconds after liftoff: the sum of its stages' burns.
+export const plannedBurn = vehicle => stackBurn(stackOf(vehicle));
 
 // The climb to orbit, decided in full at liftoff. A fixed 9 draws.
 // names: the booster's own fault kinds for a control failure and an early cutoff (the Titan II's are its own).
@@ -74,35 +79,44 @@ export function atlasAscent(
     failure = d.which < 0.5 ? names.guidance : names.shortburn;
     round.events.push(`Something failed on the ${names.booster} that no inspection could have found.`);
   }
+  // The climb is flown a stage at a time (truth/stages.js, data/stacks.js). An early cutoff strikes the booster's own
+  // stage for it, somewhere past the middle of that stage's burn; the stages above it still light, but the speed it
+  // never gave her is lost.
   const P = ORBIT_PLAN,
-    vEnd = P.v * (1 + 0.002 * d.v),
-    burn = failure === names.shortburn ? Math.round(230 + 60 * d.cutAt) : P.burn;
+    stack = stackOf(round.vehicle),
+    planned = stackBurn(stack),
+    gammaOf = t => orbitGamma(t, planned);
+  const nominal = burnStack(stack),
+    cutStage = stack.shortburn ?? stack.stages.length - 1;
+  const cutStart = stack.stages.slice(0, cutStage).reduce((a, s) => a + s.burn, 0);
+  const flown =
+    failure === names.shortburn
+      ? burnStack(stack, { stage: cutStage, at: cutStart + (0.59 + 0.35 * d.cutAt) * stack.stages[cutStage].burn })
+      : nominal;
+  // Losses to gravity and air are taken off in proportion, so that a good climb cuts off at the planned speed.
+  const vEnd = P.v * (1 + 0.002 * d.v),
+    full = speedGained(nominal.rows, gammaOf),
+    gained = flown === nominal ? full : speedGained(flown.rows, gammaOf),
+    scale = vEnd / full[full.length - 1];
+  const burn = flown.burn;
   const disp = 0.6 * d.gamma,
     drift = failure === names.guidance ? (d.sign < 0.5 ? -1 : 1) * 0.25 : 0,
     t0 = 60 + Math.round(90 * d.start);
   const steps = [];
-  const stageNames =
-    round.vehicle === 'titan' ? ['First stage', 'Second stage'] :
-    round.vehicle === 'atlas' ? ['Boosters and sustainer', 'Sustainer'] : null;
   let breakupAt = null;
   for (let t = 0; t <= burn; t++) {
-    const k = t / P.burn,
-      v = vEnd * k ** 1.4;
-    // Game load curves, independent of the trajectory approximation. Each powered phase builds load as the stack lightens.
-    const staged = t >= 130;
-    const acc = stageNames
-      ? staged ? 1.4 + 4.5 * ((t - 130) / (P.burn - 130)) ** 1.5 : 1.3 + 3.4 * (t / 130) ** 1.5
-      : (1.3 + 6.5 * k ** 1.8) * (staged ? 0.55 + 0.45 * k : 1);
-    const off = disp * smooth((t - 10) / (P.burn - 10)) + (drift && t > t0 ? drift * (t - t0) : 0);
+    const k = t / planned,
+      row = flown.rows[t];
+    const off = disp * smooth((t - 10) / (planned - 10)) + (drift && t > t0 ? drift * (t - t0) : 0);
     steps.push({
       t,
-      v,
-      gamma: orbitGamma(t) + off,
+      v: Math.max(0, gained[t] * scale),
+      gamma: gammaOf(t) + off,
       off,
-      acc,
-      stage: stageNames?.[Number(staged)],
-      h: P.cutoffH * k ** 1.3,
-      x: 1400 * k ** 2.4,
+      acc: row.acc,
+      stage: row.name,
+      h: P.cutoffH * Math.min(1, k) ** 1.3,
+      x: 1400 * Math.min(1, k) ** 2.4,
     });
     if (drift && Math.abs(off) >= ORBIT_BREAKUP) {
       breakupAt = t;
@@ -114,6 +128,9 @@ export function atlasAscent(
   const a = {
     failure,
     burn,
+    planned,
+    staging: flown.staging,
+    tower: stack.tower ?? null,
     steps,
     breakupAt,
     controlFrom: drift ? t0 : null,
