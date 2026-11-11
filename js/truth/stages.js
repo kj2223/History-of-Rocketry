@@ -14,15 +14,18 @@ export const liftoffMass = stack => stack.stages.reduce((a, s) => a + s.prop + s
 
 // The burn, one row a second from liftoff to the last cutoff: { t, stage (index), name, acc (g, what the crew feel) }.
 // cut: { stage, at } — that stage shuts down at `at` seconds after liftoff, and the next stage (if any) lights then.
-// Returns { rows, staging: [{ t, from, to, call }], burn (s), cutoff (the stage that burned last) }.
-export function burnStack(stack, cut = null) {
+// extra: seconds the last stage burns past its plan, on propellant it was keeping for later.
+// Returns { rows, staging: [{ t, from, to, call }], burn (s) }.
+export function burnStack(stack, cut = null, extra = 0) {
   const rows = [],
     staging = [];
   let mass = liftoffMass(stack),
     t0 = 0;
   stack.stages.forEach((s, i) => {
     const mdot = s.prop / s.burn,
-      len = cut && cut.stage === i ? Math.max(0, Math.min(s.burn, Math.round(cut.at - t0))) : s.burn;
+      len =
+        (cut && cut.stage === i ? Math.max(0, Math.min(s.burn, Math.round(cut.at - t0))) : s.burn) +
+        (i === stack.stages.length - 1 ? extra : 0);
     for (let k = 0; k < len; k++) {
       const m = mass - mdot * k,
         acc = Math.min(stack.maxG ?? Infinity, s.thrust / (m * G0));

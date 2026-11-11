@@ -1638,6 +1638,14 @@ function finishAtlas(con) {
           ? 'Sustainer'
           : 'Final powered stage';
     speak(con, 'albrecht', `${engine} cutoff at ${a.burn} seconds. Capsule separation.`, 'go');
+    if (a.makeup)
+      speak(
+        con,
+        'albrecht',
+        `The S-IVB burned ${a.makeup} seconds long to make up for the S-II.${a.tliShort ? ' That was translunar propellant: there is not enough left for TLI.' : ''}`,
+        'warn',
+        6,
+      );
     speak(
       con,
       'morgan',

@@ -89,16 +89,30 @@ export function atlasAscent(
   const nominal = burnStack(stack),
     cutStage = stack.shortburn ?? stack.stages.length - 1;
   const cutStart = stack.stages.slice(0, cutStage).reduce((a, s) => a + s.burn, 0);
-  const flown =
+  const cut =
     failure === names.shortburn
-      ? burnStack(stack, { stage: cutStage, at: cutStart + (0.59 + 0.35 * d.cutAt) * stack.stages[cutStage].burn })
-      : nominal;
+      ? { stage: cutStage, at: cutStart + (0.59 + 0.35 * d.cutAt) * stack.stages[cutStage].burn }
+      : null;
+  let flown = cut ? burnStack(stack, cut) : nominal;
   // Losses to gravity and air are taken off in proportion, so that a good climb cuts off at the planned speed.
   const vEnd = P.v * (1 + 0.002 * d.v),
     full = speedGained(nominal.rows, gammaOf),
-    gained = flown === nominal ? full : speedGained(flown.rows, gammaOf),
     scale = vEnd / full[full.length - 1];
-  const burn = flown.burn;
+  let gained = flown === nominal ? full : speedGained(flown.rows, gammaOf),
+    makeup = 0;
+  // A last stage that keeps propellant for later (the Saturn V's S-IVB, for the Moon) burns on into it to reach orbit
+  // speed, as far as it lasts.
+  if (flown !== nominal && stack.reserve) {
+    const last = stack.stages[stack.stages.length - 1],
+      most = Math.floor(stack.reserve / (last.prop / last.burn));
+    for (let extra = 1; extra <= most && gained[gained.length - 1] * scale < vEnd; extra++) {
+      flown = burnStack(stack, cut, extra);
+      gained = speedGained(flown.rows, gammaOf);
+      makeup = extra;
+    }
+  }
+  const burn = flown.burn,
+    makeupTonnes = makeup * (stack.stages.at(-1).prop / stack.stages.at(-1).burn);
   const disp = 0.6 * d.gamma,
     drift = failure === names.guidance ? (d.sign < 0.5 ? -1 : 1) * 0.25 : 0,
     t0 = 60 + Math.round(90 * d.start);
@@ -130,6 +144,9 @@ export function atlasAscent(
     burn,
     planned,
     staging: flown.staging,
+    // Seconds the last stage burned past its plan to make up an early cutoff, and whether that left too little for TLI.
+    makeup,
+    tliShort: makeup > 0 && makeupTonnes > (stack.spare ?? 0),
     tower: stack.tower ?? null,
     steps,
     breakupAt,
