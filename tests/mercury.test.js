@@ -93,14 +93,17 @@ test('after Pioneer 4 the paths split: Mercury Control if you take the offer, Ra
     SEASON.filter(r => onPath(r, 'jpl'))
       .sort((a, b) => a.start - b.start)
       .map(r => r.id)
-      .slice(-9),
+      .slice(-12),
     [
       'pioneer-4',
       'mariner-2',
       'ranger-7',
       'mariner-4',
+      'surveyor-1',
+      'mariner-9',
       'viking-mars',
       'voyager',
+      'galileo',
       'pathfinder',
       'cassini',
       'perseverance',

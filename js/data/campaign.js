@@ -530,6 +530,126 @@ export const SEASON = [
       missed: 'The flyby is over. JPL has tracking but no images because encounter mode was never enabled.',
     },
   },
+  // Surveyor 1, Mariner 9 and Galileo (Aaron, option C, 11 November 2026): the JPL route's years between Mariner 4 and
+  // Viking, and between Voyager and Pathfinder. Same pattern and sources as the batch below.
+  {
+    id: 'surveyor-1',
+    name: 'Surveyor 1, the first soft landing',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1966, 5, 30), // launched 30 May 1966 on an Atlas–Centaur, straight to the Moon
+    probe: {
+      tracking:
+        'The Atlas–Centaur has sent Surveyor 1 straight toward the Moon, no parking orbit. Hughes built her; JPL flies her, and you are on the flight team. She is a lander on three legs, and nothing American has ever come down softly anywhere but Earth.',
+      steps: [
+        {
+          day: dayOf(1966, 5, 31), // the midcourse correction was flown on 31 May
+          title: 'Surveyor 1: the midcourse correction',
+          report:
+            "The deep-space stations have tracked her through the night. She's healthy, and she will miss her aim.",
+          evidence:
+            "On today's tracking she would come down well off the aim point in the Ocean of Storms. The three vernier engines can trim her path in one burn, and the same verniers and their propellant have to bring her down the last few kilometres. Burn on today's solution, or wait a day for a better fix: a later burn has to be bigger, and spends propellant the landing needs.",
+          choices: [
+            {
+              label: "Burn the midcourse on today's solution",
+              note: 'The verniers burned for about twenty seconds. Tracking puts her close to the aim point, with her landing propellant intact.',
+              set: 'early',
+            },
+            {
+              label: 'Wait a day for a better fix', // Divergence
+              note: 'A day more tracking, then a longer burn. She is on her aim, with less propellant in hand for the landing.',
+              set: 'late',
+            },
+          ],
+        },
+        {
+          day: dayOf(1966, 6, 1), // landed 06:17 UTC on 2 June: the evening of 1 June in Pasadena
+          when: 'early',
+          title: 'Surveyor 1: landing',
+          evidence:
+            "The altitude marking radar fires the main retro, the retro burns out and falls away, and the verniers and the landing radar fly her down the last stretch on their own. It is out of your hands. The signal will say whether there's a lander on the Moon or a crater.",
+          choices: [
+            {
+              label: 'Wait for the signal from the surface',
+              risk: 0.15,
+              result:
+                'Surveyor 1 landed in the Ocean of Storms on 2 June 1966 at about three metres a second, and her footpads sank only a few centimetres. The ground will hold a lander. She sent back more than eleven thousand pictures.',
+              lost: 'Lost Surveyor 1 on 2 June 1966: the signal stopped in the terminal descent. JPL will spend months finding out why.',
+            },
+          ],
+        },
+        {
+          day: dayOf(1966, 6, 1),
+          when: 'late',
+          title: 'Surveyor 1: landing',
+          evidence:
+            'The altitude marking radar fires the main retro, and the verniers fly her down the last stretch on the propellant the late burn left. It is out of your hands.',
+          choices: [
+            {
+              label: 'Wait for the signal from the surface',
+              risk: 0.3,
+              result:
+                'Surveyor 1 landed in the Ocean of Storms on 2 June 1966 with her vernier tanks nearly dry. Her footpads sank only a few centimetres: the ground will hold a lander.',
+              lost: 'Lost Surveyor 1 on 2 June 1966: the verniers ran dry above the surface and she fell the last stretch.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: 'mariner-9',
+    name: 'Mariner 9, the first orbiter of another planet',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1971, 5, 30), // launched 30 May 1971
+    probe: {
+      tracking:
+        'The Atlas–Centaur has sent Mariner 9 toward Mars, alone: her twin, Mariner 8, was lost when its Centaur failed on 9 May. She is to go into orbit and map the planet.',
+      steps: [
+        {
+          day: dayOf(1971, 11, 13), // orbit insertion 14 November 00:18 UTC: the afternoon of the 13th in Pasadena
+          title: 'Mariner 9: orbit insertion',
+          report:
+            'Since September a dust storm has spread over the whole of Mars. From Earth the planet shows no markings at all.',
+          evidence:
+            'Tonight Mariner 9 fires her engine for about a quarter of an hour to brake into orbit round Mars. No spacecraft has ever gone into orbit round another planet.',
+          choices: [
+            {
+              label: 'Let the burn run',
+              risk: 0.04,
+              note: 'Mariner 9 is in orbit round Mars, the first spacecraft to orbit another planet.',
+              lost: 'Lost Mariner 9 on 13 November 1971: the engine cut off early and she flew on past Mars.',
+              setLost: 'm9Lost',
+            },
+          ],
+        },
+        {
+          day: dayOf(1971, 11, 15), // Provisional: the mapping was deferred in the first days in orbit
+          unless: 'm9Lost',
+          title: 'Mariner 9: the dust storm',
+          report:
+            'The first pictures from orbit show a featureless yellow haze, with four dark spots poking through it.',
+          evidence:
+            'The mapping sequence is due to start. In this dust it would photograph cloud. Her computer can be reprogrammed from the ground: hold the mapping, image the two moons and the dark spots, and map when the air clears. The Soviet orbiters arriving this month cannot wait: their sequences are fixed before launch.',
+          choices: [
+            {
+              label: 'Hold the mapping and wait out the storm',
+              result:
+                'Mariner 9 waited out the storm. The four dark spots were the summits of giant volcanoes, Olympus Mons the greatest. When the dust settled in early 1972 she mapped the whole planet: a canyon as long as America, and dry river beds.',
+            },
+            {
+              label: 'Start the mapping on the plan', // Divergence
+              result:
+                'The mapping ran on schedule and photographed a planet of dust, spending tape and attitude gas. When the air cleared the team mapped again with what was left, and some of Mars went unseen.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // JPL's robotic missions after Mariner 4 (Aaron, option B, 11 November 2026). Each starts at the handover from the
   // launch team and runs through its decision days (probe.steps; see advanceProbe in game.js). The launches are
   // told, not played. Days marked Provisional are a plausible day for a call whose exact date is not on record; a
@@ -783,6 +903,120 @@ export const SEASON = [
               label: 'Run the encounter sequence',
               result:
                 'Voyager 2 passed Neptune on 24 August 1989 and found a great dark storm in its blue air, and geysers on its moon Triton.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: 'galileo',
+    name: 'Galileo, to Jupiter',
+    vehicle: 'ranger', // a probe round: no rocket on the site
+    site: 'cape',
+    path: 'jpl',
+    start: dayOf(1989, 10, 18), // launched 18 October 1989 from Atlantis (STS-34), on an Inertial Upper Stage
+    probe: {
+      tracking:
+        "Atlantis has put Galileo in orbit and the Inertial Upper Stage has sent her on her way. The IUS is too weak to send her straight to Jupiter, so she goes the long way: round Venus, then twice round the Earth, to arrive in December 1995 with a probe for Jupiter's air.",
+      steps: [
+        {
+          day: dayOf(1993, 1, 19), // Provisional: the antenna stuck on 11 April 1991; the team turned to the low-gain plan in 1993
+          title: 'Galileo: the stuck antenna',
+          report:
+            'On 11 April 1991 the high-gain antenna was commanded to open like an umbrella. It stuck part way: three of its ribs are held fast.',
+          evidence:
+            'For nearly two years the team has warmed and cooled her and hammered the deployment motor hundreds of times. The ribs have not moved. Through the small low-gain antenna, Jupiter could send about ten bits a second instead of more than a hundred thousand. New software on board could pack the data tighter, and the Deep Space Network can join its dishes together, but that work takes years and has to start now.',
+          choices: [
+            {
+              label: 'Commit to the low-gain plan now',
+              note: 'The team turns to the low-gain plan: new flight software, and the network dishes arrayed together. The antenna stays as it is.',
+              set: 'lowgain',
+            },
+            {
+              label: 'Keep working the antenna', // Divergence
+              note: 'Another year of hammering the motor and turning her to the Sun. The low-gain plan waits.',
+              set: 'hammer',
+            },
+          ],
+        },
+        {
+          day: dayOf(1995, 10, 12), // the tape recorder stuck on 11 October 1995
+          title: 'Galileo: the tape recorder',
+          report: 'Galileo released her probe on 13 July. Both are falling toward Jupiter.',
+          evidence:
+            "Yesterday the tape recorder would not stop rewinding for fifteen hours. It is the only way to keep the probe's data, which Galileo must catch on arrival day and send home slowly over months. The plan also uses it for close pictures of Io on the way in.",
+          choices: [
+            {
+              label: "Cancel the Io pictures and save the recorder for the probe's data",
+              note: "No pictures of Io on the way in. The recorder is kept for the probe's data.",
+              set: 'saveTape',
+            },
+            {
+              label: 'Keep the Io pictures in the plan', // Divergence
+              note: 'The Io pictures stay in the plan, on the same recorder.',
+              set: 'useTape',
+            },
+          ],
+        },
+        {
+          day: dayOf(1995, 12, 7), // probe entry and orbit insertion, 7 December 1995
+          when: 'saveTape',
+          title: 'Galileo: arrival at Jupiter',
+          evidence:
+            "Today the probe falls into Jupiter's air while Galileo listens overhead and records, and then Galileo fires her engine for about three quarters of an hour to brake into orbit. All of it runs on her own sequence.",
+          choices: [
+            {
+              label: 'Let the sequence run',
+              risk: 0.04,
+              note: "The probe sent for fifty-eight minutes on its way into Jupiter's air, and Galileo is in orbit round Jupiter with the data on tape.",
+              lost: 'Lost Galileo on 7 December 1995: the engine shut down early and she flew on past Jupiter, with the probe\u2019s data on board.',
+              setLost: 'galLost',
+            },
+          ],
+        },
+        {
+          day: dayOf(1995, 12, 7),
+          when: 'useTape',
+          title: 'Galileo: arrival at Jupiter',
+          evidence:
+            "Today Galileo records Io on the way in, then listens to the probe falling into Jupiter's air, then fires her engine to brake into orbit, all on the recorder that jammed in October.",
+          choices: [
+            {
+              label: 'Let the sequence run',
+              risk: 0.25,
+              note: "The recorder held. Galileo has pictures of Io and the probe's fifty-eight minutes on tape, and she is in orbit round Jupiter.",
+              lost: "Lost the Galileo probe's data on 7 December 1995: the recorder jammed again during the descent. The orbiter is round Jupiter, with nothing from the probe.",
+            },
+          ],
+        },
+        {
+          day: dayOf(1996, 6, 27), // the first Ganymede flyby, 27 June 1996
+          when: 'lowgain',
+          unless: 'galLost',
+          title: 'Galileo: the first flyby of Ganymede',
+          evidence:
+            'The first of the close flybys of the moons. Everything Galileo sees comes home through the low-gain antenna.',
+          choices: [
+            {
+              label: 'Run the flyby on the new software',
+              result:
+                "The new software and the arrayed dishes were ready for the first flyby. Through a ten-bit antenna Galileo sent home most of what the mission was built for: Europa's cracked ice and the sea under it, Io's volcanoes, and Ganymede's own magnetic field.",
+            },
+          ],
+        },
+        {
+          day: dayOf(1996, 6, 27),
+          when: 'hammer',
+          unless: 'galLost',
+          title: 'Galileo: the first flyby of Ganymede',
+          evidence:
+            'The antenna never moved. The low-gain plan started a year late, and the new software is not all on board for the first flyby.',
+          choices: [
+            {
+              label: 'Run the flyby on what is ready',
+              result:
+                "A year's hammering never moved the antenna, and the low-gain plan came late. The first flybys went home at a trickle. Galileo found Europa's cracked ice and the sea under it, but much of the early tour is lost.",
             },
           ],
         },
@@ -1196,16 +1430,28 @@ export const BETWEEN = {
     "JPL's Ranger was meant to find out, and six Rangers failed. Rangers 1 and 2, in 1961, were left in low orbit when the Agena did not restart. Ranger 3 missed the Moon. Ranger 4 hit the far side, dead. Ranger 5 lost its power and missed. In February 1964 Ranger 6 hit the Sea of Tranquility on time, and its cameras never came on.",
     'Congress has held hearings. The papers call Ranger a shoot-and-hope programme. Every day this round slips is reported to Washington.',
   ], // JPL's robotic missions after Mariner 4: what happened in the years the calendar jumps.
+  'surveyor-1': [
+    "Mariner 4's pictures showed Mars cratered like the Moon. Rangers 8 and 9 hit the Moon in 1965, their cameras running to the end.",
+    'On 3 February 1966 the Soviet Luna 9 came down softly on the Moon and sent pictures from the surface. Surveyor is JPL\u2019s lander, and the first to fly on the new Atlas–Centaur. Apollo wants to know whether the ground will hold a ship.',
+  ],
+  'mariner-9': [
+    'Five of the seven Surveyors landed, and the Apollo crews have walked where they showed the ground was firm. Apollo 12 set down beside Surveyor 3 in 1969. Mariners 6 and 7 flew past Mars that summer.',
+    'Mariner 8 was lost on 9 May 1971 when its Centaur failed in the climb. In the same month the Soviets sent Mars 2 and Mars 3, orbiters carrying landers.',
+  ],
   'viking-mars': [
-    'Ten years went by at JPL. Mariners 6 and 7 flew past Mars in 1969, the summer men first walked on the Moon. Mariner 9 went into orbit round Mars in 1971, waited out a dust storm that hid the whole planet, and then mapped it: volcanoes, a canyon as long as America, and dry river beds.',
+    'Mariner 9 mapped Mars until her attitude gas ran out in October 1972: volcanoes, a canyon as long as America, and dry river beds. The Viking sites were chosen from her pictures.',
     'Viking is the next step: two orbiters, each carrying a lander, to set down on Mars and look for life in the soil. Langley runs the project. The flight team is at JPL.',
   ],
   voyager: [
     'The Viking landers went on working through the Martian seasons, and their orbiters kept mapping.',
     'In the late 1970s the outer planets line up as they do once in about 175 years: one spacecraft can use the pull of each planet to reach the next. JPL is sending two Voyagers.',
   ],
+  galileo: [
+    "Voyager 2 passed Neptune in August 1989, and both Voyagers went on toward the edge of the Sun's reach. Magellan went up from the Shuttle in May 1989 to map Venus by radar.",
+    'Galileo was to have gone in 1986 on the Shuttle with a Centaur upper stage. After Challenger the Centaur was banned from the Shuttle, and Galileo waited three years for a weaker stage and a longer way round.',
+  ],
   pathfinder: [
-    "After Neptune the Voyagers went on toward the edge of the Sun's reach, still calling in. Magellan mapped Venus by radar from 1990, and Galileo went into orbit round Jupiter in December 1995. Mars Observer fell silent in August 1993, just before it reached Mars.",
+    'Galileo went on round Jupiter for years. Mars Observer fell silent in August 1993, just before it reached Mars.',
     'Pathfinder is meant to be cheap and quick, and to test a new way down: a parachute, rockets, and a cocoon of airbags that bounces across the ground.',
   ],
   cassini: [

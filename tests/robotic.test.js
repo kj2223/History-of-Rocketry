@@ -6,7 +6,16 @@ import { SEASON, onPath, LAST_WORD, BETWEEN } from '../js/data/campaign.js';
 import * as game from '../js/game.js';
 
 const { checkCheckpoint, checkpoint, newGame, nextIndex, roomFor, advanceProbe, probeStep } = game;
-const ROBOTIC = ['viking-mars', 'voyager', 'pathfinder', 'cassini', 'perseverance'];
+const ROBOTIC = [
+  'surveyor-1',
+  'mariner-9',
+  'viking-mars',
+  'voyager',
+  'galileo',
+  'pathfinder',
+  'cassini',
+  'perseverance',
+];
 const at = id => SEASON.findIndex(r => r.id === id);
 
 // Play round `id` from its handover, making call picks[k] on the k-th decision day (0 when picks run out).
@@ -52,14 +61,14 @@ test('the robotic missions follow Mariner 4 on the JPL route only, in launch ord
   const jpl = SEASON.filter(r => onPath(r, 'jpl'))
     .sort((a, b) => a.start - b.start)
     .map(r => r.id);
-  assert.deepEqual(jpl.slice(-6), ['mariner-4', ...ROBOTIC]);
+  assert.deepEqual(jpl.slice(-(ROBOTIC.length + 1)), ['mariner-4', ...ROBOTIC]);
   for (const id of ROBOTIC) {
     assert.ok(!onPath(SEASON[at(id)], 'nasa'), id);
     assert.ok(BETWEEN[id]?.length, `${id} has news for the years before it`);
   }
   newGame(14);
   game.g.record.path = 'jpl';
-  assert.equal(SEASON[nextIndex(at('mariner-4'))].id, 'viking-mars');
+  assert.equal(SEASON[nextIndex(at('mariner-4'))].id, 'surveyor-1');
   assert.ok(LAST_WORD.perseverance);
 });
 
