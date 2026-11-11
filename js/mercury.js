@@ -1725,11 +1725,13 @@ export function consoleInsertion(choice) {
   }
   const expired = choice === 'expire' && con.shift?.remaining === 0;
   if (!expired && typeof choice !== 'boolean' && (!gemini || !['correct', 'reduced'].includes(choice))) return;
-  const go = choice !== false && !expired;
+  // A window that closes without a call from Flight goes with Goddard's reading (Aaron, 11 November 2026): a good orbit
+  // is kept, and a bad one comes home. Flight's chance to correct the orbit or change the plan has gone.
+  const go = expired ? con.goddard.go : choice !== false;
   const correction = choice === 'correct' ? 0.04 : 0;
   const end = con.round.end,
     good = end.margin + correction >= 0;
-  con.calls.insertion = { go, right: go === good, goddard: con.goddard.go };
+  con.calls.insertion = { go, right: go === good, goddard: con.goddard.go, ...(expired ? { expired: true } : {}) };
   insertion(con.round, go, correction);
   if (gemini && go) {
     con.insertionPlan = {
@@ -1742,12 +1744,14 @@ export function consoleInsertion(choice) {
   }
   if (con.kind === 'flight')
     note(
-      expired ? 'The insertion decision window closed. The team executed the early return.' :
+      expired
+        ? `The insertion window closed without a call from Flight. The team went with Goddard: ${go ? 'GO for orbit' : 'NO-GO, and the early return'}.`
+        :
         `Insertion: ${con.auto ? 'Tate' : 'you'} called ${go ? 'GO for orbit' : 'NO-GO'}${go === con.goddard.go ? ', with Goddard' : ', against Goddard'}.`,
     );
   if (!go) {
     if (expired) {
-      speak(con, 'tate', 'Retro: the window closed. Executing the early return.', 'warn');
+      speak(con, 'tate', "Retro: the window's closed, and Goddard has her below the limit. Executing the early return.", 'warn');
     } else if (flightDirector() && !con.auto) {
       speak(con, 'you', 'Flight is no-go for orbit. Retro, bring her down in the abort area.', 'bad');
       speak(con, 'tate', 'Retro copies. Recovery, stand by for the early return.', 'warn');
@@ -1761,7 +1765,8 @@ export function consoleInsertion(choice) {
     return roomChanged();
   }
   const directing = flightDirector() && !con.auto;
-  speak(con, retroWho(con), directing ? 'Flight is go for orbit.' : 'Flight, Retro: we are go for orbit.', 'go');
+  if (expired) speak(con, 'tate', "Retro: the window's closed. Going with Goddard: we are go for orbit.", 'warn');
+  else speak(con, retroWho(con), directing ? 'Flight is go for orbit.' : 'Flight, Retro: we are go for orbit.', 'go');
   if (end.outcome === 'decay') {
     speak(con, 'hollis', 'We have a go!', 'go');
     speak(
