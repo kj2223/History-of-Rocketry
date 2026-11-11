@@ -58,7 +58,7 @@ const TANK = [
 ];
 // The lander's climb back to the command module, from the surface or from an abort in the descent. A weak ascent engine
 // leaves her low, and somebody has to close the gap.
-const ASCENT = at => [
+const ASCENT = (at, docked = "Houston, we're docked. Two tired men coming through the tunnel.") => [
   {
     at,
     phase: 'Ascent and rendezvous',
@@ -87,7 +87,7 @@ const ASCENT = at => [
     moon: true,
     when: 'lmFlown',
     not: 'lmLost',
-    say: [['crew2', "Houston, we're docked. Two tired men coming through the tunnel.", 'go']],
+    say: [['crew2', docked, 'go']],
     show: { LM: ['docked'] },
   },
 ];
@@ -111,6 +111,29 @@ const IB = [
       ],
     ],
     show: { 'H-1 6': ['hot, made orbit', true] },
+  },
+].sort((a, b) => a.at - b.at);
+
+// The SLS steps: Orion in orbit on the core stage and the upper stage, and a core-stage engine that shut down early.
+const SLS = [
+  {
+    at: 0.2,
+    phase: 'Launch and Earth orbit',
+    where: [0.02, 'Earth orbit'],
+    say: [['kessler', 'Flight, EECOM: Orion is in orbit. Solar wings are out. Platform good.', 'go']],
+    show: { 'UPPER STAGE': ['in orbit'], 'SERVICE ENGINE': ['not yet fired'], ORION: ['wings out'] },
+  },
+  {
+    at: 1.8,
+    if: 'ssme',
+    say: [
+      [
+        'albrecht',
+        'Flight, Booster: one core-stage engine shut down early in the climb. The upper stage burned long to make it up.',
+        'bad',
+      ],
+    ],
+    show: { 'CORE STAGE': ['one engine down early', true] },
   },
 ].sort((a, b) => a.at - b.at);
 
@@ -2568,7 +2591,7 @@ export const FLIGHTS = {
       'Into the distant orbit only on a service engine that has passed its check; without one, home on the flyby path.',
     ],
     steps: [
-      ...IB,
+      ...SLS,
       ...EARLY,
       {
         at: 2.4,
@@ -2578,7 +2601,7 @@ export const FLIGHTS = {
         ],
         show: { 'UPPER STAGE': ['bottle pressure low', true] },
       },
-      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tlii' },
       {
         at: 11,
         lunar: true,
@@ -2685,7 +2708,7 @@ export const FLIGHTS = {
       'A heat shield is flown only on an entry its flight evidence covers.',
     ],
     steps: [
-      ...IB,
+      ...SLS,
       ...EARLY,
       {
         at: 2.4,
@@ -2885,7 +2908,7 @@ export const FLIGHTS = {
       'The lander never goes farther than the crew can walk back on what is left in their suits.',
     ],
     steps: [
-      ...IB,
+      ...SLS,
       ...EARLY,
       {
         at: 2.4,
@@ -2908,11 +2931,11 @@ export const FLIGHTS = {
         say: [
           [
             'crew2',
-            "Houston, the lander's out and on our nose. Two crews, two spacecraft, and the pole waiting.",
+            "Houston, we're outbound. The lander went up ahead of us and is waiting for us round the Moon.",
             'go',
           ],
         ],
-        show: { LM: ['docked'] },
+        show: { LANDER: ['waiting in lunar orbit'] },
       },
       ...TANK,
       {
@@ -2935,15 +2958,21 @@ export const FLIGHTS = {
         moon: true,
         where: [1, 'Lunar orbit'],
         set: { lmFlown: true },
-        say: [['pilot', "Houston, the lander has undocked. She's flying.", 'go']],
-        show: { LM: ['undocked'] },
+        say: [
+          [
+            'pilot',
+            "Houston, we're docked to the lander, and two of us are aboard her. Undocking now. She's flying.",
+            'go',
+          ],
+        ],
+        show: { LANDER: ['undocked, two aboard'] },
       },
       {
         at: 105,
         phase: 'Powered descent',
         moon: true,
         say: [['kessler', "Flight, the descent engine has lit. She's coming down over the Shackleton rim.", 'go']],
-        show: { 'LM COMPUTER': ['flying the descent'] },
+        show: { 'LANDER COMPUTER': ['flying the descent'] },
       },
       {
         at: 105.03,
@@ -2989,7 +3018,10 @@ export const FLIGHTS = {
         show: { 'WALK LIMIT': ['reached', true] },
       },
       { at: 140.1, moon: true, when: 'landed', decide: 'traverse' },
-      ...ASCENT(166),
+      ...ASCENT(
+        166,
+        "Houston, we're docked to Orion. Two tired moonwalkers coming through the hatch, and a box of polar ice.",
+      ),
       {
         at: 218,
         phase: 'Trans-Earth injection',
@@ -3112,6 +3144,15 @@ export const DECISIONS = {
     auto: 'go',
     rule: 1,
     options: { go: 'Go for translunar injection.', nogo: 'No-go. Stay in Earth orbit and test the spacecraft there.' },
+  },
+  tlii: {
+    q: 'Translunar injection. The upper stage relights over the Pacific and sends Orion to the Moon. Go or no-go?',
+    auto: 'go',
+    rule: 1,
+    options: {
+      go: 'Go for translunar injection.',
+      nogo: 'No-go. Keep her in Earth orbit and test the spacecraft there.',
+    },
   },
   tlio: {
     q: "Translunar injection. After a day's checkout in high Earth orbit, Orion's own engine burns for six minutes and sends them to the Moon. Go or no-go?",

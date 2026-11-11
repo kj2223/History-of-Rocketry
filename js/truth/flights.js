@@ -514,6 +514,17 @@ const RESOLVE = {
     out.note = 'Orion struck the lander off-centre and backed away. The docking and the crewed checkout were lost.';
     return out;
   },
+  // Artemis I's injection is her own upper stage's, an ICPS, not a Saturn's S-IVB.
+  tlii(choice, ctx) {
+    const out = RESOLVE.tli(choice, ctx),
+      ours = text =>
+        text.replace(/the S-IVB|The third stage|the third stage/g, m =>
+          m[0] === 'T' ? 'The upper stage' : 'the upper stage',
+        );
+    out.lines = out.lines.map(([who, text, tone]) => [who, ours(text), tone]);
+    out.judge = ours(out.judge);
+    return out;
+  },
   // Artemis: the upper stage only raises the orbit; Orion's own engine makes the injection a day later. A short orbit
   // raise (the restart bottle) is Orion's to make up, and the same draw decides whether she has the margin.
   tlio(choice, ctx) {

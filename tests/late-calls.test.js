@@ -134,7 +134,7 @@ for (const [flight, id] of [
     campaignTo(13, flight, { sims: 0 });
     playMission({
       sims: 0,
-      decide: d => (asked.push(d.id), d.id === 'tli' || d.id === 'tlio' ? 'go' : Object.keys(d.options)[0]),
+      decide: d => (asked.push(d.id), ['tli', 'tlii', 'tlio'].includes(d.id) ? 'go' : Object.keys(d.options)[0]),
     });
     assert.ok(asked.includes(id), `${flight}: ${asked}`);
   });

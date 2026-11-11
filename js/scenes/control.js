@@ -83,7 +83,7 @@ export const CONTROL_ROOMS = {
   splash() {
     const c = g.console;
     const lines = c ? c.lines : (g.mission && g.mission.lines) || [];
-    return `<h2>Recovery</h2><p>${dateText()}, ${clockText()}. ${who('reyes')} reads the reports off the board as they come in from the ships.</p>
+    return `<h2>Recovery</h2><p>${dateText()}, ${clockText()}. ${who('reyes')} reads the reports off the board as they come in from ${g.vehicle === 'shuttle' ? 'the runway crews' : 'the ships'}.</p>
       <ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
       <p class="muted">All of this is in your notebook.</p>
       <button class="primary" data-act="to-review">On to the review</button>`;
