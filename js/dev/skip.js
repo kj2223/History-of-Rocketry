@@ -2,7 +2,7 @@
 // playtest can start at any stage with a believable record behind it (the fixes, the losses, the people, the offers).
 // For testing only. The bot takes every offer on the NASA route and turns every one down on the JPL route.
 import { g, newGame, nextRound, closeAway } from '../game.js';
-import { routeArgue, routeDone, apollo8Decide, apollo8Done } from '../mercury.js';
+import { routeArgue, routeDone, apollo8Decide, apollo8Done, workshopDecide, workshopDone } from '../mercury.js';
 import { SEASON } from '../data/campaign.js';
 import { playRound, playMission, advance, nextDay, carefulDecide } from './bot.js';
 
@@ -34,6 +34,15 @@ export function skipTo(id, { seed, route = 'nasa', stop = 'morning' } = {}) {
     if (g.beat === 'sRoute') {
       routeArgue('lor');
       routeDone();
+      nextRound();
+      g.room = null;
+      continue;
+    }
+    if (g.beat === 'sWorkshop') {
+      // The calls the room really made: pitch her up, and wait for the tank.
+      workshopDecide('attitude', 'pitch');
+      workshopDecide('crew', 'wait');
+      workshopDone();
       nextRound();
       g.room = null;
       continue;
@@ -71,7 +80,7 @@ export function skipTo(id, { seed, route = 'nasa', stop = 'morning' } = {}) {
 // From a round's first morning to launch morning: the inspection, the board and the static fire done the bot's way.
 // A crewed round goes straight to the launch day. A probe round is worked from the office, so it stays on its morning.
 function toLaunchMorning() {
-  if (g.beat.startsWith('probe') || ['sRoute', 'sApollo8', 'seasonEnd'].includes(g.beat)) return;
+  if (g.beat.startsWith('probe') || ['sRoute', 'sApollo8', 'sWorkshop', 'seasonEnd'].includes(g.beat)) return;
   if (g.crewed) {
     nextDay();
     return;

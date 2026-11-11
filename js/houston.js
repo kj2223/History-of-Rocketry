@@ -36,6 +36,8 @@ const crewName = i => ASTRONAUTS[crewOf()?.[i]]?.name;
 export function startFlight(c) {
   const id = c.flightId,
     plan = FLIGHTS[id];
+  // What Mission Control did with the workshop before the first crew flew (the May 1973 meeting) rides with Skylab 2.
+  if (c.kind === 'flight' && id === 'skylab-2') c.round.workshop = g.record.scenes?.workshop || null;
   if (c.kind === 'flight') flightTruth(c.round, id, g.seed);
   c.flight = {
     id,

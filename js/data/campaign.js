@@ -297,6 +297,7 @@ export const SEASON = [
     crew: ['price', 'beckett', 'tanaka'],
     risk: { j2Risk: 0.5 },
     path: 'nasa',
+    after: 'workshop',
     start: dayOf(1972, 12, 5),
     name: 'Apollo 17, the last landing, the valley of Taurus-Littrow',
   }, // launched 7 December 1972

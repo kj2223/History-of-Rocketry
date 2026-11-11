@@ -70,6 +70,11 @@ export function flightTruth(round, id, campaignSeed = round.seed) {
   t.flags.throttle = !!round.throttle;
   // The workshop's launch damage rides with the seed, not the round: the same station meets every crew.
   if (/^skylab/.test(id)) t.flags.shield = skylabShield(campaignSeed);
+  // The May 1973 meeting: a workshop left to bake in the Sun before the crew came, and a crew sent up before the parasol
+  // and the cutters had been tried in the water tank.
+  const ws = id === 'skylab-2' && t.flags.shield ? round.workshop : null;
+  t.flags.cooked = ws?.attitude === 'sun';
+  t.flags.untried = ws?.crew === 'rush';
   t.fuelcellRecovers = d[0] < ODDS.fuelcellRecovers;
   // The later flights' own troubles, from draws no other call on that flight uses: Dragon's laser ranging dropping out on
   // the approach (d[20]), Discovery's iced flash evaporator running the cabin hot (d[18]), Endeavour's bent solar-array
@@ -970,9 +975,24 @@ const RESOLVE = {
     return out;
   },
   // Skylab 2: the parasol shade, and the jammed solar wing. The shade is the rule; the wing is a gamble on a suit.
-  parasol(choice, { out }) {
+  parasol(choice, { f, d, out }) {
     if (choice === 'parasol') {
       out.set.shaded = true;
+      // Untried in the tank, the sail jams half open in the airlock about two times in five (d[20]: no other call on
+      // Skylab 2 uses it).
+      if (f.untried && d[20] < 0.4) {
+        out.set.hurt = 0.03;
+        out.verdict = 'fair';
+        out.judge =
+          'The parasol had never been tried in the tank. It jammed half open in the solar airlock and took the crew a day of improvising to spread. The workshop cooled, a day late.';
+        return out;
+      }
+      if (f.cooked) {
+        out.verdict = 'fair';
+        out.judge =
+          'The parasol went up the day after rendezvous and the workshop cooled. But she had baked for ten days in full Sun before anyone came: the film was fogged and some of the food had to be thrown away.';
+        return out;
+      }
       out.verdict = 'good';
       out.judge =
         'The parasol went up through the solar airlock the day after rendezvous, and the workshop came down out of the fifties into the twenties. The rule written for exactly that.';
@@ -982,11 +1002,13 @@ const RESOLVE = {
     out.judge =
       'A week in a workshop at fifty-two degrees: food spoiled, film curled, and the crew worked in masks. The shade went up anyway, late.';
     out.set.shaded = true;
+    if (f.cooked) out.set.hurt = 0.05;
     return out;
   },
-  panel(choice, { d, out }) {
+  panel(choice, { f, d, out }) {
     if (choice === 'free') {
-      if (d[17] < 0.15) {
+      // Cutters nobody had tried on a mock-up in the tank tear suits more often.
+      if (d[17] < (f.untried ? 0.4 : 0.15)) {
         out.set.panelFree = true;
         out.set.hurt = 0.08;
         out.verdict = 'fair';

@@ -24,6 +24,11 @@ import {
   apollo8Brief,
   apollo8Decide,
   apollo8Done,
+  workshopBrief,
+  workshopOpen,
+  workshopDecide,
+  workshopDone,
+  WORKSHOP_CALLS,
   APOLLO8_OPTIONS,
   SHUTDOWN_OPTIONS,
   lookSpot,
@@ -98,6 +103,36 @@ export const CONTROL_ROOMS = {
           : `<div class="choices">${Object.entries(APOLLO8_OPTIONS)
               .map(([k, t]) => `<button data-act="a8" data-id="${k}">${esc(t)}</button>`)
               .join('')}</div>`
+      }`;
+  },
+  // 14 May 1973: the workshop in orbit, before the first crew. What the telemetry shows, and the room's calls.
+  workshop() {
+    const b = workshopBrief(),
+      open = workshopOpen(),
+      call = open[0];
+    const made = Object.entries(WORKSHOP_CALLS)
+      .filter(([k]) => b.done[k])
+      .map(([k, c]) => `<li>${esc(c.options[b.done[k]])}</li>`)
+      .join('');
+    return `<h2>The workshop, ${dateText()}</h2>
+      <p>The last Saturn V put the workshop into orbit this morning, empty. The first crew is due to follow her on a Saturn IB tomorrow. ${who('hollis')} has the telemetry up on the wall.</p>
+      <ul>${
+        b.shield
+          ? `<li>Sixty-three seconds into the climb Booster saw a jolt in the accelerometers.</li>
+      <li>The main solar wings never reported deployed. The telescope mount's own wings are out and making power.</li>
+      <li>Temperatures inside are climbing past forty-five degrees and still rising: the gold micrometeoroid shield that was her sunshade is not where it should be.</li>`
+          : `<li>The climb was clean. Both main solar wings and the telescope mount's wings are out and making power.</li>
+      <li>Temperatures inside are steady in the low twenties. The micrometeoroid shield is doing its job.</li>`
+      }</ul>
+      ${made ? `<p><strong>Decided:</strong></p><ul>${made}</ul>` : ''}
+      ${
+        call
+          ? `<p><strong>${esc(WORKSHOP_CALLS[call].q)}</strong></p><div class="choices">${Object.entries(
+              WORKSHOP_CALLS[call].options,
+            )
+              .map(([k, t]) => `<button data-act="ws" data-id="${call}:${k}">${esc(t)}</button>`)
+              .join('')}</div>`
+          : `<p>${b.shield ? 'The calls are made. They are in your notebook.' : 'She is whole. The first crew flies on the plan.'}</p><button class="primary" data-act="ws-done">Leave the meeting</button>`
       }`;
   },
   route() {
@@ -429,6 +464,8 @@ export const CONTROL_ACTS = {
   'm-shutdown': id => shutdownChoose(id),
   a8: id => apollo8Decide(id),
   'a8-done': apollo8Done,
+  ws: id => workshopDecide(...id.split(':')),
+  'ws-done': workshopDone,
   'm-insert': id => !g.console?.auto && consoleInsertion(id === 'go' ? true : id === 'nogo' ? false : id),
   'm-shift': id => consoleShift(id),
   'm-pack': id => consolePack(id),
