@@ -1487,7 +1487,13 @@ export function finishReview(entry) {
       `Your budget line, fiscal ${b.fy}: ${dollars(b.spent)} spent of ${dollars(b.line)}.${b.spent > b.line ? ' Over the line.' : ''}`,
     );
   }
-  recordFlight(g.programme, { vehicle: g.vehicle, load: g.round.propellantLoad, apogee: seen, failure: f.failure });
+  recordFlight(g.programme, {
+    vehicle: g.vehicle,
+    load: g.round.propellantLoad,
+    apogee: seen,
+    failure: f.failure,
+    hidden: !!g.round.hiddenFailure,
+  });
   // After Sputnik every day lost is reported to Washington, and it goes on your record.
   if (SEASON[g.roundIndex].pressure && g.slipDays) {
     shiftTrust(g.record, -1);

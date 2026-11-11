@@ -274,6 +274,7 @@ export function adopt(programme, cause) {
   if (!fix || programme.adopted.includes(cause)) return null;
   fix.apply(programme);
   programme.adopted.push(cause);
+  if (programme.batch) delete programme.batch[cause];
   return fix.text;
 }
 // A round the history makes likelier to go wrong (data/campaign.js: risk) is built at that higher chance, but a fix the
@@ -298,8 +299,15 @@ export function newFixes(programme) {
 }
 
 // A flight the radar tracked to its peak. Only good flights tell the drawing office about the vehicle's performance.
-export function recordFlight(programme, { vehicle = 'wac', load, apogee, failure }) {
+// A round comes from a production lot. A cause that brought it down, and that nobody has fixed, is likelier on the next
+// LOT_ROUNDS rounds from the same lot (truth/round.js). A failure no inspection could have found (hidden) says nothing
+// about the lot. Fixing the cause clears it (adopt).
+export const LOT_ROUNDS = 2;
+export function recordFlight(programme, { vehicle = 'wac', load, apogee, failure, hidden = false }) {
   programme.flights.push({ vehicle, load, apogee: failure ? null : apogee, failure: failure || null });
+  const batch = (programme.batch ??= {});
+  for (const c of Object.keys(batch)) if (--batch[c] <= 0) delete batch[c];
+  if (failure && !hidden && !programme.adopted.includes(failure)) batch[failure] = LOT_ROUNDS;
 }
 // The highest peak the radar has seen on this range so far, in km (0 before anything has flown well).
 export const rangeRecord = programme => Math.max(0, ...programme.flights.map(f => f.apogee ?? 0));
