@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('adAstraDesktop', {
     read: () => ipcRenderer.sendSync('playtest:read'),
     write: (log, save) => ipcRenderer.send('playtest:write', log, save),
     mark: (n, save) => ipcRenderer.invoke('playtest:mark', n, save),
+    fileIssue: (url, n) => ipcRenderer.send('playtest:file-issue', url, n),
     onMark: fn => ipcRenderer.on('playtest:mark-request', () => fn()),
     onToggle: fn => ipcRenderer.on('playtest:toggle', (_, on) => fn(on)),
   },

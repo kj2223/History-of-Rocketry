@@ -173,6 +173,15 @@ ipcMain.handle('playtest:mark', async (event, n, save) => {
     for (const f of fs.readdirSync(marks)) if (f.startsWith(`mark-${old}`)) fs.rmSync(path.join(marks, f));
   return files;
 });
+// Filing a mark: only the repository's new-issue page may open, in the player's own browser. The marks folder opens
+// beside it with the screenshot selected, to drag into the issue.
+const ISSUE_PAGE = 'https://github.com/kj2223/History-of-Rocketry/issues/new?';
+ipcMain.on('playtest:file-issue', (_, url, n) => {
+  if (typeof url !== 'string' || !url.startsWith(ISSUE_PAGE) || url.length > 8192) return;
+  shell.openExternal(url);
+  const shot = playtestFile(path.join('marks', `mark-${String(n).padStart(3, '0')}.png`));
+  if (fs.existsSync(shot)) shell.showItemInFolder(shot);
+});
 const focused = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
 // A new log: the old one is kept as log-previous.json, and the marks move to marks-previous.
 function freshLog() {
