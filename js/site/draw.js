@@ -776,8 +776,7 @@ export function drawSite(ctx, g, view) {
   for (const job of g.jobs) jobBar(ctx, job);
   launchSmoke(ctx, g);
   truckDust(ctx, g);
-  for (const p of Object.values(g.people))
-    if (!p.hidden && p.bubble) bubble(ctx, p.x, GROUND - 44, p.bubble.text, p.bubble.tone);
+  siteBubbles(ctx, g);
   if (g.marker != null) {
     ctx.fillStyle = 'rgba(255,240,180,.8)';
     ctx.fillRect(g.marker - 3, GROUND + 2, 6, 3);
@@ -3315,15 +3314,52 @@ function person(ctx, p, time) {
   }
 }
 
-// A speech bubble above (x, y). tone: '' | 'go' | 'warn' | 'bad'.
-export function bubble(ctx, x, y, text, tone = '') {
+// The site's speech bubbles, laid out so none covers another: the newest speaker is drawn last and on top, and a
+// bubble that would overlap one already placed is lifted clear of it, its tail stretched down to the speaker.
+function siteBubbles(ctx, g) {
+  const talking = Object.values(g.people)
+    .filter(p => !p.hidden && p.bubble)
+    .sort((a, b) => a.bubble.until - b.bubble.until);
+  const placed = [];
+  for (const p of talking) {
+    const { bw, bh } = bubbleSize(ctx, p.bubble.text);
+    let bx = p.x - bw / 2,
+      by = GROUND - 44 - bh - 8;
+    for (let moved = true, n = 0; moved && n < 8; n++) {
+      moved = false;
+      for (const r of placed)
+        if (bx < r.x + r.w + 4 && bx + bw + 4 > r.x && by < r.y + r.h + 4 && by + bh + 4 > r.y) {
+          by = r.y - bh - 6;
+          moved = true;
+        }
+    }
+    placed.push({ x: bx, y: by, w: bw, h: bh, p, lift: GROUND - 44 - 8 - (by + bh) });
+  }
+  // A lifted bubble's lead down to its speaker goes in first, so the bubbles below cover it rather than it crossing them.
+  ctx.strokeStyle = 'rgba(43,38,32,.8)';
+  ctx.lineWidth = 1.5;
+  for (const r of placed)
+    if (r.lift > 0) {
+      ctx.beginPath();
+      ctx.moveTo(r.p.x, r.y + r.h);
+      ctx.lineTo(r.p.x, GROUND - 44);
+      ctx.stroke();
+    }
+  for (const r of placed) bubble(ctx, r.p.x, GROUND - 44, r.p.bubble.text, r.p.bubble.tone, r.lift);
+}
+function bubbleSize(ctx, text) {
   ctx.font = '12px Georgia, serif';
-  const lines = wrap(ctx, text, 190),
-    lh = 15,
-    bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16,
-    bh = lines.length * lh + 10;
+  const lines = wrap(ctx, text, 190);
+  return { lines, bw: Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, bh: lines.length * 15 + 10 };
+}
+
+// A speech bubble above (x, y). tone: '' | 'go' | 'warn' | 'bad'. lift raises the bubble above its usual place (the site
+// draws the lead down to the speaker).
+export function bubble(ctx, x, y, text, tone = '', lift = 0) {
+  const { lines, bw, bh } = bubbleSize(ctx, text),
+    lh = 15;
   const bx = x - bw / 2,
-    by = y - bh - 8;
+    by = y - bh - 8 - lift;
   ctx.fillStyle = tone === 'bad' ? '#f6d2cc' : tone === 'warn' ? '#f8e7b8' : tone === 'go' ? '#dcefd8' : '#fbf7ec';
   ctx.strokeStyle = '#2b2620';
   ctx.lineWidth = 1;
