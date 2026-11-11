@@ -42,12 +42,23 @@ export const CREW_TRAITS = {
   nakagawa: { risk: 0.4, candour: 0.85, independence: 0.5 },
   brennan: { risk: 0.55, candour: 0.8, independence: 0.65 },
   donovan: { risk: 0.6, candour: 0.65, independence: 0.6 },
+  // The 1987 class.
+  dunmore: { risk: 0.35, candour: 0.85, independence: 0.5 },
+  arriaga: { risk: 0.45, candour: 0.7, independence: 0.55 },
+  harker: { risk: 0.55, candour: 0.6, independence: 0.6 },
   // The 1996 class.
   okeke: { risk: 0.45, candour: 0.75, independence: 0.5 },
   farrow: { risk: 0.5, candour: 0.85, independence: 0.55 },
   delacroix: { risk: 0.4, candour: 0.7, independence: 0.45 },
   quinn: { risk: 0.35, candour: 0.9, independence: 0.5 },
   hawthorne: { risk: 0.5, candour: 0.75, independence: 0.55 },
+  // The 2004 and 2013 classes.
+  penhallow: { risk: 0.5, candour: 0.75, independence: 0.55 },
+  ibrahim: { risk: 0.35, candour: 0.8, independence: 0.45 },
+  navarro: { risk: 0.4, candour: 0.85, independence: 0.5 },
+  adler: { risk: 0.55, candour: 0.7, independence: 0.6 },
+  osei: { risk: 0.45, candour: 0.8, independence: 0.55 },
+  ashdown: { risk: 0.5, candour: 0.75, independence: 0.5 },
   // The 2020 class.
   sharma: { risk: 0.5, candour: 0.8, independence: 0.6 },
   larsen: { risk: 0.4, candour: 0.85, independence: 0.5 },

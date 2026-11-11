@@ -272,6 +272,28 @@ export const ASTRONAUTS = {
     note: 'Came up through the test wing at Edwards; knows the lakebed.',
     color: '#d9d4c7',
   },
+  // The 1987 class: the return to flight.
+  dunmore: {
+    name: 'Rachel Dunmore',
+    service: 'Navy test pilot',
+    hours: 3400,
+    note: 'Joined the year after Challenger, and reads every waiver twice.',
+    color: '#d9d4c7',
+  },
+  arriaga: {
+    name: 'Luis Arriaga',
+    service: 'Civilian physicist',
+    hours: 0,
+    note: 'Built instruments for the telescope before he ever flew.',
+    color: '#d9d4c7',
+  },
+  harker: {
+    name: 'Tom Harker',
+    service: 'Marine Corps aviator',
+    hours: 3100,
+    note: 'Quiet on the loop, quick on the arm.',
+    color: '#d9d4c7',
+  },
   // The 1996 class: the station years.
   okeke: {
     name: 'Chidi Okeke',
@@ -306,6 +328,50 @@ export const ASTRONAUTS = {
     service: 'Air Force pilot',
     hours: 3000,
     note: 'Steady on the count, generous in debriefs.',
+    color: '#d9d4c7',
+  },
+  // The 2004 class: the last Shuttle years and the long station expeditions.
+  penhallow: {
+    name: 'Grace Penhallow',
+    service: 'Air Force test pilot',
+    hours: 3000,
+    note: 'Flew the last of the station assembly, and stayed six months.',
+    color: '#d9d4c7',
+  },
+  ibrahim: {
+    name: 'Samir Ibrahim',
+    service: 'Civilian systems engineer',
+    hours: 0,
+    note: 'Knows the station’s cooling loops the way other people know their street.',
+    color: '#d9d4c7',
+  },
+  navarro: {
+    name: 'Elena Navarro',
+    service: 'Civilian physician',
+    hours: 0,
+    note: 'Runs the medical experiments, and herself, by the clock.',
+    color: '#d9d4c7',
+  },
+  // The 2013 class: the commercial years.
+  adler: {
+    name: 'Ruth Adler',
+    service: 'Navy helicopter pilot',
+    hours: 2800,
+    note: 'Trained on the company capsules before they had flown anyone.',
+    color: '#d9d4c7',
+  },
+  osei: {
+    name: 'Kwame Osei',
+    service: 'Civilian geologist',
+    hours: 0,
+    note: 'Mapped lava tubes on Earth for the Moon that comes after.',
+    color: '#d9d4c7',
+  },
+  ashdown: {
+    name: 'Sam Ashdown',
+    service: 'Army test pilot',
+    hours: 3200,
+    note: 'Plain-spoken, and the steadiest hand in the simulator.',
     color: '#d9d4c7',
   },
   // The 2020 class: commercial crew and Artemis.
@@ -357,8 +423,13 @@ export const ELEVEN = [
 ];
 // The 1978 class (Group 8): the Shuttle's standing crews.
 export const EIGHT = ['carter', 'ellison', 'vasquez', 'winters', 'hobbs', 'nakagawa', 'brennan', 'donovan'];
+// The 1987 class (Group 12): the return to flight.
+export const TWELVE = ['dunmore', 'arriaga', 'harker'];
 // The 1996 class (Group 16): the station years.
 export const SIXTEEN = ['okeke', 'farrow', 'delacroix', 'quinn', 'hawthorne'];
+// The 2004 class (Group 19) and the 2013 class (Group 21).
+export const NINETEEN = ['penhallow', 'ibrahim', 'navarro'];
+export const TWENTYONE = ['adler', 'osei', 'ashdown'];
 // The 2020 class: commercial crew and Artemis.
 export const ARTEMIS = ['sharma', 'larsen', 'vaughn', 'petrossian'];
 // Every group with the year it was selected, oldest first: a lost astronaut's seat goes to someone selected before the
@@ -369,6 +440,9 @@ export const GROUPS = [
   { year: 1963, ids: FOURTEEN },
   { year: 1966, ids: ELEVEN },
   { year: 1978, ids: EIGHT },
+  { year: 1987, ids: TWELVE },
   { year: 1996, ids: SIXTEEN },
+  { year: 2004, ids: NINETEEN },
+  { year: 2013, ids: TWENTYONE },
   { year: 2020, ids: ARTEMIS },
 ];

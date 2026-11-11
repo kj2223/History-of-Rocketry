@@ -392,7 +392,7 @@ export const SEASON = [
     site: 'cape',
     crewed: 'shuttle',
     orbital: true,
-    crew: ['brennan', 'okeke', 'ellison'],
+    crew: ['brennan', 'ellison', 'carter'],
     path: 'nasa',
     start: dayOf(1990, 4, 22),
     name: 'STS-31, the telescope goes up',

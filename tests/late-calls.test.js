@@ -90,3 +90,51 @@ for (const flight of Object.keys(CALLS))
     // Skylab 3 asks about the second quad only if the crew stayed after the first.
     assert.ok(asked.includes(CALLS[flight]), `${flight}: ${asked}`);
   });
+
+test("Artemis I flies the distant orbit on its service engine, and her heat shield's char decides Artemis II's entry", () => {
+  const truth = (id, seed) => {
+    const r = newRound(seed, initProgramme(), 'sls');
+    flightTruth(r, id, seed);
+    return r;
+  };
+  // A sound engine: into the distant orbit and out. A failed check: skipping it is the good call.
+  const r = truth('artemis-1', 5);
+  r.flightTruth.flags.sps = false;
+  assert.equal(resolve(r, 'dro', 'go', {}).set.inDro, true);
+  assert.equal(resolve(r, 'dro', 'go', {}).verdict, 'good');
+  r.flightTruth.flags.sps = true;
+  assert.equal(resolve(r, 'dro', 'skip', {}).verdict, 'good');
+  assert.equal(resolve(r, 'dro', 'skip', {}).endAt, 240);
+  // The char is one draw per game: Artemis I and II share it, and most games have it.
+  let chars = 0;
+  for (let s = 1; s <= 80; s++) {
+    const a = truth('artemis-1', s).flightTruth.flags.char;
+    assert.equal(truth('artemis-2', s).flightTruth.flags.char, a, `seed ${s}`);
+    assert.equal(truth('artemis-3', s).flightTruth.flags.char, false);
+    chars += a;
+  }
+  assert.ok(chars > 40 && chars < 75, `${chars} of 80`);
+  // With the char, the shorter entry is the good call and the long skip can hurt; without it, the skip is.
+  const two = truth('artemis-2', 5);
+  two.flightTruth.flags.char = true;
+  assert.equal(resolve(two, 'entryplan', 'loft', {}).verdict, 'good');
+  assert.notEqual(resolve(two, 'entryplan', 'skip', {}).verdict, 'good');
+  two.flightTruth.flags.char = false;
+  assert.equal(resolve(two, 'entryplan', 'skip', {}).verdict, 'good');
+  for (const id of ['dro', 'entryplan']) assert.ok(DECISIONS[id].options[DECISIONS[id].auto]);
+  assert.ok(FLIGHTS['artemis-1'].rules[DECISIONS.dro.rule] && FLIGHTS['artemis-2'].rules[DECISIONS.entryplan.rule]);
+});
+
+for (const [flight, id] of [
+  ['artemis-1', 'dro'],
+  ['artemis-2', 'entryplan'],
+])
+  test(`${flight} asks ${id} in a played flight`, () => {
+    const asked = [];
+    campaignTo(13, flight, { sims: 0 });
+    playMission({
+      sims: 0,
+      decide: d => (asked.push(d.id), ['tli', 'tlii', 'tlio'].includes(d.id) ? 'go' : Object.keys(d.options)[0]),
+    });
+    assert.ok(asked.includes(id), `${flight}: ${asked}`);
+  });

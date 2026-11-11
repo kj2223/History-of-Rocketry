@@ -58,7 +58,7 @@ const TANK = [
 ];
 // The lander's climb back to the command module, from the surface or from an abort in the descent. A weak ascent engine
 // leaves her low, and somebody has to close the gap.
-const ASCENT = at => [
+const ASCENT = (at, docked = "Houston, we're docked. Two tired men coming through the tunnel.") => [
   {
     at,
     phase: 'Ascent and rendezvous',
@@ -87,7 +87,7 @@ const ASCENT = at => [
     moon: true,
     when: 'lmFlown',
     not: 'lmLost',
-    say: [['crew2', "Houston, we're docked. Two tired men coming through the tunnel.", 'go']],
+    say: [['crew2', docked, 'go']],
     show: { LM: ['docked'] },
   },
 ];
@@ -111,6 +111,29 @@ const IB = [
       ],
     ],
     show: { 'H-1 6': ['hot, made orbit', true] },
+  },
+].sort((a, b) => a.at - b.at);
+
+// The SLS steps: Orion in orbit on the core stage and the upper stage, and a core-stage engine that shut down early.
+const SLS = [
+  {
+    at: 0.2,
+    phase: 'Launch and Earth orbit',
+    where: [0.02, 'Earth orbit'],
+    say: [['kessler', 'Flight, EECOM: Orion is in orbit. Solar wings are out. Platform good.', 'go']],
+    show: { 'UPPER STAGE': ['in orbit'], 'SERVICE ENGINE': ['not yet fired'], ORION: ['wings out'] },
+  },
+  {
+    at: 1.8,
+    if: 'ssme',
+    say: [
+      [
+        'albrecht',
+        'Flight, Booster: one core-stage engine shut down early in the climb. The upper stage burned long to make it up.',
+        'bad',
+      ],
+    ],
+    show: { 'CORE STAGE': ['one engine down early', true] },
   },
 ].sort((a, b) => a.at - b.at);
 
@@ -2556,17 +2579,19 @@ export const FLIGHTS = {
     program: 'apollo',
     craft: 'Artemis I',
     entry: 'lunar',
-    completes: 'lunarorbit',
-    phases: 4,
-    objective: 'send Orion round the Moon and back with nobody aboard, and prove the rocket for the crews behind her',
+    completes: 'distantorbit',
+    phases: 5,
+    objective:
+      'send Orion out to a distant orbit round the Moon and back with nobody aboard, and prove the rocket and the heat shield for the crews behind her',
     rules: [
       'No launch with the sea above state 4 in the primary landing area.',
       'Go for translunar injection only with a good upper stage and a good spacecraft after one and a half Earth orbits.',
       'The flight plan is set before launch; nobody aboard can change it.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+      'Into the distant orbit only on a service engine that has passed its check; without one, home on the flyby path.',
     ],
     steps: [
-      ...IB,
+      ...SLS,
       ...EARLY,
       {
         at: 2.4,
@@ -2576,7 +2601,7 @@ export const FLIGHTS = {
         ],
         show: { 'UPPER STAGE': ['bottle pressure low', true] },
       },
-      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tli' },
+      { at: 2.9, phase: 'Translunar injection', where: [0.03, 'Earth orbit'], decide: 'tlii' },
       {
         at: 11,
         lunar: true,
@@ -2587,32 +2612,82 @@ export const FLIGHTS = {
         ],
       },
       {
-        at: 80,
+        at: 120,
         phase: 'The flyby',
         where: [0.97, 'Approaching the Moon'],
         moon: true,
         say: [
           [
             'morgan',
-            "Flight, Network: she's behind the Moon, a hundred and thirty kilometres over the far side at closest, swinging out to the distant orbit. Out of sight for half an hour.",
+            "Flight, Network: she's behind the Moon, a hundred and thirty kilometres over the far side at closest. The flyby burn is hers. Out of sight for half an hour.",
             'warn',
           ],
         ],
       },
       {
-        at: 82,
+        at: 121,
         moon: true,
         say: [
           [
             'morgan',
-            'Flight, Network: we have her. Out to the distant orbit and home on the plan, exactly as aimed.',
+            'Flight, Network: we have her. Flyby burn good. She is climbing out toward the distant orbit.',
             'go',
           ],
         ],
       },
-      { at: 200, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
-      { at: 228, lunar: true, decide: 'mcc' },
-      { at: 234, retro: true },
+      {
+        at: 205,
+        lunar: true,
+        if: 'sps',
+        show: { 'SERVICE ENGINE': ['chamber pressure low on the check', true] },
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: the service engine's check firing came up short on chamber pressure. The insertion burn into the distant orbit is hers.",
+            'warn',
+          ],
+        ],
+      },
+      { at: 205, lunar: true, unless: 'sps', show: { 'SERVICE ENGINE': ['good on the check'] } },
+      { at: 216, lunar: true, phase: 'The distant orbit', where: [1, 'Distant retrograde orbit'], decide: 'dro' },
+      {
+        at: 360,
+        lunar: true,
+        when: 'inDro',
+        say: [
+          [
+            'morgan',
+            'Flight, Network: departure burn good. She is out of the distant orbit, farther from Earth than any spacecraft built for a crew has been.',
+            'go',
+          ],
+        ],
+      },
+      {
+        at: 456,
+        lunar: true,
+        when: 'inDro',
+        where: [0.97, 'Return flyby'],
+        say: [
+          [
+            'morgan',
+            'Flight, Network: return flyby burn good, a hundred and thirty kilometres over the Moon again. She is coming home.',
+            'go',
+          ],
+        ],
+      },
+      { at: 580, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      { at: 600, lunar: true, decide: 'mcc' },
+      {
+        at: 605,
+        say: [
+          [
+            'tate',
+            'Flight, Retro: she skips once off the top of the air and comes back in to steer for the ships. The shield takes it twice.',
+            '',
+          ],
+        ],
+      },
+      { at: 606, retro: true },
     ],
   },
 
@@ -2621,7 +2696,7 @@ export const FLIGHTS = {
     program: 'apollo',
     craft: 'Artemis II',
     entry: 'lunar',
-    completes: 'lunarorbit',
+    completes: 'crewedflyby',
     phases: 5,
     objective:
       'fly a crew of four round the Moon on the free return, farther than anyone has gone since 1972, and home',
@@ -2630,9 +2705,10 @@ export const FLIGHTS = {
       'Go for translunar injection only with a good spacecraft after a day of checkout in high Earth orbit.',
       'The free return is the plan; the engine is there to change it, not to rely on.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
+      'A heat shield is flown only on an entry its flight evidence covers.',
     ],
     steps: [
-      ...IB,
+      ...SLS,
       ...EARLY,
       {
         at: 2.4,
@@ -2699,6 +2775,27 @@ export const FLIGHTS = {
         ],
       },
       { at: 200, lunar: true, phase: 'Coast home', where: [0.4, 'Coming home'], measure: 'entryAngle' },
+      {
+        at: 210,
+        lunar: true,
+        if: 'char',
+        say: [
+          [
+            'kessler',
+            "Flight, EECOM: for the entry plan, remember Artemis I's shield. It came home with chunks of char gone out of it after the skip, more than any model said. Same shield on this ship.",
+            'warn',
+          ],
+        ],
+        show: { 'HEAT SHIELD': ['Artemis I char loss', true] },
+      },
+      {
+        at: 210,
+        lunar: true,
+        unless: 'char',
+        say: [['kessler', "Flight, EECOM: Artemis I's shield came home charred evenly, as the models said.", 'go']],
+        show: { 'HEAT SHIELD': ['Artemis I as predicted'] },
+      },
+      { at: 212, lunar: true, decide: 'entryplan' },
       { at: 228, lunar: true, decide: 'mcc' },
       { at: 234, retro: true },
     ],
@@ -2811,7 +2908,7 @@ export const FLIGHTS = {
       'The lander never goes farther than the crew can walk back on what is left in their suits.',
     ],
     steps: [
-      ...IB,
+      ...SLS,
       ...EARLY,
       {
         at: 2.4,
@@ -2834,11 +2931,11 @@ export const FLIGHTS = {
         say: [
           [
             'crew2',
-            "Houston, the lander's out and on our nose. Two crews, two spacecraft, and the pole waiting.",
+            "Houston, we're outbound. The lander went up ahead of us and is waiting for us round the Moon.",
             'go',
           ],
         ],
-        show: { LM: ['docked'] },
+        show: { LANDER: ['waiting in lunar orbit'] },
       },
       ...TANK,
       {
@@ -2861,15 +2958,21 @@ export const FLIGHTS = {
         moon: true,
         where: [1, 'Lunar orbit'],
         set: { lmFlown: true },
-        say: [['pilot', "Houston, the lander has undocked. She's flying.", 'go']],
-        show: { LM: ['undocked'] },
+        say: [
+          [
+            'pilot',
+            "Houston, we're docked to the lander, and two of us are aboard her. Undocking now. She's flying.",
+            'go',
+          ],
+        ],
+        show: { LANDER: ['undocked, two aboard'] },
       },
       {
         at: 105,
         phase: 'Powered descent',
         moon: true,
         say: [['kessler', "Flight, the descent engine has lit. She's coming down over the Shackleton rim.", 'go']],
-        show: { 'LM COMPUTER': ['flying the descent'] },
+        show: { 'LANDER COMPUTER': ['flying the descent'] },
       },
       {
         at: 105.03,
@@ -2915,7 +3018,10 @@ export const FLIGHTS = {
         show: { 'WALK LIMIT': ['reached', true] },
       },
       { at: 140.1, moon: true, when: 'landed', decide: 'traverse' },
-      ...ASCENT(166),
+      ...ASCENT(
+        166,
+        "Houston, we're docked to Orion. Two tired moonwalkers coming through the hatch, and a box of polar ice.",
+      ),
       {
         at: 218,
         phase: 'Trans-Earth injection',
@@ -3038,6 +3144,15 @@ export const DECISIONS = {
     auto: 'go',
     rule: 1,
     options: { go: 'Go for translunar injection.', nogo: 'No-go. Stay in Earth orbit and test the spacecraft there.' },
+  },
+  tlii: {
+    q: 'Translunar injection. The upper stage relights over the Pacific and sends Orion to the Moon. Go or no-go?',
+    auto: 'go',
+    rule: 1,
+    options: {
+      go: 'Go for translunar injection.',
+      nogo: 'No-go. Keep her in Earth orbit and test the spacecraft there.',
+    },
   },
   tlio: {
     q: "Translunar injection. After a day's checkout in high Earth orbit, Orion's own engine burns for six minutes and sends them to the Moon. Go or no-go?",
@@ -3287,6 +3402,24 @@ export const DECISIONS = {
       retest: 'Not yet. Find and fix anything open, then test again.',
     },
   },
+  dro: {
+    q: 'Insertion into the distant retrograde orbit: the service engine burns her into a wide orbit round the Moon for a week, then burns her out again. Go, or skip it and come home on the flyby path?',
+    auto: 'go',
+    rule: 4,
+    options: {
+      go: 'Go for the distant orbit.',
+      skip: 'Skip it. Home on the flyby path, ten days early.',
+    },
+  },
+  entryplan: {
+    q: "The entry. The plan is Artemis I's long skip: off the top of the air and back in, steering for the ships. The review offers a shorter, steeper entry that keeps the shield hot for less time and lands her nearer the coast. Which does she fly?",
+    auto: 'loft',
+    rule: 4,
+    options: {
+      skip: "Fly Artemis I's long skip entry, as planned.",
+      loft: 'Fly the shorter, steeper entry the review drew up.',
+    },
+  },
   hubbledeploy: {
     q: 'The second solar array has stalled part way out. Have the ground command it on with the tension monitor overridden, send the spacewalkers out to crank it by hand, or release the telescope as she is?',
     auto: 'override',
@@ -3344,6 +3477,8 @@ export const CAPABILITIES = {
   lunarentry: 'An entry at the speed of a return from the Moon, Apollo command module heat shield',
   csmorbit: 'Ten days in Earth orbit in the Apollo command and service module',
   lunarorbit: 'Ten orbits of the Moon and home: navigation to the Moon and back',
+  crewedflyby: 'A crew of four round the far side of the Moon and home, the farthest anyone has flown since 1972',
+  distantorbit: 'Orion out to a distant orbit round the Moon for a week, and home through a skip entry',
   rehearsal: 'A lander down to fifteen kilometres over the landing site and back to the command module',
   landing: 'Two men landed on the Moon, walked on it, and flew back to the command module',
   pinpoint: 'A landing within walking distance of a chosen point on the Moon',
