@@ -112,6 +112,11 @@ export function raceOf(seed) {
 
 // Skylab's launch, 14 May 1973: whether the workshop's micrometeoroid shield is torn away on the climb and one solar
 // wing jams against the hull. The hidden layer's, from the game's seed; never a script.
+// Orion's heat shield: whether its char comes away on a skip entry, as Artemis I's did in 2022. Seeded from the game.
+export function orionChar(seed) {
+  const s = newStreams((seed ^ 0x6c3e91d5) >>> 0).forecast;
+  return draw(s) < 0.75;
+}
 export function skylabShield(seed) {
   const s = newStreams((seed ^ 0x5b1af3e7) >>> 0).forecast;
   return draw(s) < 0.6;

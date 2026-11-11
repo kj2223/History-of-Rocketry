@@ -5,7 +5,7 @@
 // spot: a wrong number from the ground's computers. Everything is decided from draws taken once, when the flight reaches
 // orbit, so a look in the checkout room or a sim never shifts it.
 import { draw, normal } from '../core/rng.js';
-import { skylabShield } from '../world/race.js';
+import { skylabShield, orionChar } from '../world/race.js';
 import { flyEntry, flyLunarEntry, GEMINI_ENTRY, LUNAR_ENTRY } from './entry.js';
 import { ORBIT_RECOVERY } from './orbit.js';
 
@@ -38,6 +38,7 @@ export const ODDS = {
   landerLeaks: 0.3,
   thirdQuad: 0.2,
   arrayBinds: 0.25,
+  charBreaks: 0.5,
 };
 // The navigation error Gemini 5 really had: the ground sent a wrong number for the Earth's rotation, and she came down
 // about 80 miles short.
@@ -86,6 +87,9 @@ export function flightTruth(round, id, campaignSeed = round.seed) {
   t.flags.landerLeak = id === 'artemis-3' && d[19] < ODDS.landerLeaks;
   // STS-31: the stalled array is a real mechanical bind, not the monitor being fussy (d[23]: no other call on STS-31).
   t.flags.arrayBind = id === 'sts-31' && d[23] < ODDS.arrayBinds;
+  // Orion's heat shield: whether its char comes away in the skip, as Artemis I's did. Seeded from the game, like the
+  // workshop's shield, so the same Orion design meets Artemis I and the crew behind her.
+  t.flags.char = /^artemis-[12]$/.test(id) && orionChar(campaignSeed);
   return (round.flightTruth = t);
 }
 export const flag = (round, name) => !!round.flightTruth?.flags[name];
@@ -1196,6 +1200,59 @@ const RESOLVE = {
     out.verdict = 'good';
     out.judge =
       'One wing the first day, the second after an overnight check. Slower than the plan, and cleaner for it.';
+    return out;
+  },
+  // Artemis I: a week in a distant orbit round the Moon, on the service engine.
+  dro(choice, { f, d, out }) {
+    if (choice === 'skip') {
+      out.set.short = true;
+      out.endAt = 240;
+      out.verdict = f.sps ? 'good' : 'fair';
+      out.judge = f.sps
+        ? 'The service engine had come up short on its check. She came home on the flyby path, and the engine was looked at on the ground before anyone rode one.'
+        : 'The service engine was sound, and we left a week of the distant orbit unflown. The crews behind her get less evidence.';
+      return out;
+    }
+    if (f.sps && d[14] < 0.5) {
+      out.set.stranded = true;
+      out.lines.push([
+        'morgan',
+        'Flight, Network: she is in the distant orbit, but the engine will not relight for departure.',
+        'bad',
+      ]);
+      out.verdict = 'bad';
+      out.judge =
+        'The engine had failed its check and we burned her into the distant orbit on it. She went in. She never came out.';
+      return out;
+    }
+    out.set.inDro = true;
+    out.lines.push(['morgan', 'Flight, Network: insertion burn good. She is in the distant retrograde orbit.', 'go']);
+    out.verdict = f.sps ? 'fair' : 'good';
+    out.judge = f.sps
+      ? 'The service engine was short on its check and we went into the distant orbit anyway. It held. Nobody was aboard to pay if it had not.'
+      : 'A week in the distant orbit, out and back on the plan.';
+    return out;
+  },
+  // Artemis II: Artemis I's shield came home with its char torn out, and the same shield is on this ship.
+  entryplan(choice, { f, d, out }) {
+    if (choice === 'skip') {
+      if (f.char && d[22] < ODDS.charBreaks) {
+        out.set.hurt = 0.12;
+        out.verdict = 'bad';
+        out.judge =
+          "The shield shed char again on the long skip, deeper this time. It held, and the crew came home in a capsule the engineers will not reuse. Artemis I's evidence said not to fly that entry.";
+        return out;
+      }
+      out.verdict = f.char ? 'fair' : 'good';
+      out.judge = f.char
+        ? "The long skip, on a shield that had lost char on it before. It held this time. Artemis I's evidence said not to rely on that."
+        : "Artemis I's shield had charred as predicted, and the long skip brought them in soft and on the mark.";
+      return out;
+    }
+    out.verdict = f.char ? 'good' : 'fair';
+    out.judge = f.char
+      ? "The shorter entry kept the heat off the shield's weak layers, and the crew came home on the evidence from Artemis I."
+      : 'The shorter entry was harder on the crew and the shield needed none of it. A careful call, on no evidence.';
     return out;
   },
   // STS-31: the telescope's second array stalls on the arm.
