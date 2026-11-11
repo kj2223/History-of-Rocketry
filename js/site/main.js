@@ -36,6 +36,7 @@ import {
   KEYS,
 } from '../core/save.js';
 import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
+import { startDevMenu, clearDevFlag } from './dev-menu.js';
 import { drawInterior, interiorOf, interiorButtonAt, doorRight } from './interiors.js';
 import { lookAt } from '../game.js';
 import {
@@ -364,6 +365,7 @@ const fresh = () => {
 bindRoom({
   again: () => {
     startOver(storage, checkCheckpoint);
+    clearDevFlag();
     newGame();
     fresh();
   },
@@ -373,6 +375,7 @@ bindRoom({
   },
   restore: () => {
     if (!swapBackup(storage, checkCheckpoint)) return;
+    clearDevFlag();
     const c = readSave(storage, checkCheckpoint);
     if (c) newGame(c.seed, c);
     else newGame();
@@ -454,6 +457,7 @@ const saved = readSave(storage, checkCheckpoint);
 trace('load', { found: !!saved, beat: saved?.beat ?? null, day: saved?.day ?? null, round: saved?.roundId ?? null });
 if (saved) newGame(saved.seed, saved);
 else newGame(seed);
+startDevMenu({ storage, check: checkCheckpoint, fresh });
 resize();
 // A test hook: lets an automated check read and drive the prototype. Harmless in play.
 window.__site = {
