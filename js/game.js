@@ -1334,7 +1334,20 @@ function flightCalls(r) {
     text: `Radar has the peak at about ${r.radar.toFixed(0)} kilometres${high ? ". Higher than anything we've flown!" : '.'}`,
     tone: high ? 'go' : '',
   });
-  calls.push({ t: end, who: 'morgan', text: `Impact about ${r.range.toFixed(0)} kilometres downrange.` });
+  // Against the last good round of her kind: what the range can see changed since then.
+  const prev = [...g.programme.flights].reverse().find(p => p.vehicle === g.vehicle && p.apogee != null);
+  const lastRange = prev?.trace?.at(-1)?.[0];
+  const diff = prev ? r.radar - prev.apogee : 0,
+    further = lastRange != null ? r.range - lastRange : 0;
+  calls.push({
+    t: end,
+    who: 'morgan',
+    text: `Impact about ${r.range.toFixed(0)} kilometres downrange.${
+      prev
+        ? ` Last round peaked at ${prev.apogee.toFixed(0)}: this one ${Math.abs(diff) < 1 ? 'about the same' : `${Math.abs(diff).toFixed(0)} km ${diff > 0 ? 'higher' : 'lower'}`}${Math.abs(further) >= 2 ? `, and came down ${Math.abs(further).toFixed(0)} km ${further > 0 ? 'further out' : 'closer in'}` : ''}.`
+        : ''
+    }`,
+  });
   return calls.sort((a, b) => a.t - b.t);
 }
 
