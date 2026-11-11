@@ -291,6 +291,10 @@ export function withSeasonRisk(programme, risk = {}, base = {}) {
 }
 // The standing fixes so far, in Ellis's words, for the news between rounds.
 export const fixesInForce = programme => programme.adopted.map(c => FIXES[c]?.text).filter(Boolean);
+// The standing fixes for the round-end card, each marked new if it has not yet been told at a jump. Reads only: told is
+// moved on by newFixes at the jump.
+export const fixesForCard = programme =>
+  programme.adopted.map((c, i) => ({ text: FIXES[c]?.text, fresh: i >= (programme.told ?? 0) })).filter(f => f.text);
 // The standing fixes not yet told in a "while you were away", marked as told: each is news once, not at every jump.
 export function newFixes(programme) {
   const fresh = programme.adopted.slice(programme.told ?? 0);
