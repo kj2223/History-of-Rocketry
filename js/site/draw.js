@@ -8,6 +8,7 @@ export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
 import { WORLD_LAND } from '../data/world-map.js';
+import { dateOf } from '../core/calendar.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS } from '../data/mercury.js';
 
@@ -23,9 +24,18 @@ export function skyFor(minute) {
 let staticLayer = null,
   staticKey = '';
 
+// THE ERA the site is dressed for: what stands round the buildings changes with the years, as it did at the Cape.
+// 'early' White Sands and the first Cape years; 'space' from 1960 (NASA's trucks, a fixed tracking radar);
+// 'apollo' from 1965 (tracking cameras replace the old theodolite huts); 'shuttle' from 1980 (the overhead lines
+// buried, a radome, modern trucks).
+export const yearOf = g => dateOf(g.day ?? 0).year;
+export const eraOf = g => {
+  const y = yearOf(g);
+  return y >= 1980 ? 'shuttle' : y >= 1965 ? 'apollo' : y >= 1960 ? 'space' : 'early';
+};
 const staticSignature = g => {
   const bs = blockhouseState(g.day);
-  return `${g.site || 'white-sands'}|${g.crewed ? 'crewed' : 'uncrewed'}|${bs.built ? 'built' : bs.progress.toFixed(2)}`;
+  return `${g.site || 'white-sands'}|${g.crewed ? 'crewed' : 'uncrewed'}|${bs.built ? 'built' : bs.progress.toFixed(2)}|${eraOf(g)}`;
 };
 
 // The layer is baked at the display's own scale (capped, so a 4K screen does not ask for a canvas too large to hold),
@@ -137,11 +147,17 @@ function paintGround(c, g) {
 // dune plants along the ground, and the boundary sign at the far end of the range road. Painted before the buildings so
 // they stand in front of the line.
 function siteDressing(c, g) {
-  const cape = g.site === 'cape';
-  waterTank(c, 22);
-  telephoneLine(c, [-30, 95, 404, 990, 1440, 1736]);
-  theodoliteHut(c, 2290);
-  radarTrailer(c, 2560);
+  const cape = g.site === 'cape',
+    era = eraOf(g);
+  // White Sands keeps its wooden tank; the Cape's water stands in a steel tower.
+  if (cape) steelWaterTower(c, 22);
+  else waterTank(c, 22);
+  if (era !== 'shuttle') telephoneLine(c, [-30, 95, 404, 990, 1440, 1736]);
+  if (era === 'early' || era === 'space') theodoliteHut(c, 2290);
+  else trackingCamera(c, 2290);
+  if (era === 'early') radarTrailer(c, 2560);
+  else if (era === 'shuttle') radome(c, 2560);
+  else fixedRadar(c, 2560);
   boundarySign(c, SIGN_X);
   fence(c, 2860, WORLD_W + 400);
   // Plants placed from x so they never shift between rebuilds; kept clear of the doors and the pad.
@@ -260,6 +276,113 @@ function waterTank(c, x) {
   c.fill();
   c.fillStyle = '#5a5f66';
   c.fillRect(x + 22, legs, 3, GROUND - legs); // the down pipe
+}
+
+// The Cape's water tower: a steel bowl on four legs, painted white with a red band.
+function steelWaterTower(c, x) {
+  const top = GROUND - 92;
+  c.strokeStyle = '#8b9196';
+  c.lineWidth = 3;
+  c.beginPath();
+  c.moveTo(x + 6, GROUND);
+  c.lineTo(x + 14, top + 26);
+  c.moveTo(x + 42, GROUND);
+  c.lineTo(x + 34, top + 26);
+  c.stroke();
+  c.lineWidth = 1.2;
+  c.beginPath();
+  c.moveTo(x + 8, GROUND - 20);
+  c.lineTo(x + 40, GROUND - 20);
+  c.moveTo(x + 11, GROUND - 46);
+  c.lineTo(x + 37, GROUND - 46);
+  c.moveTo(x + 8, GROUND - 20);
+  c.lineTo(x + 37, GROUND - 46);
+  c.moveTo(x + 40, GROUND - 20);
+  c.lineTo(x + 11, GROUND - 46);
+  c.stroke();
+  c.fillStyle = '#e9e7e1';
+  c.beginPath();
+  c.ellipse(x + 24, top + 14, 26, 18, 0, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = 'rgba(0,0,0,.1)';
+  c.beginPath();
+  c.ellipse(x + 32, top + 16, 16, 15, 0, -1.2, 1.4);
+  c.fill();
+  c.fillStyle = '#b8473a';
+  c.fillRect(x + 1, top + 10, 46, 5);
+  c.fillStyle = '#8b9196';
+  c.fillRect(x + 22, top - 8, 4, 6); // the vent
+}
+
+// From the mid-sixties the range films a launch from tracking-camera mounts: a long lens on a pedestal, on a pad.
+function trackingCamera(c, x) {
+  c.fillStyle = '#c9c4b6';
+  c.fillRect(x - 6, GROUND - 6, 60, 6);
+  c.fillStyle = '#6c7177';
+  c.fillRect(x + 18, GROUND - 34, 10, 28);
+  c.fillStyle = '#4b4f55';
+  c.fillRect(x + 12, GROUND - 40, 22, 8);
+  c.save();
+  c.translate(x + 23, GROUND - 44);
+  c.rotate(-0.5);
+  c.fillStyle = '#2f3338';
+  c.fillRect(-6, -8, 40, 12);
+  c.fillStyle = '#1b1e22';
+  c.fillRect(32, -9, 6, 14); // the lens hood
+  c.restore();
+  c.fillStyle = '#d9d4c6';
+  c.fillRect(x + 36, GROUND - 26, 18, 20); // the operator's shelter
+  shadeRight(c, x + 36, GROUND - 26, 18, 20, 0.15);
+}
+
+// A fixed tracking radar on its concrete pedestal: bigger than the old trailer's dish.
+function fixedRadar(c, x) {
+  c.fillStyle = '#b9b5ab';
+  c.fillRect(x + 20, GROUND - 40, 36, 40);
+  shadeRight(c, x + 20, GROUND - 40, 36, 40, 0.15);
+  c.fillStyle = '#4a4f55';
+  c.fillRect(x + 34, GROUND - 52, 8, 12);
+  c.save();
+  c.translate(x + 38, GROUND - 62);
+  c.rotate(-0.45);
+  c.fillStyle = '#d7dad6';
+  c.beginPath();
+  c.ellipse(0, 0, 30, 11, 0, Math.PI, 0);
+  c.fill();
+  c.fillStyle = '#aeb3af';
+  c.beginPath();
+  c.ellipse(0, 0, 30, 4, 0, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = '#6d726f';
+  c.lineWidth = 1.2;
+  c.beginPath();
+  c.moveTo(-18, -2);
+  c.lineTo(0, -22);
+  c.lineTo(18, -2);
+  c.stroke();
+  c.restore();
+}
+
+// From the Shuttle years the tracking radar sits inside a white radome.
+function radome(c, x) {
+  c.fillStyle = '#b9b5ab';
+  c.fillRect(x + 12, GROUND - 30, 52, 30);
+  shadeRight(c, x + 12, GROUND - 30, 52, 30, 0.15);
+  c.fillStyle = '#f1f0eb';
+  c.beginPath();
+  c.arc(x + 38, GROUND - 52, 28, Math.PI * 0.85, Math.PI * 2.15);
+  c.fill();
+  c.strokeStyle = 'rgba(120,125,130,.35)';
+  c.lineWidth = 1;
+  for (const k of [-0.5, 0, 0.5]) {
+    c.beginPath();
+    c.ellipse(x + 38, GROUND - 52, Math.abs(k) * 28 + 4, 28, 0, Math.PI, 0);
+    c.stroke();
+  }
+  c.fillStyle = 'rgba(0,0,0,.08)';
+  c.beginPath();
+  c.arc(x + 44, GROUND - 50, 22, -1.2, 1.2);
+  c.fill();
 }
 
 // A camera station out on the range: a small hut with a slotted roof for the tracking telescope, behind sandbags.
@@ -1183,16 +1306,30 @@ export function tower(ctx, p) {
   ctx.fillRect(p.x - 14, GROUND - 4, p.w + 28, 8);
 }
 
+// The truck's paint by era: the services' olive drab at first, NASA white with a blue stripe from 1960, and the
+// Shuttle years' white with the red stripe.
+const TRUCK_PAINT = {
+  early: { body: '#4d5b3a', frame: '#37503f', ink: '#e8e0c8', stripe: null },
+  space: { body: '#e3e1d9', frame: '#8a8f93', ink: '#1f3a6e', stripe: '#2b4a8a' },
+  apollo: { body: '#e3e1d9', frame: '#8a8f93', ink: '#1f3a6e', stripe: '#2b4a8a' },
+  shuttle: { body: '#f0efea', frame: '#8a8f93', ink: '#b8352a', stripe: '#b8352a' },
+};
 function truck(ctx, x, g) {
-  const y = GROUND + 28;
-  ctx.fillStyle = '#4d5b3a';
+  const y = GROUND + 28,
+    era = eraOf(g),
+    paint = TRUCK_PAINT[era];
+  ctx.fillStyle = paint.body;
   ctx.fillRect(x, y - 30, 64, 22);
   ctx.fillRect(x + 64, y - 40, 26, 32);
+  if (paint.stripe) {
+    ctx.fillStyle = paint.stripe;
+    ctx.fillRect(x, y - 13, 90, 3);
+  }
   ctx.fillStyle = 'rgba(0,0,0,.2)';
   ctx.fillRect(x, y - 12, 64, 4); // bed shadow line
   ctx.fillStyle = '#9fc0d0';
   ctx.fillRect(x + 72, y - 36, 12, 10);
-  ctx.strokeStyle = '#37503f';
+  ctx.strokeStyle = paint.frame;
   ctx.lineWidth = 1.5;
   ctx.strokeRect(x + 71, y - 37, 14, 12); // window frame
   ctx.fillStyle = '#1e1e1e';
@@ -1207,10 +1344,10 @@ function truck(ctx, x, g) {
     ctx.arc(wx, y - 6, 3, 0, 7);
     ctx.fill();
   } // hubs
-  ctx.fillStyle = '#e8e0c8';
+  ctx.fillStyle = paint.ink;
   ctx.font = 'bold 8px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(g.site === 'cape' ? 'U.S. NAVY' : 'U.S. ARMY', x + 8, y - 16);
+  ctx.fillText(era !== 'early' ? 'NASA' : g.site === 'cape' ? 'U.S. NAVY' : 'U.S. ARMY', x + 8, y - 16);
   // The recovery party rides out with the truck: the driver and his mate seen through the cab window, and one man
   // sitting up at the front of the bed, behind the cab, clear of anything the truck carries.
   if (g.truck.follow) {
@@ -1393,6 +1530,35 @@ const MAP_STATIONS = [
   ['GYM', -110.9, 27.9, 'Guaymas, Mexico'],
   ['TEX', -97.3, 27.7, 'Texas'],
 ];
+// The network moved on after Mercury: the Manned Space Flight Network of Gemini and Apollo, with the big dishes at
+// Goldstone, Madrid and Canberra for the Moon; and from the Shuttle years the TDRS relay satellites, worked from the
+// ground terminal at White Sands, with the deep-space dishes kept for the far shots. The map shows the one of the day.
+const MSFN_STATIONS = [
+  ['CNV', -80.6, 28.5, 'Cape'],
+  ['BDA', -64.7, 32.3, 'Bermuda'],
+  ['CYI', -15.6, 27.7, 'Canary Islands'],
+  ['ACN', -14.4, -7.9, 'Ascension'],
+  ['MAD', -4.2, 40.4, 'Madrid'],
+  ['CRO', 113.7, -24.9, 'Carnarvon'],
+  ['HSK', 149.0, -35.6, 'Honeysuckle Creek'],
+  ['GWM', 144.7, 13.3, 'Guam'],
+  ['HAW', -159.7, 22.1, 'Hawaii'],
+  ['GDS', -116.9, 35.4, 'Goldstone'],
+  ['TEX', -97.3, 27.7, 'Texas'],
+];
+const TDRS_STATIONS = [
+  ['KSC', -80.6, 28.5, 'Cape'],
+  ['WSGT', -106.6, 32.5, 'White Sands ground terminal'],
+  ['GDS', -116.9, 35.4, 'Goldstone'],
+  ['MAD', -4.2, 40.4, 'Madrid'],
+  ['CAN', 149.0, -35.4, 'Canberra'],
+  ['TDRS-E', -41, 0, 'TDRS East', true],
+  ['TDRS-W', -171, 0, 'TDRS West', true],
+];
+const stationsFor = g => {
+  const y = yearOf(g);
+  return y >= 1983 ? TDRS_STATIONS : y >= 1965 ? MSFN_STATIONS : MAP_STATIONS;
+};
 // The Atlantic range: the corridor from the Cape down past the islands to Ascension, where the missiles flew.
 const ATLANTIC_RANGE = [
   [-81.5, 29.5],
@@ -1540,19 +1706,26 @@ function drawWallMap(ctx, g, x, y, w, h) {
   ctx.setLineDash([]);
   // The tracking stations: the one she is over lit up.
   const over = c && c.status && c.status.station;
-  for (const [code, lon, lat, name] of MAP_STATIONS) {
+  for (const [code, lon, lat, name, satellite] of stationsFor(g)) {
     const lit = over === name,
       px = X(lon),
       py = Y(lat),
       r = Math.max(2.5, w / 260) * (lit ? 1.5 : 1);
     ctx.fillStyle = lit ? '#9fdc9a' : '#e8c66a';
-    ctx.beginPath();
-    ctx.moveTo(px, py - r);
-    ctx.lineTo(px + r, py);
-    ctx.lineTo(px, py + r);
-    ctx.lineTo(px - r, py);
-    ctx.closePath();
-    ctx.fill();
+    if (satellite) {
+      // a relay satellite, parked over the equator: a body with its two panels
+      ctx.fillRect(px - r, py - r, 2 * r, 2 * r);
+      ctx.fillRect(px - 3.5 * r, py - r * 0.4, 2 * r, r * 0.8);
+      ctx.fillRect(px + 1.5 * r, py - r * 0.4, 2 * r, r * 0.8);
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(px, py - r);
+      ctx.lineTo(px + r, py);
+      ctx.lineTo(px, py + r);
+      ctx.lineTo(px - r, py);
+      ctx.closePath();
+      ctx.fill();
+    }
     if (lit) {
       ctx.strokeStyle = 'rgba(159,220,154,.5)';
       ctx.beginPath();
