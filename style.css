@@ -13,7 +13,8 @@ button.go { background: #23502f; border-color: #6fc88a; font-weight: bold; }
 #endday { background: #3a3220; border-color: #e8c66a; }
 #site { position: fixed; inset: 44px 0 0 0; width: 100%; height: calc(100% - 44px); display: block; }
 #room, #notebook { position: fixed; top: 56px; right: 12px; width: 470px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid #4a5464; border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
-#notebook { left: 12px; right: auto; width: 520px; }
+#notebook { left: 12px; right: auto; width: 520px; background: #14181e; } /* solid, so the loop log under it does not show through */
+#notes.fresh { border-color: #e8c66a; }
 #notebook li { margin: .3rem 0; } #notebook li span { color: #e8c66a; font-family: monospace; }
 h2 { margin: 0 0 .6rem; font-size: 1.25rem; color: #f1e6c8; }
 .close { position: absolute; top: .6rem; right: .6rem; padding: .1rem .5rem; }
