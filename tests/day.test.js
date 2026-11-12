@@ -134,3 +134,30 @@ test('the site and the rooms only see what the player could see', () => {
         assert.ok(['estimate', 'propellantLoad'].includes(m[1]), `${dir}/${f} reads round.${m[1]}`);
     }
 });
+
+// Aaron's playtest, 12 November (bug 7, Viking 7): he ran the static fire from the dugout and ended the day without
+// walking out. The next morning (rollout) still showed the dugout and its finished firing panel. A new day starts on the
+// site, whatever room you ended the last one in.
+test('ending the day inside the dugout closes it: the next morning starts out on the site', async () => {
+  const { openRoom } = await import('../js/scenes/rooms.js');
+  const { interiorOf } = await import('../js/site/interiors.js');
+  for (const rework of [false, true]) {
+    newGame(42);
+    finishInspection({});
+    finishBoard();
+    nextDay();
+    until(() => g.beat === 'static');
+    openRoom('dugout');
+    assert.equal(interiorOf(g), 'dugout');
+    standStart();
+    until(() => g.stand.phase === 'read');
+    standDecide({ rework, leak: false });
+    assert.equal(interiorOf(g), 'dugout', 'still inside after the call, until the day ends');
+    nextDay();
+    assert.ok(g.room === null || g.room === 'away', `room ${g.room} left open overnight`);
+    closeAway();
+    assert.equal(g.room, null);
+    assert.equal(interiorOf(g), null);
+    assert.equal(g.beat, 'rollout');
+  }
+});
