@@ -1472,9 +1472,20 @@ export function measure(round, what) {
   if (what === 'entryAngle') {
     const seen = LUNAR_ENTRY.gamma + entryAngleError(t) + 0.12 * (t.d[10] - 0.5);
     const inside = seen < LUNAR_ENTRY.corridor[1] && seen > LUNAR_ENTRY.corridor[0];
+    const off = seen - LUNAR_ENTRY.gamma;
+    // The third entry is the line the call reads it out as: how far off the aim, and which way.
+    const why = !inside
+      ? `OUTSIDE THE CORRIDOR, too ${off < 0 ? 'steep' : 'shallow'}`
+      : Math.abs(off) > 0.5
+        ? `inside, but ${Math.abs(off).toFixed(2)}° ${off < 0 ? 'steep' : 'shallow'} of the aim`
+        : `inside, ${Math.abs(off).toFixed(2)}° off the aim`;
     return {
-      'ENTRY ANGLE': [`${seen.toFixed(2)}°`, !inside || Math.abs(seen - LUNAR_ENTRY.gamma) > 0.5],
-      CORRIDOR: [`${LUNAR_ENTRY.corridor[0]}° to ${LUNAR_ENTRY.corridor[1]}°`],
+      'ENTRY ANGLE': [`${seen.toFixed(2)}°`, !inside || Math.abs(off) > 0.5, why],
+      CORRIDOR: [
+        `${LUNAR_ENTRY.corridor[0]}° to ${LUNAR_ENTRY.corridor[1]}°`,
+        false,
+        `aim ${LUNAR_ENTRY.gamma}°; steeper than ${LUNAR_ENTRY.corridor[0]}° crushes, shallower than ${LUNAR_ENTRY.corridor[1]}° skips out`,
+      ],
     };
   }
   return {};

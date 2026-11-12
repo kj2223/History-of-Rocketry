@@ -2,6 +2,7 @@
 // shutdown, Recovery's board and the review. Panels over the site, like the rooms at White Sands. They read only what
 // Mercury Control could see: g.console and g.mission, which the game fills from the telemetry and the radars.
 import { g, dateText, clockText, placeName, who } from '../game.js';
+import { callBoardLines } from '../houston.js';
 import {
   consoleStart,
   consolePoll,
@@ -292,7 +293,8 @@ function flightCall(c) {
   if (!d) return '<p class="muted">The flight runs. The calendar jumps between the moments your shift is on.</p>';
   if (!d.mine)
     return `<p class="muted">${esc(d.q)} ${d.who === 'hollis' ? "The programme's call." : `${who('dorsey')}'s call.`}</p>`;
-  return `<div class="poll"><p><strong>${esc(d.q)}</strong></p>${d.rule ? `<p class="muted">Mission rule: ${esc(d.rule)}</p>` : ''}
+  const board = callBoardLines(c.flight, d);
+  return `<div class="poll"><p><strong>${esc(d.q)}</strong></p>${board.length ? `<ul class="reports">${board.map(l => `<li class="${l.warn ? 'danger-text' : ''}">${esc(l.text)}</li>`).join('')}</ul>` : ''}${d.rule ? `<p class="muted">Mission rule: ${esc(d.rule)}</p>` : ''}
     ${Object.entries(d.options)
       .map(([k, t]) => `<button data-act="m-decide" data-id="${k}">${esc(t)}</button>`)
       .join('')}</div>`;
