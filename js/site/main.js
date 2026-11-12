@@ -414,8 +414,6 @@ function panelReserve() {
 let last = performance.now(),
   inScene = false,
   staged = false;
-// Whether this frame drew a room, Mission Control or the site (rather than the tracking board).
-const sceneDrawn = () => !(g.flight && g.flight.view === 'board');
 function frame(now) {
   const steps = frameSteps((now - last) / 1000),
     dt = Math.min(MAX_STEP, (now - last) / 1000);
@@ -428,8 +426,10 @@ function frame(now) {
     for (const step of steps) tick(step);
     openWhenReady(!!locked());
     updateCamera(view.w / scale(), dt);
-    if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
-    else if (g.room === 'console' && g.console) {
+    if (g.flight && g.flight.view === 'board') {
+      staged = stageFrame('tracking', dt, 0);
+      if (!staged) drawTracking(ctx, g, view);
+    } else if (g.room === 'console' && g.console) {
       staged = stageFrame('control', dt, 0);
       if (!staged) drawControlRoom(ctx, g, view);
     } else if (interiorOf(g)) {
@@ -440,7 +440,6 @@ function frame(now) {
       staged = stageFrame('site', dt, 0);
       if (!staged) drawSite(ctx, g, view);
     }
-    if (!sceneDrawn()) staged = stageFrame(null);
     // in-scene: a walk-in room is drawn on the scene layer, so its panel keeps only the decision.
     inScene = staged && !!interiorOf(g);
     document.body.classList.toggle('in-scene', inScene);

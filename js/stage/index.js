@@ -10,6 +10,7 @@ import { dugoutScene } from './dugout.js';
 import { hangarScene } from './hangar.js';
 import { siteScene } from './site.js';
 import { controlScene } from './control.js';
+import { trackingScene } from './tracking.js';
 import { g } from '../game.js';
 
 // A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
@@ -19,6 +20,7 @@ const SCENES = {
   hangar: hangarScene,
   site: siteScene,
   control: controlScene,
+  tracking: trackingScene,
 };
 export const RENDERER_KEY = 'pa-renderer';
 
