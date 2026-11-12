@@ -2,7 +2,9 @@
 // canvas. Each scene rebuilt in Pixi is listed in SCENES; a scene not yet rebuilt is still drawn by the old canvas code,
 // so the game stays playable while the rebuild goes room by room. The dev menu can switch back to the old drawing for
 // comparison (localStorage 'pa-renderer' = 'canvas').
-import { Application } from '../vendor/pixi.min.mjs';
+import * as PIXI from '../vendor/pixi.min.mjs';
+
+const { Application } = PIXI;
 import { blockhouseScene } from './blockhouse.js';
 import { dugoutScene } from './dugout.js';
 import { hangarScene } from './hangar.js';
@@ -18,10 +20,27 @@ let app = null,
   currentId = null,
   failed = false;
 
+// The desktop app forbids eval (its Content-Security-Policy, desktop/main.js), and PixiJS builds its shader code with
+// it unless its 'unsafe-eval' add-on is loaded. The add-on ships as a classic script that patches the classes on a
+// global PIXI, so the module's classes are handed to it on one first. Without it the scene layer could not start in
+// the app, and every room quietly fell back to the old drawing.
+function allowNoEval() {
+  if (globalThis.PIXI?.generateShaderSyncPolyfill) return Promise.resolve();
+  globalThis.PIXI = { ...PIXI };
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = new URL('../vendor/pixi-unsafe-eval.min.js', import.meta.url).href;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('could not load the PixiJS no-eval add-on'));
+    document.head.appendChild(s);
+  });
+}
+
 // Starts Pixi in the host element. If WebGL cannot start, the game carries on with the old drawing.
 export async function startStage(el, hooks) {
   host = el;
   try {
+    await allowNoEval();
     const a = new Application();
     await a.init({
       resizeTo: el,
