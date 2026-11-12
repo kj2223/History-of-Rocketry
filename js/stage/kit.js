@@ -1,7 +1,7 @@
 // THE SCENE KIT (v0.8 PixiJS rebuild): the pieces every rebuilt scene draws with. Instruments (dials, lamps, a count
 // drum, pen recorders), seated and standing cut-out people, speech bubbles, and the way out. Flat, stylised shapes in
 // the era's palette; each piece is a Container with an update(), so a scene builds it once and moves only the needles.
-import { Container, Graphics, Text, BlurFilter, Texture, Sprite, Rectangle } from '../vendor/pixi.min.mjs';
+import { Container, Graphics, Text, Texture, Sprite, Rectangle } from '../vendor/pixi.min.mjs';
 
 // The palettes, by interface era (uiEra in js/site/draw.js). 'field': the late-1940s and 1950s range, olive steel,
 // cream dial faces, typed labels. 'steel': the Mercury years, grey steel, lamp buttons, Nixie orange.
@@ -123,8 +123,11 @@ export function dial(ch, r, pal, short = ch.label) {
 // A round lamp with its name under it; lit lamps glow.
 export function lamp(name, color, r, pal) {
   const c = new Container();
-  const glow = new Graphics().circle(0, 0, r * 1.7).fill(color);
-  glow.filters = [new BlurFilter({ strength: r * 0.7 })];
+  // The glow is a soft sprite, not a blur filter: a filter costs a render pass per lamp, every frame.
+  const glow = new Sprite(puffTexture());
+  glow.anchor.set(0.5);
+  glow.width = glow.height = r * 4.4;
+  glow.tint = color;
   glow.blendMode = 'add';
   glow.alpha = 0;
   const bezel = new Graphics().circle(0, 0, r + 3).fill(0x1b1c1e);
@@ -299,7 +302,11 @@ export function canvasPicture(w, h, paint) {
   const ctx = cv.getContext('2d');
   const tex = Texture.from(cv);
   const s = new Sprite(tex);
-  s.update = () => {
+  // Repainting a picture means uploading it to the graphics card again, so it is done at most ten times a second.
+  let at = -1;
+  s.update = (now = performance.now()) => {
+    if (at >= 0 && now - at < 100) return;
+    at = now;
     ctx.clearRect(0, 0, w, h);
     paint(ctx, w, h);
     tex.source.update();

@@ -42,6 +42,7 @@ import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
 import { startDevMenu, clearDevFlag } from './dev-menu.js';
 import { drawInterior, interiorOf, interiorButtonAt, doorRight } from './interiors.js';
 import { lookAt } from '../game.js';
+import { frameSteps, MAX_STEP } from '../core/frame-steps.js';
 import {
   render as renderRoom,
   live as liveRoom,
@@ -413,13 +414,15 @@ function panelReserve() {
 let last = performance.now(),
   inScene = false;
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const steps = frameSteps((now - last) / 1000),
+    dt = Math.min(MAX_STEP, (now - last) / 1000);
   playtestFrame(now - last);
   last = now;
   // One bad frame must not kill the loop (a shape-valid save could throw in a room render); report and carry on.
   try {
     keyWalk();
-    tick(dt);
+    // Every real second is played, in small steps, however slowly the frame drew (js/core/frame-steps.js).
+    for (const step of steps) tick(step);
     openWhenReady(!!locked());
     updateCamera(view.w / scale(), dt);
     if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);

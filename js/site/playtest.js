@@ -146,9 +146,19 @@ export function traceError(kind, error) {
 }
 
 // Called once a frame with the frame's length in milliseconds.
+let frames = 0,
+  fpsAt = 0;
 export function playtestFrame(ms) {
   if (!enabled) return;
   const now = performance.now();
+  // The frame rate, noted when it is low (v0.8: the PixiJS scenes draw more), at most once every ten seconds.
+  frames++;
+  if (now - fpsAt > 10000) {
+    const fps = (frames * 1000) / (now - fpsAt);
+    if (fpsAt > 0 && fps < 40) trace('fps-low', { fps: Math.round(fps), scene: scene() });
+    fpsAt = now;
+    frames = 0;
+  }
   if (ms > 250 && now - slowAt > 10000) {
     slowAt = now;
     trace('slow', { ms: Math.round(ms), scene: scene() });
