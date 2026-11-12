@@ -185,6 +185,9 @@ body[data-era=glass] .lamp-btn.go { background: rgba(60,180,110,.35); border-col
 /* ---- v0.8 scene layer (js/stage): the PixiJS canvas sits where the site canvas does. In a rebuilt scene the
    readings are in the room, so the room panel keeps only the words and the call. ---- */
 #stage { position: fixed; inset: 44px 0 0 0; width: 100%; height: calc(100% - 44px); z-index: 1; }
+#stage.pass {
+  pointer-events: none;
+}
 #stage[hidden] { display: none; }
 #stage canvas { display: block; }
 body.in-scene #room .clock, body.in-scene #room .gauges, body.in-scene #room [data-live=countstate],

@@ -8,10 +8,11 @@ const { Application } = PIXI;
 import { blockhouseScene } from './blockhouse.js';
 import { dugoutScene } from './dugout.js';
 import { hangarScene } from './hangar.js';
+import { siteScene } from './site.js';
 import { g } from '../game.js';
 
 // A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
-const SCENES = { blockhouse: blockhouseScene, dugout: dugoutScene, hangar: hangarScene };
+const SCENES = { blockhouse: blockhouseScene, dugout: dugoutScene, hangar: hangarScene, site: siteScene };
 export const RENDERER_KEY = 'pa-renderer';
 
 let app = null,
@@ -83,6 +84,8 @@ export function stageFrame(id, dt, reserve) {
     current = SCENES[id](app.hooks);
     currentId = id;
     app.stage.addChild(current.root);
+    // The site lets clicks through to the canvas underneath, which still does the walking and talking.
+    host.classList.toggle('pass', !!current.passThrough);
   }
   if (host.hidden) {
     host.hidden = false;

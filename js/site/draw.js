@@ -13,7 +13,7 @@ import {
   newBlockhouseStands,
   footprint,
 } from '../data/white-sands.js';
-export { VIEW_H, GROUND, WORLD_W, PLACES };
+export { VIEW_H, GROUND, WORLD_W, PLACES, SKY };
 import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
 import { WORLD_LAND } from '../data/world-map.js';
@@ -779,6 +779,19 @@ export function drawSite(ctx, g, view) {
   foreground.addColorStop(1, sky === SKY.dusk ? 'rgba(53,46,68,.38)' : 'rgba(75,57,40,.22)');
   ctx.fillStyle = foreground;
   ctx.fillRect(camX, GROUND + 45, vw, VIEW_H - GROUND - 45);
+  drawSiteLive(ctx, g, true);
+  ctx.restore();
+  // Night falls as a fade.
+  if (g.fade > 0) {
+    ctx.fillStyle = `rgba(5,8,14,${g.fade})`;
+    ctx.fillRect(0, 0, w, h);
+  }
+}
+
+// The site's moving parts, in world space (the camera already applied): the windsock and flag, the rack, the stand's
+// flame, the rocket, the truck, job bars, smoke and dust, the marker and the hover label. withPeople adds the people and
+// their bubbles at their place in the order; the PixiJS site scene draws those itself (js/stage/site.js).
+export function drawSiteLive(ctx, g, withPeople) {
   // Everything that moves or burns, back to front: rack and flame behind, then the grounded rocket, people, the truck
   // (nearer the camera than the people, so it paints over them), and finally smoke and dust over everything they cover.
   siteLife(ctx, g);
@@ -788,13 +801,13 @@ export function drawSite(ctx, g, view) {
     flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
   if (g.crewed) controlScreens(ctx, g);
   rocketOnSite(ctx, g);
-  for (const p of Object.values(g.people)) if (!p.hidden) person(ctx, p, g.time);
+  if (withPeople) for (const p of Object.values(g.people)) if (!p.hidden) person(ctx, p, g.time);
   truck(ctx, g.truck.x, g);
   if (g.rocket.where === 'truck') rocketOnTruck(ctx, g);
   for (const job of g.jobs) jobBar(ctx, job);
   launchSmoke(ctx, g);
   truckDust(ctx, g);
-  siteBubbles(ctx, g);
+  if (withPeople) siteBubbles(ctx, g);
   if (g.marker != null) {
     ctx.fillStyle = 'rgba(255,240,180,.8)';
     ctx.fillRect(g.marker - 3, GROUND + 2, 6, 3);
@@ -805,12 +818,13 @@ export function drawSite(ctx, g, view) {
       ctx,
       g.hover.room === 'truck' && !g.crewed ? { ...g.hover, name: SITES[g.site || 'white-sands'].truck } : g.hover,
     );
-  ctx.restore();
-  // Night falls as a fade.
-  if (g.fade > 0) {
-    ctx.fillStyle = `rgba(5,8,14,${g.fade})`;
-    ctx.fillRect(0, 0, w, h);
-  }
+}
+
+// The baked buildings layer at the display's scale, for the PixiJS site scene: the canvas and the key it was baked for.
+export function bakedSite(g, s) {
+  const bake = bakeScale(s);
+  if (!staticLayer || `${staticSignature(g)}|${bake}` !== staticKey) rebuildStatic(g, bake);
+  return { canvas: staticLayer, key: staticKey, bake };
 }
 
 // A cabbage palmetto, far off: a thin trunk and a burst of fronds.
