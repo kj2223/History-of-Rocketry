@@ -868,7 +868,7 @@ function drawDugout(ctx, g, s) {
 
 // ---- The assembly hangar: the round on its cradles, and the spots to look at ---------------------------------------
 // The round's length and half-width in the units its shape is drawn in (tail at 0, nose at -len).
-const SHAPE = {
+export const SHAPE = {
   wac: [60, 9],
   aerobee: [60, 9],
   v2: [104, 16],
@@ -896,13 +896,13 @@ const SPOT_AT = [
   [/wiring|lead|cable|igniter|guidance/, 0.42],
   [/valve|line|feed|lox|alc|fuel|turbine|pump/, 0.28],
 ];
-function spotAt(id, name) {
+export function spotAt(id, name) {
   const s = `${id} ${name}`.toLowerCase();
   for (const [re, f] of SPOT_AT) if (re.test(s)) return f;
   return 0.5;
 }
 // Spread the spots along the round so no two tags sit on top of each other.
-function spread(list, gap) {
+export function spread(list, gap) {
   list.sort((a, b) => a.f - b.f);
   for (let i = 1; i < list.length; i++) list[i].f = Math.max(list[i].f, list[i - 1].f + gap);
   const over = list.length ? list[list.length - 1].f - 0.98 : 0;

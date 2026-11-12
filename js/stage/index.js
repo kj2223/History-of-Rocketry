@@ -5,8 +5,11 @@
 import { Application } from '../vendor/pixi.min.mjs';
 import { blockhouseScene } from './blockhouse.js';
 import { dugoutScene } from './dugout.js';
+import { hangarScene } from './hangar.js';
+import { g } from '../game.js';
 
-const SCENES = { blockhouse: blockhouseScene, dugout: dugoutScene };
+// A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
+const SCENES = { blockhouse: blockhouseScene, dugout: dugoutScene, hangar: hangarScene };
 export const RENDERER_KEY = 'pa-renderer';
 
 let app = null,
@@ -44,12 +47,13 @@ export const pixiWanted = () => {
     return true;
   }
 };
-export const hasScene = id => !!SCENES[id];
+const takes = id => !!id && !!SCENES[id] && (!SCENES[id].accepts || SCENES[id].accepts(g));
+export const hasScene = id => takes(id);
 
 // Draws scene `id` this frame if it has been rebuilt in Pixi and the layer is on. Returns true when it drew, false
 // when the old canvas should draw instead (and then the layer is hidden).
 export function stageFrame(id, dt, reserve) {
-  const use = !!app && !failed && !!id && !!SCENES[id] && pixiWanted();
+  const use = !!app && !failed && takes(id) && pixiWanted();
   if (!use) {
     if (host && !host.hidden) host.hidden = true;
     if (current) drop();
