@@ -188,5 +188,6 @@ body[data-era=glass] .lamp-btn.go { background: rgba(60,180,110,.35); border-col
 #stage[hidden] { display: none; }
 #stage canvas { display: block; }
 body.in-scene #room .clock, body.in-scene #room .gauges, body.in-scene #room [data-live=countstate],
-body.in-scene #room .readings, body.in-scene #room > p.muted:not(.keep) { display: none; }
+body.in-scene #room .readings, body.in-scene #room > p.muted:not(.keep),
+body.in-scene #room > canvas { display: none; }
 body.in-scene #room { width: 400px; }

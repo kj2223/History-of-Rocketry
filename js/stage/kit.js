@@ -1,7 +1,7 @@
 // THE SCENE KIT (v0.8 PixiJS rebuild): the pieces every rebuilt scene draws with. Instruments (dials, lamps, a count
 // drum, pen recorders), seated and standing cut-out people, speech bubbles, and the way out. Flat, stylised shapes in
 // the era's palette; each piece is a Container with an update(), so a scene builds it once and moves only the needles.
-import { Container, Graphics, Text, BlurFilter, Texture, Sprite } from '../vendor/pixi.min.mjs';
+import { Container, Graphics, Text, BlurFilter, Texture, Sprite, Rectangle } from '../vendor/pixi.min.mjs';
 
 // The palettes, by interface era (uiEra in js/site/draw.js). 'field': the late-1940s and 1950s range, olive steel,
 // cream dial faces, typed labels. 'steel': the Mercury years, grey steel, lamp buttons, Nixie orange.
@@ -305,4 +305,70 @@ export function canvasPicture(w, h, paint) {
     tex.source.update();
   };
   return s;
+}
+
+// The way out of a room, bottom left: a card that calls leave() when pressed. The scene places it each frame.
+export function outButton(leave, text = '◂ Out to the site') {
+  const out = new Container();
+  const card = new Graphics()
+    .roundRect(0, 0, 180, 40, 5)
+    .fill({ color: 0x0f1218, alpha: 0.85 })
+    .stroke({ width: 1, color: 0xe8c66a });
+  const t = label(text, 16, 0xf1e6c8, { family: 'Georgia, serif' });
+  t.position.set(90, 20);
+  out.addChild(card, t);
+  out.eventMode = 'static';
+  out.cursor = 'pointer';
+  out.hitArea = new Rectangle(0, 0, 180, 40);
+  out.on('pointertap', () => leave());
+  return out;
+}
+
+// A soft round puff (white, fading to nothing at the edge), tinted for smoke, dust, vapour and glow.
+let puffTex = null;
+export function puffTexture() {
+  if (puffTex) return puffTex;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const ctx = cv.getContext('2d');
+  const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.5, 'rgba(255,255,255,.45)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 64, 64);
+  puffTex = Texture.from(cv);
+  return puffTex;
+}
+
+// Particles: puffs that drift, grow and fade. add(x, y, opts) makes one; update(dt) moves them all.
+export function particles() {
+  const c = new Container();
+  const live = [];
+  c.add = (x, y, o = {}) => {
+    const s = new Sprite(puffTexture());
+    s.anchor.set(0.5);
+    s.position.set(x, y);
+    s.tint = o.tint ?? 0xffffff;
+    s.alpha = o.alpha ?? 0.6;
+    s.scale.set(o.size ?? 0.3);
+    if (o.add) s.blendMode = 'add';
+    c.addChild(s);
+    live.push({ s, vx: o.vx ?? 0, vy: o.vy ?? 0, grow: o.grow ?? 0.4, fade: o.fade ?? 0.5, life: 0, max: o.life ?? 2 });
+  };
+  c.update = dt => {
+    for (let i = live.length - 1; i >= 0; i--) {
+      const p = live[i];
+      p.life += dt;
+      p.s.x += p.vx * dt;
+      p.s.y += p.vy * dt;
+      p.s.scale.set(p.s.scale.x + p.grow * dt);
+      p.s.alpha = Math.max(0, p.s.alpha - p.fade * dt);
+      if (p.life > p.max || p.s.alpha <= 0) {
+        p.s.destroy();
+        live.splice(i, 1);
+      }
+    }
+  };
+  return c;
 }
