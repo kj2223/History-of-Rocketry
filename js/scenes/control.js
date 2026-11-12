@@ -48,6 +48,8 @@ import {
   PACK_OPTIONS,
   RETRO_OPTIONS,
   SIM_MINUTES,
+  flightDirector,
+  engineer,
 } from '../mercury.js';
 import { KITS } from '../data/kits.js';
 import { ROUTE_MODES } from '../data/route.js';
@@ -192,7 +194,7 @@ export const CONTROL_ROOMS = {
   mreview() {
     const k = KITS[g.vehicle] || KITS.redstone;
     return `<h2>The review, in ${esc(placeName('office'))}</h2>
-      <p>${who('hollis')} has the tapes spread on the console. ${who('albrecht')} is on the line from Huntsville. "Well, Retro. What happened to her?"</p>
+      <p>${who('hollis')} has the tapes spread on the console.${huntsville() ? ` ${who('albrecht')} is on the line from Huntsville.` : ''} "Well${flightDirector() ? ', Flight' : engineer() ? '' : ', Retro'}. What happened to her?"</p>
       <ul>${evidence()
         .map(l => `<li>${esc(l)}</li>`)
         .join('')}</ul>
@@ -202,6 +204,9 @@ export const CONTROL_ROOMS = {
         .join('')}</div>`;
   },
 };
+
+// Marshall's man is on the line for the reviews of Marshall's rockets: the Redstone, the Saturns and SLS.
+const huntsville = () => ['redstone', 'saturnib', 'saturn5', 'sls'].includes(g.vehicle);
 
 // The console itself, at whatever point the count or the flight has reached.
 function consoleBody(c, backRoom = false) {

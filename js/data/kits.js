@@ -90,6 +90,19 @@ export const SHORT = {
   navdata: 'a wrong number from the ground',
   shutdown: 'a tail plug that dropped out on the pad',
   thruster: 'a thruster stuck open',
+  // The later vehicles' causes, as Hollis puts them at a review.
+  h1: 'an H-1 turbopump giving out',
+  oring: 'a booster field joint burning through',
+  ssme: 'a main engine shutting down early',
+  foam: 'foam off the tank striking the tiles',
+  merlin: 'a first-stage engine giving out',
+  abort: 'escape thrusters that would not have fired',
+  throttle: 'a fluttering descent-engine throttle',
+  hotCabin: 'an iced flash evaporator',
+  arrayBind: 'a solar array binding as it unrolled',
+  ranging: 'the laser ranging dropping out',
+  char: 'the heat shield shedding its char',
+  landerLeak: "a leak in the lander's cabin",
   saturnctl: 'a Saturn guidance failure',
   j2: 'J-2 engines shutting down early',
   s2cutoff: 'a second stage cutting off early',
@@ -1137,6 +1150,7 @@ export const KITS = {
       ascent: "The lander's ascent engine underperformed.",
       chute: 'A main parachute failed.',
       lightning: "Lightning struck the vehicle and knocked the spacecraft's power off the line.",
+      throttle: "The descent engine's throttle fluttered through the low gate.",
       unknown: 'Not enough evidence to call it. Ask for a full teardown.',
     },
   },
@@ -1195,6 +1209,8 @@ export const KITS = {
       fuelcell: 'A fuel cell dropped out early.',
       computer: 'A computer string failed on the climb.',
       cabin: 'The cabin wiring shorted. Rewire, and change the stowage.',
+      hotCabin: 'The flash evaporator iced up and the cabin ran hot.',
+      arrayBind: "The telescope's solar array bound as it unrolled: a mechanical bind, not the monitor.",
       unknown: 'Not enough evidence to call it. Ask for a full teardown.',
     },
   },
@@ -1233,12 +1249,17 @@ export const KITS = {
         cue: 'A riser runs close to a reaction control vent.',
       },
     },
+    // Hollis's words for the causes these kits share with the Atlas.
+    short: { guidance: 'a Falcon guidance failure', shortburn: 'a Falcon stage cutting off early' },
     explanations: {
       nominal: 'She flew as planned. Nothing to fix.',
       merlin: 'A first-stage engine gave out and the orbit came up short.',
       abort: "The capsule's escape thrusters would not have fired.",
       computer: 'The docking system failed on the approach.',
       chute: 'A main parachute failed.',
+      guidance: "The Falcon's guidance failed and she went off her line.",
+      shortburn: 'A Falcon stage cut off early, short of orbit.',
+      ranging: "The capsule's laser ranging dropped out on the approach.",
       unknown: 'Not enough evidence to call it. Ask for a full teardown.',
     },
   },
@@ -1283,6 +1304,8 @@ export const KITS = {
         cue: 'A riser runs close to a reaction control vent.',
       },
     },
+    // Hollis's words for the causes these kits share with the Atlas.
+    short: { guidance: 'an SLS guidance failure', shortburn: 'an SLS stage cutting off early' },
     explanations: {
       nominal: 'She flew as planned. Nothing to fix.',
       ssme: 'A core-stage engine shut down early and the orbit came up short.',
@@ -1290,6 +1313,10 @@ export const KITS = {
       relight: 'The upper stage would not restart. Fix its restart system.',
       sps: "Orion's service engine was faulty.",
       chute: 'A main parachute failed.',
+      guidance: 'The SLS guidance failed and she went off her line.',
+      shortburn: 'An SLS stage cut off early, short of orbit.',
+      char: "Orion's heat shield shed its char in the skip entry.",
+      landerLeak: "The lander's cabin leaked: it lost pressure overnight with the hatch closed.",
       unknown: 'Not enough evidence to call it. Ask for a full teardown.',
     },
   },
@@ -1342,6 +1369,7 @@ export const KITS = {
       cabin: 'The cabin wiring shorted. Rewire, and change the cabin atmosphere.',
       chute: 'A main parachute failed.',
       lightning: "Lightning struck the vehicle and knocked the spacecraft's power off the line.",
+      shield: "The workshop's meteoroid shield tore away on the climb and took a solar wing with it.",
       unknown: 'Not enough evidence to call it. Ask for a full teardown.',
     },
   },
@@ -1503,3 +1531,72 @@ export const FAULT_AT_SPOT = {
   ascent: 'A burred ascent-engine injector',
   chute: 'A parachute riser exposed to the thruster dump',
 };
+
+// Who a crewed review's finding goes to: whoever built and answers for that hardware. `all` is who looks a vehicle over
+// after a clean flight; `by` names the owner of each cause that is not the booster's. Marshall ran the Redstone and the
+// Saturns (and, later, the Shuttle's engines, tank and boosters, and SLS); Convair built the Atlas and Martin the Titan;
+// McDonnell built Mercury and Gemini, North American the Apollo command and service module, Grumman the lunar module.
+export const FIXERS = {
+  redstone: { all: 'Marshall', booster: 'Marshall', by: {} },
+  atlas: { all: 'Convair and McDonnell', booster: 'Convair', by: { shield: 'McDonnell', scanner: 'McDonnell' } },
+  titan: {
+    all: 'Martin and McDonnell',
+    booster: 'Martin',
+    by: {
+      fuelcell: 'McDonnell',
+      hatch: 'McDonnell',
+      computer: 'McDonnell',
+      thruster: 'McDonnell',
+      navdata: "Retro's own people",
+    },
+  },
+  saturnib: {
+    all: 'Marshall and North American',
+    booster: 'Marshall',
+    by: { sps: 'North American', cabin: 'North American', chute: 'North American', lightning: 'North American' },
+  },
+  saturn5: {
+    all: 'Marshall, North American and Grumman',
+    booster: 'Marshall',
+    by: {
+      sps: 'North American',
+      tank: 'North American',
+      cabin: 'North American',
+      chute: 'North American',
+      lightning: 'North American',
+      alarm: 'Grumman',
+      ascent: 'Grumman',
+      throttle: 'Grumman',
+    },
+  },
+  shuttle: {
+    all: 'Marshall and the orbiter office',
+    booster: 'Marshall',
+    by: {
+      fuelcell: 'the orbiter office',
+      computer: 'the orbiter office',
+      cabin: 'the orbiter office',
+      hotCabin: 'the orbiter office',
+      arrayBind: 'the Hubble project',
+    },
+  },
+  dragon: { all: 'SpaceX', booster: 'SpaceX', by: {} },
+  sls: {
+    all: 'Marshall and the Orion office',
+    booster: 'Marshall',
+    by: {
+      sps: 'the Orion office',
+      chute: 'the Orion office',
+      char: 'the Orion office',
+      landerLeak: "the lander's builder",
+    },
+  },
+};
+// A cause as Hollis puts it at a review of this vehicle: the kit's own words where it shares a cause's key with another.
+export const shortFor = (vehicle, cause) => KITS[vehicle]?.short?.[cause] ?? SHORT[cause];
+// Who answers for this cause on this vehicle; with no cause (a clean flight, or not enough to call), everyone who built her.
+export function fixerOf(vehicle, cause) {
+  const f = FIXERS[vehicle] || FIXERS.redstone;
+  if (!cause || cause === 'nominal' || cause === 'unknown') return f.all;
+  return f.by[cause] || f.booster;
+}
