@@ -414,8 +414,8 @@ function panelReserve() {
 let last = performance.now(),
   inScene = false,
   staged = false;
-// Whether this frame drew a room or the site (rather than Mission Control or the tracking board).
-const sceneDrawn = () => !(g.flight && g.flight.view === 'board') && !(g.room === 'console' && g.console);
+// Whether this frame drew a room, Mission Control or the site (rather than the tracking board).
+const sceneDrawn = () => !(g.flight && g.flight.view === 'board');
 function frame(now) {
   const steps = frameSteps((now - last) / 1000),
     dt = Math.min(MAX_STEP, (now - last) / 1000);
@@ -429,8 +429,10 @@ function frame(now) {
     openWhenReady(!!locked());
     updateCamera(view.w / scale(), dt);
     if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
-    else if (g.room === 'console' && g.console) drawControlRoom(ctx, g, view);
-    else if (interiorOf(g)) {
+    else if (g.room === 'console' && g.console) {
+      staged = stageFrame('control', dt, 0);
+      if (!staged) drawControlRoom(ctx, g, view);
+    } else if (interiorOf(g)) {
       // A room rebuilt in PixiJS draws on the scene layer; the rest still draw on this canvas.
       staged = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
       if (!staged) drawInterior(ctx, g, view, panelReserve());
