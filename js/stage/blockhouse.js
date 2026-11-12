@@ -3,7 +3,7 @@
 // tank, the pressurant, propellant loaded, oxygen temperature), the firing panel (continuity, arming, the firing bus),
 // the range scope, and pen recorders tracing the tanks. The room panel keeps only the call.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
-import { Container, Graphics, Rectangle } from '../vendor/pixi.min.mjs';
+import { Container, Graphics } from '../vendor/pixi.min.mjs';
 import { g as game, countChannels, stageChannels, conducting } from '../game.js';
 import { padPicture, uiEra, PLACES } from '../site/draw.js';
 import { blockhouseState } from '../data/campaign.js';
@@ -20,6 +20,7 @@ import {
   speech,
   canvasPicture,
   colorOf,
+  outButton,
 } from './kit.js';
 
 export const W = 1600,
@@ -291,18 +292,7 @@ export function blockhouseScene({ leave }) {
   world.addChild(...extraTalk);
 
   // ---- the way out ----
-  const out = new Container();
-  const outCard = new Graphics()
-    .roundRect(0, 0, 180, 40, 5)
-    .fill({ color: 0x0f1218, alpha: 0.85 })
-    .stroke({ width: 1, color: 0xe8c66a });
-  const outT = label('◂ Out to the site', 16, 0xf1e6c8, { family: 'Georgia, serif' });
-  outT.position.set(90, 20);
-  out.addChild(outCard, outT);
-  out.eventMode = 'static';
-  out.cursor = 'pointer';
-  out.hitArea = new Rectangle(0, 0, 180, 40);
-  out.on('pointertap', () => leave());
+  const out = outButton(leave);
   root.addChild(out);
 
   // ---- each frame ----

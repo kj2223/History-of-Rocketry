@@ -4,8 +4,9 @@
 // comparison (localStorage 'pa-renderer' = 'canvas').
 import { Application } from '../vendor/pixi.min.mjs';
 import { blockhouseScene } from './blockhouse.js';
+import { dugoutScene } from './dugout.js';
 
-const SCENES = { blockhouse: blockhouseScene };
+const SCENES = { blockhouse: blockhouseScene, dugout: dugoutScene };
 export const RENDERER_KEY = 'pa-renderer';
 
 let app = null,
