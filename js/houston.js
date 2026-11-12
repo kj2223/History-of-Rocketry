@@ -265,7 +265,7 @@ export function answer(c, choice, speak) {
   roomChanged();
 }
 // Whether an answer went against the flight's own mission rule. The review asks why.
-const AGAINST = { fuelcell1: 'drift' };
+const AGAINST = { tumble: 'primary', traverse: 'stay' };
 const againstRule = (id, choice) => AGAINST[id] === choice;
 
 // Retrofire, or entry interface coming home from the Moon. Sets the round's end; the console carries on through the

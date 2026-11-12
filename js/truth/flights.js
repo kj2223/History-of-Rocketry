@@ -172,8 +172,8 @@ const RESOLVE = {
       out.set.short = true;
       out.verdict = 'fair';
       out.judge = t.fuelcellRecovers
-        ? "Kessler's people say the pressure would have settled. We came home on the rule, and Apollo still doesn't know if a crew lasts eight days."
-        : 'The cells were going. Coming home on the rule was right.';
+        ? "Kessler's people say the pressure would have settled well above the minimum. The rule would have kept her up; we came home early, and Apollo still doesn't know if a crew lasts eight days."
+        : 'The cells were going. Coming home early, while they still carried the load, kept the batteries whole for entry.';
       if (!t.fuelcellRecovers) out.verdict = 'good';
       return out;
     }
@@ -184,10 +184,12 @@ const RESOLVE = {
       out.set.short = true;
       out.set.batteries = true;
       out.hurt = d[3] < ODDS.batteriesShort ? 0.15 : 0;
-      out.verdict = 'bad';
-      out.judge = 'The cells were going and we let her drift on them until they died. She came home on batteries.';
+      out.judge =
+        'The pressure went below the minimum overnight, and the rule brought her home on batteries. It cost the flight, but nobody could have known that at two and a half hours.';
     } else {
-      out.judge = 'The pressure settled, and drifting kept the flight. It was against the rule, and it came off.';
+      out.verdict = 'good';
+      out.judge =
+        'The pressure settled well above the minimum. Powering down and staying up, as the rule meant, kept the flight.';
     }
     return out;
   },

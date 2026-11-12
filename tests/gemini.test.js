@@ -135,7 +135,7 @@ test("Gemini 5's wrong number from the ground brings her down about 80 miles sho
   assert.ok(checked.secondary);
 });
 
-test('falling fuel-cell pressure: come home on the rule, or drift and see. The truth decides which was right', () => {
+test('falling fuel-cell pressure: stay up powered down on the rule, or come home early. The truth decides which was right', () => {
   let recovered = 0,
     died = 0;
   for (let s = 1; s <= 40; s++) {
@@ -149,7 +149,7 @@ test('falling fuel-cell pressure: come home on the rule, or drift and see. The t
       assert.notEqual(drift.verdict, 'bad');
     } else {
       died++;
-      assert.equal(drift.verdict, 'bad');
+      assert.equal(drift.verdict, 'fair');
       assert.ok(drift.endAt < 30);
     }
     const home = resolve(r, 'fuelcell1', 'home', {});

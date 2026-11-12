@@ -21,7 +21,7 @@ for (const recovers of [true, false]) {
     assert.doesNotMatch(calls.at(-1), /on batteries/i);
     tickFlight(c, 2, speak);
     assert.equal(c.flight.at, 21);
-    assert.equal(c.flight.status['O2 PRESSURE'][0], recovers ? '12 psi, steady' : 'no usable supply');
+    assert.equal(c.flight.status['O2 PRESSURE'][0], recovers ? '70 psi, steady' : 'no usable supply');
     tickFlight(c, 2, speak);
     assert.equal(c.flight.decision?.id, recovers ? 'fuelcell2' : 'navcheck');
     assert.equal(c.flight.at, recovers ? 26 : 22);
