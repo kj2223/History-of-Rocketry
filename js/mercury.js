@@ -645,6 +645,14 @@ function jointAnswer(go) {
   finishSim(con, 'scrub');
 }
 
+// The flight or the count ended with you at your console: the console room goes with it, or the site would be drawn
+// with every click still sent to buttons that are gone. When the next thing is the review, it opens where you sit.
+function leaveConsole() {
+  if (g.room !== 'console') return;
+  g.room = g.beat === 'mReview' && missionRoomFor('office') === 'mreview' ? 'mreview' : null;
+  roomChanged();
+}
+
 function endCount(why) {
   const con = g.console;
   con.phase = 'done';
@@ -661,6 +669,7 @@ function endCount(why) {
     );
     setBeat('mScrub');
   }
+  leaveConsole();
   roomChanged();
 }
 
@@ -1026,7 +1035,8 @@ function titanShutdown(con) {
     con.phase = 'done';
     con.live = false;
     g.console = null;
-    return setBeat('mReview');
+    setBeat('mReview');
+    return leaveConsole();
   }
   speak(con, 'pilot', "We're all right, Houston. Sitting tight. Get her safed.", 'warn', 6);
   note(
@@ -1065,6 +1075,7 @@ export function shutdownChoose(choice) {
   g.mission.shutdown = { ...(g.mission.shutdown || {}), ...con.calls.shutdown };
   g.console = null;
   setBeat('mScrub');
+  leaveConsole();
   roomChanged();
 }
 
@@ -1131,6 +1142,7 @@ export function padChoose(choice) {
   g.console = null;
   if (choice === 'wait') setBeat('mPadNight');
   else setBeat('mReview');
+  leaveConsole();
 }
 
 // ---- The review in Mercury Control ----

@@ -100,6 +100,8 @@ canvas.addEventListener('click', e => {
     return;
   } // the end of a drag, not a click
   drag = null;
+  // A console room with no console left in it (an old save, or a flight that ended some way we missed) is the site again.
+  if (g.room === 'console' && !g.console) closeRoom();
   // In launch control the buttons are drawn on the room itself; they are the only things to click. The canvas is
   // device-pixel scaled, so the click is brought into the same coordinates the painter drew with.
   if (g.room === 'console') {
@@ -146,7 +148,7 @@ canvas.addEventListener('click', e => {
 });
 canvas.addEventListener('mousemove', e => {
   // In launch control the cursor answers to the drawn buttons, not the site.
-  if (g.room === 'console') {
+  if (g.room === 'console' && g.console) {
     const ratio = window.devicePixelRatio || 1;
     canvas.style.cursor = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
     g.hover = null;
