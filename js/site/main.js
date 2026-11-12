@@ -2,6 +2,7 @@
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel, dragging the
 // site, or Shift with A/D or the arrow keys looks along it.
 import { drawSite, drawTracking, drawControlRoom, controlButtonAt, PLACES, VIEW_H, GROUND } from './draw.js';
+import { footprint, atPlace } from '../data/white-sands.js';
 import {
   g,
   newGame,
@@ -73,11 +74,12 @@ const personAt = ({ x, y }) =>
   Object.values(g.people).find(
     p => !p.hidden && p.id !== 'you' && Math.abs(p.x - x) < 9 && y > GROUND - 40 && y < GROUND + 4,
   );
+// The building under the pointer, by where it stands today (the new blockhouse is wider than the old one), as
+// [id, footprint].
 const placeAt = ({ x, y }) =>
-  Object.entries(PLACES).find(([id, p]) => {
-    const left = id === 'truck' ? g.truck.x : p.x;
-    return x >= left && x <= left + p.w && y >= GROUND - p.h - 20 && y <= GROUND + 34;
-  });
+  Object.keys(PLACES)
+    .map(id => [id, footprint(id, g)])
+    .find(([, p]) => x >= p.x && x <= p.x + p.w && y >= GROUND - p.h - 20 && y <= GROUND + 34);
 const flying = () => g.flight && (g.flight.view === 'site' || g.flight.view === 'board');
 const locked = () =>
   flying() || g.truck.follow || g.fading || g.count || g.room === 'recovery' || g.room === 'splash' || consoleLocked();
@@ -127,7 +129,7 @@ canvas.addEventListener('click', e => {
   if (pl) {
     let [id, place] = pl;
     // At the Cape in the Mercury years the old stand and dugout are the training building, with the simulator in it.
-    if (g.crewed && id === 'stand') [id, place] = ['dugout', PLACES.dugout];
+    if (g.crewed && id === 'stand') [id, place] = ['dugout', footprint('dugout', g)];
     if (g.crewed && id === 'truck')
       return goTo(g.truck.x + 45, () => say('you', 'Recovery reports come into Mercury Control.'));
     if (id === 'truck')
@@ -161,7 +163,7 @@ canvas.addEventListener('mousemove', e => {
   const w = toWorld(e),
     p = personAt(w),
     pl = placeAt(w);
-  g.hover = !p && pl ? { ...pl[1], name: placeName(pl[0]), x: pl[0] === 'truck' ? g.truck.x : pl[1].x } : null;
+  g.hover = !p && pl ? { ...pl[1], name: placeName(pl[0]) } : null;
   canvas.title = p ? `${p.name}, ${p.role}` : '';
   canvas.style.cursor = p || pl ? 'pointer' : 'default';
 });
@@ -215,8 +217,11 @@ window.addEventListener('keydown', e => {
   if (e.key === '3') g.speed = 16;
   if (e.key === 'n' || e.key === 'N') toggleNotebook();
   if (e.key === 'e' || e.key === 'E') {
-    if (g.crewed && Math.abs(PLACES.stand.door - you().x) < 60 && !locked()) return openRoom('dugout');
-    const pl = Object.entries(PLACES).find(([, p]) => Math.abs(p.door - you().x) < 40 && p.room);
+    // Anywhere in front of a building with a room in it, over its whole width as it stands today.
+    if (g.crewed && atPlace('dugout', g, you().x) && !locked()) return openRoom('dugout');
+    const pl = Object.entries(PLACES).find(
+      ([id, p]) => p.room && (Math.abs(p.door - you().x) < 40 || atPlace(id, g, you().x, 0)),
+    );
     if (pl && !locked()) openRoom(pl[0]);
   }
 });
