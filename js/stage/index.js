@@ -9,10 +9,17 @@ import { blockhouseScene } from './blockhouse.js';
 import { dugoutScene } from './dugout.js';
 import { hangarScene } from './hangar.js';
 import { siteScene } from './site.js';
+import { controlScene } from './control.js';
 import { g } from '../game.js';
 
 // A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
-const SCENES = { blockhouse: blockhouseScene, dugout: dugoutScene, hangar: hangarScene, site: siteScene };
+const SCENES = {
+  blockhouse: blockhouseScene,
+  dugout: dugoutScene,
+  hangar: hangarScene,
+  site: siteScene,
+  control: controlScene,
+};
 export const RENDERER_KEY = 'pa-renderer';
 
 let app = null,

@@ -1644,7 +1644,7 @@ function trackMinutes(c) {
   return null;
 }
 
-function drawWallMap(ctx, g, x, y, w, h) {
+export function drawWallMap(ctx, g, x, y, w, h) {
   const c = g.console,
     orbital =
       !!(c && (c.orbital || c.flight)) ||
@@ -2610,6 +2610,48 @@ export function siteClock(g) {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
+// What a desk's screens read: two lines on a station's desk, four on yours (the climb's numbers, or the flight's
+// phase and craft once she is past it), and the tone of a lamp lit on that station.
+export function deskLines(c, duty, yours) {
+  const [a, b, tone] = duty ? stationReadout(duty, c) : controlReadout(c);
+  const lastTrace = c && c.trace && c.trace.length ? c.trace[c.trace.length - 1] : null;
+  if (!yours) return [[a, b], tone];
+  return [
+    [
+      a,
+      b,
+      ...(c && c.flight && !['ascent', 'insertion'].includes(c.phase)
+        ? [`PHASE ${Math.min(c.flight.phaseNo || 1, c.flight.phases || 99)}`, (c.flight.craft || '').toUpperCase()]
+        : [
+            lastTrace ? lastTrace.v.toFixed(2) + ' km/s' : '0.00 km/s',
+            lastTrace ? (lastTrace.off >= 0 ? '+' : '') + lastTrace.off.toFixed(1) + '° OFF' : '0.0° OFF',
+          ]),
+    ],
+    tone,
+  ];
+}
+
+// Who sits where in Mission Control: the named controllers on the back row, and the front row's working stations
+// with your wide console in the middle of them. The job that is yours is your desk, so nobody else sits at it.
+export function controlDesks(g) {
+  const yourDuty = SEAT_DUTY[g.record.seat] || 'flight';
+  const back = ['hollis', 'dorsey', 'albrecht', 'tate', 'morgan', 'reyes', 'vega', 'kessler']
+    .filter(id => g.people[id] && !g.people[id].hidden && deskDuty(g, id) !== yourDuty)
+    .map(id => ({ id, who: g.people[id], label: deskLabel(g, id), duty: deskDuty(g, id), yours: false }));
+  const front = ['capcom', 'fido', null, 'surgeon', 'guidance'].map(seat =>
+    seat
+      ? { id: seat, who: { color: '#4a5568' }, label: seat.toUpperCase(), duty: seat, yours: false }
+      : {
+          id: 'you',
+          who: g.people.you,
+          label: 'YOU · ' + (g.people.you.role || '').toUpperCase(),
+          duty: yourDuty,
+          yours: true,
+        },
+  );
+  return { back, front };
+}
+
 // A console desk with its seated controller, its role on the front, and two live screens. Yours carries the mark.
 export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
   const dw = (yours ? 460 : 190) * k,
@@ -2652,21 +2694,8 @@ export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
   ctx.fillStyle = '#262b30';
   ctx.fillRect(x, y + dh - 3 * k, dw, 3 * k);
   // Two screens, one line each, clipped to the glass so nothing spills off the console. Yours is a wide four-screen desk.
-  const [a, b, tone] = duty ? stationReadout(duty, c) : controlReadout(c);
+  const [lines, tone] = deskLines(c, duty, yours);
   const ink = tone === 'bad' ? '#d0634f' : tone === 'warn' ? '#e8c66a' : '#9fdc9a';
-  const lastTrace = c && c.trace && c.trace.length ? c.trace[c.trace.length - 1] : null;
-  const lines = yours
-    ? [
-        a,
-        b,
-        ...(c && c.flight && !['ascent', 'insertion'].includes(c.phase)
-          ? [`PHASE ${Math.min(c.flight.phaseNo || 1, c.flight.phases || 99)}`, (c.flight.craft || '').toUpperCase()] // the climb's numbers are history
-          : [
-              lastTrace ? lastTrace.v.toFixed(2) + ' km/s' : '0.00 km/s',
-              lastTrace ? (lastTrace.off >= 0 ? '+' : '') + lastTrace.off.toFixed(1) + '° OFF' : '0.0° OFF',
-            ]),
-      ]
-    : [a, b];
   const screens = yours
     ? [
         [10 * k, lines[0]],
