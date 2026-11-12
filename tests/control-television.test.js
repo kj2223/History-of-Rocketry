@@ -28,3 +28,18 @@ test('the control-room TV hands off from the pad camera to observed telemetry', 
   controlTelevision(ctx, g, 0, 0, 480, 140);
   assert.match(text[0], /Last ascent sample.*T\+0:00:13/);
 });
+
+test('the telemetry heading gives way before it runs into a long stage name (Shuttle)', () => {
+  const text = [];
+  const ctx = new Proxy(
+    { measureText: s => ({ width: String(s).length * 8 }), fillText: (line, x, y, max) => text.push({ line, x, max }) },
+    { get: (target, key) => target[key] ?? (() => {}) },
+  );
+  const sample = { t: 81, v: 1.1, acc: 2.1, gamma: 60, off: 0.2, stage: 'Solid boosters and main engines' };
+  controlTelevision(ctx, { clock: 720, console: { phase: 'ascent', trace: [sample] } }, 0, 0, 480, 140);
+  const [head, stage] = text;
+  assert.equal(head.line, 'T+0:01:21');
+  assert.equal(stage.line, sample.stage);
+  // the heading ends before the stage begins
+  assert.ok(head.x + head.line.length * 8 <= 480 * 0.96 - Math.min(stage.max, stage.line.length * 8));
+});
