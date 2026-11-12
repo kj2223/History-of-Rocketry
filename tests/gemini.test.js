@@ -11,7 +11,7 @@ import { flightTruth, resolve, geminiEntry, NAV_ERROR_KM } from '../js/truth/fli
 import { flyLunarEntry, LUNAR_ENTRY, KM_PER_MILE } from '../js/truth/entry.js';
 import { owns } from '../js/houston.js';
 import { toRoundId, playMission, advance } from './play.js';
-import { routeArgue, routeDone } from '../js/mercury.js';
+import { routeArgue, routeDone, evidence, NAV_SPLASH_LINE } from '../js/mercury.js';
 import { pendingOffer } from '../js/career/record.js';
 
 // Play to Gemini 4: the Mercury flights from the Retrofire console, then the flight director's offer (take: whether to take it).
@@ -765,4 +765,39 @@ test('the Titan shuts down on the pad with you at the console: ejection or sitti
       t.risk = risk;
     }
   }
+});
+
+// Gemini 5's wrong number as a player met it (playtest, 12 Nov 2026): the computer said 8 km long, she came down about
+// 130 km short, and the fuel cells were the flight's first trouble. Recovery's board and the review have to say why.
+test("an unchecked wrong number: the computer's estimate is its own belief, and Recovery and the review say so", () => {
+  toGemini(8);
+  playMission({ sims: 0 });
+  advance(true);
+  g.room = null;
+  assert.equal(SEASON[g.roundIndex].id, 'gem-5');
+  g.round.navdata = true;
+  g.round.faults = { ...(g.round.faults || {}), 'fuel-cells': 'fuelcell' };
+  let predicted = null;
+  playMission({
+    sims: 0,
+    decide: d => (d.id === 'navcheck' ? 'send' : Object.keys(d.options)[0]),
+    aim: c => {
+      predicted = c.ip.retro;
+      return 'planned';
+    },
+  });
+  const end = g.round.end;
+  assert.equal(end.outcome, 'entry');
+  assert.ok(end.nav < -100, `nav ${end.nav}`);
+  assert.ok(end.miss < -90, `miss ${end.miss}`);
+  // The computer believed she was near the mark: its estimate misses the real splashdown by the wrong number.
+  assert.ok(Math.abs(predicted) < 40, `computer said ${predicted}`);
+  assert.ok(
+    g.notes.some(n => n.text.includes(NAV_SPLASH_LINE)),
+    'Recovery explains the miss',
+  );
+  assert.ok(
+    evidence().some(l => /Earth's rotation/.test(l)),
+    'the review names the wrong number even when the fuel cells came first',
+  );
 });
