@@ -174,3 +174,10 @@ body[data-era=glass] .lamp-btn.go { background: rgba(60,180,110,.35); border-col
 #mc-panel[hidden], #mc-clocks[hidden], #mc-steps[hidden] { display: none; }
 #mc-steps li.done span::before { content: '✓'; display: block; }
 #mc-steps li span { white-space: nowrap; }
+/* v0.8 telemetry: every channel of the stage, as text under the gauges (js/truth/channels.js). */
+.readings { margin: .4rem 0; font-size: .85rem; }
+.readings summary { cursor: pointer; color: var(--muted); }
+.readings table { width: 100%; border-collapse: collapse; font-family: var(--mono); }
+.readings th { text-align: left; font-weight: normal; color: var(--muted); padding: .1rem .4rem .1rem 0; }
+.readings td { text-align: right; padding: .1rem 0 .1rem .4rem; }
+.readings tr.low td, .readings tr.high td { color: var(--accent); }
