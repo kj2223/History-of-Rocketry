@@ -425,6 +425,9 @@ function setVehicle() {
         houston && GEMINI_ROLES[id] ? GEMINI_ROLES[id] : g.crewed && MERCURY_ROLES[id] ? MERCURY_ROLES[id] : role;
   if (houston && g.record.seat === 'retro') g.people.tate.role = 'Retrofire officer, back room';
   g.people.you.role = SEATS[g.record.seat];
+  // On a JPL probe the decisions are the project manager's; you work on the flight team and recommend.
+  if (SEASON[g.roundIndex]?.probe && ['junior', 'test-conductor'].includes(g.record.seat))
+    g.people.you.role = 'Flight team engineer, JPL';
   // Who sits at each desk this year: the team changes over the decades (data/cast.js).
   const year = dateOf(roundStartOf(g.roundIndex)).year;
   for (const id of Object.keys(SUCCESSIONS)) {
@@ -928,7 +931,13 @@ function advanceSteps(round, command) {
   const step = probeStep();
   if (!step) return;
   const at = probe.steps.indexOf(step);
-  const pick = typeof command === 'number' ? command : command ? 0 : 1;
+  let pick = typeof command === 'number' ? command : command ? 0 : 1;
+  // The project manager decides; you are on the flight team and recommend. A manager who does not trust your
+  // judgement goes with the plan (the first call) over a departure from it.
+  if (pick !== 0 && g.record.trust < 0) {
+    note(`You recommended: ${step.choices[pick]?.label}. The project manager went with the plan instead.`);
+    pick = 0;
+  }
   const choice = step.choices[Math.max(0, Math.min(step.choices.length - 1, pick))];
   const lost = choice.risk > 0 && draw(g.round.rng.physical) < choice.risk;
   const said = lost ? choice.lost : choice.result || choice.note;

@@ -272,7 +272,8 @@ const ROOMS = {
     const step = probeStep();
     if (step)
       return `<h2>${esc(name)}</h2><h3>${esc(step.title)}</h3><p>${esc(step.evidence)}</p>
-      ${step.choices.map((c, i) => `<button${i ? '' : ' class="primary"'} data-act="probe-choice" data-id="${i}">${esc(c.label)}</button>`).join('\n      ')}`;
+      <p class="muted">The project manager decides. The flight team, you among them, recommends.</p>
+      ${step.choices.map((c, i) => `<button${i ? '' : ' class="primary"'} data-act="probe-choice" data-id="${i}">Recommend: ${esc(c.label)}</button>`).join('\n      ')}`;
     return `<h2>${esc(name)}</h2><p>${esc(probe.evidence)}</p>
       <button class="primary" data-act="probe-command">${esc(probe.action)}</button>
       <button data-act="probe-wait">${esc(probe.alternate)}</button>`;
