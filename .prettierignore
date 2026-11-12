@@ -21,3 +21,4 @@ index.html
 
 # Design documents and notes: Prettier would realign their tables.
 *.md
+js/vendor/

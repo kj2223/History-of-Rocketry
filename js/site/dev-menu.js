@@ -6,6 +6,7 @@ import { SEASON } from '../data/campaign.js';
 import { stagesFor, skipWithRetries, STOPS } from '../dev/skip.js';
 import { startOver, readSave } from '../core/save.js';
 import { trace, traceError } from './playtest.js';
+import { RENDERER_KEY, pixiWanted } from '../stage/index.js';
 
 // The menu is hidden from players. Ctrl+Shift+F9 switches it on or off on this computer (kept in localStorage); while it
 // is on, F9 and the Jump button in the bar open it.
@@ -104,6 +105,7 @@ function render() {
         )
         .join('')}
     </div>
+    <label><input type="checkbox" id="dev-canvas" ${pixiWanted() ? '' : 'checked'}> Old drawing: show the rooms rebuilt in PixiJS with the old canvas code, to compare</label>
     <label>Seed <input id="dev-seed" type="text" inputmode="numeric" size="9" value="${esc(state.seed)}" placeholder="random"> <span class="muted">Blank for a new one each time. A seed gives the same game again.</span></label>
     <p class="dev-status ${state.message.startsWith('Could not') ? 'bad' : ''}" role="status">${esc(state.message)}</p>
     ${groups
@@ -127,7 +129,11 @@ function onChange(e) {
   if (e.target.name === 'dev-route') state.route = e.target.value;
   else if (e.target.name === 'dev-stop') state.stop = e.target.value;
   else if (e.target.id === 'dev-seed') state.seed = e.target.value.trim();
-  else return;
+  else if (e.target.id === 'dev-canvas') {
+    if (e.target.checked) localStorage.setItem(RENDERER_KEY, 'canvas');
+    else localStorage.removeItem(RENDERER_KEY);
+    trace('dev-renderer', { canvas: e.target.checked });
+  } else return;
   render();
 }
 
