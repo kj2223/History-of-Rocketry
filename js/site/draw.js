@@ -2166,7 +2166,7 @@ export function controlButtonAt(g, x, y) {
 
 // What your console shows for the flight's phase, mirroring the room's own panels: the clock and state always, the
 // board or readouts when they carry information, and the calls that are yours as buttons.
-function consolePanelModel(c) {
+function consolePanelModel(c, g) {
   const [clock, word] = controlReadout(c);
   // ask: the call in plain words, drawn above the readouts whenever the call is yours.
   const P = { clock, state: word, ask: null, lines: [], buttons: [] };
@@ -2391,7 +2391,7 @@ function drawConsolePanel(ctx, g, x, y, w, h) {
   ctx.strokeStyle = '#4b5258';
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   if (!c) return;
-  const P = consolePanelModel(c);
+  const P = consolePanelModel(c, g);
   let cy = y + 14;
   // The clock, as the wall clocks carry it.
   ctx.fillStyle = '#0d1117';
