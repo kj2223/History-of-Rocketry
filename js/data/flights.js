@@ -212,7 +212,7 @@ export const FLIGHTS = {
     objective: 'eight days, the length of a trip to the Moon and back',
     rules: [
       'No launch with the sea above state 4 in the primary landing area.',
-      'Two fuel-cell sections working, or come home at the next good landing area.',
+      'The fuel cells stay on the line while their oxygen supply holds above its 22 psi minimum. Below it, come home at the next good landing area.',
       'Eight days, if the spacecraft can do it: Apollo needs to know a crew can last the trip.',
     ],
     steps: [
@@ -228,7 +228,7 @@ export const FLIGHTS = {
         say: [
           [
             'kessler',
-            "Flight, EECOM: the fuel cells' oxygen supply pressure is falling. Sixty-five psi and dropping.",
+            "Flight, EECOM: the fuel cells' oxygen supply pressure is falling. Three hundred psi and dropping. The minimum is twenty-two.",
             'bad',
           ],
         ],
@@ -253,25 +253,25 @@ export const FLIGHTS = {
         when: 'poweredDown',
         not: 'batteries',
         offShift:
-          'The night shift watched the fuel-cell pressure fall to twelve psi and hold there under minimum load.',
+          'The night shift watched the fuel-cell pressure fall to about seventy psi and hold there under minimum load, well above the minimum.',
         say: [
           [
             'kessler',
-            'EECOM handover: the pressure fell to twelve psi and held there overnight. It is still steady under minimum load.',
+            'EECOM handover: the pressure fell to about seventy psi and held there overnight. Still steady under minimum load, well above the minimum.',
             'go',
           ],
         ],
-        show: { 'O2 PRESSURE': ['12 psi, steady'], 'FUEL CELLS': ['minimum load', true] },
+        show: { 'O2 PRESSURE': ['70 psi, steady'], 'FUEL CELLS': ['minimum load', true] },
       },
       {
         at: 21,
         when: 'batteries',
         offShift:
-          'The night shift watched the fuel-cell pressure keep falling. The cells are off the line, and she is on batteries for recovery.',
+          'The night shift watched the fuel-cell pressure fall through the minimum. On the rule the cells are off the line, and she is on batteries for recovery.',
         say: [
           [
             'kessler',
-            'EECOM handover: pressure kept falling. The fuel cells are off the line. We are on batteries for recovery.',
+            'EECOM handover: the pressure went below the minimum. The fuel cells are off the line on the rule. We are on batteries for recovery.',
             'bad',
           ],
         ],
@@ -2905,7 +2905,7 @@ export const FLIGHTS = {
       'No lunar orbit insertion without a service engine that has passed its checks: without it there is no way home.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
       'In the descent, abort on any computer alarm that stops the computer flying the lander.',
-      'The lander never goes farther than the crew can walk back on what is left in their suits.',
+      'The rover never goes farther than the crew can walk back on what is left in their suits.',
     ],
     steps: [
       ...SLS,
@@ -3081,13 +3081,14 @@ export const DECISIONS = {
     },
   },
   fuelcell1: {
-    q: "The fuel cells' oxygen pressure is falling. The mission rule says two good sections, or come home at the next good area.",
+    q: "The fuel cells' oxygen pressure is falling, but it is still above the minimum. The mission rule keeps her up on the cells until it goes below.",
     auto: 'drift',
     owner: 'engineer',
     rule: 1,
     options: {
-      home: 'Follow the rule: come home at the next good area.',
-      drift: 'Power down, drift and watch the pressure. Decide again tomorrow.',
+      drift:
+        'Follow the rule: power down to minimum load and stay up. Come home if the pressure goes below the minimum.',
+      home: 'Play it safe: come home at the next good area now, before the rule calls for it.',
     },
   },
   fuelcell2: {
