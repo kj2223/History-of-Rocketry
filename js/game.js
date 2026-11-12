@@ -1815,7 +1815,10 @@ function nextMorning() {
   }
   g.clock = g.day * 1440 + START_MINUTE;
   g.away = lines.length ? { from: dateText(left), to: dateText(g.day), lines } : null;
-  if (g.away) g.room = 'away';
+  // A new day starts out on the site: whatever room you ended the day in (the dugout after a static fire, the hangar,
+  // the blockhouse) is closed, or it stays open over the next morning's beat.
+  g.room = g.away ? 'away' : null;
+  roomChanged();
   const next =
     {
       evening1: 'staticPrep',
