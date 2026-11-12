@@ -561,8 +561,12 @@ export function consoleAbort() {
   con.calls.abort = { at: con.abortAt, off: con.trace.length ? con.trace[con.trace.length - 1].off : 0 };
   lamp(con, 'RETRO', 'ABORT', 'CALLED', 'bad');
   lamp(con, 'FLIGHT', 'ABORT', 'ABORT', 'bad');
-  speak(con, retroWho(con), "Flight, Retro: she's off her line. Recommend abort!", 'bad');
-  speak(con, 'hollis', 'Abort! Abort!', 'bad');
+  // From the flight director's console you command it yourself; from Retro's you recommend it and Hollis commands it.
+  if (flightDirector() && !con.auto) speak(con, 'you', 'Abort! Abort!', 'bad');
+  else {
+    speak(con, retroWho(con), "Flight, Retro: she's off her line. Recommend abort!", 'bad');
+    speak(con, 'hollis', 'Abort! Abort!', 'bad');
+  }
   if (con.kind === 'flight')
     note(
       `T+${con.abortAt} s: ${con.auto ? nameOf('tate') : 'you'} called an abort with the flight-path angle ${Math.abs(con.calls.abort.off).toFixed(1)} degrees off the planned line.`,
