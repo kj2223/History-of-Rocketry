@@ -729,3 +729,40 @@ test('past the walkback limit the rover can quit; a failed main parachute brings
   assert.ok(quit > 3 && quit < 25, `${quit}`);
   assert.equal(chute, 40);
 });
+
+// Issue #190: an end on the pad with you at the console closes the console room, or every click goes to buttons that are gone.
+test('the Titan shuts down on the pad with you at the console: ejection or sitting tight, the console room closes', async () => {
+  const { consolePoll, shutdownChoose, pilotId } = await import('../js/mercury.js');
+  const { openRoom } = await import('../js/scenes/rooms.js');
+  const { CREW_TRAITS } = await import('../js/world/crew.js');
+  const { nextDay, until } = await import('./play.js');
+  for (const eject of [true, false]) {
+    toGemini(8);
+    g.round.faults = { 'tail-plug': 'shutdown' };
+    nextDay();
+    const t = CREW_TRAITS[pilotId()],
+      risk = t.risk;
+    t.risk = eject ? 0.1 : 0.9;
+    try {
+      openRoom('office');
+      assert.equal(g.room, 'console');
+      const done = () => !g.console || g.console.phase === 'shutdown';
+      until(() => done() || g.console.poll);
+      for (let n = 0; n < 20 && !done(); n++) {
+        consolePoll(true);
+        until(() => done() || g.console?.poll);
+      }
+      if (eject) assert.equal(g.beat, 'mReview');
+      else {
+        assert.equal(g.console.phase, 'shutdown');
+        assert.equal(g.room, 'console', 'the shutdown call is made on the console');
+        shutdownChoose('plug');
+        assert.equal(g.beat, 'mScrub');
+      }
+      assert.equal(g.console, null);
+      assert.equal(g.room, eject ? 'mreview' : null);
+    } finally {
+      t.risk = risk;
+    }
+  }
+});
