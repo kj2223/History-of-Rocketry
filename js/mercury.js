@@ -1483,6 +1483,10 @@ const FLIGHT_EVIDENCE = {
     "Retro's people find the number for the Earth's rotation in the ground program was wrong.",
   ],
 };
+// On Recovery's board when an unchecked wrong number brought her down off the mark: the computer's estimate was its own
+// belief, so it said she was on target.
+export const NAV_SPLASH_LINE =
+  "The spacecraft's computer flew her all the way to the point in its numbers, and believed she was on it. The numbers were wrong: Retro's people are going through them now.";
 function flightEvidence(a, end) {
   const lines = [...((BOOSTERS[g.vehicle] || BOOSTERS.titan).tapes[a.failure || 'nominal'] || [])];
   if (a.controlFrom && ['titanctl', 'saturnctl'].includes(a.failure))
@@ -1491,7 +1495,7 @@ function flightEvidence(a, end) {
   if (t) {
     const cause = flightCause(g.round);
     for (const [k, l] of Object.entries(FLIGHT_EVIDENCE))
-      if (k === cause || g.round.flightFaultsSeen?.includes(k)) lines.push(...l);
+      if (k === cause || g.round.flightFaultsSeen?.includes(k) || (k === 'navdata' && end.nav)) lines.push(...l);
     if (!lines.slice(1).length && !a.failure)
       lines.push('The spacecraft systems stayed in their bands from insertion to retrofire.');
   }
@@ -2116,6 +2120,8 @@ function splashOrbit(con, end, trained, lines) {
     lines.push(
       `She came down in the Atlantic abort area, about ${Math.round(end.landing / 10) * 10} km downrange of the Cape.`,
     );
+  // A wrong number from the ground: the computer flew her to the point it was given and believed she was on the mark.
+  if (end.outcome === 'entry' && end.nav) lines.push(NAV_SPLASH_LINE);
   lines.push(
     con.hours > 3
       ? `She was picked up ${con.hours.toFixed(1)} hours after splashdown.`
