@@ -412,7 +412,10 @@ function panelReserve() {
 }
 
 let last = performance.now(),
-  inScene = false;
+  inScene = false,
+  staged = false;
+// Whether this frame drew a room or the site (rather than Mission Control or the tracking board).
+const sceneDrawn = () => !(g.flight && g.flight.view === 'board') && !(g.room === 'console' && g.console);
 function frame(now) {
   const steps = frameSteps((now - last) / 1000),
     dt = Math.min(MAX_STEP, (now - last) / 1000);
@@ -429,10 +432,15 @@ function frame(now) {
     else if (g.room === 'console' && g.console) drawControlRoom(ctx, g, view);
     else if (interiorOf(g)) {
       // A room rebuilt in PixiJS draws on the scene layer; the rest still draw on this canvas.
-      inScene = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
-      if (!inScene) drawInterior(ctx, g, view, panelReserve());
-    } else drawSite(ctx, g, view);
-    if (!(interiorOf(g) && inScene)) inScene = stageFrame(null);
+      staged = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
+      if (!staged) drawInterior(ctx, g, view, panelReserve());
+    } else {
+      staged = stageFrame('site', dt, 0);
+      if (!staged) drawSite(ctx, g, view);
+    }
+    if (!sceneDrawn()) staged = stageFrame(null);
+    // in-scene: a walk-in room is drawn on the scene layer, so its panel keeps only the decision.
+    inScene = staged && !!interiorOf(g);
     document.body.classList.toggle('in-scene', inScene);
     renderRoom();
     liveRoom();

@@ -414,3 +414,16 @@ export function standingFigure() {
   c.update(null);
   return c;
 }
+
+// A vertical gradient as a texture, to stretch over a rect: smoother than bands of flat colour. stops: [offset, css].
+export function gradientTexture(stops) {
+  const cv = document.createElement('canvas');
+  cv.width = 2;
+  cv.height = 256;
+  const ctx = cv.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 256);
+  for (const [k, css] of stops) grad.addColorStop(k, css);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 2, 256);
+  return Texture.from(cv);
+}
