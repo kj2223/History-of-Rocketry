@@ -438,6 +438,18 @@ export function consoleStart() {
   );
 }
 
+// From the flight director's console the recovery poll is Recovery's report, with Retro's concurrence, before your call.
+function recoveryReport(con) {
+  const ok = boardGood(con);
+  speak(con, 'reyes', ok ? 'Flight, Recovery is go.' : 'Flight, Recovery is no-go.', ok ? 'go' : 'warn');
+  speak(
+    con,
+    'tate',
+    ok ? 'Retro concurs. The recovery area is ready.' : 'Retro concurs with the recovery hold.',
+    ok ? 'go' : 'warn',
+  );
+}
+
 // Your status at a poll: GO or NO-GO on the recovery area.
 export function consolePoll(go) {
   const con = g.console;
@@ -456,15 +468,6 @@ export function consolePoll(go) {
   con.poll = null;
   const flight = flightDirector() && !con.auto;
   const station = flight ? 'Flight' : 'Retro';
-  if (flight) {
-    speak(con, 'reyes', ok ? 'Flight, Recovery is go.' : 'Flight, Recovery is no-go.', ok ? 'go' : 'warn');
-    speak(
-      con,
-      'tate',
-      ok ? 'Retro concurs. The recovery area is ready.' : 'Retro concurs with the recovery hold.',
-      ok ? 'go' : 'warn',
-    );
-  }
   // The man on top has his own say at the final poll, and his no is binding.
   if (go && poll === 'final' && con.kind === 'flight' && pilotId()) {
     speak(con, retroWho(con), `${station} is go.`, 'go');
@@ -567,60 +570,60 @@ export function consoleAbort() {
   finishAscent(con);
 }
 
-// Where to send the helicopters after cutoff: 'radar', 'telemetry' or 'planned'.
+// Retro's landing point for Recovery after cutoff or entry: 'radar', 'telemetry', 'retro' or 'planned'. Retro computes
+// the splashdown point and passes it to Recovery; Recovery directs the ships and helicopters. When you are the flight
+// director, the Retrofire console is Tate's and you hear the exchange; it is not your call.
 export function consoleAim(which) {
   const con = g.console;
   if (!con || con.phase !== 'ip') return;
   con.aim = which;
   con.calls.ip = which;
+  const tate = con.auto || flightDirector();
+  const retro = tate ? 'tate' : 'you';
+  const actor = tate ? nameOf('tate') : 'You';
   if (con.orbital) {
     const where = which === 'planned' ? 'the planned point' : km(con.ip[which]) + ' of the planned point';
     const radar = con.flightId ? 'the tracking ship' : 'Grand Turk';
-    if (flightDirector() && !con.auto) {
-      speak(
-        con,
-        'tate',
-        `Flight, Retro: the computer's splashdown estimate is ${km(con.ip.retro)} of the planned point.`,
-      );
-      speak(
-        con,
-        'you',
-        which === 'radar'
-          ? 'Flight to Recovery: proceed on the tracking ship’s fix when it comes in.'
-          : `Flight to Recovery: proceed to ${where}.`,
-        'go',
-      );
-    } else
-      speak(
-        con,
-        retroWho(con),
-        which === 'radar'
-          ? `Recovery, ${callsign(con)}: hold the helicopters for ${radar}'s fix.`
-          : `Recovery, ${callsign(con)}: best splashdown ${where}.`,
-        'go',
-      );
+    const predicted = con.flightId ? "the spacecraft's computer" : 'the retrofire telemetry';
+    speak(
+      con,
+      retro,
+      which === 'radar'
+        ? `Recovery, Retro: ${predicted} puts her ${km(con.ip.retro)} of the planned point, but I don't trust it. Recommend you hold the helicopters for ${radar}'s fix.`
+        : `Recovery, Retro: best splashdown ${where}.`,
+      'go',
+    );
     if (which === 'radar')
-      speak(con, 'reyes', `${cap(radar)} has her ${km(con.ip.radar)}. Helicopters launching.`, 'go');
-    else speak(con, 'reyes', 'Copy. Helicopters launching.', 'go');
+      speak(
+        con,
+        'reyes',
+        `Recovery copies. Holding the helicopters. ${cap(radar)} has her ${km(con.ip.radar)}. Helicopters launching.`,
+        'go',
+      );
+    else speak(con, 'reyes', 'Recovery copies. Helicopters launching.', 'go');
     if (con.kind === 'flight')
       note(
-        `${con.auto ? nameOf('tate') : 'You'} sent the recovery forces to ${which === 'radar' ? `the radar fix, ${km(con.ip.radar)}` : where}${which === 'radar' ? ', after holding them for it' : ''}.`,
+        which === 'radar'
+          ? `${actor} told Recovery not to trust the predicted point and to wait for ${radar}'s fix. Recovery held the helicopters for it and sent them to ${km(con.ip.radar)}.`
+          : `${actor} gave Recovery ${where} as the best splashdown point. Recovery sent the helicopters there.`,
       );
     con.phase = 'coast';
     con.coastLeft = COAST_SECONDS;
     return roomChanged();
   }
   const kmDown = Math.round(con.ip[which]);
-  speak(con, retroWho(con), `Recovery, Retro: best splashdown ${kmDown} kilometres downrange.`, 'go');
-  speak(con, 'reyes', `Copy. Helicopters launching for ${kmDown}.`, 'go');
+  speak(con, retro, `Recovery, Retro: best splashdown ${kmDown} kilometres downrange.`, 'go');
+  speak(con, 'reyes', `Recovery copies. Helicopters launching for ${kmDown}.`, 'go');
   if (con.kind === 'flight')
     note(
-      `${con.auto ? nameOf('tate') : 'You'} sent the recovery forces to ${kmDown} km downrange (the ${which === 'planned' ? 'planned point' : `${which} impact point`}).`,
+      `${actor} gave Recovery ${kmDown} km downrange as the best splashdown point (the ${which === 'planned' ? 'planned point' : `${which} impact point`}). Recovery sent the helicopters there.`,
     );
   con.phase = 'coast';
   con.coastLeft = COAST_SECONDS;
   roomChanged();
 }
+// The landing point Tate gives Recovery: the radar's, unless its track dropped out.
+const tateAim = con => (con.orbital ? 'radar' : con.ip.intermittent ? 'telemetry' : 'radar');
 
 // The joint call answered. Press: fly into the cold. Hold: the launch slips a day, and the joint warms with it.
 function jointAnswer(go) {
@@ -680,6 +683,15 @@ export function tickConsole(dt) {
   const con = g.console;
   if (!con || !con.live) return;
   if (con.auto && tateCalls(con)) return;
+  // From the flight director's console the landing point is Retro's call to Recovery: Tate makes it after a moment.
+  if (con.phase === 'ip' && flightDirector()) {
+    con.ipLeft = (con.ipLeft ?? 2.5) - dt;
+    if (con.ipLeft <= 0) {
+      con.ipLeft = null;
+      consoleAim(tateAim(con));
+    }
+    return;
+  }
   if (con.phase === 'hold') {
     con.holdLeft -= dt;
     g.clock += dt * 15;
@@ -691,7 +703,8 @@ export function tickConsole(dt) {
       }
       con.phase = con.kind === 'sim' && con.clock >= 600 ? 'poll' : 'count';
       con.poll = con.clock <= 120 ? 'final' : 'recovery';
-      speak(con, 'hollis', 'Retro, Recovery: status?');
+      if (flightDirector() && !con.auto && con.poll === 'recovery') recoveryReport(con);
+      else speak(con, 'hollis', 'Retro, Recovery: status?');
       roomChanged();
     }
     return;
@@ -730,8 +743,8 @@ export function tickConsole(dt) {
       const s = MERCURY_COUNT[con.next++];
       if (con.kind === 'sim' && s.at > 10) continue; // a sim picks up at the recovery poll, then counts the last ten seconds
       const flight = flightDirector() && !con.auto;
-      const text = flight && s.poll === 'recovery' ? 'Flight, Recovery and Retro are ready to report.' : s.text;
-      speak(con, flight && s.poll === 'recovery' ? 'reyes' : s.who, text, s.tone || '', s.quick ? 1 : 4);
+      if (flight && s.poll === 'recovery') recoveryReport(con);
+      else speak(con, s.who, s.text, s.tone || '', s.quick ? 1 : 4);
       if (s.poll) {
         con.poll = s.poll;
         con.clock = s.at;
@@ -1559,7 +1572,7 @@ function finishSim(con, why = null) {
     // The best point on the board: the radar's, unless its track dropped out.
     if (end && end.capsule !== 'lost' && con.aim)
       graded.push({
-        what: 'Where you sent the helicopters',
+        what: 'The landing point you gave Recovery',
         right: con.aim === (con.ip.intermittent ? 'telemetry' : 'radar'),
       });
   }
@@ -1596,7 +1609,7 @@ function gradeOrbitSim(con, graded) {
     graded.push({ what: 'How to fire the retros', right: o.scanner ? calls.retro === 'manual' : true });
   if (con.ip && con.aim && end.miss != null)
     graded.push({
-      what: 'Where you sent the helicopters',
+      what: 'The landing point you gave Recovery',
       right: con.aim === 'radar' || Math.abs(con.ip[con.aim] - end.miss) <= 30,
     });
 }
@@ -2402,7 +2415,7 @@ function tateCalls(con) {
     return true;
   }
   if (con.phase === 'ip') {
-    consoleAim(con.orbital ? 'radar' : con.ip.intermittent ? 'telemetry' : 'radar');
+    consoleAim(tateAim(con));
     return true;
   }
   if (con.phase === 'pad') {

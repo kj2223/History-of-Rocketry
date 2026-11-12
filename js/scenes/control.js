@@ -224,7 +224,7 @@ function consoleView(c) {
       .join('')}</div>`;
   if (c.poll || c.phase === 'poll') {
     const b = board(c);
-    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> ${who('hollis')} wants your status on the recovery area. The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
+    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> ${g.record.seat === 'flight' ? 'Recovery has reported on the recovery area and Retro concurs. Go on with the count, or hold?' : `${who('hollis')} wants your status on the recovery area.`} The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
       <ul class="reports"><li>Sea state in the recovery area: <strong>${b.sea}</strong></li>${b.units.map(u => `<li>${esc(u.text)}: <strong class="${u.on ? '' : 'danger-text'}">${u.on ? 'on station' : 'NOT on station'}</strong></li>`).join('')}</ul>
       <button class="go" data-act="m-go">GO</button><button class="danger" data-act="m-nogo">NO-GO</button></div>`;
   }
@@ -248,13 +248,13 @@ function consoleView(c) {
   if (['orbit', 'pack', 'retro', 'entry'].includes(c.phase)) return `${head}${orbitBoard(c)}${orbitCall(c)}`;
   if (c.phase === 'ip' && c.orbital)
     return `${head}${orbitBoard(c)}<div class="poll">
-    <p><strong>Where does Recovery send the helicopters?</strong> The carrier is on the planned point, with destroyers 300 km up and down the track.</p>
+    <p><strong>Which landing point do you give Recovery?</strong> Recovery moves the ships on your point. The carrier is on the planned point, with destroyers 300 km up and down the track.</p>
     <ul class="reports"><li>From the retrofire telemetry: <strong>${kmText(c.ip.retro)}</strong> of the planned point (uses the attitude the scanners reported)</li>
-    <li>Grand Turk's radar: a fix after the blackout, good to about 15 km, but the helicopters wait about twenty minutes for it</li></ul>
+    <li>Grand Turk's radar: a fix after the blackout, good to about 15 km, but Recovery's helicopters wait about twenty minutes for it</li></ul>
     <button data-act="m-aim" data-id="retro">The retrofire prediction</button><button data-act="m-aim" data-id="radar">Wait for the radar</button><button data-act="m-aim" data-id="planned">The planned point</button></div>`;
   if (c.phase === 'ip')
     return `${head}${readouts()}<canvas data-plot width="440" height="170"></canvas><div class="poll">
-    <p><strong>Where does Recovery send the helicopters?</strong> The planned point is ${P.range} km downrange.</p>
+    <p><strong>Which landing point do you give Recovery?</strong> Recovery sends the helicopters on your point. The planned point is ${P.range} km downrange.</p>
     <ul class="reports"><li>Radar impact point: <strong>${Math.round(c.ip.radar)} km</strong> ${c.ip.intermittent ? '<span class="danger-text">(track intermittent: dropouts on the plot)</span>' : '(solid track)'}</li>
     <li>Computer, from the cutoff velocity and angle on telemetry: <strong>${Math.round(c.ip.telemetry)} km</strong> (good to about 25 km)</li></ul>
     <button data-act="m-aim" data-id="radar">The radar's point</button><button data-act="m-aim" data-id="telemetry">The computer's point</button><button data-act="m-aim" data-id="planned">The planned point</button></div>`;
@@ -293,10 +293,12 @@ function flightCall(c) {
       .join('')}</div>`;
 }
 function aimCall(c) {
-  return `<div class="poll"><p><strong>Where does Recovery send the helicopters?</strong> The carrier is on the planned point.</p>
+  // Retro gives Recovery the splashdown point. From the flight director's console it is Tate's call, and you hear it.
+  const retroSeat = !c.auto && g.record.seat !== 'flight';
+  return `<div class="poll"><p><strong>${retroSeat ? 'Which landing point do you give Recovery?' : `Retro is giving Recovery the landing point.`}</strong> The carrier is on the planned point.</p>
     <ul class="reports"><li>The spacecraft's computer: <strong>${kmText(c.ip.retro)}</strong> of the planned point (it steered for the point the ground gave it)</li>
-    <li>The tracking ship's radar: a fix after the blackout, good to about 15 km, but the helicopters wait about twenty minutes for it</li></ul>
-    ${c.auto && g.record.seat !== 'flight' ? '' : '<button data-act="m-aim" data-id="retro">The computer\'s point</button><button data-act="m-aim" data-id="radar">Wait for the radar</button><button data-act="m-aim" data-id="planned">The planned point</button>'}</div>`;
+    <li>The tracking ship's radar: a fix after the blackout, good to about 15 km, but Recovery's helicopters wait about twenty minutes for it</li></ul>
+    ${retroSeat ? '<button data-act="m-aim" data-id="retro">The computer\'s point</button><button data-act="m-aim" data-id="radar">Wait for the radar</button><button data-act="m-aim" data-id="planned">The planned point</button>' : ''}</div>`;
 }
 const kmText = x => `${Math.round(Math.abs(x))} km ${x >= 0 ? 'long' : 'short'}`;
 // The orbital board: where she is, the fuel, the attitude, the window and the warning lights.
@@ -459,7 +461,7 @@ export const CONTROL_ACTS = {
   'm-go': () => !g.console?.auto && consolePoll(true),
   'm-nogo': () => !g.console?.auto && consolePoll(false),
   'm-abort': () => !g.console?.auto && consoleAbort(),
-  'm-aim': id => !g.console?.auto && consoleAim(id),
+  'm-aim': id => !g.console?.auto && g.record.seat !== 'flight' && consoleAim(id),
   'm-decide': id => consoleDecide(id),
   'm-shutdown': id => shutdownChoose(id),
   a8: id => apollo8Decide(id),
