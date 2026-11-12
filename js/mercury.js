@@ -474,14 +474,30 @@ export function consoleStart() {
   );
 }
 
-// From the flight director's console the recovery poll is Recovery's report, with Retro's concurrence, before your call.
+// What Retro's and Recovery's desks show at a poll, read fresh from the board each time, so a lamp lit by an earlier
+// hold never outlives it. From Retro's seat the RETRO lamp is yours, and it shows the poll until you answer.
+function stationLamps(con) {
+  const b = board(con);
+  if (b.sea > SEA_LIMIT) lamp(con, 'RECOVERY', 'SEA ROUGH', `STATE ${b.sea}`, 'warn');
+  else if (con.cond.late) lamp(con, 'RECOVERY', '1 SHIP', 'NOT ON STN', 'warn');
+  else lamp(con, 'RECOVERY', 'ALL SHIPS', 'ON STATION', 'go');
+  if (flightDirector() && !con.auto) {
+    if (boardGood(con)) lamp(con, 'RETRO', 'GO', 'CONCUR', 'go');
+    else lamp(con, 'RETRO', 'NO-GO', 'RECOVERY', 'warn');
+    if (con.lamps) delete con.lamps.FLIGHT;
+  } else if (con.lamps) delete con.lamps.RETRO;
+}
+
+// From the flight director's console every poll, the recovery poll and the final status check, opens with Recovery's
+// report and Retro's concurrence, so Flight always hears where both stand before the call.
 function recoveryReport(con) {
   const ok = boardGood(con);
+  stationLamps(con);
   speak(con, 'reyes', ok ? 'Flight, Recovery is go.' : 'Flight, Recovery is no-go.', ok ? 'go' : 'warn');
   speak(
     con,
     'tate',
-    ok ? 'Retro concurs. The recovery area is ready.' : 'Retro concurs with the recovery hold.',
+    ok ? 'Retro is go. The recovery area is ready.' : 'Retro concurs with the recovery hold.',
     ok ? 'go' : 'warn',
   );
 }
@@ -504,6 +520,7 @@ export function consolePoll(go) {
   con.poll = null;
   const flight = flightDirector() && !con.auto;
   const station = flight ? 'Flight' : 'Retro';
+  const mine = flight ? 'FLIGHT' : 'RETRO'; // your own desk's lamp
   // The man on top has his own say at the final poll, and his no is binding.
   if (go && poll === 'final' && con.kind === 'flight' && pilotId()) {
     speak(con, retroWho(con), `${station} is go.`, 'go');
@@ -563,7 +580,7 @@ export function consolePoll(go) {
       'bad',
     );
     lamp(con, 'RECOVERY', '1 SHIP', 'NOT ON STN', 'warn');
-    lamp(con, 'RETRO', 'NO-GO', 'HOLDING', 'warn');
+    lamp(con, mine, 'NO-GO', 'HOLDING', 'warn');
     speak(con, flight ? 'you' : 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
     con.phase = 'hold';
     con.holdLeft = 3;
@@ -572,16 +589,42 @@ export function consolePoll(go) {
     roomChanged();
     return;
   }
-  lamp(con, 'RETRO', 'NO-GO', 'LOOKING', 'warn');
-  speak(con, retroWho(con), `${station} is no-go.`, 'bad');
-  speak(
-    con,
-    flight ? 'reyes' : 'hollis',
-    flight
-      ? 'Flight, Recovery has all ships on station. Standing by during the hold.'
-      : 'Retro, I have every ship on station and a flat sea. What are you seeing? Holding while you look.',
-    'warn',
-  );
+  // A no-go on a clean board: every ship on station in a sea they can work. The others say where they stand, and a
+  // second unexplained no-go scrubs the day rather than holding forever.
+  con.cleanHolds = (con.cleanHolds || 0) + 1;
+  lamp(con, mine, 'NO-GO', flight ? 'HOLDING' : 'LOOKING', 'warn');
+  if (con.cleanHolds >= 2) {
+    speak(
+      con,
+      'hollis',
+      flight
+        ? 'Flight, every station is go and you are still holding. Your call: we scrub for today.'
+        : 'Retro, I can not hold all day on a clean board. We scrub for today.',
+      'warn',
+      6,
+    );
+    note(`${station} held twice with every ship on station and a workable sea. The day was scrubbed.`);
+    return endCount('scrub');
+  }
+  if (flight) {
+    speak(
+      con,
+      'tate',
+      'Flight, Retro: my landing points are covered. Retro is go. What are we holding for?',
+      'warn',
+      6,
+    );
+    speak(con, 'reyes', 'Flight, Recovery has all ships on station. Standing by during the hold.', 'warn');
+    speak(con, 'hollis', 'Flight, if you hold again with every station go, we scrub for today.', 'warn', 6);
+  } else {
+    speak(con, retroWho(con), `${station} is no-go.`, 'bad');
+    speak(
+      con,
+      'hollis',
+      'Retro, I have every ship on station and a flat sea. What are you seeing? Holding while you look. Hold again and we scrub.',
+      'warn',
+    );
+  }
   con.phase = 'hold';
   con.holdLeft = 1.5;
   con.holdFor = 'look';
@@ -747,8 +790,11 @@ export function tickConsole(dt) {
       }
       con.phase = con.kind === 'sim' && con.clock >= 600 ? 'poll' : 'count';
       con.poll = con.clock <= 120 ? 'final' : 'recovery';
-      if (flightDirector() && !con.auto && con.poll === 'recovery') recoveryReport(con);
-      else speak(con, 'hollis', 'Retro, Recovery: status?');
+      if (flightDirector() && !con.auto) recoveryReport(con);
+      else {
+        stationLamps(con);
+        speak(con, 'hollis', 'Retro, Recovery: status?');
+      }
       roomChanged();
     }
     return;
@@ -794,7 +840,10 @@ export function tickConsole(dt) {
       if (con.kind === 'sim' && s.at > 10) continue; // a sim picks up at the recovery poll, then counts the last ten seconds
       const flight = flightDirector() && !con.auto;
       if (flight && s.poll === 'recovery') recoveryReport(con);
-      else speak(con, s.who, s.text, s.tone || '', s.quick ? 1 : 4);
+      else {
+        speak(con, s.who, s.text, s.tone || '', s.quick ? 1 : 4);
+        if (flight && s.poll === 'final') recoveryReport(con);
+      }
       if (s.poll) {
         con.poll = s.poll;
         con.clock = s.at;

@@ -20,7 +20,7 @@ import { WORLD_LAND } from '../data/world-map.js';
 import { dateOf } from '../core/calendar.js';
 import { surname } from '../data/cast.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
-import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS } from '../data/mercury.js';
+import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SEA_LIMIT } from '../data/mercury.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -2201,6 +2201,9 @@ function consolePanelModel(c, g) {
           : g.record.seat === 'flight'
             ? 'Recovery has reported, and Retro concurs. Go on with the count, or hold?'
             : "Retro's status: are there ships under your landing points, in a sea they can work?";
+    // After a hold on a clean board, say plainly what each button does now.
+    if (!auto && c.cleanHolds && !c.cond?.late && c.cond?.seaState <= SEA_LIMIT)
+      P.ask = 'Every station is go. GO picks up the count; NO-GO again scrubs for today.';
     if (c.cond) {
       P.lines.push(`Sea state: ${c.cond.seaState}`);
       const units = c.orbital ? ORBIT_UNITS : UNITS;

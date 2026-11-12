@@ -229,7 +229,7 @@ function consoleView(c) {
       .join('')}</div>`;
   if (c.poll || c.phase === 'poll') {
     const b = board(c);
-    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> ${g.record.seat === 'flight' ? 'Recovery has reported on the recovery area and Retro concurs. Go on with the count, or hold?' : `${who('hollis')} polls Retro: are there ships under your landing points, the abort areas and the planned point, in a sea they can work?`} The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
+    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> ${c.cleanHolds && b.sea <= SEA_LIMIT && !c.cond.late ? 'Every station is go. GO picks up the count; NO-GO again scrubs for today.' : g.record.seat === 'flight' ? 'Recovery has reported on the recovery area and Retro concurs. Go on with the count, or hold?' : `${who('hollis')} polls Retro: are there ships under your landing points, the abort areas and the planned point, in a sea they can work?`} The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
       <ul class="reports"><li>Sea state in the recovery area: <strong>${b.sea}</strong></li>${b.units.map(u => `<li>${esc(u.text)}: <strong class="${u.on ? '' : 'danger-text'}">${u.on ? 'on station' : 'NOT on station'}</strong></li>`).join('')}</ul>
       <button class="go" data-act="m-go">GO</button><button class="danger" data-act="m-nogo">NO-GO</button></div>`;
   }
