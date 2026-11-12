@@ -40,7 +40,7 @@ test('an Agena that will not restart shows a rough start, and the fix carries', 
 });
 
 // Fly a lunar shot all the way: the launch, then the cruise (the midcourse on the second fix), then the encounter.
-function flyAll(r, when = 'wait', lead = 17) {
+function flyAll(r, when = 'wait', lead = 20) {
   const f = fly(r);
   if (f.deep?.phase !== 'cruise') return f;
   if (f.deep.fallsBack) {
@@ -67,7 +67,7 @@ test('a good Pioneer passes the Moon and a good Ranger hits it with pictures; th
           f.deep.text,
           v === 'juno'
             ? /^Passed the Moon at about [\d,]+ km/
-            : /^Hit the Moon (about [\d,]+ km from|within 100 km of) the aim point, sending [\d,]+ pictures in the last 17 minutes/,
+            : /^Hit the Moon (about [\d,]+ km from|within 100 km of) the aim point, sending [\d,]+ pictures in the last 20 minutes/,
         );
       if (f.failure === 'depletion') assert.match(f.deep.text, /fell back to Earth/);
       if (f.failure === 'camera') assert.match(wreckage(r, true).join(' '), /no video/);

@@ -65,7 +65,7 @@ export function playRound(
   call = () => 'unknown',
   plan = { inspector: 'you', burn: 'short', leak: false },
   stopAt = null,
-  lunar = { midcourse: 'wait', lead: 17 },
+  lunar = { midcourse: 'wait', lead: 20 },
 ) {
   closeAway();
   // A probe round is worked from the technical office only: take the first call each day until it is written up.
@@ -109,7 +109,7 @@ export function playRound(
 
 // A lunar shot after the Cape: follow her out from the technical office, make the midcourse and camera calls, and on to
 // the tracking reports.
-export function followProbe({ midcourse = 'wait', lead = 17 } = {}) {
+export function followProbe({ midcourse = 'wait', lead = 20 } = {}) {
   assert.equal(g.beat, 'lCruise');
   g.room = 'cruise';
   until(() => g.beat !== 'lCruise' || g.lunar.poll);
