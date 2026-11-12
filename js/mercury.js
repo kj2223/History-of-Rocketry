@@ -58,7 +58,7 @@ import { CREW_TRAITS, consents, ownAbortAt, impatient } from './world/crew.js';
 import { ASTRONAUTS } from './data/crew.js';
 import { newRound, ellisReading } from './truth/round.js';
 import { draw } from './core/rng.js';
-import { KITS, SHORT } from './data/kits.js';
+import { KITS, shortFor, fixerOf } from './data/kits.js';
 import { SEASON } from './data/campaign.js';
 import {
   MERCURY_COUNT,
@@ -120,6 +120,20 @@ export const programOf = () => (g.crewed && SEASON[g.roundIndex].crewed) || null
 // The spacecraft's spots and qualification tests for the checkout seats, by programme.
 export const capsuleSpots = () => ({ gemini: GEMINI_SPOTS, apollo: APOLLO_SPOTS })[programOf()] || CAPSULE_SPOTS;
 export const qualTests = () => ({ gemini: GEMINI_QUALS, apollo: APOLLO_QUALS })[programOf()] || QUAL_TESTS;
+// The climb on the tape for a booster with no tapes of its own.
+function climbTapes(booster) {
+  return {
+    guidance: [
+      'On the tape the flight-path angle walks off the planned line, steadily, in one direction.',
+      `The ${booster}'s guidance readout disagrees with the tracking.`,
+    ],
+    shortburn: [
+      'A stage stopped early, its chamber pressure falling away.',
+      'The velocity on the tape stops short of what orbit needs.',
+    ],
+    nominal: [`Every ${booster} channel on the tape stays in its band from liftoff to orbit.`],
+  };
+}
 // The booster's own names for its control failure and its early cutoff, and the tapes and sims that go with it.
 const BOOSTERS = {
   atlas: {
@@ -144,8 +158,30 @@ const BOOSTERS = {
   },
   shuttle: {
     names: { guidance: 'computer', shortburn: 'ssme', boost: 'oring', booster: 'Shuttle' },
-    tapes: APOLLO_TAPES,
+    tapes: {
+      computer: [
+        'On the tape the flight-path angle walks off the planned line, steadily, in one direction.',
+        'One of the general-purpose computers drops out of the redundant set on the climb.',
+      ],
+      ssme: [
+        "One main engine's chamber pressure falls away before the planned cutoff.",
+        'The velocity on the tape stops short of what the planned orbit needs.',
+      ],
+      oring: ["A plume shows at a solid booster's aft field joint, and the tape ends at the breakup."],
+      nominal: ['Every Shuttle channel on the tape stays in its band from liftoff to orbit.'],
+    },
     sims: APOLLO_SIMS,
+  },
+  // Dragon and SLS keep the Atlas's names for their climb failures (and its sims), with their own tapes.
+  dragon: {
+    names: { guidance: 'guidance', shortburn: 'shortburn', booster: 'Falcon 9' },
+    tapes: climbTapes('Falcon 9'),
+    sims: ORBIT_SIMS,
+  },
+  sls: {
+    names: { guidance: 'guidance', shortburn: 'shortburn', booster: 'SLS' },
+    tapes: climbTapes('SLS'),
+    sims: ORBIT_SIMS,
   },
 };
 const boosterOf = con => BOOSTERS[con.round.vehicle] || BOOSTERS.atlas;
@@ -244,7 +280,7 @@ export const MERCURY_BEATS = {
   },
   mPadSafe() {
     seatPeople();
-    g.objective = `The pad crew is safing the capsule. Then ${nameOf('hollis')} wants the review in Mercury Control.`;
+    g.objective = `The pad crew is safing the capsule. Then ${nameOf('hollis')} wants the review in ${placeName('office')}.`;
     say('vega', "Batteries are flat and the oxygen's boiled off. We're going out to her now.", '', 6);
     g.mission.pad = 'safed';
     note(
@@ -287,9 +323,9 @@ export const MERCURY_BEATS = {
       g.people.pilot.hidden = !alive;
       if (alive) place('pilot', 320);
     }
-    g.objective = `${nameOf('hollis')} wants the review. Go into Mercury Control.`;
+    g.objective = `${nameOf('hollis')} wants the review. Go into ${placeName('office')}.`;
     g.round.flight = flightRecord();
-    g.mission.reading = ellisReading(g.round);
+    g.mission.reading = reviewReading(g.round, ellisReading(g.round));
   },
 };
 const cap = t => t[0].toUpperCase() + t.slice(1);
@@ -1174,20 +1210,66 @@ export function padChoose(choice) {
 }
 
 // ---- The review in Mercury Control ----
-// Hollis reads the tapes and the pad himself, and can be wrong. As at White Sands, he goes with his reading unless your
-// record has earned his trust. Your calls in the flight are judged on what the plot showed.
+// Hollis reads the tapes himself, and can be wrong where the tapes are: a failure on the climb or in the spacecraft that
+// nobody saw happen leaves only the telemetry, and two failures of the same hardware can look alike on it. As at White
+// Sands, he goes with his reading unless your record has earned his trust. Your calls in the flight are judged on what
+// the plot showed.
+//
+// Where the record leaves no doubt, he reads it right: a flight that went as planned shows nothing on any tape; a fault
+// the crew and the whole room lived through (the shutdown on the pad, Gemini 8's stuck thruster, a fuel cell on the loop,
+// a parachute that failed in sight of the ships) is not a matter of reading; nor is a booster that broke up. And when
+// he does misread, it is as another failure of the same people's hardware, never as "a good flight".
+export function reviewReading(round, view) {
+  const truth = round.flight?.failure || 'nominal';
+  if (view === truth) return view;
+  const end = round.end || {},
+    seen =
+      round.shutdownSeen ||
+      round.flightFaultsSeen?.includes(truth) ||
+      (truth === 'navdata' && end.nav) ||
+      (truth === 'chute' && end.chute) ||
+      ['breakup', 'pad'].includes(end.outcome);
+  if (truth === 'nominal' || seen) return truth;
+  // On the climb, what looks alike is going off the line and cutting off short (a joint that burns through ends in a
+  // breakup nobody misreads). Elsewhere, failures of the same builder's hardware.
+  const v = round.vehicle,
+    keys = Object.keys(KITS[v]?.explanations || {}),
+    climb =
+      BOOSTERS[v] && truth === round.ascent?.failure ? [BOOSTERS[v].names.guidance, BOOSTERS[v].names.shortburn] : null,
+    alike = keys.filter(
+      c =>
+        !['nominal', 'unknown', 'holddown', truth].includes(c) &&
+        (climb ? climb.includes(c) : fixerOf(v, c) === fixerOf(v, truth)),
+    );
+  if (alike.includes(view)) return view;
+  // His misreading moved to a failure that fits: the same draw, so nothing else in the round moves.
+  return alike.length ? alike[Math.max(0, keys.indexOf(view)) % alike.length] : truth;
+}
+
 export function missionPresent(key) {
   if (g.beat !== 'mReview') return;
-  const view = g.mission.reading ?? ellisReading(g.round);
+  const view = reviewReading(g.round, g.mission.reading ?? ellisReading(g.round));
+  // Whoever answers for the hardware: Marshall for a Redstone, Martin for a Titan, McDonnell for a Gemini spacecraft.
+  const to = cause => fixerOf(g.vehicle, cause),
+    said = cause => shortFor(g.vehicle, cause);
+  // Everything that really went wrong on the flight. Where Hollis has read it right, naming any other part of it is a
+  // right answer too (Apollo 6 had pogo, two J-2s out and an S-IVB that would not relight).
+  const happened = new Set([g.round.flight?.failure, ...(g.round.flightFaultsSeen || [])].filter(Boolean));
   let decision, reply, tone, agree;
-  if (key === 'unknown') {
+  if (key !== view && happened.has(view) && happened.has(key)) {
+    decision = key;
+    agree = true;
+    tone = 'go';
+    shiftTrust(g.record, 1);
+    reply = `That too, along with ${said(view)}. ${to(key)} fixes it before the next one.`;
+  } else if (key === 'unknown') {
     decision = null;
     agree = true;
     tone = '';
     reply =
       view === 'nominal'
-        ? 'Fine. Marshall will look her over anyway.'
-        : `Fair. I'd say ${SHORT[view]}, but we won't fix a guess.`;
+        ? `Fine. ${to(null)} will look her over anyway.`
+        : `Fair. I'd say ${said(view)}, but we won't fix a guess.`;
   } else if (key === view) {
     decision = view;
     agree = true;
@@ -1196,18 +1278,19 @@ export function missionPresent(key) {
     reply =
       view === 'nominal'
         ? 'Agreed. She did what she was built for.'
-        : "That's how I read the tapes too. Marshall fixes it before the next one.";
+        : `That's how I read the tapes too. ${to(view)} fixes it before the next one.`;
   } else if (g.record.trust >= TRUST.defer) {
     decision = key;
     agree = false;
     tone = 'go';
-    reply = `I'd have said ${SHORT[view]}. You've been right before. We'll go with yours.`;
+    reply = `I'd have said ${said(view)}. You've been right before. We'll go with yours.`;
   } else {
     decision = view;
     agree = false;
     tone = 'warn';
     shiftTrust(g.record, -1);
-    reply = `I don't read it that way. The tapes say ${SHORT[view]} to me, and that's what goes to Marshall.`;
+    // Why he does not take your word: your record has not earned it yet. Calls he has seen you get right earn it.
+    reply = `I don't read it that way. The tapes say ${said(view)} to me, and your record hasn't earned going against my own reading yet. That's what goes to ${to(view)}.`;
   }
   const fix = decision && decision !== 'nominal' ? adopt(g.programme, decision) : null;
   g.review = { key, view, agree, decision, fix };
@@ -1417,7 +1500,9 @@ export function evidence() {
 }
 
 function orbitEvidence(a, end) {
-  if (g.round.flightTruth || ['titan', 'saturn5'].includes(g.vehicle)) return flightEvidence(a, end);
+  // Only the Atlas flew Mercury's capsule, with its Segment 51 light and horizon scanners; every later booster has its own
+  // tapes, even on a flight that never reached orbit.
+  if (g.round.flightTruth || g.vehicle !== 'atlas') return flightEvidence(a, end);
   const lines = [...(ORBIT_TAPES[a.failure || 'nominal'] || [])],
     o = g.round.orbit,
     back = end.capsule !== 'lost' && !g.mission.sank;
