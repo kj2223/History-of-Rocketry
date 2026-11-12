@@ -131,16 +131,23 @@ function buildInfo() {
     os: `${process.platform} ${os.release()}`,
   };
 }
-ipcMain.on('playtest:build', event => (event.returnValue = buildInfo()));
-ipcMain.on('playtest:enabled', event => (event.returnValue = playtestOn()));
+// Only the game's own page may use these calls (Electron's advice: check who is asking). Nothing else can load in the
+// window today, so this guards against a future mistake, not a present hole.
+const fromGame = event => event.senderFrame?.url?.startsWith(`${ORIGIN}/`) === true;
+// A mark's number names its files, so it must be a plain number: never a path.
+const markNumber = n => (Number.isInteger(n) && n > 0 && n < 100000 ? String(n).padStart(3, '0') : null);
+ipcMain.on('playtest:build', event => (event.returnValue = fromGame(event) ? buildInfo() : null));
+ipcMain.on('playtest:enabled', event => (event.returnValue = fromGame(event) && playtestOn()));
 ipcMain.on('playtest:read', event => {
+  if (!fromGame(event)) return (event.returnValue = null);
   try {
     event.returnValue = fs.readFileSync(playtestFile('log.json'), 'utf8');
   } catch {
     event.returnValue = null;
   }
 });
-ipcMain.on('playtest:write', (_, log, save) => {
+ipcMain.on('playtest:write', (event, log, save) => {
+  if (!fromGame(event)) return;
   try {
     if (typeof log === 'string' && log.length < LIMIT) writeAtomic(playtestFile('log.json'), log);
     if (typeof save === 'string' && save.length < LIMIT) writeAtomic(playtestFile('save.json'), save);
@@ -149,9 +156,11 @@ ipcMain.on('playtest:write', (_, log, save) => {
   }
 });
 ipcMain.handle('playtest:mark', async (event, n, save) => {
+  const number = markNumber(n);
+  if (!fromGame(event) || !number) throw new Error('Refused: not a mark from the game');
   const marks = playtestFile('marks');
   fs.mkdirSync(marks, { recursive: true });
-  const base = `mark-${String(n).padStart(3, '0')}`;
+  const base = `mark-${number}`;
   const files = [];
   const image = await event.sender.capturePage();
   fs.writeFileSync(path.join(marks, `${base}.png`), image.toPNG());
@@ -176,11 +185,12 @@ ipcMain.handle('playtest:mark', async (event, n, save) => {
 // Filing a mark: only the repository's new-issue page may open, in the player's own browser. The marks folder opens
 // beside it with the screenshot selected, to drag into the issue.
 const ISSUE_PAGE = 'https://github.com/kj2223/History-of-Rocketry/issues/new?';
-ipcMain.on('playtest:file-issue', (_, url, n) => {
-  if (typeof url !== 'string' || !url.startsWith(ISSUE_PAGE) || url.length > 8192) return;
+ipcMain.on('playtest:file-issue', (event, url, n) => {
+  if (!fromGame(event) || typeof url !== 'string' || !url.startsWith(ISSUE_PAGE) || url.length > 8192) return;
   shell.openExternal(url);
-  const shot = playtestFile(path.join('marks', `mark-${String(n).padStart(3, '0')}.png`));
-  if (fs.existsSync(shot)) shell.showItemInFolder(shot);
+  const number = markNumber(n);
+  const shot = number && playtestFile(path.join('marks', `mark-${number}.png`));
+  if (shot && fs.existsSync(shot)) shell.showItemInFolder(shot);
 });
 const focused = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
 // A new log: the old one is kept as log-previous.json, and the marks move to marks-previous.
