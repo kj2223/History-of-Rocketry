@@ -21,6 +21,7 @@ import { dateOf } from '../core/calendar.js';
 import { surname } from '../data/cast.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SEA_LIMIT } from '../data/mercury.js';
+import { callBoardLines } from '../houston.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -1869,7 +1870,12 @@ function flightStatusBoard(ctx, f, x, y, w, h) {
   ctx.font = `bold ${size * 1.15}px monospace`;
   ctx.fillStyle = '#b7efb0';
   ctx.fillText(f.phase || '', x + w * 0.04, y + h * 0.42, w * 0.92);
-  const status = Object.entries(f.status || {}).slice(0, 4);
+  // Four lamps fit: the ones out of limits first, then the newest, so a reading taken for a call is on the wall when the
+  // call comes (a long flight keeps a dozen lines, and the first four were the launch's).
+  const status = Object.entries(f.status || {})
+    .reverse()
+    .sort((a, b) => !!b[1][1] - !!a[1][1])
+    .slice(0, 4);
   status.forEach(([key, [value, warn]], i) => {
     const left = x + w * (i % 2 ? 0.53 : 0.04),
       top = y + h * (i < 2 ? 0.6 : 0.82);
@@ -2339,6 +2345,7 @@ function consolePanelModel(c, g) {
       P.lines.push(
         `Intercept window: ${Math.ceil(d.remaining)} min.${d.fixIn != null ? ' New ground fix pending.' : ''}`,
       );
+    for (const l of callBoardLines(c.flight, d)) P.lines.push(l.text);
     if (d.rule) P.lines.push('Rule: ' + d.rule);
     for (const [id, text] of Object.entries(d.options)) btn('m-decide', id, text);
     return P;

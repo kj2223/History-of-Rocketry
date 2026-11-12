@@ -3224,6 +3224,8 @@ export const DECISIONS = {
     q: 'The last midcourse correction before entry. Tracking has the entry angle on the board. Burn to trim it, or leave it?',
     auto: 'burn',
     rule: 3,
+    // The board lines the call is judged on, drawn with the call itself (issue: the angle was off the wall board's four).
+    board: ['ENTRY ANGLE', 'CORRIDOR'],
     options: { burn: 'Burn the midcourse correction.', skip: 'Leave it. Save the propellant.' },
   },
   tank: {

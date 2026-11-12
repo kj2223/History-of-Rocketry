@@ -68,6 +68,15 @@ export function startFlight(c) {
 }
 
 // Mission time passing: the clock moves on, and the calendar with it.
+// The board lines a call is judged on, read out with the call: "ENTRY ANGLE: -6.73° (inside, 0.53° steep of the aim)".
+export const callBoardLines = (f, d) =>
+  (d?.board || [])
+    .filter(k => f.status[k])
+    .map(k => {
+      const [value, warn, why] = f.status[k];
+      return { text: `${k}: ${value}${why ? ` (${why})` : ''}`, warn: !!warn };
+    });
+
 export function passMinutes(minutes) {
   g.clock += minutes;
   g.day = Math.floor(g.clock / 1440);
@@ -181,6 +190,7 @@ function ask(c, id, speak) {
     q: D.q,
     options: D.options,
     rule: D.rule != null ? plan.rules[D.rule] : null,
+    board: D.board || null,
     mine: c.kind !== 'flight' || owns(g.record.seat, id),
   };
   if (!c.flight.decision.mine) {
