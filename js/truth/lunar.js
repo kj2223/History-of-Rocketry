@@ -17,8 +17,8 @@ export const FIRST_FIX = 4,
 // How far out the first fix can be, in km at the Moon (one standard deviation).
 export const FIX_ERROR = 1000;
 // Cameras on this many minutes before impact: more minutes, more pictures, and longer for a weak supply to arc over.
-export const CAMERA_LEADS = [30, 17, 10];
-const CAMERA_STRESS = { 30: 1.3, 17: 1, 10: 0.7 },
+export const CAMERA_LEADS = [30, 20, 10];
+const CAMERA_STRESS = { 30: 1.3, 20: 1, 10: 0.7 },
   PICTURES_A_MINUTE = 250;
 
 // At injection, decided at liftoff with the rest of the flight. failure: null, 'depletion' (she is short of escape speed
@@ -85,7 +85,7 @@ export function distanceAt(d, h) {
 // The encounter. Ranger: a hit if the residual error is inside the Moon's radius; the cameras then work or not, the
 // chance of an arc-over growing with the minutes they run. Pioneer: the pass at the distance she was aimed. Sets the
 // flight's failure and what the tracking stations say.
-export function encounter(round, lead = 17) {
+export function encounter(round, lead = 20) {
   const f = round.flight,
     d = f.deep,
     ph = round.rng.physical;

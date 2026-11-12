@@ -40,6 +40,7 @@ import {
   nextIndex,
   roundStartOf,
   placeName,
+  who,
 } from '../game.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
@@ -272,7 +273,8 @@ const ROOMS = {
     const step = probeStep();
     if (step)
       return `<h2>${esc(name)}</h2><h3>${esc(step.title)}</h3><p>${esc(step.evidence)}</p>
-      ${step.choices.map((c, i) => `<button${i ? '' : ' class="primary"'} data-act="probe-choice" data-id="${i}">${esc(c.label)}</button>`).join('\n      ')}`;
+      <p class="muted">The project manager decides. The flight team, you among them, recommends.</p>
+      ${step.choices.map((c, i) => `<button${i ? '' : ' class="primary"'} data-act="probe-choice" data-id="${i}">Recommend: ${esc(c.label)}</button>`).join('\n      ')}`;
     return `<h2>${esc(name)}</h2><p>${esc(probe.evidence)}</p>
       <button class="primary" data-act="probe-command">${esc(probe.action)}</button>
       <button data-act="probe-wait">${esc(probe.alternate)}</button>`;
@@ -351,7 +353,7 @@ const ROOMS = {
       loose: '<p class="danger-text">She broke loose from the stand.</p>',
     }[p];
     return `<h2>Test stand dugout</h2>
-      <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. You're running this one. Watch the tank pressure while the stage is
+      <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. ${conducting() ? "You're running this one." : `You work the panel; ${who('ellis')} is beside you and has the final say.`} Watch the tank pressure while the stage is
       pressurised, hold if it looks wrong, then fire, and read the trace afterwards.</p>
       <div class="clock" data-live="standclock">—</div>
       <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>

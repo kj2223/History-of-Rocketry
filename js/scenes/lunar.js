@@ -23,7 +23,7 @@ const logHTML = L =>
     .join('')}</div>`;
 const LEAD_NOTE = {
   30: 'The most pictures, but the high-voltage supply runs longest and is likeliest to arc over.',
-  17: 'What Ranger 7 did: a full set of pictures, and a normal run for the supply.',
+  20: 'What Ranger 7 did (the plan was 18): a full set of pictures, and a normal run for the supply.',
   10: 'The kindest to the supply, but the fewest pictures, and only the last close ones.',
 };
 
@@ -33,7 +33,7 @@ export const LUNAR_ROOMS = {
       ranger = L.vehicle === 'ranger';
     const poll =
       L.poll === 'midcourse'
-        ? `<div class="poll"><p><strong>The midcourse call is yours.</strong> Burn now and the small motor can take out any error, but only as well as
+        ? `<div class="poll"><p><strong>The midcourse call is the project manager's, on the flight-path engineers' recommendation in Pasadena. Yours goes in with theirs.</strong> Burn now and the small motor can take out any error, but only as well as
       this rough fix knows it (give or take ${fmt(FIX_ERROR)} km). Wait for the ${SECOND_FIX}-hour fix and the error is known to about a hundred km, but by then she is
       so far out that the motor can only take out ${fmt(LATE_REACH)} km of it. The Moon is ${fmt(2 * MOON_RADIUS)} km across.</p>
       <button class="primary" data-act="lunar-mid" data-id="now">Burn now, on this fix</button><button data-act="lunar-mid" data-id="wait">Wait for the ${SECOND_FIX}-hour fix</button></div>`
