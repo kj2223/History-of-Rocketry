@@ -6,7 +6,7 @@
 import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { label, setText, speech, outButton, puffTexture } from './kit.js';
-import { desk, telemetryScreen } from './control.js';
+import { desk, telemetryScreen, lookOf } from './control.js';
 
 const W = 1600,
   H = 900,
@@ -49,7 +49,8 @@ export function simScene({ leave }) {
   world.addChild(signGlow, sign, signWord);
 
   // ---- the wall: the telemetry screen and the sim clock ----
-  const tele = telemetryScreen();
+  const look = lookOf(g);
+  const tele = telemetryScreen(look);
   tele.place(110, 150, 700, 330);
   world.addChild(tele);
   const clock = new Graphics()
@@ -89,7 +90,7 @@ export function simScene({ leave }) {
   world.addChild(sup, failures, supName);
 
   // ---- your console, with you at it ----
-  const yours = desk({ who: g.people.you, label: 'YOU · SIM CONSOLE', duty: 'retro', yours: true });
+  const yours = desk({ who: g.people.you, label: 'YOU · SIM CONSOLE', duty: 'retro', yours: true }, look);
   yours.scale.set(1.75);
   yours.position.set(800 - (460 * 1.75) / 2, 660);
   world.addChild(yours);
