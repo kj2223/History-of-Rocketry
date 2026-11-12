@@ -44,6 +44,13 @@ export const eraOf = g => {
   const y = yearOf(g);
   return y >= 1980 ? 'shuttle' : y >= 1965 ? 'apollo' : y >= 1960 ? 'space' : 'early';
 };
+// THE INTERFACE ERA (v0.8): the look of the panels, clocks and buttons changes with the years. Separate from eraOf,
+// which dresses the site itself. 'field' typed field office; 'steel' console steel, lamps and Nixie clocks; 'amber' the
+// Shuttle text terminal; 'desktop' early desktop software; 'glass' today's flat operations software.
+export const uiEra = g => {
+  const y = yearOf(g);
+  return y >= 2016 ? 'glass' : y >= 1996 ? 'desktop' : y >= 1976 ? 'amber' : y >= 1958 ? 'steel' : 'field';
+};
 const staticSignature = g => {
   const bs = blockhouseState(g.day);
   return `${g.site || 'white-sands'}|${g.crewed ? 'crewed' : 'uncrewed'}|${bs.built ? 'built' : bs.progress.toFixed(2)}|${eraOf(g)}`;
@@ -1833,10 +1840,18 @@ export function controlTelevision(ctx, g, x, y, w, h) {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#81af9e';
   ctx.font = `${size * 0.82}px monospace`;
-  ctx.fillText(`${live ? 'Ascent telemetry' : 'Last ascent sample'}  ·  ${met(last.t)}`, x + w * 0.04, y + h * 0.16);
+  // The heading and the stage share one line: the heading gives up its words before it runs into the stage (the
+  // Shuttle's 'Solid boosters and main engines' drew over the clock), and the stage is squeezed to what is left.
+  const tw = t => ctx.measureText(t)?.width ?? 0;
+  const gap = w * 0.04,
+    stageW = last.stage ? Math.min(tw(last.stage), w * 0.5) : 0;
+  const room = w * 0.92 - stageW - (stageW ? gap : 0);
+  const heads = [`${live ? 'Ascent telemetry' : 'Last ascent sample'}  ·  ${met(last.t)}`, met(last.t)];
+  const head = heads.find(t => tw(t) <= room) ?? heads[1];
+  ctx.fillText(head, x + w * 0.04, y + h * 0.16, room);
   if (last.stage) {
     ctx.textAlign = 'right';
-    ctx.fillText(last.stage, x + w * 0.96, y + h * 0.16);
+    ctx.fillText(last.stage, x + w * 0.96, y + h * 0.16, Math.max(stageW, w * 0.92 - tw(head) - gap));
     ctx.textAlign = 'left';
   }
   ctx.fillRect(x + w * 0.04, y + h * 0.27, w * 0.92, 1);
@@ -2091,15 +2106,15 @@ export function drawControlRoom(ctx, g, view) {
   ctx.fillStyle = 'rgba(0,0,0,.18)';
   for (let y = tvY + 5; y < tvY + tvH; y += 6) ctx.fillRect(tvX, y, tvW, 2);
   monitorScreen(ctx, g, tvX, wallH * 0.39, tvW, wallH * 0.26);
-  clocksStrip(ctx, g, wallL, wallH * 0.69, wallR - wallL, wallH * 0.09);
+  // The clocks strip is HTML now (#mc-clocks, js/site/console-hud.js), over this mounting.
+  ctx.fillStyle = '#22272e';
+  ctx.fillRect(wallL - 4, wallH * 0.69 - 4, wallR - wallL + 8, wallH * 0.09 + 8);
   ctx.fillStyle = '#1b1f25';
   ctx.fillRect(wallL - 4, wallH * 0.81 - 4, wallR - wallL + 8, wallH * 0.17 + 8);
   // The side walls: racks of equipment, and the gallery beyond the glass.
   serverBank(ctx, 0, 0, leftW, h, g);
   viewingGallery(ctx, galleryX, 0, w - galleryX, h);
-  // Your console, drawn into the room below the gallery: clocks, readouts, and the calls that are yours.
-  const panelY = h * 0.05 + h * 0.12 + Math.max(10, h * 0.025);
-  drawConsolePanel(ctx, g, galleryX + 6, panelY, w - galleryX - 12, h - panelY - 12);
+  // Your console (clocks, readouts and the calls that are yours) is HTML now: #mc-panel, over the gallery floor.
   // Two rows fill the floor, sized to the room and clear of your panel: the named controllers at the back, and the
   // working stations at the front with your wide console in the middle of them.
   const floor = h - wallH,
@@ -2160,19 +2175,9 @@ export function drawControlRoom(ctx, g, view) {
   ctx.textAlign = 'left';
 }
 
-// ---- Your console, drawn into the room: the clocks, readouts and calls that are yours, on the panel under the
-// viewing gallery. The buttons are part of the scene: the click handler finds them through controlButtonAt. ----
-let controlHits = [];
-
-export function controlButtonAt(g, x, y) {
-  if (!g || g.room !== 'console') return null;
-  for (const b of controlHits) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
-  return null;
-}
-
 // What your console shows for the flight's phase, mirroring the room's own panels: the clock and state always, the
 // board or readouts when they carry information, and the calls that are yours as buttons.
-function consolePanelModel(c, g) {
+export function consolePanelModel(c, g) {
   const [clock, word] = controlReadout(c);
   // ask: the call in plain words, drawn above the readouts whenever the call is yours.
   const P = { clock, state: word, ask: null, lines: [], buttons: [] };
@@ -2376,87 +2381,6 @@ function consolePanelModel(c, g) {
   return P;
 }
 
-function drawPanelButton(ctx, x, y, w, h, btn) {
-  ctx.fillStyle = btn.tone === 'danger' ? '#7a2e24' : btn.tone === 'go' ? '#2e5c3a' : '#33404d';
-  ctx.strokeStyle = btn.tone === 'danger' ? '#d0634f' : btn.tone === 'go' ? '#6fc88a' : '#8a93a0';
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 5);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = '#f1e6c8';
-  ctx.font = `${Math.max(11, Math.round(h * 0.3))}px sans-serif`;
-  ctx.textAlign = 'center';
-  const lines = wrap(ctx, btn.label, w - 14).slice(0, 2),
-    lh = h * 0.34;
-  lines.forEach((l, i) => ctx.fillText(l, x + w / 2, y + h / 2 + (i - (lines.length - 1) / 2) * lh + 4));
-  ctx.textAlign = 'left';
-}
-
-function drawConsolePanel(ctx, g, x, y, w, h) {
-  controlHits = [];
-  const c = g.console;
-  // The console face, in the room's colours.
-  ctx.fillStyle = '#262a31';
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = '#4b5258';
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-  if (!c) return;
-  const P = consolePanelModel(c, g);
-  let cy = y + 14;
-  // The clock, as the wall clocks carry it.
-  ctx.fillStyle = '#0d1117';
-  ctx.fillRect(x + 10, cy, w - 20, 46);
-  ctx.strokeStyle = '#3a4452';
-  ctx.strokeRect(x + 10.5, cy + 0.5, w - 21, 45);
-  ctx.fillStyle = '#e8c66a';
-  ctx.font = `bold ${Math.max(15, Math.round(w * 0.085))}px monospace`;
-  ctx.textAlign = 'center';
-  ctx.fillText(P.clock, x + w / 2, cy + 31);
-  cy += 58;
-  if (P.state) {
-    ctx.fillStyle = P.ask ? '#e8c66a' : '#c9d2da';
-    ctx.font = `${P.ask ? 'bold ' : ''}${Math.max(12, Math.round(w * 0.05))}px sans-serif`;
-    ctx.fillText(P.state, x + w / 2, cy + 10);
-    cy += 30;
-  }
-  ctx.textAlign = 'left';
-  const bh = Math.max(32, Math.round(h * 0.05)),
-    gap = 8;
-  const buttonsTop = P.buttons.length ? y + h - P.buttons.length * (bh + gap) - 10 : y + h;
-  // The call in plain words, when it is yours: what is being asked, above what the room knows about it.
-  if (P.ask) {
-    ctx.font = `${Math.max(13, Math.round(w * 0.056))}px sans-serif`;
-    ctx.fillStyle = '#f1e6c8';
-    const askH = Math.max(17, Math.round(w * 0.072));
-    for (const l of wrap(ctx, P.ask, w - 20)) {
-      if (cy + askH > buttonsTop) break;
-      ctx.fillText(l, x + 10, cy + 12);
-      cy += askH;
-    }
-    cy += 10;
-  }
-  // The room's lines: the board, the readouts - as many as fit above the calls. The font is set before the wrap
-  // measures, so the lines are broken for the type they are drawn in and never run past the panel's edge; a line that
-  // would reach the calls is not drawn.
-  ctx.font = `${Math.max(12, Math.round(w * 0.05))}px monospace`;
-  ctx.fillStyle = '#9fdc9a';
-  const lineH = Math.max(16, Math.round(w * 0.064));
-  lines: for (const line of P.lines.slice(0, 9)) {
-    for (const l of wrap(ctx, line, w - 20)) {
-      if (cy + lineH > buttonsTop) break lines;
-      ctx.fillText(l, x + 10, cy + 11);
-      cy += lineH;
-    }
-    cy += 4;
-  }
-  for (const btn of P.buttons) {
-    drawPanelButton(ctx, x + 10, cy, w - 20, bh, btn);
-    controlHits.push({ act: btn.act, id: btn.id, x: x + 10, y: cy, w: w - 20, h: bh });
-    cy += bh + gap;
-  }
-  ctx.textAlign = 'left';
-}
-
 // The flight plan, one step to a rack screen down the left wall: done steps dim, this one lit, the rest dark. From the
 // console's own phase (what the room is doing), never from what the flight will do.
 const ORBIT_STEPS = [
@@ -2499,8 +2423,9 @@ export function flightSteps(c) {
 function serverBank(ctx, x, y, w, h, g) {
   ctx.fillStyle = '#1d2126';
   ctx.fillRect(x, y, w, h);
-  const plan = flightSteps(g.console),
-    units = Math.max(4, Math.floor(h / 90), plan ? plan.steps.length : 0);
+  // In a flight the HTML rack (#mc-steps) covers this wall with the flight plan; this is the bank behind it.
+  const plan = null,
+    units = Math.max(4, Math.floor(h / 90));
   for (let i = 0; i < units; i++) {
     const uy = y + 10 + (i * (h - 20)) / units,
       uh = (h - 20) / units - 8;
@@ -2647,43 +2572,16 @@ export function monitorScreen(ctx, g, x, y, w, h) {
   ctx.textBaseline = 'alphabetic';
 }
 
-// The clocks strip: three panels under the map — the count, the mission, the site clock.
-function clocksStrip(ctx, g, x, y, w, h) {
-  const c = g.console;
-  ctx.fillStyle = '#22272e';
-  ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
-  const dash = '—';
-  const panels = [
-    ['COUNT', countClock(c) || dash],
-    ['MISSION', missionClock(c)],
-    ['SITE', siteClock(g)],
-  ];
-  const pw = (w - 16) / 3;
-  panels.forEach(([label, text], i) => {
-    const px = x + 8 + i * pw;
-    ctx.fillStyle = '#0d1117';
-    ctx.fillRect(px, y, pw - 8, h);
-    ctx.fillStyle = '#e8c66a';
-    ctx.font = `bold ${Math.max(10, Math.round(h * 0.4))}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(text, px + (pw - 8) / 2, y + h * 0.58);
-    ctx.fillStyle = '#8a93a0';
-    ctx.font = `${Math.max(7, Math.round(h * 0.2))}px sans-serif`;
-    ctx.fillText(label, px + (pw - 8) / 2, y + h * 0.92);
-  });
-  ctx.textAlign = 'left';
-}
-
 // The count clock carries only the count: the time to go while it runs, LIFTOFF once she is away. The speed and the
 // mission clock have their own places on the wall.
-function countClock(c) {
+export function countClock(c) {
   if (!c) return '';
   if (c.phase === 'count' || c.poll || c.phase === 'hold') return controlReadout(c)[0];
   return (c.trace && c.trace.length) || c.flight || c.orbitT != null ? 'LIFTOFF' : '';
 }
 
 // The mission clock as the consoles carry it: GET in flight, the orbit clock in orbit, otherwise the count in progress.
-function missionClock(c) {
+export function missionClock(c) {
   if (!c) return '—';
   if (c.flight) return `GET ${Math.floor(c.flight.at)}:${String(Math.floor((c.flight.at % 1) * 60)).padStart(2, '0')}`;
   if (c.orbitT != null) return met(c.orbitT * 60);
@@ -2693,7 +2591,7 @@ function missionClock(c) {
 }
 
 // The site clock, as the wall clocks kept local time.
-function siteClock(g) {
+export function siteClock(g) {
   const m = Math.floor(g.clock % 1440);
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }

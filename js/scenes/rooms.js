@@ -10,9 +10,13 @@ import {
   standHold,
   standLeakCheck,
   standTank,
+  standChannels,
   standDecide,
   countStart,
   countTank,
+  countChannels,
+  stageChannels,
+  bandOf,
   countAnswer,
   countHold,
   countResume,
@@ -155,6 +159,7 @@ export function live() {
         kit().stand.wall,
       );
     if (s.trace) drawTrace(panel().querySelector('canvas'), s.trace, Math.floor(s.shown), kit().stand.pc);
+    readings(standChannels());
   }
   if (g.room === 'count' && g.count) {
     const c = g.count;
@@ -164,7 +169,26 @@ export function live() {
       c.checking ? 'HOLD: pad crew checking' : c.poll ? 'Waiting for your call' : c.held ? 'HOLDING' : 'Counting',
     );
     gauge('ctank', countTank(), 0, 30, NORMAL_TANK);
+    readings(countChannels());
   }
+}
+
+// Every channel the stage carries, as a table you can open under the gauges (v0.8 telemetry; the scenes will draw
+// them as instruments). Kept as text as well, for reading values exactly and for a keyboard or screen reader.
+const READINGS_HTML =
+  '<details class="readings"><summary>All readings</summary><table data-live="readings"></table></details>';
+function readings(values) {
+  const t = panel().querySelector('[data-live=readings]');
+  if (!t || !t.closest('details').open) return;
+  const num = v => (Math.abs(v) >= 100 ? Math.round(v) : v.toFixed(1));
+  const fmt = (c, v) => (c.show === 'lamp' ? (v ? 'ON' : 'off') : v == null ? '—' : `${num(v)} ${c.unit}`.trim());
+  t.innerHTML = stageChannels()
+    .filter(c => c.id in values)
+    .map(c => {
+      const b = bandOf(c, values[c.id]);
+      return `<tr class="${b}"><th>${c.label}</th><td>${fmt(c, values[c.id])}</td><td>${b === 'in' ? '' : b.toUpperCase()}</td></tr>`;
+    })
+    .join('');
 }
 const fmtCount = s => `${Math.floor(Math.ceil(s) / 60)}:${String(Math.ceil(s) % 60).padStart(2, '0')}`;
 
@@ -357,6 +381,7 @@ const ROOMS = {
       pressurised, hold if it looks wrong, then fire, and read the trace afterwards.</p>
       <div class="clock" data-live="standclock">—</div>
       <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
+      ${READINGS_HTML}
       <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is a full-duration firing: 30 seconds.' : ''}</p>
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
       <div class="actions">${buttons}</div>`;
@@ -389,6 +414,7 @@ const ROOMS = {
       You can call a hold at any time.</p>${blockhouseState(g.day).built ? '<p class="muted">The new blockhouse: thick walls, periscopes on the pad, and a telemetry rack along the back wall.</p>' : ''}
       <div class="clock" data-live="countclock">T-10:00</div><p class="center" data-live="countstate"></p>
       <div class="gauges">${gaugeHTML('ctank', 'Tank pressure', 'bar')}<div class="lamp on">IGNITER CIRCUIT<br>CONTINUITY</div></div>
+      ${READINGS_HTML}
       <p class="muted">Normal tank pressure: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar.</p>
       ${pollButtons}<div class="actions">${holdButtons}</div>`;
   },

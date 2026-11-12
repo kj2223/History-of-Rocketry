@@ -26,7 +26,7 @@ test('Flight can request a delayed Booster report and set the objective before c
   assert.equal(c.shift.reports.booster, undefined);
   tickConsole(0.1);
   assert.equal(c.shift.reports.booster, undefined);
-  tickConsole(3);
+  tickConsole(12); // twelve flight seconds: the climb plays in real time (v0.8 pacing)
   assert.match(c.shift.reports.booster, /second stage/i);
   assert.ok(c.t > 130);
 });

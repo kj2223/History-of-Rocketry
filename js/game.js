@@ -2,6 +2,7 @@
 // each from the hangar to the review, and the turning point where the first promotion offer comes. No DOM, no drawing.
 // The player is one junior engineer on the site. Everyone else gets on with their own work, and the player can watch them.
 // The story runs in beats; each beat says what the player is asked to do and where the others go.
+import { countReadings, fireReadings as channelReadings, channelsFor, bandOf } from './truth/channels.js';
 import { PLACES, WORLD_W } from './data/white-sands.js';
 import { dayOf, dateOf, dateLabel, weekday } from './core/calendar.js';
 import { draw } from './core/rng.js';
@@ -1151,6 +1152,14 @@ export function standLeakCheck() {
 }
 // The tank gauge the dugout shows before and during the firing, from the seconds since the stage was pressurised.
 export const standTank = () => tankGauge(g.round, g.stand.pressurised || 0);
+// The stage's full telemetry (js/truth/channels.js) as the dugout reads it: the tanks before the firing, every channel
+// while it fires and after. The tank that leaks reads the same as standTank.
+export function standChannels() {
+  const s = g.stand;
+  if (s.trace && s.shown > 0)
+    return channelReadings(g.round, { trace: s.trace }, s.trace[Math.max(0, Math.floor(s.shown) - 1)].t);
+  return countReadings(g.round, s.pressurised || 0);
+}
 
 export function standDecide(choices) {
   const s = g.stand;
@@ -1244,6 +1253,11 @@ export function countStart() {
   );
 }
 export const countTank = () => tankGauge(g.round, g.count.since);
+// Every channel the blockhouse could read during the count (js/truth/channels.js); its leaking tank reads as countTank.
+export const countChannels = () => countReadings(g.round, g.count.since);
+// The channels the stage carries (labels, units, green bands), and how a value sits against its band.
+export const stageChannels = () => channelsFor(g.round);
+export { bandOf };
 // As test conductor you poll the stations; Delgado has PRESS. Each reports, and the GO or HOLD is yours.
 function stationReports(count) {
   const reading = countTank(),
