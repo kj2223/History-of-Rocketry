@@ -485,7 +485,11 @@ if (saved) newGame(saved.seed, saved);
 else newGame(seed);
 startDevMenu({ storage, check: checkCheckpoint, fresh });
 bindConsoleHud();
-startStage($('stage'), { leave: () => closeRoom(), look: id => lookAt(id) });
+startStage($('stage'), {
+  leave: () => closeRoom(),
+  look: id => lookAt(id),
+  engLook: id => CONTROL_ACTS['eng-look'](id),
+});
 resize();
 // A test hook: lets an automated check read and drive the prototype. Harmless in play.
 window.__site = {
