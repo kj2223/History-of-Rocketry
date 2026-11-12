@@ -25,6 +25,7 @@ import { g as game, kit, conducting, countTank, standTank, NORMAL_TANK, placeNam
 import { capsuleSpots, programOf } from '../mercury.js';
 import { inspectFlags } from '../scenes/rooms.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
+import { atPlace } from '../data/white-sands.js';
 import { KITS } from '../data/kits.js';
 
 const DW = 1200,
@@ -324,9 +325,12 @@ function youMark(ctx, x, y) {
 }
 
 // Who is in a building: the people standing within reach of its door, as the watch panel counts them.
+// Anyone standing in front of the building as it stands today counts too, so the left end of the new blockhouse is in.
 function inside(g, id, reach) {
   const place = PLACES[id];
-  return Object.values(g.people).filter(p => !p.hidden && Math.abs(p.x - place.door) < (reach ?? place.w / 2 + 60));
+  return Object.values(g.people).filter(
+    p => !p.hidden && (Math.abs(p.x - place.door) < (reach ?? place.w / 2 + 60) || atPlace(id, g, p.x)),
+  );
 }
 
 // Speech bubbles for everyone in the room who is talking, at the head positions given.

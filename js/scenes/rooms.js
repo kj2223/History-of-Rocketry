@@ -48,7 +48,7 @@ import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from
 import { SHORT } from '../data/kits.js';
 import { fixesForCard } from '../world/programme.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
-import { PLACES } from '../data/white-sands.js';
+import { PLACES, atPlace } from '../data/white-sands.js';
 
 const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -86,7 +86,7 @@ export function openWhenReady(locked) {
   if (!changed || g.room) return;
   const you = g.people.you;
   if (Math.abs(you.x - you.target) > 1) return;
-  const at = ['dugout', 'blockhouse'].find(id => Math.abs(PLACES[id].door - you.x) < 40);
+  const at = ['dugout', 'blockhouse'].find(id => Math.abs(PLACES[id].door - you.x) < 40 || atPlace(id, g, you.x));
   if (at && !g.crewed && roomFor(at) !== 'watch') openRoom(at);
 }
 export function closeRoom() {
@@ -243,10 +243,10 @@ function drawTrace(canvas, trace, upto, band) {
 
 function watch(building) {
   const place = PLACES[building];
-  const here = Object.values(g.people).filter(
-    person => !person.hidden && Math.abs(person.x - place.door) < place.w / 2 + 40 && person.id !== 'you',
-  );
-  const busy = g.jobs.filter(j => Math.abs(j.at - place.door) < place.w / 2 + 60).map(j => j.label);
+  // In or near the building as it stands today (the new blockhouse reaches well left of the old one's door).
+  const near = (x, reach) => Math.abs(x - place.door) < place.w / 2 + reach || atPlace(building, g, x, reach - 40);
+  const here = Object.values(g.people).filter(person => !person.hidden && near(person.x, 40) && person.id !== 'you');
+  const busy = g.jobs.filter(j => near(j.at, 60)).map(j => j.label);
   const name = building === 'truck' && !g.crewed ? SITES[g.site || 'white-sands'].truck : placeName(building);
   return `<h2>${esc(name)}</h2><p class="muted">Nothing here needs you right now. You can watch.</p>
     ${busy.length ? `<p>Going on here: ${busy.map(esc).join(', ')}.</p>` : ''}

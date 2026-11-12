@@ -3,7 +3,16 @@
 // The static world (terrain, buildings, tower) is painted once into an offscreen layer and blitted each frame; only
 // things that move or burn (people, trucks, the rocket, flames) repaint per frame. Layers redrawn when the site, the
 // crewed era or the blockhouse construction changes.
-import { VIEW_H, GROUND, WORLD_W, PLACES } from '../data/white-sands.js';
+import {
+  VIEW_H,
+  GROUND,
+  WORLD_W,
+  PLACES,
+  NEW_BLOCKHOUSE,
+  TRAINER,
+  newBlockhouseStands,
+  footprint,
+} from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES };
 import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
@@ -114,7 +123,8 @@ function paintGround(c, g) {
   c.fillRect(0, GROUND + 35, WORLD_W + 400, 1);
   c.fillStyle = 'rgba(251,232,189,.32)';
   c.fillRect(0, GROUND + 30, WORLD_W + 400, 1);
-  for (const p of [PLACES.office, PLACES.hangar, PLACES.blockhouse, PLACES.tower]) {
+  // Each apron runs under the building as it stands that day, so the new blockhouse sits on its own.
+  for (const p of ['office', 'hangar', 'blockhouse', 'tower'].map(id => footprint(id, g))) {
     const left = p.x - 12,
       width = p.w + 24;
     c.fillStyle = cape ? '#b5ad99' : '#b9a17c';
@@ -179,13 +189,13 @@ function siteDressing(c, g) {
 
 // Sun from the left: each building throws a short shadow to the right along the sand. Painted after the buildings.
 function groundShadows(c, g) {
-  const bs = blockhouseState(g.day);
   const blocks = [
     [PLACES.office.x, PLACES.office.w + 8],
     [PLACES.hangar.x, PLACES.hangar.w],
     [PLACES.blockhouse.x, PLACES.blockhouse.w + 10],
   ];
-  if (bs.built) blocks.push([PLACES.blockhouse.x - 150, PLACES.blockhouse.w + 154]);
+  if (newBlockhouseStands(g))
+    blocks.push([PLACES.blockhouse.x + NEW_BLOCKHOUSE.dx, PLACES.blockhouse.w + NEW_BLOCKHOUSE.dw + 14]);
   for (const [x, w] of blocks) {
     const grad = c.createLinearGradient(x + w, 0, x + w + 46, 0);
     grad.addColorStop(0, 'rgba(70,52,30,.22)');
@@ -1139,11 +1149,11 @@ export function standStructure(ctx, p) {
 function trainer(ctx, stand, dug) {
   const x = stand.x - 10,
     w = dug.x + dug.w - x + 10,
-    h = 74;
+    h = TRAINER.h;
   ctx.fillStyle = '#c8c2b2';
   ctx.fillRect(x, GROUND - h, w, h);
   ctx.fillStyle = '#a9a291';
-  ctx.fillRect(x - 8, GROUND - h - 8, w + 16, 10);
+  ctx.fillRect(x - 8, GROUND - h - TRAINER.roof, w + 16, TRAINER.roof + 2);
   ctx.fillStyle = '#2c3138';
   ctx.fillRect(x + 12, GROUND - h + 14, w - 24, h - 14);
   ctx.fillStyle = '#3f4a3c';
@@ -1187,7 +1197,7 @@ function dugout(ctx, p) {
 
 function blockhouse(ctx, p, g) {
   const state = blockhouseState(g.day);
-  if (state.built) return newBlockhouse(ctx, p);
+  if (newBlockhouseStands(g)) return newBlockhouse(ctx, p);
   if (state.progress > 0) building(ctx, p.x - 160, state.progress);
   ctx.fillStyle = '#a7a196';
   ctx.fillRect(p.x, GROUND - p.h, p.w, p.h);
@@ -1246,16 +1256,16 @@ function building(ctx, x, k) {
 
 // The new blockhouse: bigger and squatter, with a heavy roof, two periscopes and a cutaway firing room with more panels.
 function newBlockhouse(ctx, p) {
-  const w = p.w + 140,
-    h = 92,
-    x = p.x - 150;
+  const w = p.w + NEW_BLOCKHOUSE.dw,
+    h = NEW_BLOCKHOUSE.h,
+    x = p.x + NEW_BLOCKHOUSE.dx;
   ctx.fillStyle = '#b3ad9f';
   ctx.fillRect(x, GROUND - h, w, h);
   shadeRight(ctx, x, GROUND - h, w, h, 0.07);
   ctx.fillStyle = '#9b9588';
-  ctx.fillRect(x - 14, GROUND - h - 18, w + 28, 20);
+  ctx.fillRect(x - 14, GROUND - h - NEW_BLOCKHOUSE.roof, w + 28, NEW_BLOCKHOUSE.roof + 2);
   ctx.fillStyle = '#c4bfb1';
-  ctx.fillRect(x - 14, GROUND - h - 18, w + 28, 3); // lit roof edge
+  ctx.fillRect(x - 14, GROUND - h - NEW_BLOCKHOUSE.roof, w + 28, 3); // lit roof edge
   ctx.fillStyle = '#5a5348';
   ctx.fillRect(x + w - 66, GROUND - 34, 20, 34);
   ctx.fillStyle = '#6e6458';
