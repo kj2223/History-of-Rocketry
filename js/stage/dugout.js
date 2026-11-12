@@ -179,6 +179,8 @@ export function dugoutScene({ leave }) {
   standPic.position.set(STAND_X - PIC_W / 2, SURFACE - PIC_GROUND);
   // The flame pit under the stand, and the deflector's run-out to the east.
   const pit = new Graphics();
+  const PIT_FLOOR = SURFACE + 44,
+    DEFLECT_SLOPE = 26 / 140; // the deflector's run-out falls 26 over 140
   pit.rect(STAND_X - 50, SURFACE - 2, 100, 46).fill(0x3a3631);
   pit
     .poly([
@@ -467,35 +469,46 @@ export function dugoutScene({ leave }) {
     // The flame: its length and brightness follow the chamber pressure, so a rough start shows as a stuttering flame.
     plume.clear();
     if (power > 0.02) {
-      const len = 50 + 110 * power,
-        wob = Math.sin(t * 50) * 3;
+      // The flame runs down into the pit and no further: at the pit floor it turns along the deflector, east.
+      const floor = PIT_FLOOR - 4,
+        len = Math.min(50 + 110 * power, floor - ny),
+        wob = Math.sin(t * 50) * 3,
+        down = ny + len;
       plume
-        .poly([nx - 14, ny, nx + 14, ny, nx + 7 + wob, ny + len, nx - 7 + wob, ny + len])
+        .poly([nx - 14, ny, nx + 14, ny, nx + 7 + wob, down, nx - 7 + wob, down])
         .fill({ color: 0xffd27a, alpha: 0.9 });
       plume.poly([nx - 7, ny, nx + 7, ny, nx + wob / 2, ny + len * 0.7]).fill({ color: 0xfff6d8, alpha: 0.95 });
       for (let i = 0; i < 3; i++) plume.circle(nx, ny + 12 + i * 14, 4 - i).fill({ color: 0xffffff, alpha: 0.6 });
-      // Exhaust out of the pit along the deflector: smoke billowing east.
-      if (Math.random() < 0.9 * power)
-        smoke.add(nx + 60 + Math.random() * 30, SURFACE + 50, {
+      if (down >= floor - 1) {
+        const reach = 40 + 70 * power + wob;
+        plume
+          .poly([nx - 12, floor - 14, nx + reach * 0.6, floor - 12, nx + reach, floor + 6, nx - 10, floor + 2])
+          .fill({ color: 0xffc060, alpha: 0.75 });
+      }
+      // Exhaust out of the pit along the deflector, then rising: smoke billowing east from the flame's foot.
+      if (Math.random() < 0.9 * power) {
+        const along = Math.random() * 60;
+        smoke.add(nx + 20 + along, PIT_FLOOR - 6 + along * DEFLECT_SLOPE, {
           tint: 0xa79d8c,
-          alpha: 0.85,
-          size: 0.9,
-          vx: 120 + Math.random() * 80,
-          vy: -40 - Math.random() * 40,
-          grow: 1.8,
+          alpha: 0.7,
+          size: 0.5,
+          vx: 70 + Math.random() * 60,
+          vy: -25 - Math.random() * 35,
+          grow: 1.1,
           fade: 0.2,
-          life: 4,
+          life: 3.5,
         });
+      }
       if (Math.random() < 0.6 * power)
-        smoke.add(nx + (Math.random() - 0.5) * 30, SURFACE + 20, {
+        smoke.add(nx + 10 + Math.random() * 30, PIT_FLOOR - 10, {
           tint: 0xff9a40,
           alpha: 0.5,
-          size: 0.45,
-          vx: 60,
-          vy: -60,
-          grow: 1,
+          size: 0.4,
+          vx: 70,
+          vy: -20,
+          grow: 0.8,
           fade: 0.8,
-          life: 0.8,
+          life: 0.7,
           add: true,
         });
     }
