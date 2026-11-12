@@ -1,48 +1,65 @@
+/* v0.8 era interface, step 1: the colours and fonts are variables, at today's values. body[data-era] (field, steel,
+   amber, desktop, glass; uiEra in js/site/draw.js) changes them as the years pass. */
+:root {
+  --bg: #0b0f14;
+  --ink: #e8e2d0;
+  --accent: #e8c66a;
+  --line: #4a5464;
+  --rule: #2c3440;
+  --btn: #1a222d;
+  --muted: #a9b0bb;
+  --cream: #f1e6c8;
+  --go: #6fc88a;
+  --bad: #d0634f;
+  --sheet: #14181e;
+  --serif: Georgia, serif;
+  --mono: monospace;
+}
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #0b0f14; color: #e8e2d0; font: 15px/1.45 Georgia, serif; overflow: hidden; }
-header { position: fixed; inset: 0 0 auto 0; height: 44px; display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: rgba(11,15,20,.88); border-bottom: 1px solid #2c3440; z-index: 3; }
-#date { white-space: nowrap; color: #e8c66a; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--serif); overflow: hidden; }
+header { position: fixed; inset: 0 0 auto 0; height: 44px; display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: rgba(11,15,20,.88); border-bottom: 1px solid var(--rule); z-index: 3; }
+#date { white-space: nowrap; color: var(--accent); }
 #objective { flex: 1; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .controls { display: flex; gap: .3rem; }
-button { font: inherit; color: #e8e2d0; background: #1a222d; border: 1px solid #4a5464; border-radius: 3px; padding: .3rem .7rem; cursor: pointer; }
-button:hover, button:focus-visible { border-color: #e8c66a; outline: none; }
-button.on { background: #e8c66a; color: #111; }
+button { font: inherit; color: var(--ink); background: var(--btn); border: 1px solid var(--line); border-radius: 3px; padding: .3rem .7rem; cursor: pointer; }
+button:hover, button:focus-visible { border-color: var(--accent); outline: none; }
+button.on { background: var(--accent); color: #111; }
 button.primary { background: #2f4a3a; border-color: #6fae84; }
-button.danger { background: #5a1f1a; border-color: #d0634f; font-weight: bold; letter-spacing: .05em; }
-button.go { background: #23502f; border-color: #6fc88a; font-weight: bold; }
-#endday { background: #3a3220; border-color: #e8c66a; }
-#waiting { white-space: nowrap; background: #3a3220; border-color: #e8c66a; color: #f1e6c8; }
-#waiting.call { background: #e8c66a; color: #111; font-weight: bold; animation: waiting 1.2s ease-in-out infinite alternate; }
+button.danger { background: #5a1f1a; border-color: var(--bad); font-weight: bold; letter-spacing: .05em; }
+button.go { background: #23502f; border-color: var(--go); font-weight: bold; }
+#endday { background: #3a3220; border-color: var(--accent); }
+#waiting { white-space: nowrap; background: #3a3220; border-color: var(--accent); color: var(--cream); }
+#waiting.call { background: var(--accent); color: #111; font-weight: bold; animation: waiting 1.2s ease-in-out infinite alternate; }
 @keyframes waiting { from { box-shadow: 0 0 0 rgba(232,198,106,0); } to { box-shadow: 0 0 14px rgba(232,198,106,.8); } }
 @media (prefers-reduced-motion: reduce) { #waiting.call { animation: none; } }
 #site { position: fixed; inset: 44px 0 0 0; width: 100%; height: calc(100% - 44px); display: block; }
-#room, #notebook { position: fixed; top: 56px; right: 12px; width: 470px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid #4a5464; border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
-#notebook { left: 12px; right: auto; width: 520px; background: #14181e; } /* solid, so the loop log under it does not show through */
-#dev { position: fixed; top: 56px; left: 12px; width: 560px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: #14181e; border: 1px solid #6a5a2a; border-radius: 6px; z-index: 6; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
-#dev h3 { margin: .9rem 0 .3rem; font-size: .95rem; color: #e8c66a; }
+#room, #notebook { position: fixed; top: 56px; right: 12px; width: 470px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid var(--line); border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+#notebook { left: 12px; right: auto; width: 520px; background: var(--sheet); } /* solid, so the loop log under it does not show through */
+#dev { position: fixed; top: 56px; left: 12px; width: 560px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: var(--sheet); border: 1px solid #6a5a2a; border-radius: 6px; z-index: 6; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+#dev h3 { margin: .9rem 0 .3rem; font-size: .95rem; color: var(--accent); }
 #dev .dev-opts { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; }
 #dev .dev-rounds { display: flex; flex-wrap: wrap; gap: .35rem; }
 #dev .dev-rounds button { padding: .25rem .5rem; }
-#dev .dev-rounds button span { color: #a9b0bb; font-size: .85em; margin-left: .2rem; }
-#dev .dev-rounds button.here { border-color: #e8c66a; }
-#dev input[type=text] { font: inherit; color: #e8e2d0; background: #1a222d; border: 1px solid #4a5464; border-radius: 3px; padding: .15rem .4rem; }
+#dev .dev-rounds button span { color: var(--muted); font-size: .85em; margin-left: .2rem; }
+#dev .dev-rounds button.here { border-color: var(--accent); }
+#dev input[type=text] { font: inherit; color: var(--ink); background: var(--btn); border: 1px solid var(--line); border-radius: 3px; padding: .15rem .4rem; }
 #dev .dev-status { min-height: 1.2em; color: #9fd0a0; }
 #dev .dev-status.bad { color: #ff8a5a; }
-#notes.fresh { border-color: #e8c66a; }
-#notebook li { margin: .3rem 0; } #notebook li span { color: #e8c66a; font-family: monospace; }
-h2 { margin: 0 0 .6rem; font-size: 1.25rem; color: #f1e6c8; }
+#notes.fresh { border-color: var(--accent); }
+#notebook li { margin: .3rem 0; } #notebook li span { color: var(--accent); font-family: monospace; }
+h2 { margin: 0 0 .6rem; font-size: 1.25rem; color: var(--cream); }
 .close { position: absolute; top: .6rem; right: .6rem; padding: .1rem .5rem; }
-.muted { color: #a9b0bb; }
+.muted { color: var(--muted); }
 .carries { margin: .6rem 0; padding: .5rem .7rem; border-left: 3px solid #6fae84; background: rgba(47,74,58,.25); }
 .carries p { margin: .2rem 0; } .carries ul { margin: .3rem 0; padding-left: 1.2rem; } .carries li { margin: .2rem 0; }
-.carries summary { cursor: pointer; color: #a9b0bb; margin-top: .3rem; }
+.carries summary { cursor: pointer; color: var(--muted); margin-top: .3rem; }
 .center { text-align: center; }
 .spots { list-style: none; padding: 0; }
-.spots li { display: flex; justify-content: space-between; gap: .8rem; padding: .5rem 0; border-bottom: 1px solid #2c3440; }
+.spots li { display: flex; justify-content: space-between; gap: .8rem; padding: .5rem 0; border-bottom: 1px solid var(--rule); }
 .spots .row { display: flex; flex-direction: column; gap: .3rem; align-items: flex-end; white-space: nowrap; }
 .actions, .choices, .poll { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
 .choices { flex-direction: column; } .choices button { text-align: left; }
-.poll { padding: .6rem; border: 1px solid #e8c66a; border-radius: 4px; background: #2a2618; }
+.poll { padding: .6rem; border: 1px solid var(--accent); border-radius: 4px; background: #2a2618; }
 .poll p { margin: 0 0 .4rem; width: 100%; }
 label { display: block; margin: .3rem 0; }
 .slider input { width: 100%; }
@@ -52,25 +69,25 @@ label { display: block; margin: .3rem 0; }
 .dial { position: relative; width: 120px; height: 120px; margin: 0 auto; border-radius: 50%; background: #f1ead6; border: 4px solid #3a3f46; overflow: hidden; }
 .band { position: absolute; inset: 0; border-radius: 50%; transform: rotate(0deg); -webkit-mask: radial-gradient(circle, transparent 48%, #000 49%); mask: radial-gradient(circle, transparent 48%, #000 49%); }
 .needle { position: absolute; left: 50%; top: 10px; width: 3px; height: 50px; margin-left: -1.5px; background: #a3321f; transform-origin: 50% 50px; transition: transform .1s linear; }
-.gauge .read { font: bold 1.2rem monospace; color: #f1e6c8; margin-top: .2rem; }
-.gauge .lab { font-size: .8rem; color: #a9b0bb; }
+.gauge .read { font: bold 1.2rem monospace; color: var(--cream); margin-top: .2rem; }
+.gauge .lab { font-size: .8rem; color: var(--muted); }
 .lamp { padding: .6rem; border-radius: 4px; border: 1px solid #555; font: .75rem monospace; text-align: center; color: #555; }
 .lamp.on { color: #102010; background: #7fdc8a; box-shadow: 0 0 12px #7fdc8a; }
 .lamp.warn { color: #2a1a00; background: #f0b440; box-shadow: 0 0 12px #f0b440; }
 canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-top: .4rem; }
 #loop { position: fixed; left: 12px; top: 54px; width: 560px; z-index: 2; font-size: .85rem; pointer-events: none; }
-#loop div { background: rgba(11,15,20,.8); padding: .2rem .5rem; margin-top: 2px; border-left: 3px solid #4a5464; }
-#loop div.go { border-color: #6fc88a; } #loop div.warn { border-color: #e8c66a; } #loop div.bad { border-color: #d0634f; }
+#loop div { background: rgba(11,15,20,.8); padding: .2rem .5rem; margin-top: 2px; border-left: 3px solid var(--line); }
+#loop div.go { border-color: var(--go); } #loop div.warn { border-color: var(--accent); } #loop div.bad { border-color: var(--bad); }
 #loop span { color: #8a93a0; font-family: monospace; }
 .loop-in-room { font-size: .82rem; margin: .3rem 0 .5rem; min-height: 1rem; }
-.loop-in-room div { background: rgba(11,15,20,.6); padding: .15rem .45rem; margin-top: 2px; border-left: 3px solid #4a5464; }
-.loop-in-room div.go { border-color: #6fc88a; } .loop-in-room div.warn { border-color: #e8c66a; } .loop-in-room div.bad { border-color: #d0634f; }
-#help { position: fixed; left: 0; right: 0; bottom: 0; padding: .35rem 1rem; font-size: .8rem; color: #a9b0bb; background: rgba(11,15,20,.8); z-index: 2; }
+.loop-in-room div { background: rgba(11,15,20,.6); padding: .15rem .45rem; margin-top: 2px; border-left: 3px solid var(--line); }
+.loop-in-room div.go { border-color: var(--go); } .loop-in-room div.warn { border-color: var(--accent); } .loop-in-room div.bad { border-color: var(--bad); }
+#help { position: fixed; left: 0; right: 0; bottom: 0; padding: .35rem 1rem; font-size: .8rem; color: var(--muted); background: rgba(11,15,20,.8); z-index: 2; }
 
 /* In launch control, the loop log sits on its own board along the bottom of the front wall, under the clocks
    (the fractions match drawControlRoom: the wall is 56% of the canvas, the board starts 81% of the way down it). */
 #loop.in-room { left: 8.5vw; width: 77vw; top: calc(44px + (100vh - 44px) * 0.4536); height: calc((100vh - 44px) * 0.0952); overflow: hidden;
-  font-size: clamp(9px, calc((100vh - 44px) * 0.0952 / 4 / 1.75), 15px); }
+  font-size: clamp(9px, calc((100vh - 44px) * 0.0952 / 4 / 1.75), 30px); }
 #loop.in-room div { margin-top: 1px; padding: 0 .5rem; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Inside a walk-in room (blockhouse, hangar, dugout, simulator) the loop log drops to the bottom left, clear of the
@@ -80,3 +97,87 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 /* The playtest log's bug button and its note (js/site/playtest.js). The note sits top centre, clear of the room panel and its close button. */
 #bug { border-color: #8a6a2a; color: #f0c674; }
 #bug-note { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); max-width: 26rem; padding: .5rem .8rem; font-size: .85rem; color: #f0e6cf; background: rgba(40,32,16,.94); border: 1px solid #8a6a2a; border-radius: 4px; z-index: 4; }
+
+/* ---- v0.8 era interface, step 2: Mission Control's panel, clocks and flight-plan rack are HTML (js/site/console-hud.js).
+   They sit where the canvas drew them: the fractions match drawControlRoom (the wall is 56% of the canvas; the clocks
+   strip is 69%-78% of the wall, from 8.5% to 85.5% across; the rack is the left 5.5%; the panel is over the gallery
+   floor, below its windows). The default look is console steel, the Mission Control of 1958-1975. ---- */
+:root { --H: calc(100vh - 44px); --nixie: #ff9b45; --nixie-glow: rgba(255,120,40,.65); --phosphor: #9fdc9a; --steel-hi: #5d646c; --steel-lo: #2b3036; }
+#mc-panel { position: fixed; right: 6px; width: max(calc(13vw - 12px), 190px); top: calc(44px + var(--H) * 0.195); bottom: 12px; z-index: 2;
+  display: flex; flex-direction: column; gap: .45em; padding: .55em; overflow: hidden; font-size: max(12px, calc(var(--H) * 0.0145));
+  background: linear-gradient(180deg, var(--steel-hi), var(--steel-lo) 14%, #24282e 80%, #1d2126);
+  border: 1px solid #6b737c; border-radius: 3px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 6px 20px rgba(0,0,0,.55); font-family: var(--mono); }
+#mc-panel > * { flex-shrink: 0; } #mc-panel > .mc-lines { flex-shrink: 1; }
+.mc-plate { align-self: center; padding: .05rem .6rem; font: bold .85em/1.4 var(--mono); letter-spacing: .18em; color: #1c1f22;
+  background: linear-gradient(#c9ccc6, #9ea29c); border-radius: 2px; box-shadow: inset 0 -1px 0 rgba(0,0,0,.35); }
+.mc-clock { text-align: center; padding: .25rem 0; background: #0b0806; border: 1px solid #3a2d22; border-radius: 3px; box-shadow: inset 0 2px 6px #000;
+  font-size: 2.1em; font-weight: bold; }
+.nixie { font-family: var(--mono); color: var(--nixie); text-shadow: 0 0 6px var(--nixie-glow), 0 0 14px rgba(255,90,20,.35); letter-spacing: .06em; }
+.mc-state { text-align: center; font: bold 1.05em/1.3 var(--mono); letter-spacing: .12em; color: #d6dbe0; text-shadow: 0 -1px 0 #000; }
+.mc-state.ask { color: var(--accent); }
+.mc-ask { margin: 0; font: 1.1em/1.4 var(--serif); color: var(--cream); }
+.mc-lines { flex: 1; min-height: 0; overflow: hidden; margin: 0; padding: .35rem .45rem; list-style: none; background: #070d09; border: 1px solid #23302a;
+  border-radius: 3px; box-shadow: inset 0 2px 8px #000; color: var(--phosphor); font: 1em/1.45 var(--mono); text-shadow: 0 0 4px rgba(120,220,120,.35); }
+.mc-lines:empty { visibility: hidden; }
+.mc-lines li + li { margin-top: .25rem; }
+.mc-buttons { display: flex; flex-direction: column; gap: .4em; }
+.lamp-btn { position: relative; width: 100%; min-height: 3.2em; padding: .4em .5em; font: bold 1em/1.25 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  color: #f4ecd6; background: linear-gradient(#4d545c, #31363c); border: 2px solid #15181b; border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 2px 0 #0d0f11; }
+.lamp-btn.go { color: #0f2412; background: radial-gradient(ellipse at 50% 40%, #b9f5b9, #57b865 70%); box-shadow: 0 0 12px rgba(111,200,138,.55), 0 2px 0 #0d0f11; }
+.lamp-btn.danger { color: #2a0a06; background: radial-gradient(ellipse at 50% 40%, #ffb3a0, #d0563f 70%); box-shadow: 0 0 12px rgba(208,99,79,.55), 0 2px 0 #0d0f11; }
+.lamp-btn:hover, .lamp-btn:focus-visible { border-color: var(--accent); outline: none; filter: brightness(1.12); }
+.lamp-btn:active { transform: translateY(1px); box-shadow: none; }
+#mc-clocks { position: fixed; left: 8.5vw; width: 77vw; top: calc(44px + var(--H) * 0.3864); height: calc(var(--H) * 0.0504); z-index: 1;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; pointer-events: none; }
+.mc-dial { display: flex; align-items: center; justify-content: center; gap: .7rem; background: #0b0806; border: 1px solid #3a2d22; border-radius: 3px; box-shadow: inset 0 2px 6px #000; }
+.mc-dial .nixie { font-size: clamp(14px, calc(var(--H) * 0.03), 40px); font-weight: bold; }
+.mc-dial b { font: bold clamp(9px, calc(var(--H) * 0.012), 28px) var(--mono); letter-spacing: .15em; color: #1c1f22; background: linear-gradient(#c9ccc6, #9ea29c); padding: 0 .35rem; border-radius: 2px; }
+#mc-steps { position: fixed; left: 0; width: 5.5vw; top: 44px; bottom: 0; z-index: 1; margin: 0; padding: 8px 5px; list-style: none; pointer-events: none;
+  display: flex; flex-direction: column; gap: 8px; background: #1d2126; }
+#mc-steps.idle { display: none; }
+#mc-steps li { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; background: #0d1117; border: 5px solid #2c3138;
+  font: clamp(8px, .66vw, 30px) var(--mono); color: #4a5260; text-align: center; overflow: hidden; }
+#mc-steps li.done { color: #86c28c; }
+#mc-steps li.now { color: var(--accent); font-weight: bold; background: #241f12; border-color: #2c3138; outline: 1px solid var(--accent); outline-offset: -1px; text-shadow: 0 0 6px rgba(232,198,106,.5); }
+#mc-steps small { font: clamp(8px, .6vw, 24px) var(--serif); font-weight: normal; }
+
+/* 1976-1995, the Shuttle years: an amber text terminal. First pass; plan step 4 finishes it. */
+body[data-era=amber] { --nixie: #ffb000; --nixie-glow: rgba(255,176,0,.5); --phosphor: #ffb000; }
+body[data-era=amber] #mc-panel { background: #0a0700; border: 2px double #ffb000; border-radius: 0; box-shadow: none; }
+body[data-era=amber] .mc-plate, body[data-era=amber] .mc-dial b { background: none; color: #ffb000; box-shadow: none; }
+body[data-era=amber] .mc-plate::before { content: '[ '; } body[data-era=amber] .mc-plate::after { content: ' ]'; }
+body[data-era=amber] .mc-clock, body[data-era=amber] .mc-dial, body[data-era=amber] .mc-lines { background: #0a0700; border: 1px solid #6a4a00; border-radius: 0; box-shadow: none; }
+body[data-era=amber] .mc-state, body[data-era=amber] .mc-ask { color: #ffcf66; font-family: var(--mono); text-shadow: none; }
+body[data-era=amber] .lamp-btn, body[data-era=amber] .lamp-btn.go, body[data-era=amber] .lamp-btn.danger { background: #0a0700; color: #ffb000; border: 1px solid #ffb000; border-radius: 0; box-shadow: none; text-align: left; }
+body[data-era=amber] .lamp-btn::before { content: 'F' attr(data-key) ' '; color: #0a0700; background: #ffb000; padding: 0 .3rem; margin-right: .4rem; }
+body[data-era=amber] .lamp-btn.danger { color: #ff7a40; border-color: #ff7a40; }
+
+/* 1996-2015: early desktop software, dark. First pass; plan step 5 finishes it. */
+body[data-era=desktop] { --nixie: #7fd7ff; --nixie-glow: transparent; --phosphor: #cfd8e0; }
+body[data-era=desktop] #mc-panel { background: #2b2f36; border: 2px outset #5b616b; border-radius: 0; font-family: Tahoma, Verdana, sans-serif; }
+body[data-era=desktop] .mc-plate { width: 100%; text-align: left; letter-spacing: 0; color: #fff; background: linear-gradient(90deg, #1c3d78, #3a6ab0); border-radius: 0; font-family: Tahoma, sans-serif; }
+body[data-era=desktop] .mc-clock, body[data-era=desktop] .mc-dial, body[data-era=desktop] .mc-lines { background: #15181d; border: 2px inset #5b616b; border-radius: 0; box-shadow: none; }
+body[data-era=desktop] .lamp-btn, body[data-era=desktop] .lamp-btn.go, body[data-era=desktop] .lamp-btn.danger { background: #3c424b; color: #e8ecf0; border: 2px outset #707884; border-radius: 0; box-shadow: none; font-family: Tahoma, sans-serif; text-transform: none; letter-spacing: 0; }
+body[data-era=desktop] .lamp-btn.go { border-left: 6px solid #4caf50; } body[data-era=desktop] .lamp-btn.danger { border-left: 6px solid #d9534f; }
+body[data-era=desktop] .mc-dial b { background: none; color: #a8b2bd; }
+
+/* 2016 on: glass. First pass; plan step 4 finishes it. */
+body[data-era=glass] { --nixie: #e9f3ff; --nixie-glow: rgba(120,180,255,.35); --phosphor: #bfe3ff; }
+body[data-era=glass] #mc-panel { background: rgba(16,22,32,.72); backdrop-filter: blur(12px); border: 1px solid rgba(160,200,255,.25); border-radius: 12px; font-family: system-ui, sans-serif; }
+body[data-era=glass] .mc-plate, body[data-era=glass] .mc-dial b { background: none; color: #8fa6c0; box-shadow: none; font-family: system-ui, sans-serif; letter-spacing: .1em; }
+body[data-era=glass] .mc-clock, body[data-era=glass] .mc-dial, body[data-era=glass] .mc-lines { background: rgba(255,255,255,.04); border: 1px solid rgba(160,200,255,.15); border-radius: 8px; box-shadow: none; text-shadow: none; }
+body[data-era=glass] .lamp-btn, body[data-era=glass] .lamp-btn.go, body[data-era=glass] .lamp-btn.danger { background: rgba(255,255,255,.07); color: #eaf2ff; border: 1px solid rgba(160,200,255,.3); border-radius: 8px; box-shadow: none; font-family: system-ui, sans-serif; text-transform: none; }
+body[data-era=glass] .lamp-btn.go { background: rgba(60,180,110,.35); border-color: #5fd08f; } body[data-era=glass] .lamp-btn.danger { background: rgba(220,80,70,.35); border-color: #ef6b5f; }
+
+@media (prefers-reduced-motion: reduce) { .nixie, .mc-lines, .lamp-btn.go, .lamp-btn.danger { text-shadow: none; box-shadow: none; } }
+#mc-panel[hidden], #mc-clocks[hidden], #mc-steps[hidden] { display: none; }
+#mc-steps li.done span::before { content: '✓'; display: block; }
+#mc-steps li span { white-space: nowrap; }
+/* v0.8 telemetry: every channel of the stage, as text under the gauges (js/truth/channels.js). */
+.readings { margin: .4rem 0; font-size: .85rem; }
+.readings summary { cursor: pointer; color: var(--muted); }
+.readings table { width: 100%; border-collapse: collapse; font-family: var(--mono); }
+.readings th { text-align: left; font-weight: normal; color: var(--muted); padding: .1rem .4rem .1rem 0; }
+.readings td { text-align: right; padding: .1rem 0 .1rem .4rem; }
+.readings tr.low td, .readings tr.high td { color: var(--accent); }

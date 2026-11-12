@@ -1,7 +1,8 @@
 // THE SITE PROTOTYPE: the frame loop, the mouse and keys, and the bar along the top.
 // Click the ground to walk, a building to go in, a person to talk to. A/D or the arrow keys walk; the wheel, dragging the
 // site, or Shift with A/D or the arrow keys looks along it.
-import { drawSite, drawTracking, drawControlRoom, controlButtonAt, PLACES, VIEW_H, GROUND } from './draw.js';
+import { drawSite, drawTracking, drawControlRoom, uiEra, PLACES, VIEW_H, GROUND } from './draw.js';
+import { consoleHud, bindConsoleHud, consoleKey } from './console-hud.js';
 import { footprint, atPlace } from '../data/white-sands.js';
 import {
   g,
@@ -102,15 +103,8 @@ canvas.addEventListener('click', e => {
   drag = null;
   // A console room with no console left in it (an old save, or a flight that ended some way we missed) is the site again.
   if (g.room === 'console' && !g.console) closeRoom();
-  // In launch control the buttons are drawn on the room itself; they are the only things to click. The canvas is
-  // device-pixel scaled, so the click is brought into the same coordinates the painter drew with.
-  if (g.room === 'console') {
-    const ratio = window.devicePixelRatio || 1;
-    const hit = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio);
-    trace('hit', { act: hit?.act ?? null, id: hit?.id ?? null, live: !!CONTROL_ACTS[hit?.act] });
-    if (hit && CONTROL_ACTS[hit.act]) CONTROL_ACTS[hit.act](hit.id);
-    return;
-  }
+  // In launch control your calls are on the HTML panel (#mc-panel, console-hud.js); the room itself is only scenery.
+  if (g.room === 'console') return;
   // Inside a walk-in room the scene's own parts are what can be clicked: the spots on the round, the way out.
   if (interiorOf(g)) {
     const ratio = window.devicePixelRatio || 1,
@@ -147,10 +141,9 @@ canvas.addEventListener('click', e => {
   goTo(Math.max(20, Math.min(2960, w.x)));
 });
 canvas.addEventListener('mousemove', e => {
-  // In launch control the cursor answers to the drawn buttons, not the site.
+  // In launch control the room is scenery: the calls are on the HTML panel.
   if (g.room === 'console' && g.console) {
-    const ratio = window.devicePixelRatio || 1;
-    canvas.style.cursor = controlButtonAt(g, e.offsetX * ratio, e.offsetY * ratio) ? 'pointer' : 'default';
+    canvas.style.cursor = 'default';
     g.hover = null;
     canvas.title = '';
     return;
@@ -205,6 +198,7 @@ window.addEventListener('pointerup', () => {
 
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
+  if (consoleKey(e)) return;
   keys[e.key] = true;
   if (e.key === 'Escape') {
     if (!$('notebook').hidden) $('notebook').hidden = true;
@@ -322,6 +316,10 @@ function awayFrom() {
   return null;
 }
 function hud() {
+  // The interface era: style.css dresses the panels, clocks and buttons by it (v0.8 era interface).
+  const era = uiEra(g);
+  if (document.body.dataset.era !== era) document.body.dataset.era = era;
+  consoleHud(g, g.room === 'console' && !!g.console && !(g.flight && g.flight.view === 'board'));
   $('date').textContent = `${dateText()} · ${clockText()}`;
   $('objective').textContent = g.objective;
   $('endday').hidden = !g.dayDone;
@@ -465,6 +463,7 @@ trace('load', { found: !!saved, beat: saved?.beat ?? null, day: saved?.day ?? nu
 if (saved) newGame(saved.seed, saved);
 else newGame(seed);
 startDevMenu({ storage, check: checkCheckpoint, fresh });
+bindConsoleHud();
 resize();
 // A test hook: lets an automated check read and drive the prototype. Harmless in play.
 window.__site = {

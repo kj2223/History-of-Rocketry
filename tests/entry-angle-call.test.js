@@ -7,7 +7,7 @@ import { g, newGame, checkpoint } from '../js/game.js';
 import '../js/mercury.js';
 import { FLIGHTS } from '../js/data/flights.js';
 import { startFlight, tickFlight, callBoardLines } from '../js/houston.js';
-import { drawControlRoom } from '../js/site/draw.js';
+import { drawControlRoom, consolePanelModel } from '../js/site/draw.js';
 
 const LUNAR = Object.entries(FLIGHTS)
   .filter(([, p]) => p.steps.some(s => s.decide === 'mcc'))
@@ -53,7 +53,7 @@ test('the midcourse call reads out the entry angle and the corridor, on every lu
   }
 });
 
-test('the console panel draws the entry angle with the call, and the wall board shows it', () => {
+test('the console panel shows the entry angle with the call, and the wall board shows it', () => {
   const drawn = [];
   const ctx = new Proxy(
     {
@@ -70,7 +70,8 @@ test('the console panel draws the entry angle with the call, and the wall board 
     g.console = { ...c, clock: 0, lines: [], chatter: [], lamps: {}, calls: {}, cond: {}, live: true };
     drawn.length = 0;
     drawControlRoom(ctx, g, { w: 1600, h: 900 });
-    const text = drawn.join('\n');
+    // Your panel is HTML now (js/site/console-hud.js), built from consolePanelModel.
+    const text = consolePanelModel(g.console, g).lines.join('\n');
     assert.match(text, /ENTRY ANGLE: -\d\.\d\d°/, id);
     // The wall board: the lamp itself, among the four it has room for.
     assert.ok(drawn.includes('ENTRY ANGLE'), `${id}: ${drawn.join(' | ')}`);

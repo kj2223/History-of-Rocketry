@@ -193,8 +193,12 @@ export const planFor = con => (con.orbital ? { ...ORBIT_PLAN, burn: plannedBurn(
 // Launch is planned the day after the round starts: a sim day, then launch day.
 export const LAUNCH_DAY = 1;
 // Count seconds per real second in Mercury Control, and flight seconds per real second on the trajectory plot.
-const COUNT_RATE = 30,
-  ASCENT_RATE = 2,
+// v0.8 pacing (Aaron, 12 Nov: "the entire launch clock is over in like 10 seconds"): the count runs at COUNT_RATE until
+// T-2 minutes and in real time from there, and the climb plays in real time, so a launch feels like one. The speed
+// buttons (1x, 4x, 16x) work throughout; only the last ten seconds always run in real time. The quiet coast is still skipped.
+const COUNT_RATE = 6,
+  COUNT_REAL_FROM = 120,
+  ASCENT_RATE = 1,
   COAST_SECONDS = 5,
   ORBIT_RATE = 12;
 
@@ -801,7 +805,7 @@ export function tickConsole(dt) {
   }
   if (con.phase === 'count') {
     if (con.poll) return;
-    const step = con.clock > 10 ? COUNT_RATE : 1;
+    const step = con.clock <= 10 ? 1 : (con.clock > COUNT_REAL_FROM ? COUNT_RATE : 1) * g.speed;
     con.clock = Math.max(0, con.clock - step * dt);
     g.clock += (step * dt) / 60;
     // The Shuttle's telecall: on a cold morning, the booster contractor's engineers ask the flight director not to
@@ -857,9 +861,10 @@ export function tickConsole(dt) {
   if (con.phase === 'ascent') {
     const a = con.round.ascent,
       before = con.t;
-    // An orbital climb plays in about the same real time whatever its booster: a Saturn V's 700 s run faster than an Atlas's 300.
-    const pace = con.orbital ? 2 * ((a.planned || ORBIT_PLAN.burn) / ORBIT_PLAN.burn) : 1;
-    con.t = Math.min(a.burn, con.t + ASCENT_RATE * pace * Math.min(4, g.speed) * dt);
+    // An orbital climb plays in about the same real time whatever its booster, an Atlas's in real time: a Saturn V's
+    // 700 s run faster than an Atlas's 300.
+    const pace = con.orbital ? (a.planned || ORBIT_PLAN.burn) / ORBIT_PLAN.burn : 1;
+    con.t = Math.min(a.burn, con.t + ASCENT_RATE * pace * g.speed * dt);
     g.clock += (con.t - before) / 60;
     for (let t = Math.floor(before) + 1; t <= Math.floor(con.t); t++) {
       const s = stepAt(a, t);
@@ -2044,7 +2049,7 @@ function tickOrbit(con, dt) {
   const o = con.round.orbit,
     P = ORBIT_PLAN,
     before = con.orbitT;
-  con.orbitT = Math.min(con.retroAt, con.orbitT + ORBIT_RATE * Math.min(4, g.speed) * dt);
+  con.orbitT = Math.min(con.retroAt, con.orbitT + ORBIT_RATE * g.speed * dt);
   g.clock += con.orbitT - before;
   con.status.fuel = fuelAfter(o, con.orbitT / P.period);
   con.status.orbit = Math.min(P.orbits, 1 + Math.floor(con.orbitT / P.period));
