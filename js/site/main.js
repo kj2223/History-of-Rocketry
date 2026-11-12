@@ -3,6 +3,7 @@
 // site, or Shift with A/D or the arrow keys looks along it.
 import { drawSite, drawTracking, drawControlRoom, uiEra, PLACES, VIEW_H, GROUND } from './draw.js';
 import { consoleHud, bindConsoleHud, consoleKey } from './console-hud.js';
+import { startStage, stageFrame } from '../stage/index.js';
 import { footprint, atPlace } from '../data/white-sands.js';
 import {
   g,
@@ -340,7 +341,9 @@ function hud() {
   $('loop').hidden = g.flight?.view === 'board'; // the range plot shows the calls itself
   $('loop').classList.toggle('in-interior', !!interiorOf(g));
   // In a walk-in room the loop sits to the right of the way-out button, whatever the button's size, so it never covers it.
-  $('loop').style.left = interiorOf(g) ? `${Math.round(doorRight / (window.devicePixelRatio || 1)) + 16}px` : '';
+  $('loop').style.left = interiorOf(g)
+    ? `${inScene ? 206 : Math.round(doorRight / (window.devicePixelRatio || 1)) + 16}px`
+    : '';
   // The walking hints are for the site; in launch control and the walk-in rooms they only cover the scene.
   $('help').hidden = g.room === 'console' || !!interiorOf(g) || !!g.flight;
   $('loop').classList.toggle(
@@ -407,7 +410,8 @@ function panelReserve() {
   return el.hidden ? 0 : (el.offsetWidth + 24) * (window.devicePixelRatio || 1);
 }
 
-let last = performance.now();
+let last = performance.now(),
+  inScene = false;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   playtestFrame(now - last);
@@ -420,8 +424,13 @@ function frame(now) {
     updateCamera(view.w / scale(), dt);
     if (g.flight && g.flight.view === 'board') drawTracking(ctx, g, view);
     else if (g.room === 'console' && g.console) drawControlRoom(ctx, g, view);
-    else if (interiorOf(g)) drawInterior(ctx, g, view, panelReserve());
-    else drawSite(ctx, g, view);
+    else if (interiorOf(g)) {
+      // A room rebuilt in PixiJS draws on the scene layer; the rest still draw on this canvas.
+      inScene = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
+      if (!inScene) drawInterior(ctx, g, view, panelReserve());
+    } else drawSite(ctx, g, view);
+    if (!(interiorOf(g) && inScene)) inScene = stageFrame(null);
+    document.body.classList.toggle('in-scene', inScene);
     renderRoom();
     liveRoom();
     hud();
@@ -464,6 +473,7 @@ if (saved) newGame(saved.seed, saved);
 else newGame(seed);
 startDevMenu({ storage, check: checkCheckpoint, fresh });
 bindConsoleHud();
+startStage($('stage'), { leave: () => closeRoom() });
 resize();
 // A test hook: lets an automated check read and drive the prototype. Harmless in play.
 window.__site = {
