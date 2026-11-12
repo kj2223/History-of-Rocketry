@@ -372,3 +372,38 @@ export function particles() {
   };
   return c;
 }
+
+// A person standing, seen from the front: legs, coat, head, the era hat now and then, and the marker over you.
+// update(p) redraws only when the person changes. Feet at 0; the head's top near -150.
+export function standingFigure() {
+  const c = new Container();
+  const body = new Graphics();
+  const mark = new Graphics().poly([-9, 0, 9, 0, 0, 9]).fill(0xe8c66a);
+  mark.position.set(0, -178);
+  c.addChild(body, mark);
+  let who;
+  c.update = p => {
+    c.visible = !!p;
+    mark.visible = !!p && p.id === 'you';
+    if (p === who) return;
+    who = p;
+    body.clear();
+    if (!p) return;
+    body.ellipse(0, 2, 34, 8).fill({ color: 0x000000, alpha: 0.25 });
+    body.rect(-17, -62, 14, 62).fill(0x2b2620);
+    body.rect(3, -62, 14, 62).fill(0x2b2620);
+    body.roundRect(-26, -124, 52, 70, 8).fill(colorOf(p.color));
+    body.roundRect(-34, -118, 12, 52, 5).fill(darken(colorOf(p.color), 0.8));
+    body.roundRect(22, -118, 12, 52, 5).fill(darken(colorOf(p.color), 0.8));
+    body.rect(-6, -132, 12, 10).fill(0xe2b993);
+    body.circle(0, -146, 18).fill(0xe2b993);
+    body
+      .moveTo(-18, -148)
+      .arc(0, -148, 18, Math.PI, 2 * Math.PI)
+      .closePath()
+      .fill(p.id === 'ellis' ? 0x6b4a32 : 0x3a2c22);
+    if (p.hat) body.ellipse(0, -160, 22, 7).fill(colorOf(p.hat));
+  };
+  c.update(null);
+  return c;
+}
