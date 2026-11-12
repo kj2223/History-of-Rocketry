@@ -1037,7 +1037,8 @@ function splash(con) {
 
 // ---- Gemini on the pad: the Titan lights and shuts down ----
 // The commander has the D-ring between his knees. Whether he ejects is his call, not the ground's; he has a second and a
-// half to make it. If he sits tight, the flight director decides how hard to look for the cause.
+// half to make it. If he sits tight, the Cape's test team and Martin look for the cause, on the flight director's view of
+// how hard to look.
 export const SHUTDOWN_OPTIONS = {
   plug: 'The tail plug fell out early: re-seat it and recycle the count. A day.',
   teardown: 'Stop and find every cause: borescope the engines, check everything. Three days.',
@@ -1081,7 +1082,7 @@ export function shutdownChoose(choice) {
   const r = con.round,
     again = choice === 'plug' && r.dustcap && !r.plugTried;
   con.calls.shutdown.choice = choice;
-  if (flightDirector()) speak(con, 'you', SHUTDOWN_OPTIONS[choice], '', 5);
+  if (flightDirector()) speak(con, 'you', `Cape, Flight recommends: ${SHUTDOWN_OPTIONS[choice]}`, '', 5);
   if (choice === 'plug' && !again) delete r.faults[Object.keys(r.faults).find(k => r.faults[k] === 'shutdown')];
   if (choice === 'plug') r.plugTried = true;
   if (choice === 'teardown') {
@@ -1145,7 +1146,7 @@ export function padChoose(choice) {
     }
   } else {
     speak(con, 'you', "Send the pad crew out now. The sooner she's safe the better.");
-    speak(con, 'hollis', `Your call, Retro. ${nameOf('vega')}, take your crew out. Carefully.`, 'warn');
+    speak(con, 'hollis', `All right. ${nameOf('vega')}, take your crew out. Carefully.`, 'warn');
     const topple = padCrewNow(con.round);
     con.toppled = topple;
     if (!sim) {
@@ -1845,7 +1846,7 @@ export function consoleInsertion(choice) {
     note(
       expired
         ? `The insertion window closed without a call from Flight. The team went with Goddard: ${go ? 'GO for orbit' : 'NO-GO, and the early return'}.`
-        : `Insertion: ${con.auto ? nameOf('tate') : 'you'} called ${go ? 'GO for orbit' : 'NO-GO'}${go === con.goddard.go ? ', with Goddard' : ', against Goddard'}.`,
+        : `Insertion: ${con.auto ? nameOf('tate') : 'you'} ${flightDirector() && !con.auto ? 'called' : 'advised'} ${go ? 'GO for orbit' : 'NO-GO'}${go === con.goddard.go ? ', with Goddard' : ', against Goddard'}.`,
     );
   if (!go) {
     if (expired) {
@@ -2000,7 +2001,12 @@ export function consolePack(choice) {
       : `Flight, ${callsign(con)}: jettison the pack as planned. I read Segment 51 as a bad switch.`,
     choice === 'keep' ? 'warn' : '',
   );
-  speak(con, 'hollis', choice === 'keep' ? 'Pass it to him. Keep the pack on.' : 'Your call. Jettison as planned.', '');
+  speak(
+    con,
+    'hollis',
+    choice === 'keep' ? 'Agreed. California, pass it to him: keep the pack on.' : 'Agreed. Jettison as planned.',
+    '',
+  );
   if (con.kind === 'flight')
     note(
       `You advised ${choice === 'keep' ? 'keeping the retro pack on through entry' : 'jettisoning the retro pack as planned'}.`,
@@ -2024,12 +2030,21 @@ export function consoleRetro(how) {
         : "Flight, Engineering: I don't trust those scanners. Have him fire by hand on the window.",
       how === 'auto' ? 'go' : 'warn',
     );
+  if (!con.auto)
+    speak(
+      con,
+      'you',
+      how === 'auto'
+        ? 'Flight, Retro: the scanners look good. Recommend the automatic sequence.'
+        : "Flight, Retro: I don't trust those scanners. Recommend he fire by hand on the window.",
+      how === 'auto' ? 'go' : 'warn',
+    );
   speak(
     con,
-    retroWho(con),
+    'hollis',
     how === 'auto'
-      ? 'Retrofire on the automatic sequence. Five, four, three, two, one, fire.'
-      : `${first()}, fire them by hand on the window. Five, four, three, two, one, fire.`,
+      ? 'Agreed. California, retrofire on the automatic sequence. Count him down.'
+      : `Agreed. California, have ${first()} fire them by hand on the window. Count him down.`,
     'go',
     6,
   );

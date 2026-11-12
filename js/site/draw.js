@@ -2200,7 +2200,7 @@ function consolePanelModel(c) {
           ? 'Final status check. Are we go?'
           : g.record.seat === 'flight'
             ? 'Recovery has reported, and Retro concurs. Go on with the count, or hold?'
-            : 'Is Recovery ready? Give your status.';
+            : "Retro's status: are there ships under your landing points, in a sea they can work?";
     if (c.cond) {
       P.lines.push(`Sea state: ${c.cond.seaState}`);
       const units = c.orbital ? ORBIT_UNITS : UNITS;
@@ -2236,7 +2236,11 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'insertion') {
     P.state = 'GO / NO-GO FOR ORBIT';
-    if (!auto) P.ask = 'The engines are off. Go for orbit, or bring her home?';
+    if (!auto)
+      P.ask =
+        g.record.seat === 'flight'
+          ? 'The engines are off. Go for orbit, or bring her home?'
+          : "The engines are off. Flight wants Retro's advice: go for orbit, or bring her home?";
     if (c.goddard)
       P.lines.push(
         `Cutoff: ${c.goddard.v.toFixed(3)} km/s`,
@@ -2297,7 +2301,7 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'pack') {
     P.state = 'THE RETRO PACK';
-    P.ask = 'What does he do with the retro pack after retrofire?';
+    P.ask = 'Flight wants your advice: what does he do with the retro pack after retrofire?';
     P.lines.push('Segment 51 says the landing bag is down: the heat shield may be loose.');
     for (const [id, text] of Object.entries(PACK_OPTIONS))
       btn('m-pack', id, id === 'keep' ? 'KEEP THE PACK' : 'JETTISON IT', id === 'keep' ? 'go' : undefined);
@@ -2305,7 +2309,7 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'retro') {
     P.state = 'RETROFIRE';
-    P.ask = 'The retros fire on the automatic system unless you call it. Automatic, or by hand?';
+    P.ask = 'Flight wants your advice: retrofire on the automatic system, or by hand?';
     P.lines.push('Where she lands depends on her attitude when the retros fire.');
     if (c.status?.window) P.lines.push(`The pilot over Muchea: "${c.status.window}"`);
     P.lines.push(`Fuel left: ${Math.round((c.status?.fuel ?? 1) * 100)}%`);
@@ -2338,7 +2342,7 @@ function consolePanelModel(c) {
   }
   if (c.phase === 'shutdown') {
     P.state = 'SHUTDOWN ON THE PAD';
-    P.ask = 'How hard do we look before we try again?';
+    P.ask = "The Cape's test team and Martin want Houston's view: how hard do they look before the next try?";
     btn('m-shutdown', 'plug', 'RE-SEAT AND RECYCLE: A DAY', 'go');
     btn('m-shutdown', 'teardown', 'TEARDOWN: FIND EVERY CAUSE', 'danger');
     return P;

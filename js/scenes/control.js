@@ -212,7 +212,7 @@ function consoleBody(c, backRoom = false) {
 function consoleView(c) {
   const head = `<div class="clock" data-live="mclock">—</div><p class="center" data-live="mstate"></p>`;
   if (c.phase === 'shutdown')
-    return `${head}<div class="poll"><p><strong>The Titan lit and shut down on the pad. The crew sat tight.</strong> The spacecraft and the booster are being safed. How hard do we look before we try again? Gemini 7 is waiting in orbit.</p>
+    return `${head}<div class="poll"><p><strong>The Titan lit and shut down on the pad. The crew sat tight.</strong> The spacecraft and the booster are being safed. The Cape's test team and Martin will find the cause; they want Houston's view on how hard to look before the next try. Gemini 7 is waiting in orbit.</p>
     ${Object.entries(SHUTDOWN_OPTIONS)
       .map(([k, t]) => `<button data-act="m-shutdown" data-id="${k}">${esc(t)}</button>`)
       .join('')}</div>`;
@@ -224,7 +224,7 @@ function consoleView(c) {
       .join('')}</div>`;
   if (c.poll || c.phase === 'poll') {
     const b = board(c);
-    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> ${g.record.seat === 'flight' ? 'Recovery has reported on the recovery area and Retro concurs. Go on with the count, or hold?' : `${who('hollis')} wants your status on the recovery area.`} The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
+    return `${head}<div class="poll"><p><strong>${c.poll === 'final' ? 'Final status check.' : 'Recovery poll.'}</strong> ${g.record.seat === 'flight' ? 'Recovery has reported on the recovery area and Retro concurs. Go on with the count, or hold?' : `${who('hollis')} polls Retro: are there ships under your landing points, the abort areas and the planned point, in a sea they can work?`} The mission rule: no launch with the sea above state ${SEA_LIMIT}.</p>
       <ul class="reports"><li>Sea state in the recovery area: <strong>${b.sea}</strong></li>${b.units.map(u => `<li>${esc(u.text)}: <strong class="${u.on ? '' : 'danger-text'}">${u.on ? 'on station' : 'NOT on station'}</strong></li>`).join('')}</ul>
       <button class="go" data-act="m-go">GO</button><button class="danger" data-act="m-nogo">NO-GO</button></div>`;
   }
@@ -238,7 +238,7 @@ function consoleView(c) {
     <div class="actions">${c.abortAt == null ? '<button class="danger" data-act="m-abort">ABORT</button>' : ''}</div>`;
   if (c.phase === 'insertion')
     return `${head}${readouts()}<canvas data-plot width="440" height="170"></canvas><div class="poll">
-    <p><strong>Go or no-go for orbit?</strong> A no-go now fires the retros at once and brings her down in the abort area, where the ships are. A go on an orbit that will not hold leaves her where no ship can reach.</p>
+    <p><strong>Go or no-go for orbit?</strong> ${g.record.seat === 'flight' ? '' : `${who('hollis')} wants Retro's advice. `}A no-go now fires the retros at once and brings her down in the abort area, where the ships are. A go on an orbit that will not hold leaves her where no ship can reach.</p>
     <ul class="reports"><li>Velocity at cutoff on telemetry: <strong>${c.goddard.v.toFixed(3)} km/s</strong> (orbit needs about ${P.need} km/s, level)</li>
     <li>Flight-path angle: <strong>${c.goddard.gammaOff.toFixed(1)}°</strong> off level (every degree costs about 0.04 km/s)</li>
     <li>Goddard's computers: <strong class="${c.goddard.go ? 'go-text' : 'danger-text'}">${c.goddard.go ? 'GO' : 'NO-GO'}</strong></li></ul>
@@ -311,12 +311,12 @@ function orbitBoard(c) {
 }
 function orbitCall(c) {
   if (c.phase === 'pack')
-    return `<div class="poll"><p><strong>Segment 51 says the landing bag is down, which would mean the heat shield is loose.</strong> What does he do with the retro pack after retrofire?</p>
+    return `<div class="poll"><p><strong>Segment 51 says the landing bag is down, which would mean the heat shield is loose.</strong> ${who('hollis')} wants your advice: what does he do with the retro pack after retrofire?</p>
     ${Object.entries(PACK_OPTIONS)
       .map(([k, t]) => `<button data-act="m-pack" data-id="${k}">${esc(t)}</button>`)
       .join('')}</div>`;
   if (c.phase === 'retro')
-    return `<div class="poll"><p><strong>Retrofire over California.</strong> Where she lands depends on the attitude when the retros fire. Fuel left: ${Math.round(c.status.fuel * 100)}%.</p>
+    return `<div class="poll"><p><strong>Retrofire over California.</strong> ${who('hollis')} wants your advice: the automatic sequence, or by hand. Where she lands depends on the attitude when the retros fire. Fuel left: ${Math.round(c.status.fuel * 100)}%.</p>
     ${Object.entries(RETRO_OPTIONS)
       .map(([k, t]) => `<button data-act="m-retro" data-id="${k}">${esc(t)}</button>`)
       .join('')}</div>`;
