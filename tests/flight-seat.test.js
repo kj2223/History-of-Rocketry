@@ -52,3 +52,10 @@ test("From Flight's console, Tate makes Retro's landing-point call on his own", 
   assert.equal(c.phase, 'coast');
   assert.equal(c.calls.ip, 'radar');
 });
+
+test('A console recommends and Flight concurs or overrules; the programme decides on Flight advice', async () => {
+  const { DECISIONS } = await import('../js/data/flights.js');
+  assert.equal(DECISIONS.alarm.rec[2], 'go');
+  assert.equal(DECISIONS.quad2.advise, true);
+  for (const [id, D] of Object.entries(DECISIONS)) if (D.rec) assert.ok(D.options[D.rec[2]], id);
+});

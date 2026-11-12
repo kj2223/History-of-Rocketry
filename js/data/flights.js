@@ -3068,6 +3068,10 @@ export const FLIGHTS = {
 // The questions, the options for each, who owns the call (the flight director unless said otherwise) and what the
 // flight director on the other shift does when the call is not yours (auto, the historical choice).
 // rule: the mission rule the call is made against, if there is one.
+// A question's fields: q, the options, auto (what the other shift or the programme picks), rule (the flight's mission
+// rule it touches), owner (whose seat answers it; none is the flight director's). rec: [who, line, option] when a
+// console owns the substance and recommends: the flight director concurs or overrules. advise: the decision is the
+// programme's or the management team's; the flight director recommends, and they decide on how far they trust Flight.
 export const DECISIONS = {
   eva: {
     q: 'The spacewalk. The pilot is suited and the cabin is ready to depressurise. Go?',
@@ -3107,6 +3111,11 @@ export const DECISIONS = {
     options: { eight: 'Go for the full eight days, powered down.', home: 'Come home at the next good area.' },
   },
   rdvplan: {
+    rec: [
+      'morgan',
+      "Flight, FIDO: the spacecraft's radar has a solid lock. The ground solution is still provisional. Recommend the onboard solution.",
+      'onboard',
+    ],
     q: 'Gemini 7 is on radar. Which tracking solution are we using for the intercept?',
     auto: 'onboard',
     rule: 1,
@@ -3122,6 +3131,7 @@ export const DECISIONS = {
     },
   },
   evaplan: {
+    advise: true,
     q: "The spacewalk. After Gemini 9A's exhausted spacewalker, the plan can be paced: handholds, foot restraints and a rest after every task. Or fly the full task list, as Gemini 9A tried.",
     auto: 'rest',
     rule: 1,
@@ -3150,12 +3160,22 @@ export const DECISIONS = {
     },
   },
   tli: {
+    rec: [
+      'morgan',
+      'Flight, FIDO: the trajectory is good, Booster and the spacecraft consoles are go. Recommend go for TLI.',
+      'go',
+    ],
     q: 'Translunar injection. The third stage relights over the Pacific and sends them to the Moon. Go or no-go?',
     auto: 'go',
     rule: 1,
     options: { go: 'Go for translunar injection.', nogo: 'No-go. Stay in Earth orbit and test the spacecraft there.' },
   },
   tlii: {
+    rec: [
+      'morgan',
+      'Flight, the management team has polled go for TLI. FIDO and Booster are go. Your go, Flight.',
+      'go',
+    ],
     q: 'Translunar injection. The upper stage relights over the Pacific and sends Orion to the Moon. Go or no-go?',
     auto: 'go',
     rule: 1,
@@ -3165,12 +3185,22 @@ export const DECISIONS = {
     },
   },
   tlio: {
+    rec: [
+      'morgan',
+      'Flight, the management team has polled go for TLI. FIDO and the propulsion console are go. Your go, Flight.',
+      'go',
+    ],
     q: "Translunar injection. After a day's checkout in high Earth orbit, Orion's own engine burns for six minutes and sends them to the Moon. Go or no-go?",
     auto: 'go',
     rule: 1,
     options: { go: 'Go for translunar injection.', nogo: 'No-go. Stay in Earth orbit and test the spacecraft there.' },
   },
   landerdock: {
+    rec: [
+      'morgan',
+      "Flight, Rendezvous: the lander's team want an orbit to reset the sensors. Recommend we back off.",
+      'reset',
+    ],
     q: "The lander's docking sensors keep dropping a channel at three hundred metres. Let the automatic system fly it in, have the commander take over and fly it in by hand, or back off an orbit while the lander's team resets the sensors?",
     auto: 'reset',
     rule: 1,
@@ -3181,6 +3211,7 @@ export const DECISIONS = {
     },
   },
   loi: {
+    rec: ['tate', 'Flight, Retro: the burn pad is up to them. Every console is go. Recommend go for LOI.', 'go'],
     q: 'Lunar orbit insertion. The service engine burns behind the Moon, out of contact. If it does not burn they swing round and come home on their own. If it burns and will not burn again, they never come home. Go?',
     auto: 'go',
     rule: 2,
@@ -3204,6 +3235,11 @@ export const DECISIONS = {
     },
   },
   pc2: {
+    rec: [
+      'tate',
+      'Flight, Retro: three ways home on the board. Retro recommends the Pacific burn: the ships are there and it keeps the service module on for the heat shield.',
+      'pacific',
+    ],
     q: "Two hours past the Moon. Retro has three ways home. A long descent-engine burn brings them in at about 142 hours in the Pacific, where the ships are. A longer one, after dropping the service module, brings them in at 133, in the Indian Ocean, with the heat shield out in the cold the whole way. Or no burn: entry at 152, past the lander's batteries.",
     auto: 'pacific',
     rule: 5,
@@ -3214,6 +3250,11 @@ export const DECISIONS = {
     },
   },
   co2: {
+    rec: [
+      'kessler',
+      "Flight, EECOM: Crew Systems have built the adapter on the bench and it works. Recommend we read it up now, while they're fresh.",
+      'build',
+    ],
     q: "The lander's carbon dioxide is climbing. The ground has a way to fit the command module's square canisters to the lander's hoses with hose, cardboard, a plastic bag and tape. Read it up to them now, or wait and see how fast it climbs?",
     auto: 'build',
     options: { build: 'Read up the procedure. Build it now.', wait: 'Wait. Watch the gauge another few hours.' },
@@ -3238,6 +3279,11 @@ export const DECISIONS = {
     options: { press: 'Take the bus off line and press on.', home: 'Bring her home from Earth orbit, now.' },
   },
   alarm: {
+    rec: [
+      'morgan',
+      "Flight, Guidance: twelve-oh-two. The back room says if it doesn't recur too often we're go. Recommend go.",
+      'go',
+    ],
     q: "Program alarms in the descent: the lander's computer is overloaded and restarting. Guidance has a second to say go or abort.",
     auto: 'go',
     owner: 'flight',
@@ -3268,6 +3314,11 @@ export const DECISIONS = {
     },
   },
   spsbank: {
+    rec: [
+      'kessler',
+      "Flight, EECOM: the short is in bank A's thrust switch only. Recommend every burn on bank B, bank A by hand once she's lit.",
+      'bankb',
+    ],
     q: "A short in the service engine's thrust switch, bank A. EECOM's plan: fly every burn on bank B, with bank A switched on by hand only after the engine has lit. Or bring them home now, before the Moon.",
     auto: 'bankb',
     rule: 2,
@@ -3304,6 +3355,11 @@ export const DECISIONS = {
     },
   },
   parasol: {
+    rec: [
+      'kessler',
+      'Flight, the parasol is built and checked in the tank at Houston. The programme has picked it. Recommend we give the crew the go to deploy.',
+      'parasol',
+    ],
     q: 'The workshop has lost her shield and the temperatures inside are climbing. The parasol shade is made up on the ground: send it up with the crew tomorrow, and deploy it through the solar airlock?',
     auto: 'parasol',
     rule: 2,
@@ -3313,6 +3369,7 @@ export const DECISIONS = {
     },
   },
   panel: {
+    advise: true,
     q: 'One solar wing is jammed shut against the hull. Send a spacewalker up to cut her free?',
     auto: 'free',
     rule: 3,
@@ -3322,6 +3379,11 @@ export const DECISIONS = {
     },
   },
   quad: {
+    rec: [
+      'albrecht',
+      'Flight, Propulsion: the leak rate is slow and the other quads are healthy. Recommend we stay up and watch it.',
+      'stay',
+    ],
     q: 'A service-module thruster quad is leaking. Hold the fifty-nine days, or come home early?',
     auto: 'stay',
     rule: 2,
@@ -3340,6 +3402,11 @@ export const DECISIONS = {
     },
   },
   align: {
+    rec: [
+      'morgan',
+      'Flight, FIDO: she is off her line by more than the docking limit. Recommend they stop at a hundred and fifty metres and realign.',
+      'stop',
+    ],
     q: 'The Soyuz is off her attitude line for the docking. Stop at a hundred and fifty metres and realign, or press?',
     auto: 'stop',
     rule: 1,
@@ -3349,6 +3416,11 @@ export const DECISIONS = {
     },
   },
   tiles: {
+    rec: [
+      'kessler',
+      'Flight, MMACS: we cannot clear the belly from the ascent film. Recommend the OMS burn and a look before entry.',
+      'inspect',
+    ],
     q: 'The belly took a foam hit from the tank\u2019s ramp. Burn the OMS to look her over, or trust the design and fly her home as planned?',
     auto: 'inspect',
     rule: 2,
@@ -3367,6 +3439,11 @@ export const DECISIONS = {
     },
   },
   waypoint: {
+    rec: [
+      'morgan',
+      "Flight, SpaceX reports Dragon's sensors and approach are nominal at the waypoint. NASA's consoles concur. Recommend go.",
+      'go',
+    ],
     q: 'Dragon is holding at twenty metres, the last go/no-go before she touches the station. Go for the final approach on the automatics, or back her out to two hundred metres for the capsule\u2019s team to look again?',
     auto: 'go',
     rule: 2,
@@ -3385,6 +3462,7 @@ export const DECISIONS = {
     },
   },
   quad2: {
+    advise: true,
     q: 'A second quad is leaking. Two good quads are enough to fly home on, with nothing spare. Roll the rescue Apollo out to the pad as a standby, bring them home now, or carry on without one?',
     auto: 'standby',
     rule: 3,
@@ -3404,6 +3482,7 @@ export const DECISIONS = {
     },
   },
   certify: {
+    advise: true,
     q: 'Two days of checkout with a crew aboard the lander. Certify her for the landing on Artemis IV, or ask for another test first?',
     auto: 'certify',
     rule: 3,
@@ -3413,6 +3492,11 @@ export const DECISIONS = {
     },
   },
   dro: {
+    rec: [
+      'morgan',
+      'Flight, the management team is go for the distant orbit. FIDO has the burn ready. Your go, Flight.',
+      'go',
+    ],
     q: 'Insertion into the distant retrograde orbit: the service engine burns her into a wide orbit round the Moon for a week, then burns her out again. Go, or skip it and come home on the flyby path?',
     auto: 'go',
     rule: 4,
@@ -3422,6 +3506,7 @@ export const DECISIONS = {
     },
   },
   entryplan: {
+    advise: true,
     q: "The entry. The plan is Artemis I's long skip: off the top of the air and back in, steering for the ships. The review offers a shorter, steeper entry that keeps the shield hot for less time and lands her nearer the coast. Which does she fly?",
     auto: 'loft',
     rule: 4,
@@ -3441,6 +3526,7 @@ export const DECISIONS = {
     },
   },
   hubblefix: {
+    advise: true,
     q: 'The telescope is on the arm and the corrective optics are in the bay. Install them, or bring her home for the ground to decide?',
     auto: 'install',
     rule: 1,
@@ -3450,6 +3536,7 @@ export const DECISIONS = {
     },
   },
   berth: {
+    advise: true,
     q: 'The module is drifting free and unpowered. Grab her with the arm now, or let her coast and dock the old way?',
     auto: 'arm',
     rule: 1,

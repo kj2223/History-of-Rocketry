@@ -184,7 +184,7 @@ function ask(c, id, speak) {
     mine: c.kind !== 'flight' || owns(g.record.seat, id),
   };
   if (!c.flight.decision.mine) {
-    c.flight.decision.who = D.owner === 'programme' ? 'hollis' : 'dorsey';
+    c.flight.decision.who = D.owner === 'programme' || D.advise ? 'hollis' : 'dorsey';
     speak(c, c.flight.decision.who, `${D.q} ${D.options[D.auto]}`, 'warn', 6);
     return answer(c, D.auto, speak);
   }
@@ -200,15 +200,37 @@ function ask(c, id, speak) {
       check: 'Ask for an independent check before authorizing.',
     };
   }
+  const fd = g.record.seat === 'flight';
+  // A console's recommendation: the flight director concurs or overrules.
+  if (D.rec && fd) {
+    const [by, line, pick] = D.rec;
+    const d = c.flight.decision;
+    d.rec = pick;
+    d.options = Object.fromEntries(
+      Object.entries(d.options).map(([k, t]) => [k, `${k === pick ? 'Concur' : 'Overrule'}: ${t}`]),
+    );
+    speak(c, by, line, 'warn', 6);
+  }
+  // The programme's or the management team's decision: the flight director's recommendation goes to them.
+  if (D.advise && fd) {
+    const d = c.flight.decision;
+    d.advise = true;
+    d.q = `${D.q} It is the programme's decision; ${who('hollis')} wants Flight's recommendation.`;
+    d.options = Object.fromEntries(Object.entries(d.options).map(([k, t]) => [k, `Recommend: ${t}`]));
+  }
   speak(
     c,
-    c.kind === 'flight' && g.record.seat !== 'flight' ? 'dorsey' : 'kessler',
-    g.record.seat === 'flight' ? `Flight: ${D.q}` : `${D.q} Your call.`,
+    c.kind === 'flight' && !fd ? 'dorsey' : D.advise && fd ? 'hollis' : 'kessler',
+    fd ? `Flight: ${D.q}${D.advise ? ' What do you recommend?' : ''}` : `${D.q} Your call.`,
     'warn',
     6,
   );
   roomChanged();
 }
+
+// Whether the programme takes Flight's recommendation: always when it matches their own leaning, otherwise only when
+// they trust Flight's judgement.
+const takesAdvice = (choice, D) => choice === D.auto || g.record.trust >= 1;
 
 // The answer to the open question: yours from the console, or the other flight director's.
 export function answer(c, choice, speak) {
@@ -226,9 +248,28 @@ export function answer(c, choice, speak) {
   const option = timedOut ? 'Stand down. The intercept window closed.' : d.options[choice];
   if (!option) return;
   f.decision = null;
+  // Flight recommended; the programme decides.
+  if (d.advise && d.mine) {
+    const D = DECISIONS[d.id];
+    speak(c, 'you', option, '', 5);
+    const taken = c.kind !== 'flight' || takesAdvice(choice, D);
+    if (!taken) {
+      speak(c, 'hollis', `Thank you, Flight. The programme is going the other way: ${D.options[D.auto]}`, 'warn', 6);
+      if (c.kind === 'flight')
+        note(`You recommended: ${D.options[choice]} ${who('hollis')} and the programme decided otherwise.`);
+      choice = D.auto;
+      d.mine = false;
+      d.who = 'hollis';
+    } else speak(c, 'hollis', 'Agreed. That is what we will do.', 'go', 4);
+    return settle(c, d, choice, D.options[choice], speak);
+  }
+  return settle(c, d, choice, option, speak, timedOut);
+}
+function settle(c, d, choice, option, speak, timedOut = false) {
+  const f = c.flight;
   if (d.remaining != null) f.state.groundFix = f.status['GROUND FIX'][0];
   const r = resolve(c.round, d.id, choice, f.state);
-  if (d.mine) speak(c, timedOut ? 'morgan' : 'you', option, timedOut ? 'warn' : '', 5);
+  if (d.mine && !d.advise) speak(c, timedOut ? 'morgan' : 'you', option, timedOut ? 'warn' : '', 5);
   for (const [who, text, tone] of r.lines) speak(c, who, text, tone || '', 6);
   Object.assign(f.state, r.set);
   if (r.hurt) f.state.hurt = Math.max(f.state.hurt || 0, r.hurt);
@@ -258,7 +299,7 @@ export function answer(c, choice, speak) {
     note(
       timedOut
         ? option
-        : `${d.mine ? 'You' : who(d.who === 'hollis' ? 'hollis' : 'dorsey')} decided: ${option}${r.note ? ` ${r.note}` : ''}`,
+        : `${d.mine && d.advise ? 'On your recommendation, the programme' : d.mine ? 'You' : who(d.who === 'hollis' ? 'hollis' : 'dorsey')} decided: ${option}${r.note ? ` ${r.note}` : ''}`,
     );
     if (r.endAt != null) note(`${c.flight.craft} comes home early, at about ${Math.round(f.endAt)} hours.`);
   }
