@@ -2523,7 +2523,16 @@ export const FLIGHTS = {
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
     steps: [
-      ...STS,
+      {
+        at: 0.2,
+        phase: 'Launch and Earth orbit',
+        where: [0.02, 'Earth orbit'],
+        say: [
+          ['kessler', 'Flight, EECOM: Dragon is in orbit and SpaceX has her on their loop. Nose cone is open.', 'go'],
+        ],
+        show: { DRAGON: ['in orbit'], 'NOSE CONE': ['open'] },
+      },
+      ...STS.slice(1),
       {
         at: 6,
         where: [0.02, 'Earth orbit'],

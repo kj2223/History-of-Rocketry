@@ -640,7 +640,11 @@ function jointAnswer(go) {
     roomChanged();
     return;
   }
-  speak(con, retroWho(con), 'Retro is no-go on the joint. Hold for the afternoon.');
+  speak(
+    con,
+    retroWho(con),
+    `${flightDirector() && !con.auto ? 'Flight' : 'Retro'} is no-go on the joint. Hold for the afternoon.`,
+  );
   speak(con, 'hollis', 'Agreed. We scrub. The joint warms with the day.', 'go');
   if (!sim) {
     note('You held the count for the booster joint: the launch slips a day, into the afternoon warm.');
@@ -739,7 +743,13 @@ export function tickConsole(dt) {
         'warn',
         9,
       );
-      speak(con, 'hollis', 'Retro: the count is at your call. Press, or hold for the afternoon?', 'warn', 6);
+      speak(
+        con,
+        'hollis',
+        `${flightDirector() ? 'Flight' : 'Retro'}: the count is at your call. Press, or hold for the afternoon?`,
+        'warn',
+        6,
+      );
       roomChanged();
       return;
     }
@@ -2043,6 +2053,14 @@ function afterEntry(con) {
   if (e.capsule === 'lost') {
     speak(con, 'morgan', 'No signal. Nothing on the radars. She has not come out of blackout.', 'bad', 8);
     if (con.kind === 'flight') note('The capsule never came out of the blackout.');
+    con.aim = null;
+    con.phase = 'coast';
+    con.coastLeft = 2;
+    return roomChanged();
+  }
+  // A winged orbiter lands on a runway: no parachutes, no splashdown point, and nothing for Recovery to aim at.
+  if (con.round.vehicle === 'shuttle') {
+    speak(con, pilotId() ? 'pilot' : 'morgan', 'Main gear touchdown… nose gear down. Wheels stop.', 'go', 6);
     con.aim = null;
     con.phase = 'coast';
     con.coastLeft = 2;
