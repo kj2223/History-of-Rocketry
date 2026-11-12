@@ -2194,7 +2194,13 @@ function consolePanelModel(c) {
       return P;
     }
     P.state = c.poll === 'final' ? 'FINAL STATUS CHECK' : 'RECOVERY POLL';
-    if (!auto) P.ask = c.poll === 'final' ? 'Final status check. Are we go?' : 'Is Recovery ready? Give your status.';
+    if (!auto)
+      P.ask =
+        c.poll === 'final'
+          ? 'Final status check. Are we go?'
+          : g.record.seat === 'flight'
+            ? 'Recovery has reported, and Retro concurs. Go on with the count, or hold?'
+            : 'Is Recovery ready? Give your status.';
     if (c.cond) {
       P.lines.push(`Sea state: ${c.cond.seaState}`);
       const units = c.orbital ? ORBIT_UNITS : UNITS;
@@ -2252,21 +2258,25 @@ function consolePanelModel(c) {
     return P;
   }
   if (c.phase === 'ip') {
+    // Retro gives Recovery the splashdown point; Recovery moves the ships and helicopters. From the flight director's
+    // console it is Tate's call, and you hear it.
+    const retroSeat = !auto && g.record.seat !== 'flight';
     P.state = 'SPLASHDOWN POINT';
-    P.ask = 'Where does Recovery send the helicopters?';
+    P.ask = retroSeat ? 'Which landing point do you give Recovery?' : null;
+    if (!retroSeat) P.lines.push('Retro is giving Recovery the landing point.');
     if (c.orbital) {
       P.lines.push(
         `The spacecraft's computer: ${km(c.ip.retro)} of the planned point`,
-        'Radar: a fix after the blackout, good to about 15 km; the helicopters wait about 20 min for it',
+        "Radar: a fix after the blackout, good to about 15 km; Recovery's helicopters wait about 20 min for it",
       );
-      if (!(auto && g.record.seat !== 'flight')) {
+      if (retroSeat) {
         btn('m-aim', 'retro', "The computer's point", 'go');
         btn('m-aim', 'radar', 'Wait for the radar');
         btn('m-aim', 'planned', 'The planned point');
       }
     } else {
       P.lines.push(`Radar: ${Math.round(c.ip.radar)} km`, `The computers: ${Math.round(c.ip.telemetry)} km`);
-      if (!auto) {
+      if (retroSeat) {
         btn('m-aim', 'radar', 'THE RADAR', 'go');
         btn('m-aim', 'telemetry', 'THE COMPUTER');
         btn('m-aim', 'planned', 'THE PLAN');

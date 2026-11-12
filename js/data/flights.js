@@ -2523,7 +2523,16 @@ export const FLIGHTS = {
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
     ],
     steps: [
-      ...STS,
+      {
+        at: 0.2,
+        phase: 'Launch and Earth orbit',
+        where: [0.02, 'Earth orbit'],
+        say: [
+          ['kessler', 'Flight, EECOM: Dragon is in orbit and SpaceX has her on their loop. Nose cone is open.', 'go'],
+        ],
+        show: { DRAGON: ['in orbit'], 'NOSE CONE': ['open'] },
+      },
+      ...STS.slice(1),
       {
         at: 6,
         where: [0.02, 'Earth orbit'],
@@ -3245,9 +3254,9 @@ export const DECISIONS = {
     options: { land: 'Let him fly. Call out the seconds.', abort: 'Call the abort at bingo.' },
   },
   landpoint: {
-    q: "The tracking says the lander will come down four thousand two hundred feet short of the target. Retro can uplink the correction to the lander's computer now, or the commander can fly it out by eye at the end.",
+    q: "The tracking says the lander will come down four thousand two hundred feet short of the target. FIDO has a correction for the lander's computer: CAPCOM can voice it up now for the crew to key in, or the commander can fly it out by eye at the end.",
     auto: 'update',
-    options: { update: 'Uplink the correction.', eye: 'Leave it. He flies it by eye at the end.' },
+    options: { update: "Go on FIDO's correction: voice it up.", eye: 'Leave it. He flies it by eye at the end.' },
   },
   rescue: {
     q: 'The lander is in a low orbit with her ascent engine spent. The command module can come down and get her, using most of its own margin. Or the lander can climb on her small thrusters, all she has left. Or wait an orbit for a better phase.',
