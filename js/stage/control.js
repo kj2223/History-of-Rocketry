@@ -18,7 +18,7 @@ const LIMIT = 6; // the abort rule: six degrees off the planned line
 
 // A console desk in its own units (190 wide, or 460 for yours, by 60), scaled by the room. Returns the container
 // with update(c) to refresh its screens.
-function desk(d) {
+export function desk(d) {
   const dw = d.yours ? 460 : 190,
     dh = 60;
   const c = new Container();
@@ -103,6 +103,169 @@ function desk(d) {
   return c;
 }
 
+// The monitoring screen, as a piece any console room can hang on its wall: place(x, y, w, h) once the room knows its
+// size, then draw(c) every frame; it redraws only when the telemetry has moved on.
+export function telemetryScreen() {
+  const c0 = new Container();
+  let at = [0, 0, 100, 60];
+  // The monitoring screen: a frame and its glass, the plot drawn fresh when the telemetry moves on.
+  const monFrame = new Graphics();
+  const plot = new Graphics();
+  const monTitle = label('', 12, 0x5a6a60, { ax: 0, ay: 0 });
+  const monWords = new Container();
+  c0.addChild(monFrame, plot, monTitle, monWords);
+  const words = [];
+  const word = (i, size, color, ax = 0) => {
+    let t = words[i];
+    if (!t) {
+      t = words[i] = label('', size, color, { ax, ay: 0.5 });
+      monWords.addChild(t);
+    }
+    t.visible = true;
+    t.style.fontSize = size;
+    t.style.fill = color;
+    t.anchor.x = ax;
+    return t;
+  };
+  let monKey = '';
+  c0.place = (mx, my, mw, mh) => {
+    at = [mx, my, mw, mh];
+    monFrame
+      .clear()
+      .rect(mx - 6, my - 6, mw + 12, mh + 12)
+      .fill(0x181b1f)
+      .rect(mx, my, mw, mh)
+      .fill(0x0d1117);
+    monTitle.position.set(mx + 6, my + 4);
+    monTitle.style.fontSize = Math.max(9, Math.round(mw / 30));
+    monKey = '';
+  };
+  // The monitoring screen's telemetry, drawn fresh only when there is something new to show.
+  c0.draw = c => {
+    const [x, y, w, h] = at;
+    const trace = c?.trace || [];
+    const inFlight = c?.flight && !['ascent', 'insertion'].includes(c.phase);
+    const inOrbit = !inFlight && c?.orbitT != null && c.status;
+    const key = inFlight
+      ? `f${c.flight.phaseNo}|${c.flight.phase}|${!!c.flight.decision}|${Math.floor(c.flight.at * 60)}`
+      : inOrbit
+        ? `o${JSON.stringify(c.status)}|${c.phase}`
+        : `a${trace.length}|${w}|${h}`;
+    if (key === monKey) return;
+    monKey = key;
+    plot.clear();
+    for (const t of words) t.visible = false;
+    const fs = Math.max(9, Math.round(w / 34));
+    const top = y + fs + 12;
+    if (inFlight) {
+      const f = c.flight;
+      setText(monTitle, `FLIGHT PLAN · ${(f.craft || '').toUpperCase()}`);
+      const n = Math.max(1, f.phases || 1),
+        at = Math.min(f.phaseNo || 1, n);
+      const bw = (w - 24) / n,
+        body = y + h - top,
+        barH = Math.max(6, body * 0.12);
+      for (let i = 0; i < n; i++)
+        plot
+          .rect(x + 12 + i * bw + 1, top + 4, bw - 2, barH)
+          .fill(i + 1 < at ? 0x2f5a3a : i + 1 === at ? 0xe8c66a : 0x1f2a30);
+      const rowY = k => top + 4 + barH + (body - barH - 4) * k;
+      word(0, fs * 1.25, 0xe8c66a).position.set(x + 12, rowY(0.22));
+      setText(words[0], `PHASE ${at} OF ${n}`);
+      word(1, fs * 1.1, 0x9fdc9a).position.set(x + 12, rowY(0.52));
+      setText(words[1], (f.phase || '').toUpperCase());
+      word(2, fs, f.decision ? 0xe8c66a : 0x5a6a60).position.set(x + 12, rowY(0.8));
+      setText(words[2], f.decision ? 'A CALL IS WAITING' : 'NOMINAL');
+      return;
+    }
+    if (inOrbit) {
+      const s = c.status;
+      setText(monTitle, 'ORBIT STATUS');
+      const rows = [
+        ['ORBIT', `${s.orbit ?? '-'} OF 3`, 'go'],
+        ['OVER', String(s.station ?? '-').toUpperCase(), 'go'],
+        ['FUEL', `${Math.round((s.fuel ?? 1) * 100)}%`, (s.fuel ?? 1) < 0.4 ? 'warn' : 'go'],
+        [
+          'SEG 51',
+          String(s.seg51 && s.seg51 !== 'off' ? s.seg51 : 'off').toUpperCase(),
+          s.seg51 && s.seg51 !== 'off' ? 'bad' : 'go',
+        ],
+        ['ATTITUDE', String(s.attitude ?? '-').toUpperCase(), s.attitude && s.attitude !== 'normal' ? 'warn' : 'go'],
+      ];
+      const rh = (y + h - top - 6) / rows.length;
+      rows.forEach(([k, v, tone], i) => {
+        const ry = top + rh * (i + 0.5);
+        word(i * 2, fs, 0x5a6a60).position.set(x + 12, ry);
+        setText(words[i * 2], k);
+        word(i * 2 + 1, fs * 1.15, inkOf(tone)).position.set(x + w * 0.38, ry);
+        setText(words[i * 2 + 1], v);
+      });
+      // The fuel as a bar, beside its figure.
+      const fy = top + rh * 2.5;
+      plot.rect(x + w * 0.62, fy - 5, w * 0.33, 10).fill(0x1f2a30);
+      plot
+        .rect(x + w * 0.62, fy - 5, w * 0.33 * Math.max(0, Math.min(1, s.fuel ?? 1)), 10)
+        .fill(rows[2][2] === 'warn' ? INK.warn : INK.go);
+      return;
+    }
+    // The climb: three strips, each with its scale, its live figure, and the staging marked across all three.
+    setText(monTitle, 'TELEMETRY · THE CLIMB');
+    if (!trace.length) {
+      word(0, fs * 1.3, 0x5a6a60, 0.5).position.set(x + w / 2, (top + y + h) / 2);
+      setText(
+        words[0],
+        c && (c.phase === 'count' || c.phase === 'hold' || c.poll) ? 'STANDBY · AWAITING LIFTOFF' : 'STANDBY',
+      );
+      return;
+    }
+    const last = trace[trace.length - 1];
+    const maxT = Math.max(c.burn || 0, last.t, 10);
+    const left = x + 8,
+      right = x + w - w * 0.22,
+      px = t => left + (t / maxT) * (right - left);
+    const vMax = Math.max(1, Math.ceil(Math.max(...trace.map(p => p.v)) * 1.15)),
+      aMax = Math.max(4, Math.ceil(Math.max(...trace.map(p => p.acc)) * 1.15));
+    const strips = [
+      {
+        name: 'OFF PLAN °',
+        lo: -LIMIT * 1.25,
+        hi: LIMIT * 1.25,
+        of: p => p.off,
+        limit: LIMIT,
+        fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}°`,
+      },
+      { name: 'VELOCITY km/s', lo: 0, hi: vMax, of: p => p.v, fmt: v => v.toFixed(2) },
+      { name: 'ACCEL g', lo: 0, hi: aMax, of: p => p.acc, fmt: v => v.toFixed(1) },
+    ];
+    const sh = (y + h - top - 4) / strips.length;
+    strips.forEach((s, i) => {
+      const sy = top + i * sh,
+        py = v => sy + sh - 3 - ((Math.max(s.lo, Math.min(s.hi, v)) - s.lo) / (s.hi - s.lo)) * (sh - 6);
+      plot.rect(left, sy + sh - 1, right - left, 1).fill({ color: 0x31413a, alpha: 0.8 });
+      if (s.limit != null) {
+        for (const d of [s.limit, -s.limit])
+          plot.rect(left, py(d), right - left, 1).fill({ color: 0xd0634f, alpha: 0.45 });
+        plot.rect(left, py(0), right - left, 1).fill({ color: 0x31413a, alpha: 1 });
+      }
+      const pts = [];
+      for (const p of trace) pts.push(px(p.t), py(s.of(p)));
+      if (pts.length >= 4) plot.poly(pts, false).stroke({ width: 1.5, color: 0x9fdc9a });
+      const v = s.of(last),
+        bad = s.limit != null && Math.abs(v) > s.limit;
+      plot.circle(px(last.t), py(v), 2.5).fill(0xffffff);
+      word(i * 2, Math.max(8, fs * 0.8), 0x5a6a60).position.set(right + 8, sy + sh * 0.3);
+      setText(words[i * 2], s.name);
+      word(i * 2 + 1, fs * 1.2, bad ? INK.bad : INK.go).position.set(right + 8, sy + sh * 0.68);
+      setText(words[i * 2 + 1], s.fmt(v));
+    });
+    // Staging: a mark down all three strips wherever the stage changed.
+    for (let i = 1; i < trace.length; i++)
+      if (trace[i].stage !== trace[i - 1].stage)
+        plot.rect(px(trace[i].t), top, 1, y + h - top - 4).fill({ color: 0xe8c66a, alpha: 0.5 });
+  };
+  return c0;
+}
+
 export function controlScene() {
   const g = game;
   const root = new Container();
@@ -119,26 +282,8 @@ export function controlScene() {
     desks = [],
     L = null;
 
-  // The monitoring screen: a frame and its glass, the plot drawn fresh when the telemetry moves on.
-  const monFrame = new Graphics();
-  const plot = new Graphics();
-  const monTitle = label('', 12, 0x5a6a60, { ax: 0, ay: 0 });
-  const monWords = new Container();
-  monitor.addChild(monFrame, plot, monTitle, monWords);
-  const words = [];
-  const word = (i, size, color, ax = 0) => {
-    let t = words[i];
-    if (!t) {
-      t = words[i] = label('', size, color, { ax, ay: 0.5 });
-      monWords.addChild(t);
-    }
-    t.visible = true;
-    t.style.fontSize = size;
-    t.style.fill = color;
-    t.anchor.x = ax;
-    return t;
-  };
-  let monKey = '';
+  const tele = telemetryScreen();
+  monitor.addChild(tele);
 
   function layout(w, h) {
     const wallH = Math.round(h * 0.56),
@@ -305,16 +450,7 @@ export function controlScene() {
       50,
     );
 
-    const [mx, my, mw, mh] = L.mon;
-    monFrame
-      .clear()
-      .rect(mx - 6, my - 6, mw + 12, mh + 12)
-      .fill(0x181b1f)
-      .rect(mx, my, mw, mh)
-      .fill(0x0d1117);
-    monTitle.position.set(mx + 6, my + 4);
-    monTitle.style.fontSize = Math.max(9, Math.round(mw / 30));
-    monKey = '';
+    tele.place(...L.mon);
     deskKey = '';
   }
 
@@ -354,130 +490,6 @@ export function controlScene() {
     }
   }
 
-  // The monitoring screen's telemetry, drawn fresh only when there is something new to show.
-  function drawMonitor(c) {
-    const [x, y, w, h] = L.mon;
-    const trace = c?.trace || [];
-    const inFlight = c?.flight && !['ascent', 'insertion'].includes(c.phase);
-    const inOrbit = !inFlight && c?.orbitT != null && c.status;
-    const key = inFlight
-      ? `f${c.flight.phaseNo}|${c.flight.phase}|${!!c.flight.decision}|${Math.floor(c.flight.at * 60)}`
-      : inOrbit
-        ? `o${JSON.stringify(c.status)}|${c.phase}`
-        : `a${trace.length}|${w}|${h}`;
-    if (key === monKey) return;
-    monKey = key;
-    plot.clear();
-    for (const t of words) t.visible = false;
-    const fs = Math.max(9, Math.round(w / 34));
-    const top = y + fs + 12;
-    if (inFlight) {
-      const f = c.flight;
-      setText(monTitle, `FLIGHT PLAN · ${(f.craft || '').toUpperCase()}`);
-      const n = Math.max(1, f.phases || 1),
-        at = Math.min(f.phaseNo || 1, n);
-      const bw = (w - 24) / n,
-        body = y + h - top,
-        barH = Math.max(6, body * 0.12);
-      for (let i = 0; i < n; i++)
-        plot
-          .rect(x + 12 + i * bw + 1, top + 4, bw - 2, barH)
-          .fill(i + 1 < at ? 0x2f5a3a : i + 1 === at ? 0xe8c66a : 0x1f2a30);
-      const rowY = k => top + 4 + barH + (body - barH - 4) * k;
-      word(0, fs * 1.25, 0xe8c66a).position.set(x + 12, rowY(0.22));
-      setText(words[0], `PHASE ${at} OF ${n}`);
-      word(1, fs * 1.1, 0x9fdc9a).position.set(x + 12, rowY(0.52));
-      setText(words[1], (f.phase || '').toUpperCase());
-      word(2, fs, f.decision ? 0xe8c66a : 0x5a6a60).position.set(x + 12, rowY(0.8));
-      setText(words[2], f.decision ? 'A CALL IS WAITING' : 'NOMINAL');
-      return;
-    }
-    if (inOrbit) {
-      const s = c.status;
-      setText(monTitle, 'ORBIT STATUS');
-      const rows = [
-        ['ORBIT', `${s.orbit ?? '-'} OF 3`, 'go'],
-        ['OVER', String(s.station ?? '-').toUpperCase(), 'go'],
-        ['FUEL', `${Math.round((s.fuel ?? 1) * 100)}%`, (s.fuel ?? 1) < 0.4 ? 'warn' : 'go'],
-        [
-          'SEG 51',
-          String(s.seg51 && s.seg51 !== 'off' ? s.seg51 : 'off').toUpperCase(),
-          s.seg51 && s.seg51 !== 'off' ? 'bad' : 'go',
-        ],
-        ['ATTITUDE', String(s.attitude ?? '-').toUpperCase(), s.attitude && s.attitude !== 'normal' ? 'warn' : 'go'],
-      ];
-      const rh = (y + h - top - 6) / rows.length;
-      rows.forEach(([k, v, tone], i) => {
-        const ry = top + rh * (i + 0.5);
-        word(i * 2, fs, 0x5a6a60).position.set(x + 12, ry);
-        setText(words[i * 2], k);
-        word(i * 2 + 1, fs * 1.15, inkOf(tone)).position.set(x + w * 0.38, ry);
-        setText(words[i * 2 + 1], v);
-      });
-      // The fuel as a bar, beside its figure.
-      const fy = top + rh * 2.5;
-      plot.rect(x + w * 0.62, fy - 5, w * 0.33, 10).fill(0x1f2a30);
-      plot
-        .rect(x + w * 0.62, fy - 5, w * 0.33 * Math.max(0, Math.min(1, s.fuel ?? 1)), 10)
-        .fill(rows[2][2] === 'warn' ? INK.warn : INK.go);
-      return;
-    }
-    // The climb: three strips, each with its scale, its live figure, and the staging marked across all three.
-    setText(monTitle, 'TELEMETRY · THE CLIMB');
-    if (!trace.length) {
-      word(0, fs * 1.3, 0x5a6a60, 0.5).position.set(x + w / 2, (top + y + h) / 2);
-      setText(
-        words[0],
-        c && (c.phase === 'count' || c.phase === 'hold' || c.poll) ? 'STANDBY · AWAITING LIFTOFF' : 'STANDBY',
-      );
-      return;
-    }
-    const last = trace[trace.length - 1];
-    const maxT = Math.max(c.burn || 0, last.t, 10);
-    const left = x + 8,
-      right = x + w - w * 0.22,
-      px = t => left + (t / maxT) * (right - left);
-    const vMax = Math.max(1, Math.ceil(Math.max(...trace.map(p => p.v)) * 1.15)),
-      aMax = Math.max(4, Math.ceil(Math.max(...trace.map(p => p.acc)) * 1.15));
-    const strips = [
-      {
-        name: 'OFF PLAN °',
-        lo: -LIMIT * 1.25,
-        hi: LIMIT * 1.25,
-        of: p => p.off,
-        limit: LIMIT,
-        fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}°`,
-      },
-      { name: 'VELOCITY km/s', lo: 0, hi: vMax, of: p => p.v, fmt: v => v.toFixed(2) },
-      { name: 'ACCEL g', lo: 0, hi: aMax, of: p => p.acc, fmt: v => v.toFixed(1) },
-    ];
-    const sh = (y + h - top - 4) / strips.length;
-    strips.forEach((s, i) => {
-      const sy = top + i * sh,
-        py = v => sy + sh - 3 - ((Math.max(s.lo, Math.min(s.hi, v)) - s.lo) / (s.hi - s.lo)) * (sh - 6);
-      plot.rect(left, sy + sh - 1, right - left, 1).fill({ color: 0x31413a, alpha: 0.8 });
-      if (s.limit != null) {
-        for (const d of [s.limit, -s.limit])
-          plot.rect(left, py(d), right - left, 1).fill({ color: 0xd0634f, alpha: 0.45 });
-        plot.rect(left, py(0), right - left, 1).fill({ color: 0x31413a, alpha: 1 });
-      }
-      const pts = [];
-      for (const p of trace) pts.push(px(p.t), py(s.of(p)));
-      if (pts.length >= 4) plot.poly(pts, false).stroke({ width: 1.5, color: 0x9fdc9a });
-      const v = s.of(last),
-        bad = s.limit != null && Math.abs(v) > s.limit;
-      plot.circle(px(last.t), py(v), 2.5).fill(0xffffff);
-      word(i * 2, Math.max(8, fs * 0.8), 0x5a6a60).position.set(right + 8, sy + sh * 0.3);
-      setText(words[i * 2], s.name);
-      word(i * 2 + 1, fs * 1.2, bad ? INK.bad : INK.go).position.set(right + 8, sy + sh * 0.68);
-      setText(words[i * 2 + 1], s.fmt(v));
-    });
-    // Staging: a mark down all three strips wherever the stage changed.
-    for (let i = 1; i < trace.length; i++)
-      if (trace[i].stage !== trace[i - 1].stage)
-        plot.rect(px(trace[i].t), top, 1, y + h - top - 4).fill({ color: 0xe8c66a, alpha: 0.5 });
-  }
-
   function update(dt, screen) {
     const c = g.console;
     if (screen.width !== lastW || screen.height !== lastH) {
@@ -503,7 +515,7 @@ export function controlScene() {
     });
     map.update();
     tv.update();
-    drawMonitor(c);
+    tele.draw(c);
   }
 
   const stale = () => false;
