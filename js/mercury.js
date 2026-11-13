@@ -457,6 +457,8 @@ const lamp = (con, station, a, b, tone) => {
 
 // What the recovery board shows: every unit, on station or not, and the sea state. Visible to everyone.
 const unitsOf = con => (con.orbital ? ORBIT_UNITS : UNITS);
+// The late unit's short name mid-sentence: only the leading 'The' drops its capital, so names like Grand Turk keep theirs.
+const lateUnit = con => unitsOf(con)[con.cond.late].split(',')[0].replace(/^The /, 'the ');
 export const board = con => ({
   sea: con.cond.seaState,
   units: Object.entries(unitsOf(con)).map(([id, text]) => ({ id, text, on: con.cond.late !== id })),
@@ -518,7 +520,7 @@ export function consolePoll(go) {
   const sim = con.kind === 'sim';
   if (!sim)
     note(
-      `${con.auto ? `${nameOf('tate')}'s` : 'Your'} poll at T-${Math.ceil(con.clock)} s: the recovery board showed sea state ${b.sea}${con.cond.late ? `, and ${unitsOf(con)[con.cond.late].toLowerCase().replace(/^the /, 'the ')} not on station` : ', every unit on station'}. ${con.auto ? nameOf('tate') : 'You'} called ${go ? 'GO' : 'NO-GO'}.`,
+      `${con.auto ? `${nameOf('tate')}'s` : 'Your'} poll at T-${Math.ceil(con.clock)} s: the recovery board showed sea state ${b.sea}${con.cond.late ? `, and ${lateUnit(con)} not on station` : ', every unit on station'}. ${con.auto ? nameOf('tate') : 'You'} called ${go ? 'GO' : 'NO-GO'}.`,
     );
   const poll = con.poll;
   con.poll = null;
@@ -577,12 +579,7 @@ export function consolePoll(go) {
     return endCount('scrub');
   }
   if (con.cond.late) {
-    speak(
-      con,
-      retroWho(con),
-      `${station} is no-go until ${unitsOf(con)[con.cond.late].split(',')[0].toLowerCase()} is on station.`,
-      'bad',
-    );
+    speak(con, retroWho(con), `${station} is no-go until ${lateUnit(con)} is on station.`, 'bad');
     lamp(con, 'RECOVERY', '1 SHIP', 'NOT ON STN', 'warn');
     lamp(con, mine, 'NO-GO', 'HOLDING', 'warn');
     speak(con, flight ? 'you' : 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
