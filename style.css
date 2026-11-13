@@ -14,10 +14,14 @@
   --sheet: #14181e;
   --serif: Georgia, serif;
   --mono: monospace;
+  /* v0.8 era step 3: the top bar and the panels' type grow with the window's height, so a 4K window without display
+     scaling is not left with 15 px text (layout bug 4). 15 px and 44 px up to a 900 px tall window. */
+  --ui: max(15px, calc(100vh * 0.0167));
+  --bar: max(44px, calc(100vh * 0.049));
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--serif); overflow: hidden; }
-header { position: fixed; inset: 0 0 auto 0; height: 44px; display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: rgba(11,15,20,.88); border-bottom: 1px solid var(--rule); z-index: 3; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: var(--ui)/1.45 var(--serif); overflow: hidden; }
+header { position: fixed; inset: 0 0 auto 0; height: var(--bar); display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: rgba(11,15,20,.88); border-bottom: 1px solid var(--rule); z-index: 3; }
 #date { white-space: nowrap; color: var(--accent); }
 #objective { flex: 1; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .controls { display: flex; gap: .3rem; }
@@ -32,9 +36,9 @@ button.go { background: #23502f; border-color: var(--go); font-weight: bold; }
 #waiting.call { background: var(--accent); color: #111; font-weight: bold; animation: waiting 1.2s ease-in-out infinite alternate; }
 @keyframes waiting { from { box-shadow: 0 0 0 rgba(232,198,106,0); } to { box-shadow: 0 0 14px rgba(232,198,106,.8); } }
 @media (prefers-reduced-motion: reduce) { #waiting.call { animation: none; } }
-#site { position: fixed; inset: 44px 0 0 0; width: 100%; height: calc(100% - 44px); display: block; }
-#room, #notebook { position: fixed; top: 56px; right: 12px; width: 470px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid var(--line); border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
-#notebook { left: 12px; right: auto; width: 520px; background: var(--sheet); } /* solid, so the loop log under it does not show through */
+#site { position: fixed; inset: var(--bar) 0 0 0; width: 100%; height: calc(100% - var(--bar)); display: block; }
+#room, #notebook { position: fixed; top: calc(var(--bar) + 12px); right: 12px; width: 31.3em; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid var(--line); border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+#notebook { left: 12px; right: auto; width: 34.7em; background: var(--sheet); } /* solid, so the loop log under it does not show through */
 #dev { position: fixed; top: 56px; left: 12px; width: 560px; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: var(--sheet); border: 1px solid #6a5a2a; border-radius: 6px; z-index: 6; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
 #dev h3 { margin: .9rem 0 .3rem; font-size: .95rem; color: var(--accent); }
 #dev .dev-opts { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; }
@@ -75,7 +79,7 @@ label { display: block; margin: .3rem 0; }
 .lamp.on { color: #102010; background: #7fdc8a; box-shadow: 0 0 12px #7fdc8a; }
 .lamp.warn { color: #2a1a00; background: #f0b440; box-shadow: 0 0 12px #f0b440; }
 canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-top: .4rem; }
-#loop { position: fixed; left: 12px; top: 54px; width: 560px; z-index: 2; font-size: .85rem; pointer-events: none; }
+#loop { position: fixed; left: 12px; top: calc(var(--bar) + 10px); width: 37.3em; z-index: 2; font-size: .85rem; pointer-events: none; }
 #loop div { background: rgba(11,15,20,.8); padding: .2rem .5rem; margin-top: 2px; border-left: 3px solid var(--line); }
 #loop div.go { border-color: var(--go); } #loop div.warn { border-color: var(--accent); } #loop div.bad { border-color: var(--bad); }
 #loop span { color: #8a93a0; font-family: monospace; }
@@ -86,8 +90,8 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 
 /* In launch control, the loop log sits on its own board along the bottom of the front wall, under the clocks
    (the fractions match drawControlRoom: the wall is 56% of the canvas, the board starts 81% of the way down it). */
-#loop.in-room { left: 8.5vw; width: 77vw; top: calc(44px + (100vh - 44px) * 0.4536); height: calc((100vh - 44px) * 0.0952); overflow: hidden;
-  font-size: clamp(9px, calc((100vh - 44px) * 0.0952 / 4 / 1.75), 30px); }
+#loop.in-room { left: 8.5vw; width: 77vw; top: calc(var(--bar) + (100vh - var(--bar)) * 0.4536); height: calc((100vh - var(--bar)) * 0.0952); overflow: hidden;
+  font-size: clamp(9px, calc((100vh - var(--bar)) * 0.0952 / 4 / 1.75), 30px); }
 #loop.in-room div { margin-top: 1px; padding: 0 .5rem; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Inside a walk-in room (blockhouse, hangar, dugout, simulator) the loop log drops to the bottom left, clear of the
@@ -102,8 +106,8 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
    They sit where the canvas drew them: the fractions match drawControlRoom (the wall is 56% of the canvas; the clocks
    strip is 69%-78% of the wall, from 8.5% to 85.5% across; the rack is the left 5.5%; the panel is over the gallery
    floor, below its windows). The default look is console steel, the Mission Control of 1958-1975. ---- */
-:root { --H: calc(100vh - 44px); --nixie: #ff9b45; --nixie-glow: rgba(255,120,40,.65); --phosphor: #9fdc9a; --steel-hi: #5d646c; --steel-lo: #2b3036; }
-#mc-panel { position: fixed; right: 6px; width: max(calc(13vw - 12px), 190px); top: calc(44px + var(--H) * 0.195); bottom: 12px; z-index: 2;
+:root { --H: calc(100vh - var(--bar)); --nixie: #ff9b45; --nixie-glow: rgba(255,120,40,.65); --phosphor: #9fdc9a; --steel-hi: #5d646c; --steel-lo: #2b3036; }
+#mc-panel { position: fixed; right: 6px; width: max(calc(13vw - 12px), 190px); top: calc(var(--bar) + var(--H) * 0.195); bottom: 12px; z-index: 2;
   display: flex; flex-direction: column; gap: .45em; padding: .55em; overflow: hidden; font-size: max(12px, calc(var(--H) * 0.0145));
   background: linear-gradient(180deg, var(--steel-hi), var(--steel-lo) 14%, #24282e 80%, #1d2126);
   border: 1px solid #6b737c; border-radius: 3px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 6px 20px rgba(0,0,0,.55); font-family: var(--mono); }
@@ -128,12 +132,12 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 .lamp-btn.danger { color: #2a0a06; background: radial-gradient(ellipse at 50% 40%, #ffb3a0, #d0563f 70%); box-shadow: 0 0 12px rgba(208,99,79,.55), 0 2px 0 #0d0f11; }
 .lamp-btn:hover, .lamp-btn:focus-visible { border-color: var(--accent); outline: none; filter: brightness(1.12); }
 .lamp-btn:active { transform: translateY(1px); box-shadow: none; }
-#mc-clocks { position: fixed; left: 8.5vw; width: 77vw; top: calc(44px + var(--H) * 0.3864); height: calc(var(--H) * 0.0504); z-index: 1;
+#mc-clocks { position: fixed; left: 8.5vw; width: 77vw; top: calc(var(--bar) + var(--H) * 0.3864); height: calc(var(--H) * 0.0504); z-index: 1;
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; pointer-events: none; }
 .mc-dial { display: flex; align-items: center; justify-content: center; gap: .7rem; background: #0b0806; border: 1px solid #3a2d22; border-radius: 3px; box-shadow: inset 0 2px 6px #000; }
 .mc-dial .nixie { font-size: clamp(14px, calc(var(--H) * 0.03), 40px); font-weight: bold; }
 .mc-dial b { font: bold clamp(9px, calc(var(--H) * 0.012), 28px) var(--mono); letter-spacing: .15em; color: #1c1f22; background: linear-gradient(#c9ccc6, #9ea29c); padding: 0 .35rem; border-radius: 2px; }
-#mc-steps { position: fixed; left: 0; width: 5.5vw; top: 44px; bottom: 0; z-index: 1; margin: 0; padding: 8px 5px; list-style: none; pointer-events: none;
+#mc-steps { position: fixed; left: 0; width: 5.5vw; top: var(--bar); bottom: 0; z-index: 1; margin: 0; padding: 8px 5px; list-style: none; pointer-events: none;
   display: flex; flex-direction: column; gap: 8px; background: #1d2126; }
 #mc-steps.idle { display: none; }
 #mc-steps li { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; background: #0d1117; border: 5px solid #2c3138;
@@ -184,7 +188,7 @@ body[data-era=glass] .lamp-btn.go { background: rgba(60,180,110,.35); border-col
 
 /* ---- v0.8 scene layer (js/stage): the PixiJS canvas sits where the site canvas does. In a rebuilt scene the
    readings are in the room, so the room panel keeps only the words and the call. ---- */
-#stage { position: fixed; inset: 44px 0 0 0; width: 100%; height: calc(100% - 44px); z-index: 1; }
+#stage { position: fixed; inset: var(--bar) 0 0 0; width: 100%; height: calc(100% - var(--bar)); z-index: 1; }
 #stage.pass {
   pointer-events: none;
 }
@@ -193,7 +197,7 @@ body[data-era=glass] .lamp-btn.go { background: rgba(60,180,110,.35); border-col
 body.in-scene #room .clock, body.in-scene #room .gauges, body.in-scene #room [data-live=countstate],
 body.in-scene #room .readings, body.in-scene #room > p.muted:not(.keep),
 body.in-scene #room > canvas { display: none; }
-body.in-scene #room { width: 400px; }
+body.in-scene #room { width: 26.7em; }
 /* The photographs (js/site/album.js): a print with a white border, laid a little askew on the write-up. */
 .print { margin: .4rem auto .9rem; padding: 10px 10px 8px; background: #f3efe4; color: #2a2622; width: fit-content; max-width: 100%; transform: rotate(-1.2deg); box-shadow: 0 6px 18px rgba(0,0,0,.45); }
 .print img { display: block; max-width: 100%; height: auto; border: 1px solid #c9c2b0; }
@@ -202,3 +206,109 @@ body.in-scene #room { width: 400px; }
 .album .prints { display: flex; flex-wrap: wrap; gap: .6rem; }
 .print.small { transform: none; margin: .4rem 0; width: calc(50% - .3rem); box-sizing: border-box; padding: 6px 6px 5px; box-shadow: 0 3px 10px rgba(0,0,0,.4); }
 .album summary { cursor: pointer; color: var(--muted); margin-top: .6rem; }
+
+/* ---- v0.8 era interface, steps 3-8: the rest of the interface dresses for the years too, as Mission Control's panel
+   already does (body[data-era], uiEra in js/site/draw.js). The fonts are ones Windows already has, in the manner of
+   each era. Nothing animates or glows in a way that pulses: the looks are steady (photosensitivity). ---- */
+
+/* 1945-1957 FIELD OFFICE: typewriter on manila card, the olive clipboard bar, rubber-stamp buttons. */
+body[data-era=field] { --bg: #1d1c16; --ink: #e8dcbc; --muted: #a89b7a; --line: #5a5038; --rule: #3a3424; --accent: #e8c66a;
+  --cream: #f0e3bf; --btn: #2a2d1d; --sheet: #2c281e; --serif: 'Courier New', Courier, monospace; --mono: 'Courier New', Courier, monospace; }
+body[data-era=field] header { background: #3b3f2a; border-bottom: 4px solid #2a2d1d; box-shadow: 0 3px 0 #15160f; }
+body[data-era=field] #date { color: #f0e3bf; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; }
+body[data-era=field] header button { background: #2a2d1d; border: 2px solid #59603f; border-radius: 0; font-weight: bold; text-transform: uppercase; font-size: .85em; }
+body[data-era=field] header button.on { background: #e3d8b8; color: #2a2d1d; }
+body[data-era=field] #room, body[data-era=field] #notebook { background: #2c281e; border-radius: 0; box-shadow: 5px 6px 0 rgba(0,0,0,.45);
+  background-image: repeating-linear-gradient(0deg, transparent 0 1.6em, rgba(232,220,188,.05) 1.6em calc(1.6em + 1px)); }
+body[data-era=field] h2 { font-weight: bold; text-transform: uppercase; text-decoration: underline; text-underline-offset: 5px; color: var(--cream); }
+body[data-era=field] #room button, body[data-era=field] #notebook button { border: 2px solid var(--ink); border-radius: 0; font-weight: bold; text-transform: uppercase; font-size: .9em; }
+body[data-era=field] #room button.primary, body[data-era=field] #room button.go { border-color: #8fbf7a; color: #cfe8c0; background: #2c3a24; }
+body[data-era=field] #room button.danger { border-color: #d2553f; color: #f0c0b0; background: #3a1c16; }
+body[data-era=field] .poll { background: #332d1f; border: 1px dashed var(--accent); border-radius: 0; }
+body[data-era=field] .carries { border-left: 0; border: 1px dashed var(--muted); background: transparent; }
+body[data-era=field] #loop div, body[data-era=field] .loop-in-room div { background: rgba(44,40,30,.92); }
+body[data-era=field] #loop span { color: var(--muted); }
+
+/* 1958-1975 CONSOLE STEEL: painted steel, engraved plates for headings, lamp buttons, phosphor in the loop. */
+body[data-era=steel] { --bg: #1c201e; --ink: #e9ece4; --muted: #a9b2ab; --line: #59615c; --rule: #2c3431; --btn: #3e4541; --sheet: #2c3431;
+  --serif: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; --mono: Consolas, 'Lucida Console', monospace; }
+body[data-era=steel] header { background: linear-gradient(#4a524e, #353c39); border-bottom: 3px solid #191c1b; }
+body[data-era=steel] #date { background: #111412; padding: .15em .6em; border-radius: 2px; font-size: .85em; letter-spacing: .1em; text-transform: uppercase; box-shadow: inset 0 0 0 1px #5d6661; color: var(--nixie); font-family: var(--mono); }
+body[data-era=steel] header button { background: linear-gradient(#5b635e, #3e4541); border: 1px solid #1a1d1b; font-size: .8em; font-weight: bold; letter-spacing: .08em; text-transform: uppercase; box-shadow: 0 2px 0 #151816; }
+body[data-era=steel] header button.on { background: radial-gradient(circle at 50% 40%, #fff1c9, #ffb648 60%, #a86a10); color: #2b1a00; }
+body[data-era=steel] #room, body[data-era=steel] #notebook { background: linear-gradient(#39423e, #2c3431); border: 1px solid #141716; border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 8px 30px rgba(0,0,0,.5); }
+body[data-era=steel] h2 { display: inline-block; background: #111412; padding: .25em .8em; font-size: 1em; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; border-radius: 2px; box-shadow: inset 0 0 0 1px #5d6661; }
+body[data-era=steel] #room button { background: linear-gradient(#5b635e, #3e4541); border: 1px solid #111; box-shadow: 0 2px 0 #0d0f0e; }
+body[data-era=steel] #room button.primary { background: radial-gradient(ellipse at 50% 40%, #fff1c9, #e8a63c 70%); color: #2b1a00; border-color: #111; font-weight: bold; }
+body[data-era=steel] .poll { background: #0b140e; border: 2px solid #0e100f; border-radius: 8px / 12px; box-shadow: inset 0 0 14px #000; color: var(--phosphor); font-family: var(--mono); font-size: .92em; }
+body[data-era=steel] .poll strong { color: #c9f7cf; }
+body[data-era=steel] #loop div, body[data-era=steel] .loop-in-room div { background: rgba(11,20,14,.88); color: #8fd69b; font-family: var(--mono); font-size: .95em; }
+body[data-era=steel] #loop span { color: #5fae6c; }
+
+/* 1976-1995 AMBER TERMINAL: boxes of characters on black, everything in capitals, no rounded corners. */
+body[data-era=amber] { --bg: #120c05; --ink: #ffb340; --muted: #b07a28; --line: #ffb340; --rule: #6a4a10; --accent: #ffcf66; --cream: #ffcf66;
+  --btn: #120c05; --sheet: #120c05; --serif: Consolas, 'Lucida Console', monospace; --mono: Consolas, 'Lucida Console', monospace; }
+body[data-era=amber] header { background: #ffb340; border-bottom: 0; }
+body[data-era=amber] header, body[data-era=amber] #date, body[data-era=amber] #objective { color: #120c05; text-transform: uppercase; font-style: normal; }
+body[data-era=amber] header button { background: #ffb340; color: #120c05; border: 0; border-radius: 0; padding: 0 .3em; text-transform: uppercase; }
+body[data-era=amber] header button::before { content: '['; } body[data-era=amber] header button::after { content: ']'; }
+body[data-era=amber] header button.on { background: #120c05; color: #ffb340; }
+body[data-era=amber] #room, body[data-era=amber] #notebook { background: #120c05; border: 3px double #ffb340; border-radius: 0; box-shadow: none; }
+body[data-era=amber] h2 { background: #ffb340; color: #120c05; padding: .1em .4em; text-transform: uppercase; font-weight: normal; }
+body[data-era=amber] #room button, body[data-era=amber] #notebook button { background: #120c05; color: #ffb340; border: 1px solid #ffb340; border-radius: 0; text-transform: uppercase; text-align: left; }
+body[data-era=amber] #room button.danger { color: #ff7a40; border-color: #ff7a40; }
+body[data-era=amber] .poll { background: transparent; border: 1px solid #ffb340; border-radius: 0; }
+body[data-era=amber] .carries { border-left: 3px double #ffb340; background: transparent; }
+body[data-era=amber] #loop div, body[data-era=amber] .loop-in-room div { background: rgba(18,12,5,.92); color: #ffb340; border-color: #6a4a10; text-transform: uppercase; font-size: .92em; }
+body[data-era=amber] #loop span { color: #b07a28; }
+
+/* 1996-2015 EARLY DESKTOP: grey windows with bevelled edges, a blue title bar, black text. */
+body[data-era=desktop] { --serif: Tahoma, Verdana, 'Segoe UI', sans-serif; --mono: 'Lucida Console', Consolas, monospace; }
+body[data-era=desktop] header { background: linear-gradient(90deg, #0a246a, #3a6ea5); border-bottom: 2px solid #c0c0c0; }
+body[data-era=desktop] #date, body[data-era=desktop] #objective { color: #fff; }
+body[data-era=desktop] header button, body[data-era=desktop] #room button, body[data-era=desktop] #notebook button { background: #d4d0c8; color: #000; border-radius: 0;
+  border: 2px solid; border-color: #fff #404040 #404040 #fff; box-shadow: inset -1px -1px 0 #808080; font-size: .9em; }
+body[data-era=desktop] header button.on, body[data-era=desktop] #room button:active { border-color: #404040 #fff #fff #404040; box-shadow: inset 1px 1px 0 #808080; background: #e8e4dc; }
+body[data-era=desktop] #room button.primary, body[data-era=desktop] #room button.go { font-weight: bold; outline: 1px solid #000; }
+body[data-era=desktop] #room button.danger { color: #8a0000; font-weight: bold; }
+body[data-era=desktop] #room, body[data-era=desktop] #notebook { background: #d4d0c8; color: #000; border: 2px solid; border-color: #fff #404040 #404040 #fff; border-radius: 0; padding-top: 0; }
+body[data-era=desktop] #room h2, body[data-era=desktop] #notebook h2 { margin: 0 -1.2rem .7rem; padding: .25em .6em; font-size: 1em; color: #fff; background: linear-gradient(90deg, #0a246a, #a6caf0); }
+body[data-era=desktop] #room .muted, body[data-era=desktop] #notebook .muted { color: #4a4a4a; }
+body[data-era=desktop] #room .close { top: .15rem; right: .3rem; padding: 0 .4em; }
+body[data-era=desktop] .poll { background: #ece9d8; border: 1px solid #808080; border-radius: 0; color: #000; }
+body[data-era=desktop] .carries { background: #fff; border-left-color: #0a246a; color: #000; }
+body[data-era=desktop] #room a, body[data-era=desktop] #notebook li span { color: #0a246a; }
+body[data-era=desktop] .loop-in-room div { background: #fff; color: #000; }
+body[data-era=desktop] #loop div { background: rgba(255,255,225,.95); color: #000; border-left-color: #0a246a; }
+body[data-era=desktop] #loop span { color: #555; }
+body[data-era=desktop] .danger-text { color: #a00000; } body[data-era=desktop] .go-text { color: #006000; }
+
+/* 2016 on GLASS: today's flat operations software. Rounded cards, one blue accent. */
+body[data-era=glass] { --bg: #121519; --ink: #e6e9ee; --muted: #8a93a0; --line: #2b313a; --rule: #2b313a; --accent: #4c9aff; --cream: #f2f5f8;
+  --btn: #20252c; --sheet: #1a1e24; --serif: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif; --mono: 'Cascadia Mono', Consolas, monospace; }
+body[data-era=glass] header { background: rgba(22,26,31,.92); border-bottom: 1px solid var(--line); }
+body[data-era=glass] #date { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+body[data-era=glass] #objective { color: var(--muted); font-style: normal; }
+body[data-era=glass] header button, body[data-era=glass] #room button, body[data-era=glass] #notebook button { border-radius: 8px; border: 1px solid transparent; background: #252b33; font-weight: 500; }
+body[data-era=glass] header button.on, body[data-era=glass] #room button.primary { background: var(--accent); color: #fff; }
+body[data-era=glass] #room button.go { background: #1f6b4a; } body[data-era=glass] #room button.danger { background: #6b1f24; border-color: #d0634f; }
+body[data-era=glass] #room, body[data-era=glass] #notebook { background: rgba(26,30,36,.94); border: 1px solid var(--line); border-radius: 14px; }
+body[data-era=glass] h2 { font-weight: 700; letter-spacing: -.01em; }
+body[data-era=glass] .poll { background: rgba(76,154,255,.08); border: 1px solid rgba(76,154,255,.5); border-radius: 10px; }
+body[data-era=glass] .carries { border-left: 0; background: #20252c; border-radius: 10px; }
+body[data-era=glass] #loop div, body[data-era=glass] .loop-in-room div { background: rgba(26,30,36,.9); border-radius: 8px; border-left-width: 3px; }
+
+/* When the look changes, a card says what changed (js/site/main.js eraCard). It fades in and out once. */
+#era-card { position: fixed; left: 50%; top: calc(var(--bar) + 18px); transform: translateX(-50%); z-index: 5; max-width: 34em; padding: .7em 1.2em;
+  background: var(--sheet); color: var(--ink); border: 1px solid var(--accent); border-radius: 4px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  opacity: 0; transition: opacity .8s ease; pointer-events: none; }
+#era-card.show { opacity: 1; }
+#era-card b { display: block; color: var(--accent); margin-bottom: .2em; }
+@media (prefers-reduced-motion: reduce) { #era-card { transition: none; } }
+/* End the day and the waiting call keep standing out, in each era's own way. */
+body[data-era=field] #endday, body[data-era=field] #waiting { background: #e3d8b8; color: #2a2d1d; border-color: #e3d8b8; }
+body[data-era=steel] #endday, body[data-era=steel] #waiting { background: radial-gradient(circle at 50% 40%, #fff1c9, #ffb648 60%, #a86a10); color: #2b1a00; }
+body[data-era=amber] #endday, body[data-era=amber] #waiting { background: #120c05; color: #ffb340; }
+body[data-era=desktop] #endday, body[data-era=desktop] #waiting { font-weight: bold; color: #000; background: #ffffe1; }
+body[data-era=glass] #endday, body[data-era=glass] #waiting { background: var(--accent); color: #fff; }
