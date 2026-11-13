@@ -47,6 +47,7 @@ import {
   roundStartOf,
   placeName,
   who,
+  awaySpan,
 } from '../game.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
@@ -509,6 +510,7 @@ const ROOMS = {
     if (!a) return '';
     return `<h2>While you were away</h2>
       <p class="muted">${esc(a.from)} to ${esc(a.to)}</p>
+      ${a.skipped ? `<p>${esc(awaySpan(a.skipped))}</p>` : ''}
       <ul>${a.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
       <button class="primary" data-act="away-done">Carry on</button>`;
   },
