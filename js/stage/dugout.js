@@ -380,10 +380,11 @@ export function dugoutScene({ leave }) {
       phase = s ? s.phase : null;
     const read = s && g.round ? standChannels() : null;
     const v = id => (read && id in read ? read[id] : null);
-    const firing = phase === 'firing';
+    const firing = phase === 'firing',
+      tape = kit()?.stand?.tape;
     const pc = v('pc') ?? 0;
     const nominal = pcBand ? (pcBand[0] + pcBand[1]) / 2 : 20;
-    const power = firing ? Math.max(0, pc / nominal) : 0;
+    const power = firing && !tape ? Math.max(0, pc / nominal) : 0; // a tape shakes nothing
 
     // She shakes the dugout a little while she fires, by how hard she burns.
     const shake = power * 2.4;
@@ -391,7 +392,7 @@ export function dugoutScene({ leave }) {
 
     setText(
       plate,
-      `STATIC TEST STAND  ·  ${!s ? 'NO FIRING' : s.burn === 'long' ? 'FULL DURATION · 30 s' : 'START-UP FIRING · 8 s'}`,
+      `${tape ? `${tape.where.toUpperCase()} FIRING ON TAPE` : 'STATIC TEST STAND'}  ·  ${!s ? 'NO FIRING' : s.burn === 'long' ? 'FULL DURATION · 30 s' : 'START-UP FIRING · 8 s'}`,
     );
     setText(
       drum,

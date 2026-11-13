@@ -283,7 +283,7 @@ function settle(c, d, choice, option, speak, timedOut = false) {
   for (const [who, text, tone] of r.lines) speak(c, who, text, tone || '', 6);
   Object.assign(f.state, r.set);
   if (r.hurt) f.state.hurt = Math.max(f.state.hurt || 0, r.hurt);
-  if (d.id === 'tald') c.calls.edwards = choice === 'edwards';
+  if (d.id === 'tald') c.calls.northrup = choice === 'northrup';
   if (r.endAt != null) f.endAt = Math.min(f.endAt ?? Infinity, r.endAt);
   if (r.capability) f.capabilities.push(r.capability);
   if (c.kind === 'flight' && r.slip) {

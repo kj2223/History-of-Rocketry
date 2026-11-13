@@ -1521,13 +1521,25 @@ const ORBIT_RECORD = {
       : `${ORBIT_PLAN.orbits} orbits; splashdown ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the planned point${hrs}.`,
 };
 // A long flight in the record: how long she stayed up, and where she came down.
+// Where a Shuttle came down: the lakebed at Edwards (STS-1's plan, and STS-26 back after Challenger), the main runway
+// there for STS-31, Northrup Strip at White Sands if STS-1 went there instead, otherwise the Cape's runway.
+const AT_EDWARDS = {
+  'sts-1': 'the lakebed runway at Edwards',
+  'sts-26': 'the lakebed runway at Edwards',
+  'sts-31': 'the main runway at Edwards',
+};
+function runwayOf(id, calls = {}) {
+  if (calls.northrup) return 'Northrup Strip at White Sands';
+  return AT_EDWARDS[id] || "the Cape's runway";
+}
+
 function flightText(e, hrs) {
   const m = g.mission;
   if (e.capsule === 'lost' && !hrs) return `Lost: ${m.craft} did not survive the entry.`;
   // A winged spacecraft lands on a runway, not in the water.
   const where =
     g.vehicle === 'shuttle'
-      ? `down on ${m.calls?.edwards ? 'the lakebed runway at Edwards' : "the Cape's runway"}, ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the mark`
+      ? `down on ${runwayOf(SEASON[g.roundIndex]?.id, m.calls)}, ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the mark`
       : `splashdown ${Math.round(Math.abs(e.miss))} km ${e.miss >= 0 ? 'long' : 'short'} of the planned point`;
   return `${m.craft}: ${m.flightHours} hours${m.capabilities?.length ? `. Shown: ${m.capabilities.join('; ')}` : ''}; ${where}${hrs}.`;
 }
@@ -2259,7 +2271,7 @@ function splashRunway(con, end, lines) {
   con.hours = 0.4;
   con.sank = false;
   const mins = Math.round(con.hours * 60);
-  const site = con.flight?.state?.edwards ? 'the lakebed runway at Edwards' : "the Cape's runway";
+  const site = runwayOf(con.flightId, con.flight?.state);
   if (end.outcome === 'entry') lines.push(`Down on ${site}, ${km(end.miss)} of the mark.`);
   else if (end.outcome === 'decay')
     lines.push('She came down within the first orbit, short of any runway, far from any convoy.');

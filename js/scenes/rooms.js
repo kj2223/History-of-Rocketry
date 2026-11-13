@@ -34,6 +34,8 @@ import {
   kit,
   answerFirstOffer,
   conducting,
+  countLead,
+  countPanel,
   finishPlan,
   chair,
   INSPECTORS,
@@ -362,23 +364,40 @@ const ROOMS = {
   static() {
     const s = g.stand,
       p = s.phase,
-      walled = s.burn === 'long' && !!kit().stand.wall;
+      walled = s.burn === 'long' && !!kit().stand.wall,
+      tape = kit().stand.tape;
+    const leakWhere = tape ? ' the stage in the hangar' : '';
     const buttons = {
-      ready: `<button class="primary" data-act="stand-start">Start the firing count</button><button data-act="stand-leak">Send the crew to leak-check first (2 h)</button>`,
-      count: `<button class="danger" data-act="stand-hold">HOLD</button>`,
-      held: `<button class="primary" data-act="stand-start">Resume the count</button><button data-act="stand-leak">Send the crew to leak-check (2 h)</button>`,
+      ready: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape' : 'Start the firing count'}</button><button data-act="stand-leak">Send the crew to leak-check${leakWhere} first (2 h)</button>`,
+      count: `<button class="danger" data-act="stand-hold">${tape ? 'Stop the tape' : 'HOLD'}</button>`,
+      held: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape on' : 'Resume the count'}</button><button data-act="stand-leak">Send the crew to leak-check${leakWhere} (2 h)</button>`,
       leakcheck:
         '<p class="muted">The crew is on the stand checking every line. Watch them through the slit, or wait.</p>',
       firing: '<p class="muted">Firing…</p>',
       read: `<p>Read the trace. What do you want done before this stage flies?</p>
         <label><input type="checkbox" data-choice="rework"> ${esc(kit().stand.rework)} (8 hours: the launch slips a day)</label>
         <label><input type="checkbox" data-choice="leak"> Leak-check the feed system (2 hours)</label>
-        <button class="primary" data-act="stand-decide">${conducting() ? 'Make it so' : 'Give your decision to Ellis'}</button>`,
+        <button class="primary" data-act="stand-decide">${conducting() ? 'Make it so' : `Give your recommendation to ${esc(g.people[countLead()].name.split(' ').at(-1))}`}</button>`,
       decided: '<p class="muted">Done. The crew is taking the stage back to the hangar.</p>',
       loose: '<p class="danger-text">She broke loose from the stand.</p>',
     }[p];
+    if (tape)
+      return `<h2>The ${esc(tape.where)} firing, on tape</h2>
+      <p>The ${esc(kit().stand.thing)} was fired at ${esc(tape.who)} before she shipped; she never fires at the Cape. You play back the recorder tapes here: watch the tank pressure as she was pressurised, stop the tape if it looks wrong, then run the firing and read the trace.</p>
+      <div class="clock" data-live="standclock">—</div>
+      <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
+      ${READINGS_HTML}
+      <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is the full-duration run.' : ''}</p>
+      ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
+      <div class="actions">${buttons}</div>`;
     return `<h2>Test stand dugout</h2>
-      <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. ${conducting() ? "You're running this one." : `You work the panel; ${who('ellis')} is beside you and has the final say.`} Watch the tank pressure while the stage is
+      <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. ${
+        conducting()
+          ? "You're running this one."
+          : countLead() === 'hoyt'
+            ? `General Electric's crew fires her, and ${who('hoyt')} has the final say; you work the panel beside him, on loan from JPL.`
+            : `You work the panel; ${who('ellis')} is beside you and has the final say.`
+      } Watch the tank pressure while the stage is
       pressurised, hold if it looks wrong, then fire, and read the trace afterwards.</p>
       <div class="clock" data-live="standclock">—</div>
       <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
@@ -396,7 +415,7 @@ const ROOMS = {
         ? `<ul class="reports">${c.reports.map(r => `<li><strong>${esc(r.station)}</strong> (${esc(g.people[r.who].name)}): ${esc(r.text)}</li>`).join('')}</ul>`
         : '';
     const pollButtons = c.poll
-      ? `<div class="poll"><p><strong>${c.poll === 'final' ? 'Final poll.' : 'Poll.'}</strong> ${conductor ? 'Your stations have reported. Check them against your own gauge, then make the call.' : 'Ellis wants your tank pressure. Read the gauge, then make your call.'}</p>
+      ? `<div class="poll"><p><strong>${c.poll === 'final' ? 'Final poll.' : 'Poll.'}</strong> ${conductor ? 'Your stations have reported. Check them against your own gauge, then make the call.' : `${esc(g.people[countLead()].name.split(' ').at(-1))} wants your ${countPanel() === 'WAC' ? "WAC stage's tank pressure and igniter circuit" : 'tank pressure'}. Read the gauge, then make your call.`}</p>
       ${reports}<button class="go" data-act="go">GO</button><button class="danger" data-act="nogo">NO-GO: hold</button></div>`
       : '';
     const holdButtons = c.checking
@@ -437,9 +456,15 @@ const ROOMS = {
           ),
         )
         .join('<br>')}
-      <h3>The firing on the stand</h3>
+      ${
+        kit().stand.tape
+          ? `<h3>The ${esc(kit().stand.thing)}'s firing tapes from ${esc(kit().stand.tape.where)}</h3>
+      ${opt('burn', 'short', 'Read the start-up run, 8 seconds, that came with her. Shows a rough start or a leak.')}<br>
+      ${opt('burn', 'long', `Ask ${esc(kit().stand.tape.where)} for the full-duration run, 30 seconds: ${kit().stand.long} Its analysis takes a day longer: the launch slips a day.`)}`
+          : `<h3>The firing on the stand</h3>
       ${opt('burn', 'short', 'A short start-up firing, 8 seconds. Shows a rough start or a leak.')}<br>
-      ${opt('burn', 'long', `A full-duration firing, 30 seconds, ${kit().stand.long} The engine must be pulled and checked afterwards: the launch slips a day.`)}
+      ${opt('burn', 'long', `A full-duration firing, 30 seconds, ${kit().stand.long} The engine must be pulled and checked afterwards: the launch slips a day.`)}`
+      }
       <h3>Before rollout</h3>
       <label><input type="checkbox" data-plan="leak" ${plan.leak ? 'checked' : ''}> A leak check of the whole feed system (2 hours on rollout day)</label>
       ${onBudget() ? budgetBlock() : ''}

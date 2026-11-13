@@ -1107,48 +1107,48 @@ const RESOLVE = {
         out.set.tilesKnown = true;
         out.verdict = 'good';
         out.judge =
-          'The cameras found the strike: tiles gone at the wing edge, the structure untouched. She comes home on the plan, watched.';
+          'The pictures found the damage: a few tiles gone near the body flap, the structure behind them untouched. She comes home on the plan, watched.';
         out.lines.push([
           'kessler',
-          'Flight, EECOM: six tiles gone at the wing leading edge, and the structure behind them is sound. She can come home.',
+          'Flight, EECOM: the pictures show a few tiles gone near the body flap, and the structure behind them is sound. She can come home.',
           'warn',
         ]);
         return out;
       }
       out.verdict = 'good';
-      out.judge = 'The cameras found the tiles whole. The burn cost a little of the schedule and bought certainty.';
+      out.judge =
+        'The pictures showed her belly whole: only the pods had lost tiles. The pass cost a little of the schedule and bought certainty.';
       return out;
     }
     if (f.foam && d[21] < 0.4) {
       out.set.hurt = 0.15;
       out.verdict = 'bad';
       out.judge =
-        "The strike went deeper than anyone looked for. She held together on the way in, but that was the design's margin, spent.";
+        "The belly had lost tiles too, where nobody looked. She held together on the way in, but that was the design's margin, spent.";
       return out;
     }
     out.verdict = 'fair';
-    out.judge = 'She came home whole. Nobody knows how close the strike came, because nobody looked.';
+    out.judge = 'She came home whole. Nobody knows how close it came, because nobody looked.';
     return out;
   },
   tald(choice, { d, out }) {
     if (choice === 'edwards') {
-      out.set.edwards = true;
       out.verdict = 'good';
       out.judge =
-        'The lakebed at Edwards: eleven thousand feet of dry ground and no obstacles. She rolled out long and slow.';
+        'The lakebed at Edwards: miles of dry ground and no obstacles. She came through the gusts and rolled out long and slow.';
       return out;
     }
+    out.set.northrup = true;
     if (d[22] < 0.35) {
       out.set.hurt = 0.1;
       out.verdict = 'bad';
       out.judge =
-        "The Cape's runway is shorter, and she came in fast. The brakes took fire, and the crew rode it out from the escape slidewire.";
+        'She came in fast on the gypsum at Northrup and blew a tyre on the rollout. The crew rode it out, shaken.';
       return out;
     }
-    out.set.edwards = false;
     out.verdict = 'fair';
     out.judge =
-      "She rolled out on the Cape's runway with margin to spare. It was the schedule's call, not the margin's.";
+      'She rolled out on the gypsum at Northrup Strip. The white dust got into everything, and it took weeks to clean her.';
     return out;
   },
   hubblefix(choice, { d, out, state }) {
@@ -1212,7 +1212,7 @@ const RESOLVE = {
     out.set.wingsOut = true;
     out.verdict = 'good';
     out.judge =
-      'One wing the first day, the second after an overnight check. Slower than the plan, and cleaner for it.';
+      'One wing the first day. Its blankets came out slack, so the second waited for a night of study, as it did on the real flight. Slower than the plan, and cleaner for it.';
     return out;
   },
   // Artemis I: a week in a distant orbit round the Moon, on the service engine.

@@ -98,6 +98,11 @@ export const INSPECTORS = {
 
 // What the player can see and say about the current kind of round (data/kits.js).
 export const kit = () => KITS[g.vehicle];
+// Who runs the stand firing and the count when you do not (Ellis, or GE's Hoyt on the V-2 and Bumper rounds), and the
+// name of the station you answer for.
+export const countLead = () => kit()?.lead || 'ellis';
+export const countPanel = () => kit()?.panel || 'PRESS';
+const panelWords = () => (countPanel() === 'WAC' ? 'the WAC stage' : 'tank pressure');
 // What the site's weather can show of the day (js/stage/fx/weather.js): the wind the forecast gave for the count, and
 // the recovery area's sea state the count is told. Both are said aloud to the player; nothing hidden.
 export const siteWind = () => g.round?.wind?.kmh ?? null;
@@ -724,6 +729,16 @@ const BEATS = {
     g.dayDone = true;
   },
   staticPrep() {
+    const tape = kit().stand.tape;
+    if (tape) {
+      // The stage was fired at the factory before it shipped: its tapes are played back in the dugout's recorder room.
+      g.objective = `The ${kit().stand.thing}'s acceptance firing tapes from ${tape.where} are in. Go to the dugout and play them back.`;
+      place('you', PLACES.office.door);
+      walk('ellis', PLACES.dugout.door + 50);
+      say('ellis', `${tape.who} sent the ${kit().stand.thing}'s firing tapes. I'll see you at the dugout's recorder.`);
+      setBeat('static');
+      return;
+    }
     g.objective = `The crew is moving the ${kit().stand.thing} to the test stand. Go to the dugout for the static fire.`;
     place('you', PLACES.office.door);
     place('ellis', 230);
@@ -756,8 +771,10 @@ const BEATS = {
   },
   static() {
     const burn = g.plan?.burn || 'short';
-    g.objective =
-      burn === 'long'
+    const tape = kit().stand.tape;
+    g.objective = tape
+      ? `The tapes of the ${kit().stand.thing}'s ${burn === 'long' ? 'full-duration ' : ''}firing at ${tape.where} are on the recorder. Go into the dugout and play them back.`
+      : burn === 'long'
         ? `The ${kit().stand.thing} is on the stand for a full-duration firing. Go into the dugout and run it.`
         : 'The stage is on the stand. Go into the dugout and run the static fire.';
     g.stand = { phase: 'ready', clock: 10, trace: null, shown: 0, held: false, burn };
@@ -1001,7 +1018,7 @@ export function finishPlan(plan) {
   if (!conducting() || g.beat !== 'brief' || g.plan) return;
   g.plan = { inspector: plan.inspector || 'you', burn: plan.burn === 'long' ? 'long' : 'short', leak: !!plan.leak };
   note(
-    `Your plan: ${INSPECTORS[g.plan.inspector].name === 'You' ? 'you look her over yourself' : `${INSPECTORS[g.plan.inspector].name} looks her over`}; ${g.plan.burn === 'long' ? 'a full-duration firing' : 'a short start-up firing'} on the stand; ${g.plan.leak ? 'a leak check before rollout' : 'no extra leak check'}.`,
+    `Your plan: ${INSPECTORS[g.plan.inspector].name === 'You' ? 'you look her over yourself' : `${INSPECTORS[g.plan.inspector].name} looks her over`}; ${g.plan.burn === 'long' ? 'a full-duration firing' : 'a short start-up firing'} ${kit().stand.tape ? `on the ${kit().stand.tape.where} tapes` : 'on the stand'}; ${g.plan.leak ? 'a leak check before rollout' : 'no extra leak check'}.`,
   );
   if (onBudget()) {
     if (COSTS.inspect[g.plan.inspector])
@@ -1119,7 +1136,7 @@ export function standHold() {
   const s = g.stand;
   if (s.phase === 'count') {
     s.phase = 'held';
-    say('you', 'Hold, hold, hold!', 'warn');
+    say('you', kit().stand.tape ? 'Stop the tape there.' : 'Hold, hold, hold!', 'warn');
     roomChanged();
   }
 }
@@ -1136,7 +1153,8 @@ export function standLeakCheck() {
   );
   addJob({
     label: 'Leak check',
-    at: PLACES.stand.x + 60,
+    // On the tape rounds the stage is in the hangar, and the crew checks her there.
+    at: kit().stand.tape ? PLACES.hangar.x + 160 : PLACES.stand.x + 60,
     who: ['kowalski', 'delgado'],
     minutes: r.hours * 60,
     then: () => {
@@ -1188,35 +1206,56 @@ export function standDecide(choices) {
   }
   if (!choices.rework && !choices.leak) note('You cleared the stage for flight.');
   s.phase = 'decided';
-  g.rocket.where = 'carried';
-  addJob({
-    label: 'Back to the hangar',
-    at: PLACES.hangar.x + 160,
-    who: ['kowalski', 'delgado'],
-    then: () => {
-      g.rocket.where = 'hangar';
-      // A rework fills the next day, which is told as a day away; a leak check alone is done overnight.
-      if (hours)
-        addJob({
-          label: choices.rework ? st.reworkJob : 'Leak check',
-          at: PLACES.hangar.x + 190,
-          who: ['kowalski', 'delgado'],
-          minutes: hours * 60,
-          quiet: hours >= 8,
-          then: () => {},
-        });
-    },
-  });
+  if (st.tape) {
+    // The stage never left the hangar: the work is done there.
+    if (hours)
+      addJob({
+        label: choices.rework ? st.reworkJob : 'Leak check',
+        at: PLACES.hangar.x + 190,
+        who: ['kowalski', 'delgado'],
+        minutes: hours * 60,
+        quiet: hours >= 8,
+        then: () => {},
+      });
+  } else g.rocket.where = 'carried';
+  if (!st.tape)
+    addJob({
+      label: 'Back to the hangar',
+      at: PLACES.hangar.x + 160,
+      who: ['kowalski', 'delgado'],
+      then: () => {
+        g.rocket.where = 'hangar';
+        // A rework fills the next day, which is told as a day away; a leak check alone is done overnight.
+        if (hours)
+          addJob({
+            label: choices.rework ? st.reworkJob : 'Leak check',
+            at: PLACES.hangar.x + 190,
+            who: ['kowalski', 'delgado'],
+            minutes: hours * 60,
+            quiet: hours >= 8,
+            then: () => {},
+          });
+      },
+    });
   if (s.burn === 'long' && onBudget()) spend(g.record, g.day, COSTS.long, 'full-duration firing');
   if (s.burn === 'long' && hours < 8) {
     g.slipDays += 1;
-    g.offDays[g.day + 1] = 'The crew pulled the chamber after the full-duration firing and checked it over.';
-    say('brandt', 'A full-duration firing costs us a day of range time. I hope it was worth it.', 'warn', 6);
+    g.offDays[g.day + 1] = st.tape
+      ? `The full-duration run at ${st.tape.where} took a day longer to analyse, and the launch waited for it.`
+      : 'The crew pulled the chamber after the full-duration firing and checked it over.';
+    say(
+      'brandt',
+      st.tape
+        ? `Asking ${st.tape.where} for the full-duration run costs us a day. I hope it was worth it.`
+        : 'A full-duration firing costs us a day of range time. I hope it was worth it.',
+      'warn',
+      6,
+    );
   } else if (hours >= 8) {
     g.slipDays += 1;
     g.offDays[g.day + 1] = st.reworkDay;
-    say('ellis', st.reworkSay, 'warn', 6);
-  } else say('ellis', "Good. Let's get her ready for the tower.");
+    say(countLead(), st.reworkSay, 'warn', 6);
+  } else say(countLead(), "Good. Let's get her ready for the tower.");
   setBeat('afterStatic');
 }
 
@@ -1224,7 +1263,7 @@ export function standDecide(choices) {
 const COUNT = [
   { at: 600, who: 'vega', text: 'Pad crew at the tower. Final arming under way.' },
   { at: 540, who: 'morgan', text: 'Radar has the balloon. Winds light, from the west.' },
-  { at: 450, who: 'ellis', text: 'PRESS, report tank pressure.', poll: 'tank' },
+  { at: 450, who: 'lead', text: () => `${countPanel()}, report ${panelWords()}.`, poll: 'tank' },
   {
     at: 360,
     who: 'vega',
@@ -1235,9 +1274,17 @@ const COUNT = [
       walk('delgado', PLACES.blockhouse.door + 80);
     },
   },
-  { at: 240, who: 'ellis', text: 'Tower is clear. Doors closing.' },
+  { at: 240, who: 'lead', text: 'Tower is clear. Doors closing.' },
   { at: 180, who: 'morgan', text: 'Range is clear. Range is go.', tone: 'go' },
-  { at: 120, who: 'ellis', text: 'PRESS, tank pressure and igniter circuit for the last time.', poll: 'final' },
+  {
+    at: 120,
+    who: 'lead',
+    text: () =>
+      countPanel() === 'WAC'
+        ? 'WAC, upper-stage tank pressure and igniter circuit for the last time.'
+        : 'PRESS, tank pressure and igniter circuit for the last time.',
+    poll: 'final',
+  },
   { at: 60, who: 'vega', text: 'One minute.' },
   { at: 30, who: 'vega', text: 'Thirty seconds. Cameras and recorders running.' },
   ...[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(n => ({ at: n, who: 'vega', text: `${n}…`, quick: true })),
@@ -1251,9 +1298,13 @@ export function countStart() {
   place('you', PLACES.blockhouse.door - 10);
   setBeat(
     'count',
-    conducting()
-      ? 'Run the count. Poll your stations when the count reaches each poll, read your own gauges, and call a hold if anything looks wrong.'
-      : 'Take part in the count. Answer your polls from the PRESS panel, and call a hold if anything looks wrong.',
+    spacecraftCount()
+      ? `${launchTeam()} runs the rocket's count. You run JPL's part of it: poll the spacecraft and tracking, check the launch team's tank reading, and call a hold into their count if anything looks wrong.`
+      : conducting()
+        ? 'Run the count. Poll your stations when the count reaches each poll, read your own gauges, and call a hold if anything looks wrong.'
+        : countLead() === 'hoyt'
+          ? `GE's count, and Hoyt runs it. Answer his polls from the ${countPanel() === 'WAC' ? "WAC stage's panel" : 'PRESS panel'}, and call a hold if anything looks wrong.`
+          : 'Take part in the count. Answer your polls from the PRESS panel, and call a hold if anything looks wrong.',
   );
 }
 export const countTank = () => tankGauge(g.round, g.count.since);
@@ -1262,11 +1313,54 @@ export const countChannels = () => countReadings(g.round, g.count.since);
 // The channels the stage carries (labels, units, green bands), and how a value sits against its band.
 export const stageChannels = () => channelsFor(g.round);
 export { bandOf };
+// The Juno II and Atlas-Agena rounds carry JPL's spacecraft on another team's rocket: ABMA's for Pioneer (Debus ran
+// the blockhouse), the Cape's launch team with General Dynamics and Lockheed for Ranger. JPL's test conductor ran the
+// spacecraft's part of the count and could ask the launch conductor for a hold; the rocket's count was theirs.
+export const spacecraftCount = () => conducting() && ['juno', 'ranger'].includes(g.vehicle);
+const launchTeam = () => (g.vehicle === 'juno' ? "ABMA's launch team under Debus" : "The Cape's launch team");
+
 // As test conductor you poll the stations; Delgado has PRESS. Each reports, and the GO or HOLD is yours.
 function stationReports(count) {
   const reading = countTank(),
     inBand = reading >= NORMAL_TANK[0] && reading <= NORMAL_TANK[1];
   const pressGo = stationCall(g.round, inBand, TRAITS.delgado.lazyGo);
+  if (spacecraftCount()) {
+    // Your stations are the spacecraft and its tracking; the rocket's tanks come to you from the launch team's board.
+    const probe = g.vehicle === 'juno' ? 'Probe' : 'Ranger';
+    count.reports = [
+      {
+        who: 'delgado',
+        station: 'LAUNCH TEAM',
+        text: `Their board reads the tank at ${reading.toFixed(1)}. Launch team is ${pressGo ? 'go' : 'no-go'}.`,
+        go: pressGo,
+        reading,
+      },
+      {
+        who: 'kowalski',
+        station: 'SPACECRAFT',
+        text:
+          count.poll === 'final'
+            ? `${probe} on internal power, transmitter on. Spacecraft is go.`
+            : `${probe} on external power, all channels reading. Spacecraft is go.`,
+        go: true,
+      },
+      {
+        who: 'vega',
+        station: 'TRACKING',
+        text:
+          g.vehicle === 'juno'
+            ? 'Goldstone has the carrier. Tracking is go.'
+            : 'The deep space stations are ready. Tracking is go.',
+        go: true,
+      },
+      { who: 'morgan', station: 'RANGE', text: 'Range is go.', go: true },
+    ];
+    for (const r of count.reports) say(r.who, `${r.station}: ${r.text}`, r.go ? 'go' : 'bad', 3);
+    note(
+      `T-${Math.ceil(count.clock)} s poll: ${count.reports.map(r => `${r.station} ${r.go ? 'go' : 'no-go'}`).join(', ')}. The launch team's board read the tank at ${reading.toFixed(1)} bar.`,
+    );
+    return;
+  }
   count.reports = [
     {
       who: 'delgado',
@@ -1300,7 +1394,13 @@ export function countAnswer(go) {
     );
     say(
       'you',
-      go ? 'All stations go. Continue the count.' : "Hold the count. I don't like that tank pressure.",
+      spacecraftCount()
+        ? go
+          ? 'Spacecraft and tracking are go. JPL is go for launch.'
+          : "Launch conductor, JPL requests a hold. I don't like that tank pressure."
+        : go
+          ? 'All stations go. Continue the count.'
+          : "Hold the count. I don't like that tank pressure.",
       go ? 'go' : 'bad',
     );
     count.reports = null;
@@ -1311,8 +1411,8 @@ export function countAnswer(go) {
     say(
       'you',
       go
-        ? `PRESS is go. Tank at ${reading.toFixed(1)}.`
-        : `PRESS is no-go! Tank at ${reading.toFixed(1)}. Hold the count.`,
+        ? `${countPanel()} is go. Tank at ${reading.toFixed(1)}.`
+        : `${countPanel()} is no-go! Tank at ${reading.toFixed(1)}. Hold the count.`,
       go ? 'go' : 'bad',
     );
   }
@@ -1387,8 +1487,9 @@ function tickCount(dt) {
   g.clock += (rate * dt) / 60;
   while (count.next < COUNT.length && COUNT[count.next].at >= count.clock) {
     const step = COUNT[count.next++];
-    const who = step.who === 'ellis' && conducting() ? 'you' : step.who;
-    say(who, step.text, step.tone || '', step.quick ? 1 : 4.5);
+    const lead = step.who === 'lead' ? countLead() : step.who;
+    const who = lead === 'ellis' && conducting() ? 'you' : lead;
+    say(who, typeof step.text === 'function' ? step.text() : step.text, step.tone || '', step.quick ? 1 : 4.5);
     step.act?.();
     if (step.poll) {
       count.poll = step.poll;
@@ -1994,18 +2095,19 @@ function tickStand(dt) {
       s.trace = r.trace;
       s.steady = r.steady;
       s.wall = r.wall;
-      s.loose = r.loose;
-      say('ellis', 'Ignition!', 'go', 2);
+      // A factory firing that went wrong would never have shipped: a tape does not break loose.
+      s.loose = kit().stand.tape ? false : r.loose;
+      say('ellis', kit().stand.tape ? 'Ignition, on the tape.' : 'Ignition!', 'go', 2);
       roomChanged();
     }
   } else if (s.phase === 'firing') {
     s.shown = Math.min(s.trace.length, s.shown + dt * 10);
-    g.standFlame = 1;
+    g.standFlame = kit().stand.tape ? 0 : 1; // a tape lights no flame on the Cape's stand
     if (s.shown >= s.trace.length && s.loose) return breakaway();
     if (s.shown >= s.trace.length) {
       s.phase = 'read';
       g.standFlame = 0;
-      say('kowalski', 'Shutdown. Stand is safe.', 'go');
+      say('kowalski', kit().stand.tape ? 'Shutdown. End of the run.' : 'Shutdown. Stand is safe.', 'go');
       const early = s.trace.slice(0, 25).map(p => p.pc),
         late = s.trace.slice(40).map(p => p.pc);
       const spread = Math.max(...early) - Math.min(...early.slice(8)),

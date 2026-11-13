@@ -193,6 +193,10 @@ export const KITS = {
     name: 'V-2',
     range: 'V-2',
     crew: ['kowalski', 'delgado'],
+    // General Electric's Hermes crew prepared and fired the V-2s for Army Ordnance: Hoyt runs the firing and the count,
+    // and you, lent by JPL, read the tank pressure for him and recommend.
+    lead: 'hoyt',
+    panel: 'PRESS',
     inspect: {
       title: 'Hangar: the V-2',
       objective: "Go to the assembly hangar and look the V-2 over with Hoyt's crew before tomorrow's static fire.",
@@ -663,15 +667,17 @@ export const KITS = {
     inspect: {
       title: 'Hangar: Juno II and Pioneer',
       objective:
-        'Go to the hangar and look over the Jupiter, the cluster of upper stages and the probe before the static firing.',
+        "Go to the hangar and look over the Jupiter, the cluster of upper stages and the probe before reading the Jupiter's firing tapes.",
       intro:
         "The Jupiter lies on its transporter, fat and white. Beside it sits JPL's tub of small solid rockets, eleven round a ring, three and one inside, and on top the little gold-washed Pioneer cone.",
     },
-    brief: 'The Juno is in the hangar. Look her over, then the Jupiter goes on the stand.',
+    brief: "The Juno is in the hangar. Look her over, then read the Jupiter's firing tapes from Huntsville.",
     stand: {
       thing: 'Jupiter',
+      // Jupiter stages were static-fired at ABMA's test stand in Huntsville, never at the Cape: you read the tapes.
+      tape: { where: 'Huntsville', who: "ABMA's test stand at Redstone Arsenal" },
       pc: [18, 24],
-      long: 'the whole burn on the stand. Shows whether the engine runs to the end or runs out early.',
+      long: 'the whole burn. Shows whether the engine runs to the end or runs out early.',
       rework: 'Recalibrate the propellant utilisation system',
       reworkJob: 'Recalibrating the propellant utilisation',
       reworkDay:
@@ -794,15 +800,17 @@ export const KITS = {
     inspect: {
       title: 'Hangar AO: Ranger and its Agena',
       objective:
-        "Go to the hangar and look over the Atlas, the Agena and the Ranger spacecraft before the Agena's static firing.",
+        "Go to the hangar and look over the Atlas, the Agena and the Ranger spacecraft before reading the Agena's firing tapes.",
       intro:
         'The Atlas is a steel balloon, held round by its own pressure. The Agena lies beside it, and in the clean room the Ranger stands on its legs of solar panel, its six television cameras under a cone.',
     },
-    brief: 'The Atlas, the Agena and the Ranger are in the hangar. Look them over, then the Agena goes on the stand.',
+    brief: "The Atlas, the Agena and the Ranger are in the hangar. Look them over, then read the Agena's firing tapes.",
     stand: {
       thing: 'Agena',
+      // Lockheed acceptance-fired its Agenas at its Santa Cruz test base in California, never at the Cape.
+      tape: { where: 'Santa Cruz', who: "Lockheed's test base at Santa Cruz" },
       pc: [17, 23],
-      long: 'the whole Agena burn on the stand.',
+      long: 'the whole Agena burn.',
       rework: "Rework the Agena's restart system",
       reworkJob: 'Reworking the Agena restart',
       reworkDay: "The crew spent the day reworking the Agena's restart system.",
@@ -1180,7 +1188,7 @@ export const KITS = {
         name: "External tank's bipod ramp foam",
         fault: 'foam',
         sound: 'The ramp foam is bonded and inspected.',
-        cue: 'A foam loss on the ramp turned up on the last flight’s film, and nobody could say why.',
+        cue: 'A patch of the ramp foam failed its bond test this week, and nobody could say why.',
       },
       'fc-1': {
         name: 'Fuel cells and their oxygen and hydrogen tanks',
@@ -1376,6 +1384,10 @@ export const KITS = {
 
   bumper: {
     name: 'Bumper',
+    // GE flew the V-2 lower stage and JPL the WAC on top: Hoyt runs the V-2's firing and the count, and your panel is the
+    // WAC stage's own (its tank pressure and igniter circuit).
+    lead: 'hoyt',
+    panel: 'WAC',
     range: 'BUMPER (V-2 + WAC)',
     crew: ['kowalski', 'delgado'],
     inspect: {
