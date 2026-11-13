@@ -5,7 +5,8 @@
 // climb, the highest she has reached so far. The loop's last calls float along the bottom. Reads only what the
 // range could see, through game.js and the world record (the scenes never import js/truth).
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
-import { g as game } from '../game.js';
+import { g as game, flightTrouble } from '../game.js';
+import { rangeCamera } from './fx/range-camera.js';
 import { SITES } from '../data/campaign.js';
 import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
@@ -57,7 +58,28 @@ export function trackingScene() {
   const scan = new Graphics(); // the scanlines over the glass
   const words = new Container();
   const bubbles = new Container();
-  root.addChild(screenBg, grid, estimate, past, track, peakMark, pen, penDot, scan, bezel, words, bubbles);
+  // What went wrong, on the plot: a ring where the loop called it, its words, and for a break-up the radar's returns
+  // from the pieces falling away (v0.8 failures you can see). The tracking camera's picture sits in the plot's corner.
+  const trouble = new Graphics();
+  const troubleWords = label('', 13, AMBER, { ax: 0, ay: 1, bold: true });
+  const camera = rangeCamera();
+  root.addChild(
+    screenBg,
+    grid,
+    estimate,
+    past,
+    track,
+    trouble,
+    peakMark,
+    pen,
+    penDot,
+    scan,
+    bezel,
+    words,
+    troubleWords,
+    camera,
+    bubbles,
+  );
 
   const title = label('', 15, GREEN, { ax: 0, ay: 0 });
   const readTitle = label('RANGE READINGS', 13, DIM, { ax: 0, ay: 0, spacing: 2 });
@@ -233,6 +255,57 @@ export function trackingScene() {
       reads.forEach((r, i) => setText(r.v, vals[i]));
       reads[4].v.style.fill = upto && climb < 0 ? AMBER : GREEN;
     }
+    // The trouble, once the loop has called it.
+    const bad = flightTrouble(g);
+    trouble.clear();
+    troubleWords.visible = false;
+    if (bad && f.t >= bad.at) {
+      const q = path[Math.min(path.length - 1, Math.round(bad.at))];
+      const x = px(q.x),
+        y = py(q.h);
+      trouble.circle(x, y, 11).stroke({ width: 2, color: AMBER });
+      troubleWords.visible = true;
+      troubleWords.position.set(x + 18, y - 16);
+      setText(
+        troubleWords,
+        `T+${Math.round(bad.at)} s · ${
+          bad.kind === 'break'
+            ? 'BREAK-UP'
+            : bad.kind === 'tumble'
+              ? 'TUMBLING'
+              : bad.rso
+                ? 'RANGE SAFETY CUTOFF'
+                : bad.kind === 'loose'
+                  ? 'CUTOFF SENT'
+                  : bad.upper
+                    ? 'NO UPPER STAGE'
+                    : 'THRUST LOST'
+        }`,
+      );
+      // The radar paints the pieces: dotted tracks falling away from the break, on simple ballistic arcs.
+      if (bad.kind === 'break') {
+        const since = f.t - bad.at,
+          vx0 = path[Math.min(path.length - 1, Math.round(bad.at) + 1)].x - q.x || 0.3;
+        for (let i = 0; i < 5; i++) {
+          const vx = vx0 * (0.4 + i * 0.25),
+            vh = 0.25 - i * 0.12;
+          for (let s = 0; s < Math.min(since, 90); s += 3) {
+            const hh = q.h + vh * s - 0.0049 * s * s;
+            if (hh < 0) break;
+            trouble.circle(px(q.x + vx * s), py(hh), 1.6).fill({ color: GREEN, alpha: 0.55 });
+          }
+        }
+      }
+    }
+    // The tracking camera, top left of the plot, while there is anything to see of her (not on the deep shots).
+    camera.visible = !P.deep;
+    if (camera.visible) {
+      const cw = Math.min(camera.W, (P.right - P.left) * 0.34);
+      camera.scale.set(cw / camera.W);
+      camera.position.set(P.left + 14, P.topY + 6);
+      camera.update(f, bad, g.vehicle, dt);
+    }
+
     const p = path[upto];
     pen.position.set(px(p.x), py(p.h));
     penDot.position.set(px(p.x), py(p.h));
