@@ -69,3 +69,15 @@ test('photosensitivity: the film never flickers, and one-off flashes are capped 
   assert.ok(peak <= FLASH_MAX + 1e-9 && FLASH_MAX <= 0.25);
   assert.ok(biggestStep < 0.05, `a frame-to-frame jump of ${biggestStep}`);
 });
+
+test('a round lost on the pad blows up in sight of the site, and the site watches before the plot', async () => {
+  const src = await import('node:fs').then(fs => fs.readFileSync(new URL('../js/game.js', import.meta.url), 'utf8'));
+  assert.match(src, /PAD_BLAST = \{ vanguard: 'injector' \}/);
+  const { breakupAge } = await import('../js/site/tv-shots.js');
+  const c = { trace: [{ t: 72 }], round: { ascent: { breakupAt: 73 } } };
+  assert.equal(breakupAge({ time: 10 }, c), null);
+  c.trace.push({ t: 73 });
+  assert.equal(breakupAge({ time: 10 }, c), 0);
+  assert.equal(breakupAge({ time: 15 }, c), 5);
+  assert.equal(breakupAge({ time: 40 }, c), null);
+});

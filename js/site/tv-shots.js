@@ -56,7 +56,7 @@ function stagedAt(trace) {
 }
 
 // The caption strip: which camera, the clock and the readings. Its text is what the old telemetry screen showed.
-function caption(ctx, x, y, w, h, cam, last, live) {
+function caption(ctx, x, y, w, h, cam, last, live, noData = null) {
   const size = Math.min(w / 30, h / 9);
   ctx.save();
   ctx.fillStyle = 'rgba(6,10,12,.62)';
@@ -73,6 +73,12 @@ function caption(ctx, x, y, w, h, cam, last, live) {
   ctx.textAlign = 'left';
   ctx.font = `${size * 0.95}px monospace`;
   ctx.fillStyle = '#b7efb0';
+  // After a breakup the telemetry has stopped: the readings give way to a blinking NO DATA.
+  if (noData != null) {
+    if (noData) ctx.fillText(`${met(last.t)}   NO DATA`, x + w * 0.03, y + h - size * 1.3, w * 0.9);
+    ctx.restore();
+    return;
+  }
   const cells = [
     met(last.t),
     `${last.v.toFixed(2)} km/s`,
@@ -286,11 +292,127 @@ export function onboardShot(ctx, g, x, y, w, h, c, kind) {
   }
 }
 
+// A breakup in sight of the tracker (Challenger, January 1986; a booster lost on the climb): where she was, a cloud
+// that bursts and spreads, the boosters' trails corkscrewing out of it, burning pieces falling away with smoke behind
+// them. The readings stop: the caption shows no data. Shown for a while after the moment, then the board returns.
+const BREAKUP_SHOWN = 14; // seconds of real time
+const brokeSeen = new WeakMap();
+export function breakupAge(g, c) {
+  const at = c?.round?.ascent?.breakupAt,
+    last = c?.trace?.at(-1);
+  if (at == null || !last || last.t < at) return null;
+  if (!brokeSeen.has(c)) brokeSeen.set(c, g.time || 0);
+  const age = (g.time || 0) - brokeSeen.get(c);
+  return age <= BREAKUP_SHOWN ? age : null;
+}
+export function breakupShot(ctx, g, x, y, w, h, c, age) {
+  const last = c.trace.at(-1),
+    alt = altitude(last.t),
+    tail = TAIL[g.vehicle] || 12;
+  const top = mixc([92, 140, 196], [6, 10, 28], alt ** 0.8),
+    bottom = mixc([190, 214, 232], [36, 58, 104], alt);
+  const sky = ctx.createLinearGradient(0, y, 0, y + h);
+  sky.addColorStop(0, css(top));
+  sky.addColorStop(1, css(bottom));
+  ctx.fillStyle = sky;
+  ctx.fillRect(x, y, w, h);
+  const cx = x + w * 0.5,
+    cy = y + h * 0.45,
+    pitch = ((90 - Math.min(90, last.gamma)) * Math.PI) / 180,
+    back = [-Math.sin(pitch), Math.cos(pitch)];
+  // The trail she left, up to the point.
+  ctx.fillStyle = 'rgba(250,246,236,.55)';
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, cy);
+  ctx.lineTo(cx + back[0] * h * 1.3 - h * 0.12, cy + back[1] * h * 1.3);
+  ctx.lineTo(cx + back[0] * h * 1.3 + h * 0.12, cy + back[1] * h * 1.3);
+  ctx.lineTo(cx + 3, cy);
+  ctx.fill();
+  // The boosters' trails, corkscrewing away on either side.
+  if (g.vehicle === 'shuttle' || g.vehicle === 'sls') {
+    ctx.strokeStyle = 'rgba(250,246,236,.8)';
+    ctx.lineWidth = Math.max(2, h * 0.018);
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      const n = 24;
+      for (let i = 1; i <= n; i++) {
+        const k = (i / n) * Math.min(1, age / 6);
+        const px = cx + side * k * w * 0.2 + Math.sin(k * 14 + side) * w * 0.035 * k,
+          py = cy - k * h * 0.5 + Math.cos(k * 11) * h * 0.04 * k + k * k * h * 0.12;
+        ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      if (age < 6) {
+        const k = Math.min(1, age / 6);
+        flame(
+          ctx,
+          cx + side * k * w * 0.2,
+          cy - k * h * 0.5 + k * k * h * 0.12,
+          0.6,
+          Math.PI / 2 + side * 2,
+          g.time || 0,
+          1.4,
+        );
+      }
+    }
+  }
+  // The cloud, bursting then spreading and dimming.
+  const grow = 1 - Math.exp(-age * 1.2),
+    R = h * (0.06 + 0.22 * grow);
+  for (let i = 0; i < 9; i++) {
+    const a = i * 0.7,
+      r = R * (0.55 + ((i * 37) % 10) / 22);
+    const px = cx + Math.cos(a) * R * 0.6,
+      py = cy + Math.sin(a) * R * 0.45;
+    const fire = Math.max(0, 1 - age / 2.5);
+    const gr = ctx.createRadialGradient(px, py, 0, px, py, r);
+    gr.addColorStop(0, fire > 0 ? `rgba(255,${180 + 60 * fire},${120 + 100 * fire},.95)` : 'rgba(245,242,236,.92)');
+    gr.addColorStop(0.7, `rgba(240,236,228,${0.85 - age * 0.02})`);
+    gr.addColorStop(1, 'rgba(240,236,228,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, 7);
+    ctx.fill();
+  }
+  // Pieces falling out of it with smoke behind.
+  ctx.strokeStyle = 'rgba(235,232,224,.6)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 12; i++) {
+    const a = -Math.PI * 0.9 + (i / 11) * Math.PI * 0.8,
+      sp = w * (0.1 + ((i * 53) % 10) / 40),
+      t = Math.min(age, 12);
+    const px = cx + Math.cos(a) * sp * Math.min(1, t / 3) * 1.4,
+      py = cy + Math.sin(a) * sp * Math.min(1, t / 3) + t * t * h * 0.004;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * R * 0.5, cy + Math.sin(a) * R * 0.4);
+    ctx.quadraticCurveTo(px - Math.cos(a) * sp * 0.2, py - h * 0.05, px, py);
+    ctx.stroke();
+    ctx.fillStyle = age < 5 ? '#ffb050' : '#3a3632';
+    ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
+  }
+}
+
 // The whole screen: the shot for the moment, under its caption. Returns false when the board should show instead.
 export function televisionShot(ctx, g, x, y, w, h) {
   const c = g.console,
     last = c?.trace?.at(-1);
   if (!last) return false;
+  const broke = breakupAge(g, c);
+  if (broke != null) {
+    const colour = tvSources(g.day == null ? null : yearOf(g), g.vehicle).colour;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    if (!colour) ctx.filter = 'grayscale(1) contrast(1.15)';
+    breakupShot(ctx, g, x, y, w, h, c, broke);
+    ctx.filter = 'none';
+    screenLook(ctx, x, y, w, h);
+    caption(ctx, x, y, w, h, 'TRACKING · LONG RANGE', last, true, Math.floor((g.time || 0) * 2) % 2 === 0);
+    ctx.restore();
+    return true;
+  }
   const src = tvSources(g.day == null ? null : yearOf(g), g.vehicle),
     shot = tvShot(last.t, src);
   if (shot === 'pad' || shot === 'board') return false;
