@@ -107,7 +107,7 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
    strip is 69%-78% of the wall, from 8.5% to 85.5% across; the rack is the left 5.5%; the panel is over the gallery
    floor, below its windows). The default look is console steel, the Mission Control of 1958-1975. ---- */
 :root { --H: calc(100vh - var(--bar)); --nixie: #ff9b45; --nixie-glow: rgba(255,120,40,.65); --phosphor: #9fdc9a; --steel-hi: #5d646c; --steel-lo: #2b3036; }
-#mc-panel { position: fixed; right: 6px; width: max(calc(13vw - 12px), 190px); top: calc(var(--bar) + var(--H) * 0.195); bottom: 12px; z-index: 2;
+#mc-panel { position: fixed; right: 6px; width: max(calc(13vw - 12px), 150px); top: calc(var(--bar) + var(--H) * 0.195); bottom: 12px; z-index: 2;
   display: flex; flex-direction: column; gap: .45em; padding: .55em; overflow: hidden; font-size: max(12px, calc(var(--H) * 0.0145));
   background: linear-gradient(180deg, var(--steel-hi), var(--steel-lo) 14%, #24282e 80%, #1d2126);
   border: 1px solid #6b737c; border-radius: 3px; box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 6px 20px rgba(0,0,0,.55); font-family: var(--mono); }
@@ -141,7 +141,7 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
   display: flex; flex-direction: column; gap: 8px; background: #1d2126; }
 #mc-steps.idle { display: none; }
 #mc-steps li { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; background: #0d1117; border: 5px solid #2c3138;
-  font: clamp(8px, .66vw, 30px) var(--mono); color: #4a5260; text-align: center; overflow: hidden; }
+  font: clamp(7px, .66vw, 30px) var(--mono); color: #4a5260; text-align: center; overflow: hidden; overflow-wrap: anywhere; }
 #mc-steps li.done { color: #86c28c; }
 #mc-steps li.now { color: var(--accent); font-weight: bold; background: #241f12; border-color: #2c3138; outline: 1px solid var(--accent); outline-offset: -1px; text-shadow: 0 0 6px rgba(232,198,106,.5); }
 #mc-steps small { font: clamp(8px, .6vw, 24px) var(--serif); font-weight: normal; }
@@ -177,7 +177,7 @@ body[data-era=glass] .lamp-btn.go { background: rgba(60,180,110,.35); border-col
 @media (prefers-reduced-motion: reduce) { .nixie, .mc-lines, .lamp-btn.go, .lamp-btn.danger { text-shadow: none; box-shadow: none; } }
 #mc-panel[hidden], #mc-clocks[hidden], #mc-steps[hidden] { display: none; }
 #mc-steps li.done span::before { content: '✓'; display: block; }
-#mc-steps li span { white-space: nowrap; }
+#mc-steps li span { white-space: normal; overflow-wrap: anywhere; }
 /* v0.8 telemetry: every channel of the stage, as text under the gauges (js/truth/channels.js). */
 .readings { margin: .4rem 0; font-size: .85rem; }
 .readings summary { cursor: pointer; color: var(--muted); }
@@ -363,3 +363,21 @@ body[data-era=glass] #endday, body[data-era=glass] #waiting { background: var(--
 header button.muted {
   opacity: 0.6;
 }
+
+/* Layout sweep (v0.8): narrow windows. The header's buttons give up some padding so the objective keeps room to be
+   read; Mission Control's panel fits the gallery at 1280 px (it used to run 36 px into the room and cover the loop's
+   ends, the site clock and the end desks); the panel's words shrink a little to fit. */
+@media (max-width: 1360px) {
+  header { gap: .5rem; padding: 0 .6rem; }
+  .controls { gap: .2rem; }
+  .controls button { padding: .25rem .45rem; font-size: .88em; }
+  #mc-panel { font-size: max(11px, calc(var(--H) * 0.0135)); }
+  .mc-clock { white-space: nowrap; font-size: 1.75em; }
+}
+@media (max-width: 1100px) {
+  .controls button { padding: .2rem .35rem; font-size: .8em; letter-spacing: 0; }
+  #date { font-size: .9em; }
+  #mc-steps { padding: 6px 3px; }
+  #mc-steps li { border-width: 3px; }
+}
+

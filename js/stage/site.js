@@ -420,17 +420,19 @@ export function siteScene() {
       .filter(p => !p.hidden && p.bubble)
       .sort((a, b) => a.bubble.until - b.bubble.until);
     const seen = new Set(),
-      placed = [];
+      placed = [],
+      // Bigger on tall screens so the words keep pace with the HTML panels.
+      bubbleScale = 0.82 * Math.max(1, Math.min(1.6, screen.height / 900));
     for (const p of talking) {
       seen.add(p.id);
       let b = bubbles.get(p.id);
       if (!b) {
         b = speech(260);
-        b.scale.set(0.82);
         bubbleLayer.addChild(b);
         bubbles.set(p.id, b);
       }
       b.update(p.bubble);
+      b.scale.set(bubbleScale);
       const bx = (p.x - camX) * s,
         w = b.width,
         h = b.height;

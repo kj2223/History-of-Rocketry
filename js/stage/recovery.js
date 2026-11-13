@@ -443,10 +443,12 @@ export function recoveryScene({ leave }) {
     world.scale.set(s);
     world.position.set((roomW - W * s) / 2, (screen.height - H * s) / 2);
     out.position.set(10, screen.height - 86);
-    where.position.set(roomW / 2, screen.height - 66);
+    // Centred under the room, but never under the way-out card (180 wide, at x 10) on a narrow window.
+    const cx = Math.max(roomW / 2, 10 + 180 + 12 + where.width / 2 + 16);
+    where.position.set(cx, screen.height - 66);
     plate
       .clear()
-      .roundRect(roomW / 2 - where.width / 2 - 16, screen.height - 86, where.width + 32, 40, 5)
+      .roundRect(cx - where.width / 2 - 16, screen.height - 86, where.width + 32, 40, 5)
       .fill({ color: 0x0f1218, alpha: 0.7 });
     const t = g.time || performance.now() / 1000;
 

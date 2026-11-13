@@ -376,6 +376,8 @@ function hud() {
   consoleHud(g, g.room === 'console' && !!g.console && !(g.flight && g.flight.view === 'board'));
   $('date').textContent = `${dateText()} · ${clockText()}`;
   $('objective').textContent = g.objective;
+  // A narrow window cuts the objective short: the whole of it is on hover.
+  $('objective').title = g.objective || '';
   $('endday').hidden = !g.dayDone;
   const away = awayFrom();
   $('waiting').hidden = !away;
