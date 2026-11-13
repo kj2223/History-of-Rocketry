@@ -43,6 +43,7 @@ import { startDevMenu, clearDevFlag } from './dev-menu.js';
 import { drawInterior, interiorOf, interiorButtonAt, doorRight } from './interiors.js';
 import { lookAt } from '../game.js';
 import { frameSteps, MAX_STEP } from '../core/frame-steps.js';
+import { albumFrame, useAlbumStorage, albumHTML } from './album.js';
 import {
   render as renderRoom,
   live as liveRoom,
@@ -282,7 +283,8 @@ function showNotebook() {
   const nb = $('notebook'),
     esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   const now = g.notes.filter(n => n.round === g.roundIndex),
-    earlier = g.notes.length - now.length;
+    earlier = g.notes.length - now.length,
+    photos = albumHTML(g, dateText);
   const list = notes => `<ol>${notes.map(n => `<li><span>${n.at}</span> ${esc(n.text)}</li>`).join('')}</ol>`;
   nb.innerHTML = `<h2>Your notebook</h2>
     ${
@@ -292,6 +294,7 @@ function showNotebook() {
         : ''
     }
     ${now.length ? list(now) : '<p class="muted">Nothing written this round yet.</p>'}
+    ${photos ? `<details class="album"><summary>Photographs</summary><div class="prints">${photos}</div></details>` : ''}
     <p class="muted">N or Esc to close.</p>`;
 }
 $('notebook').addEventListener('click', e => {
@@ -363,6 +366,7 @@ function hud() {
 // Seeded replays keep their checkpoints and backups separate from the active campaign.
 const seed = Number(new URLSearchParams(location.search).get('seed')) || undefined;
 const storage = seed ? memoryStorage() : localStorage;
+useAlbumStorage(storage);
 
 // The game menu: start again from 1945, keeping the game you were playing as the backup, or go back to the backup.
 const where = c => `${cap(SEASON[roundIndexOf(c)].name)}, ${dateText(c.day)}`;
@@ -411,6 +415,16 @@ function panelReserve() {
   return el.hidden ? 0 : (el.offsetWidth + 24) * (window.devicePixelRatio || 1);
 }
 
+// The round's photograph, taken from the scene layer straight after it drew (js/site/album.js).
+// On the site the print is framed on the pad; from the console it takes the whole room.
+const snap = scene =>
+  albumFrame(
+    g,
+    scene,
+    $('stage').querySelector('canvas'),
+    scene === 'site' ? ((PLACES.tower.x + 25 - g.cam.x) * scale()) / view.w : null,
+  );
+
 let last = performance.now(),
   inScene = false,
   staged = false;
@@ -431,14 +445,16 @@ function frame(now) {
       if (!staged) drawTracking(ctx, g, view);
     } else if (g.room === 'console' && g.console) {
       staged = stageFrame('control', dt, 0);
-      if (!staged) drawControlRoom(ctx, g, view);
+      if (staged) snap('control');
+      else drawControlRoom(ctx, g, view);
     } else if (interiorOf(g)) {
       // A room rebuilt in PixiJS draws on the scene layer; the rest still draw on this canvas.
       staged = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
       if (!staged) drawInterior(ctx, g, view, panelReserve());
     } else {
       staged = stageFrame('site', dt, 0);
-      if (!staged) drawSite(ctx, g, view);
+      if (staged) snap('site');
+      else drawSite(ctx, g, view);
     }
     // in-scene: a walk-in room is drawn on the scene layer, so its panel keeps only the decision.
     inScene = staged && !!interiorOf(g);
