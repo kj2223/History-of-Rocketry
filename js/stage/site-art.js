@@ -703,6 +703,14 @@ function hangarS(c, gr, p) {
 function stand(gr, p) {
   gr.rect(p.x - 10, GROUND - 4, p.w + 20, 8).fill(0x7a6a58);
   gr.rect(p.x + 40, GROUND - 2, 40, 8).fill(0x2a2420);
+  // The pit reads as a pit (Aaron, 13 Nov: the bare dark slab looked like a glitch): a concrete lip round its mouth and
+  // the steel grating the crew stand on over it, with the dark showing between the bars.
+  gr.rect(p.x + 37, GROUND - 3, 3, 4)
+    .fill(0xa89a86)
+    .rect(p.x + 80, GROUND - 3, 3, 4)
+    .fill(0xa89a86);
+  for (let x = p.x + 42; x < p.x + 80; x += 5) gr.rect(x, GROUND - 2, 2, 2).fill(0x8a8f96);
+  gr.rect(p.x + 40, GROUND - 3, 40, 1).fill(0x8a8f96);
   gr.poly([p.x + 80, GROUND + 4, p.x + 120, GROUND + 10, p.x + 120, GROUND + 14, p.x + 80, GROUND + 6]).fill(0x5b544a);
   const left = y => p.x + 20 + (10 * y) / p.h,
     right = y => p.x + 100 - (10 * y) / p.h;

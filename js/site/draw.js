@@ -1183,6 +1183,13 @@ export function standStructure(ctx, p) {
   ctx.fillRect(p.x - 10, GROUND - 4, p.w + 20, 8);
   ctx.fillStyle = '#2a2420';
   ctx.fillRect(p.x + 40, GROUND - 2, 40, 6);
+  // A concrete lip and the steel grating over the pit, so it reads as a pit, not a dark slab.
+  ctx.fillStyle = '#a89a86';
+  ctx.fillRect(p.x + 37, GROUND - 3, 3, 4);
+  ctx.fillRect(p.x + 80, GROUND - 3, 3, 4);
+  ctx.fillStyle = '#8a8f96';
+  ctx.fillRect(p.x + 40, GROUND - 3, 40, 1);
+  for (let x = p.x + 42; x < p.x + 80; x += 5) ctx.fillRect(x, GROUND - 2, 2, 2);
   ctx.strokeStyle = '#5b5f66';
   ctx.lineWidth = 4;
   ctx.beginPath();

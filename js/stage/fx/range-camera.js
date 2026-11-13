@@ -9,6 +9,7 @@
 import { Container, Graphics, Sprite } from '../../vendor/pixi.min.mjs';
 import { puffTexture, label, setText } from '../kit.js';
 import { calm, swell } from './calm.js';
+import { makeTrail, stepTrail } from './trail.js';
 
 const W = 320,
   H = 210;
@@ -47,7 +48,7 @@ export function rangeCamera() {
 
   let striped = false,
     drawn = false,
-    puffs = [],
+    smoke = makeTrail(),
     bits = [],
     lastT = 0,
     gone = false;
@@ -102,29 +103,37 @@ export function rangeCamera() {
     rocket.rotation = rot;
     rocket.position.set(cx + (trouble?.kind === 'tumble' && since > 0 ? Math.sin(since * 0.7) * 30 : 0), cy);
 
-    // The trail: puffs left behind as she goes, drifting down the frame as the camera follows her up.
+    // The trail: smoke left behind as she goes, streaming down the frame as the camera follows her up (fx/trail.js
+    // keeps it joined to her flame; issue #246). Every puff moves together, so the column stays even.
     const step = Math.max(0, t - lastT);
     lastT = t;
-    if (burning && step > 0 && puffs.length < 60) {
+    const size = 0.25 * k * 3;
+    stepTrail(smoke, {
+      burning,
+      nx: rocket.x - Math.sin(rot) * 40 * k,
+      ny: rocket.y + Math.cos(rot) * 20 * k,
+      size,
+      spacing: size * 64 * 0.3,
+      drift: (26 + 40 * k) * Math.min(step, 0.5) * 0.5,
+      dt,
+      alpha: 0.55 * (1 - dark * 0.6),
+      bottom: H + 40,
+    });
+    const tint = striped ? 0xd8d0c0 : 0xe8e4dc;
+    while (trail.children.length < smoke.puffs.length) {
       const s = new Sprite(puffTexture());
       s.anchor.set(0.5);
-      s.tint = striped ? 0xd8d0c0 : 0xe8e4dc;
-      s.alpha = 0.55 * (1 - dark * 0.6);
-      s.scale.set(0.25 * k * 3);
-      s.position.set(rocket.x - Math.sin(rot) * 40 * k, rocket.y + Math.cos(rot) * 20 * k);
       trail.addChild(s);
-      puffs.push({ s, vy: 26 + 40 * k });
     }
-    for (let i = puffs.length - 1; i >= 0; i--) {
-      const q = puffs[i];
-      q.s.y += q.vy * Math.min(step, 0.5) * 0.5;
-      q.s.scale.set(q.s.scale.x + dt * 0.12);
-      q.s.alpha -= dt * 0.12;
-      if (q.s.alpha <= 0 || q.s.y > H + 40) {
-        q.s.destroy();
-        puffs.splice(i, 1);
-      }
-    }
+    trail.children.forEach((s, i) => {
+      const q = smoke.puffs[i];
+      s.visible = !!q;
+      if (!q) return;
+      s.tint = tint;
+      s.position.set(q.x, q.y);
+      s.scale.set(q.size);
+      s.alpha = q.alpha;
+    });
 
     // She comes apart: the rocket goes, a cloud boils up where she was, pieces fall out of it trailing smoke.
     if (trouble?.kind === 'break' && since >= 0 && !gone) {
