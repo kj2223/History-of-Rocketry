@@ -58,6 +58,7 @@ import { fixesForCard } from '../world/programme.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
 import { PLACES, atPlace, staysNear } from '../data/white-sands.js';
 import { roundPrint } from '../site/album.js';
+import { paperHTML } from '../site/paper.js';
 
 const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -544,7 +545,7 @@ const ROOMS = {
       next = i != null ? SEASON[i] : null;
     const o = g.record.offers[g.record.offers.length - 1],
       here = o && o.day >= r.day;
-    return `<h2>Written up: ${esc(r.name)}</h2>${roundPrint(g, r, dateText)}${recordLine(r)}${carriesForward()}
+    return `<h2>Written up: ${esc(r.name)}</h2>${paperHTML(g, r, !!SEASON.find(s => s.id === r.id)?.crewed) || roundPrint(g, r, dateText)}${recordLine(r)}${carriesForward()}
       ${here ? offerCard(o) : ''}
       ${next && !pendingOffer(g.record) ? `<p>Next: ${esc(next.name)}, from ${esc(dateText(roundStartOf(i)))}.</p><button class="primary" data-act="next-round">Carry on to the next round</button>` : ''}`;
   },
