@@ -1,6 +1,7 @@
 // PreToolUse hook: before Claude edits a design document, copy it into document-backups/auto/ once per session
 // (the project rule is to back up a doc before rewriting it). Covers the local-only docs under plans/ and the root
-// AGENTS.md, CLAUDE.md and COMPREHENSIVE-PLAN.md. It never blocks the edit.
+// AGENTS.md, CLAUDE.md and COMPREHENSIVE-PLAN.md. Copies of AGENTS.md and CLAUDE.md get a .bak suffix, because Claude
+// Code would otherwise load a copy named CLAUDE.md as live instructions. It never blocks the edit.
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 
@@ -17,7 +18,10 @@ try {
     if (isDoc && existsSync(abs)) {
       const day = new Date().toISOString().slice(0, 10);
       const session = String(input.session_id || 'session').slice(0, 8);
-      const copy = join(root, 'document-backups', 'auto', `${day}-${session}`, ...rel.split('/'));
+      const parts = rel.split('/');
+      const last = parts.length - 1;
+      if (/^(AGENTS|CLAUDE)\.md$/i.test(parts[last])) parts[last] += '.bak';
+      const copy = join(root, 'document-backups', 'auto', `${day}-${session}`, ...parts);
       if (!existsSync(copy)) {
         mkdirSync(dirname(copy), { recursive: true });
         copyFileSync(abs, copy);
