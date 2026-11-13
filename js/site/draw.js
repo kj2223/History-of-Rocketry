@@ -1520,7 +1520,43 @@ export function hangarTail(vehicle) {
     len = (TRUCK_LOADS[vehicle] || TRUCK_LOADS.v2).length;
   return Math.min(h.x + h.w - 20, Math.max(h.x + 230, h.x + 20 + len));
 }
+// Raising a round into the tower (the rollout's last job): she pivots up from the truck on her tail at the tower's
+// foot, on the tower's hoist cable, steadily over the job's three quarters of an hour. Returns 0 to 1, or null.
+export function raiseShare(g) {
+  const job = g.jobs?.find(j => j.label === 'Raising into the tower');
+  if (!job || !job.minutes) return null;
+  return Math.max(0, Math.min(1, 1 - job.left / job.minutes));
+}
+// Eased so she leaves the bed gently and settles upright gently: no jerk at either end.
+export const raiseAngle = k => (-Math.PI / 2) * (1 - (1 - Math.cos(Math.PI * k)) / 2);
+function raisingRound(ctx, g, k) {
+  const load = TRUCK_LOADS[g.vehicle] || TRUCK_LOADS.v2,
+    hx = PLACES.tower.x + 25,
+    hy = GROUND - 8,
+    a = raiseAngle(k),
+    dx = Math.sin(a),
+    dy = -Math.cos(a);
+  // The hoist cable from the tower's head to her sling, two thirds of the way up her.
+  const sx = hx + dx * load.length * 0.66,
+    sy = hy + dy * load.length * 0.66,
+    top = GROUND - PLACES.tower.h - 6;
+  ctx.strokeStyle = 'rgba(25,25,25,.9)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(hx, top);
+  ctx.lineTo(sx, sy);
+  ctx.stroke();
+  ctx.fillStyle = '#c9a43a';
+  ctx.fillRect(sx - 2.5, sy - 2.5, 5, 5); // the sling's yoke, painted yellow
+  // The pivot block she turns on at the tower's foot.
+  ctx.fillStyle = '#5a5248';
+  ctx.fillRect(hx - 9, hy - 2, 18, 10);
+  roundShape(ctx, g, hx, hy, a, true);
+}
+
 function rocketOnTruck(ctx, g) {
+  const lift = raiseShare(g);
+  if (lift != null && g.truck.x >= PLACES.tower.x - 90) return raisingRound(ctx, g, lift);
   const load = TRUCK_LOADS[g.vehicle] || TRUCK_LOADS.v2,
     bed = GROUND - 2, // the top of the truck's bed
     tail = g.truck.x + 14,
