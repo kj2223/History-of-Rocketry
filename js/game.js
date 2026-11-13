@@ -1470,12 +1470,28 @@ function flightCalls(r) {
   return calls.sort((a, b) => a.t - b.t);
 }
 
+// How fast each vehicle climbs off the pad on the site, against the WAC Corporal's leap off its rail.
+const LIFT = {
+  wac: 1,
+  aerobee: 1,
+  v2: 0.62,
+  bumper: 0.62,
+  viking: 0.7,
+  vanguard: 0.55,
+  juno: 0.5,
+  ranger: 0.48,
+  redstone: 0.55,
+};
+
 function tickFlight(dt) {
   const f = g.flight;
   f.real += dt;
   if (f.view === 'site') {
-    g.rocket.rise += dt * (40 + g.rocket.rise * 2.2);
-    if (f.real > 2.2) {
+    // The site watches her go: the small sounding rockets leap off the rail; the big ones climb slowly off the pad, and
+    // the camera tilts up after them (js/stage/fx/launch.js) until they are out of sight, then the range plot takes over.
+    const lift = LIFT[g.vehicle] ?? 0.6;
+    g.rocket.rise += dt * (40 + g.rocket.rise * 2.2) * lift;
+    if (f.real > 2.2 / lift || g.rocket.rise > 2600) {
       f.view = 'board';
       g.rocket.where = 'gone';
     }

@@ -126,12 +126,14 @@ test('a checkpoint missing its offer history falls back to the last good checkpo
 // What the player sees never reads the hidden truth: the site drawing and the rooms import nothing from js/truth,
 // and the only parts of the round they read are the drawing office's estimate and the player's own propellant choice.
 test('the site and the rooms only see what the player could see', () => {
-  for (const dir of ['site', 'scenes', 'stage'])
-    for (const f of readdirSync(new URL(`../js/${dir}/`, import.meta.url))) {
-      const src = readFileSync(new URL(`../js/${dir}/${f}`, import.meta.url), 'utf8');
-      assert.doesNotMatch(src, /from '\.\.\/truth\//, `${dir}/${f} imports the hidden truth`);
+  // Subfolders too (js/stage/fx holds the visual effects).
+  for (const dir of ['site', 'scenes', 'stage', 'stage/fx'])
+    for (const f of readdirSync(new URL(`../js/${dir}/`, import.meta.url), { withFileTypes: true })) {
+      if (!f.isFile()) continue;
+      const src = readFileSync(new URL(`../js/${dir}/${f.name}`, import.meta.url), 'utf8');
+      assert.doesNotMatch(src, /from '(\.\.\/)+truth\//, `${dir}/${f.name} imports the hidden truth`);
       for (const m of src.matchAll(/(?<![/\w-])round\.(\w+)/g))
-        assert.ok(['estimate', 'propellantLoad'].includes(m[1]), `${dir}/${f} reads round.${m[1]}`);
+        assert.ok(['estimate', 'propellantLoad'].includes(m[1]), `${dir}/${f.name} reads round.${m[1]}`);
     }
 });
 
