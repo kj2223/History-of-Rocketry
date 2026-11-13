@@ -8,7 +8,8 @@
 // same places on the wall as before. Reads only what the room could see, through game.js and the site drawing.
 import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
-import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra } from '../site/draw.js';
+import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra, yearOf } from '../site/draw.js';
+import { dayOf } from '../core/calendar.js';
 import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture } from './kit.js';
 
 // The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
@@ -72,6 +73,22 @@ export const LOOKS = {
   },
 };
 export const lookOf = g => LOOKS[uiEra(g)] || LOOKS.steel;
+
+// Which room the flight is run from, each drawn as its own:
+//  - 'cape': Mercury Control at the Cape (1960 to Gemini 3): one big world map, the TV and the monitor beside it;
+//  - 'mocr': Houston's Mission Operations Control Room (Gemini 4 in June 1965 to the mid-1990s): the front wall of five
+//    projection screens, the big one in the middle with the map, the TV and the event lights on the left, the monitor
+//    and the tracking stations' status board on the right; the floor stepped up in tiers behind the trench;
+//  - 'fcr': the new flight control room (1996 on, and Artemis): one seamless video wall of tiles with the map, the TV,
+//    the monitor and data windows in it, and a light strip along its top.
+export const roomOf = g => ((g.day ?? 0) < dayOf(1965, 6, 1) ? 'cape' : yearOf(g) < 1996 ? 'mocr' : 'fcr');
+// The tracking stations on the MOCR's status board, as the network was in each period.
+export const STATIONS = [
+  [1965, ['BDA', 'CYI', 'CRO', 'HAW', 'GYM', 'TEX', 'RKV', 'CSQ']],
+  [1969, ['GDS', 'MAD', 'HSK', 'BDA', 'GWM', 'HAW', 'ACN', 'CRO']],
+  [1981, ['BDA', 'MIL', 'GWM', 'HAW', 'GDS', 'MAD', 'CAN', 'TDRS']],
+];
+export const stationsFor = year => STATIONS.filter(([y]) => year >= y).at(-1)?.[1] ?? STATIONS[0][1];
 const TONE = { warn: 0xe8c66a, bad: 0xd0634f };
 const inkOf = (tone, look = LOOKS.steel) => TONE[tone] || look.ink;
 const enamelTex = new Map(); // one gradient per look, shared by every desk
@@ -334,10 +351,11 @@ export function telemetryScreen(look = LOOKS.steel) {
 export function controlScene() {
   const g = game;
   const era = uiEra(g),
-    look = lookOf(g);
+    look = lookOf(g),
+    place = roomOf(g);
   const root = new Container();
   const shell = new Container(); // the room: rebuilt when the screen changes size
-  const racks = new Graphics(); // the rack lamps, every frame
+  const racks = new Graphics(); // the rack lamps and the MOCR's event lights, every frame
   const deskLayer = new Container();
   const monitor = new Container();
   root.addChild(shell, racks, deskLayer, monitor);
@@ -358,18 +376,33 @@ export function controlScene() {
       galleryX = w * 0.87,
       wallL = w * 0.085,
       wallR = galleryX - w * 0.015;
-    const tvX = wallL + w * 0.47;
+    const base = { w, h, wallH, leftW, galleryX, wallL, wallR };
+    if (place === 'cape') {
+      const tvX = wallL + w * 0.47;
+      return {
+        ...base,
+        map: [wallL, wallH * 0.05, w * 0.45, wallH * 0.6],
+        tv: [tvX, wallH * 0.05, wallR - tvX, wallH * 0.3],
+        mon: [tvX, wallH * 0.39, wallR - tvX, wallH * 0.26],
+      };
+    }
+    // Houston: the big screen in the middle, two smaller ones each side of it (the video wall keeps the same plan,
+    // its panes butted together).
+    const span = wallR - wallL,
+      gap = place === 'mocr' ? span * 0.018 : span * 0.006,
+      mapW = span * 0.46,
+      sideW = (span - mapW - gap * 2) / 2,
+      top = wallH * 0.05,
+      tall = wallH * 0.6,
+      upper = tall * 0.5 - gap / 2,
+      rightX = wallL + sideW + gap + mapW + gap;
     return {
-      w,
-      h,
-      wallH,
-      leftW,
-      galleryX,
-      wallL,
-      wallR,
-      map: [wallL, wallH * 0.05, w * 0.45, wallH * 0.6],
-      tv: [tvX, wallH * 0.05, wallR - tvX, wallH * 0.3],
-      mon: [tvX, wallH * 0.39, wallR - tvX, wallH * 0.26],
+      ...base,
+      map: [wallL + sideW + gap, top, mapW, tall],
+      tv: [wallL, top, sideW, upper],
+      lights: [wallL, top + upper + gap, sideW, tall - upper - gap],
+      mon: [rightX, top + upper + gap, sideW, tall - upper - gap],
+      board: [rightX, top, sideW, upper],
     };
   }
 
@@ -517,9 +550,107 @@ export function controlScene() {
       50,
     );
     map.tint = tv.tint = look.screens;
+    if (place !== 'cape') houstonWall();
 
     tele.place(...L.mon);
     deskKey = '';
+  }
+
+  // Houston's front wall beyond the map, the TV and the monitor: the event lights' panel and the stations' status board
+  // (in the video wall, data windows), the tiered floor, and in the new room the light strip along the wall's top.
+  function houstonWall() {
+    const { w, h, wallH, leftW, galleryX, wallL, wallR } = L;
+    const deco = new Graphics();
+    const [lx, ly, lw, lh] = L.lights,
+      [bx, by, bw, bh] = L.board;
+    if (place === 'fcr') {
+      // The video wall: one dark surface of tiles behind the panes, with fine seams.
+      const top = L.map[1] - 8,
+        bottom = L.map[1] + L.map[3] + 8;
+      deco.rect(wallL - 8, top, wallR - wallL + 16, bottom - top).fill({ color: look.glass, alpha: 0.9 });
+      const cols = 12,
+        rows = 4;
+      for (let i = 1; i < cols; i++)
+        deco
+          .rect(wallL - 8 + ((wallR - wallL + 16) * i) / cols, top, 1, bottom - top)
+          .fill({ color: 0x000000, alpha: 0.5 });
+      for (let j = 1; j < rows; j++)
+        deco
+          .rect(wallL - 8, top + ((bottom - top) * j) / rows, wallR - wallL + 16, 1)
+          .fill({ color: 0x000000, alpha: 0.5 });
+      // The light strip along the wall's top, and its wash down the wall.
+      deco.rect(leftW, 0, galleryX - leftW, Math.max(3, h * 0.004)).fill(look.trim);
+      const wash = new Sprite(
+        gradientTexture([
+          [0, `#${look.trim.toString(16).padStart(6, '0')}`],
+          [1, 'rgba(0,0,0,0)'],
+        ]),
+      );
+      wash.ownTex = true;
+      wash.position.set(leftW, 0);
+      wash.width = galleryX - leftW;
+      wash.height = wallH * 0.05;
+      wash.alpha = 0.25;
+      // Behind the panes, not over them.
+      shell.addChildAt(deco, shell.getChildIndex(map));
+      shell.addChild(wash);
+      // Data windows: a title bar and lines of figures.
+      const windows = new Graphics();
+      for (const [x, y, ww, wh] of [L.lights, L.board]) {
+        windows.rect(x, y, ww, wh).fill(look.glassTop);
+        windows.rect(x, y, ww, Math.max(10, wh * 0.1)).fill({ color: look.trim, alpha: 0.6 });
+        for (let r = 0; r < 7; r++)
+          windows
+            .rect(
+              x + ww * 0.06,
+              y + wh * (0.22 + r * 0.1),
+              ww * (0.35 + ((r * 37) % 50) / 100),
+              Math.max(2, wh * 0.025),
+            )
+            .fill({ color: look.ink, alpha: 0.35 });
+      }
+      shell.addChild(windows);
+    } else {
+      // The MOCR: the event lights in their panel (lit each frame), and the status board, a lamp by each station.
+      deco
+        .rect(lx - 6, ly - 6, lw + 12, lh + 12)
+        .fill(0x181b1f)
+        .rect(lx, ly, lw, lh)
+        .fill(0x0c0f12);
+      deco
+        .rect(bx - 6, by - 6, bw + 12, bh + 12)
+        .fill(0x181b1f)
+        .rect(bx, by, bw, bh)
+        .fill(0x0c0f12);
+      shell.addChild(deco);
+      const names = stationsFor(yearOf(g)),
+        rows = names.length / 2,
+        size = Math.max(9, Math.min(14, (bh / (rows + 1.5)) * 0.6));
+      const title = label('NETWORK STATUS', size, look.dim, { ax: 0.5, ay: 0, spacing: 1 });
+      title.position.set(bx + bw / 2, by + 4);
+      shell.addChild(title);
+      const lamps = new Graphics();
+      names.forEach((n, i) => {
+        const col = i % 2,
+          row = Math.floor(i / 2),
+          x = bx + bw * (0.1 + col * 0.5),
+          y = by + size * 1.8 + row * ((bh - size * 2.2) / rows);
+        const t = label(n, size, look.ink, { ax: 0, ay: 0 });
+        t.position.set(x + size * 1.4, y);
+        shell.addChild(t);
+        lamps.rect(x, y + size * 0.15, size * 0.9, size * 0.7).fill(0x5fb86a);
+      });
+      shell.addChild(lamps);
+      // The tiers: each row of desks a step up from the one in front of it, the trench lowest by the wall.
+      const floor = h - wallH,
+        steps = new Graphics();
+      for (const at of [0.1, 0.47]) {
+        const y = wallH + floor * at;
+        steps.rect(leftW, y, galleryX - leftW, floor * 0.035).fill({ color: 0x000000, alpha: 0.28 });
+        steps.rect(leftW, y, galleryX - leftW, 2).fill({ color: 0xe8ddbd, alpha: 0.18 });
+      }
+      shell.addChild(steps);
+    }
   }
 
   function buildDesks() {
@@ -581,11 +712,28 @@ export function controlScene() {
         racks.rect(14 + l * ((lw - 34) / 6), uy + 9, Math.max(3, lw / 26), 4).fill(on ? look.ink : look.rule);
       }
     });
+    // The MOCR's event lights: each lamp comes on or goes off on its own slow beat, never in step with the rest.
+    if (place === 'mocr') {
+      const [lx, ly, lw, lh] = L.lights;
+      const cols = 6,
+        rows = 4,
+        cw = lw / cols,
+        rh = lh / rows;
+      for (let i = 0; i < cols * rows; i++) {
+        const beat = Math.floor(g.time / (5 + (i % 7)) + i * 0.618);
+        const on = (beat * 7 + i * 3) % 5 < 2;
+        const x = lx + (i % cols) * cw + cw * 0.15,
+          y = ly + Math.floor(i / cols) * rh + rh * 0.2;
+        racks
+          .roundRect(x + cw * 0.05, y + rh * 0.05, cw * 0.6, rh * 0.45, 2)
+          .fill(on ? (i % 9 === 4 ? 0xe8c66a : 0xe8e2c8) : 0x23272c);
+      }
+    }
     map.update();
     tv.update();
     tele.draw(c);
   }
 
-  const stale = () => uiEra(g) !== era;
+  const stale = () => uiEra(g) !== era || roomOf(g) !== place;
   return { root, update, stale, passThrough: true };
 }

@@ -91,3 +91,16 @@ test('the sound follows the game: the roar while she burns, a boom when she brea
   assert.ok(soundPlan(null, 'control-room').hum > 0);
   assert.ok(soundPlan({ day: 0 }, 'site, panel board').wind > 0);
 });
+
+test('each period runs its flights from its own room: Mercury Control, the MOCR, the new flight control room', async () => {
+  const { roomOf, stationsFor } = await import('../js/stage/control.js');
+  assert.equal(roomOf({ day: dayOf(1962, 2, 20) }), 'cape');
+  assert.equal(roomOf({ day: dayOf(1965, 6, 3) }), 'mocr');
+  assert.equal(roomOf({ day: dayOf(1981, 4, 12) }), 'mocr');
+  assert.equal(roomOf({ day: dayOf(1998, 12, 3) }), 'fcr');
+  assert.equal(roomOf({ day: dayOf(2028, 1, 1) }), 'fcr');
+  // The status board's stations: Gemini's network, then Apollo's big dishes, then the relay satellites.
+  assert.ok(stationsFor(1965).includes('CSQ'));
+  assert.ok(stationsFor(1969).includes('HSK'));
+  assert.ok(stationsFor(1990).includes('TDRS'));
+});
