@@ -54,6 +54,7 @@ import { surname } from '../data/cast.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SEA_LIMIT } from '../data/mercury.js';
 import { callBoardLines } from '../houston.js';
+import { televisionShot } from './tv-shots.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -1883,7 +1884,7 @@ export function padPicture(ctx, g, x, y, w, h) {
   ctx.restore();
 }
 
-// The fixed camera frames 370 site units above the pad. At 30 units per console second the rocket clears it at T+13.
+// The pad camera frames 370 site units above the pad. At 30 units per console second the rocket clears it at T+13.
 export function controlTelevision(ctx, g, x, y, w, h) {
   const c = g.console;
   const last = c?.trace?.at(-1);
@@ -1891,6 +1892,9 @@ export function controlTelevision(ctx, g, x, y, w, h) {
   // Once she is in the flight proper the climb is history: the screen carries the flight's own status board instead
   // of the last ascent sample, hours or days stale.
   if (c?.flight && !['ascent', 'insertion'].includes(c.phase)) return flightStatusBoard(ctx, c.flight, x, y, w, h);
+  // While she climbs the picture follows her: the tracking cameras, and the onboard cameras of the years that had them
+  // live (js/site/tv-shots.js). The readings ride along in the caption.
+  if (live && last && last.t >= 13 && televisionShot(ctx, g, x, y, w, h)) return;
   if (!last || (live && last.t < 13)) return padPicture(ctx, g, x, y, w, h);
 
   const size = Math.min(w / 28, h / 5);
