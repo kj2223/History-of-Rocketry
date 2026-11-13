@@ -61,6 +61,11 @@ import { roundPrint } from '../site/album.js';
 
 const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const STRIP_ROOMS = ['count', 'static', 'watch'];
+const CLIPBOARD_ROOMS = ['plan', 'board'];
+// The question a call strip asks, with its lamp: lit (steady, never flashing) when the call is waiting on you.
+const ask = (text, waiting = false, always = false) =>
+  `<p class="ask${always ? ' always' : ''}"><span class="call-lamp${waiting ? ' on' : ''}" aria-hidden="true"></span>${esc(text)}</p>`;
 let shown = { room: null, version: -1 },
   hooks = {},
   confirmNew = false,
@@ -121,6 +126,11 @@ export function render() {
     return;
   } // a room with nothing to show leaves the scene alone
   const closable = !['recovery', 'splash'].includes(kind);
+  // A call strip: inside a rebuilt scene, the count and the static fire show only the question and its buttons, along
+  // the bottom of the scene (style.css, #room.strip). The paper rooms (the plan, the drawing board) are a clipboard.
+  el.dataset.room = kind;
+  el.classList.toggle('strip', STRIP_ROOMS.includes(kind));
+  el.classList.toggle('clipboard', CLIPBOARD_ROOMS.includes(kind));
   el.innerHTML = `${closable ? '<button class="close" data-act="close" title="Back to the site (Esc)">✕</button>' : ''}${body}`;
 }
 
@@ -370,6 +380,17 @@ const ROOMS = {
       walled = s.burn === 'long' && !!kit().stand.wall,
       tape = kit().stand.tape;
     const leakWhere = tape ? ' the stage in the hangar' : '';
+    const asks = {
+      ready: tape
+        ? 'The tapes are on the recorder. Run them, or leak-check first?'
+        : 'The stage is on the stand. Start the count, or leak-check first?',
+      count: tape
+        ? 'Watch the tank pressure. Stop the tape if it looks wrong.'
+        : 'Watch the tank pressure. Hold if it looks wrong.',
+      held: tape
+        ? 'The tape is stopped. Run it on, or leak-check?'
+        : 'Holding. Resume, or send the crew to leak-check?',
+    };
     const buttons = {
       ready: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape' : 'Start the firing count'}</button><button data-act="stand-leak">Send the crew to leak-check${leakWhere} first (2 h)</button>`,
       count: `<button class="danger" data-act="stand-hold">${tape ? 'Stop the tape' : 'HOLD'}</button>`,
@@ -377,7 +398,7 @@ const ROOMS = {
       leakcheck:
         '<p class="muted">The crew is on the stand checking every line. Watch them through the slit, or wait.</p>',
       firing: '<p class="muted">Firing…</p>',
-      read: `<p>Read the trace. What do you want done before this stage flies?</p>
+      read: `${ask('Read the trace. What do you want done before this stage flies?', true, true)}
         <label><input type="checkbox" data-choice="rework"> ${esc(kit().stand.rework)} (8 hours: the launch slips a day)</label>
         <label><input type="checkbox" data-choice="leak"> Leak-check the feed system (2 hours)</label>
         <button class="primary" data-act="stand-decide">${conducting() ? 'Make it so' : `Give your recommendation to ${esc(g.people[countLead()].name.split(' ').at(-1))}`}</button>`,
@@ -392,7 +413,7 @@ const ROOMS = {
       ${READINGS_HTML}
       <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is the full-duration run.' : ''}</p>
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
-      <div class="actions">${buttons}</div>`;
+      <div class="actions">${asks[p] ? ask(asks[p]) : ''}${buttons}</div>`;
     return `<h2>Test stand dugout</h2>
       <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. ${
         conducting()
@@ -407,7 +428,7 @@ const ROOMS = {
       ${READINGS_HTML}
       <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is a full-duration firing: 30 seconds.' : ''}</p>
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
-      <div class="actions">${buttons}</div>`;
+      <div class="actions">${asks[p] ? ask(asks[p]) : ''}${buttons}</div>`;
   },
   count() {
     const c = g.count;
@@ -418,15 +439,15 @@ const ROOMS = {
         ? `<ul class="reports">${c.reports.map(r => `<li><strong>${esc(r.station)}</strong> (${esc(g.people[r.who].name)}): ${esc(r.text)}</li>`).join('')}</ul>`
         : '';
     const pollButtons = c.poll
-      ? `<div class="poll"><p><strong>${c.poll === 'final' ? 'Final poll.' : 'Poll.'}</strong> ${conductor ? 'Your stations have reported. Check them against your own gauge, then make the call.' : `${esc(g.people[countLead()].name.split(' ').at(-1))} wants your ${countPanel() === 'WAC' ? "WAC stage's tank pressure and igniter circuit" : 'tank pressure'}. Read the gauge, then make your call.`}</p>
+      ? `<div class="poll">${ask(`${c.poll === 'final' ? 'Final poll' : 'Poll'}: ${conductor ? 'your stations have reported. Are we go?' : `${g.people[countLead()].name.split(' ').at(-1)} wants your ${countPanel() === 'WAC' ? 'tank pressure and igniter circuit' : 'tank pressure'}. Go or no-go?`}`, true)}<p><strong>${c.poll === 'final' ? 'Final poll.' : 'Poll.'}</strong> ${conductor ? 'Your stations have reported. Check them against your own gauge, then make the call.' : `${esc(g.people[countLead()].name.split(' ').at(-1))} wants your ${countPanel() === 'WAC' ? "WAC stage's tank pressure and igniter circuit" : 'tank pressure'}. Read the gauge, then make your call.`}</p>
       ${reports}<button class="go" data-act="go">GO</button><button class="danger" data-act="nogo">NO-GO: hold</button></div>`
       : '';
     const holdButtons = c.checking
       ? '<p class="muted">The pad crew is out at the tower. The count recycles when they are back inside.</p>'
       : c.held && !c.poll
-        ? `<button class="primary" data-act="resume">Resume the count</button><button data-act="count-leak">Send the pad crew to look for a leak</button>`
+        ? `${ask('Holding. Resume the count, or send the pad crew to look for a leak?')}<button class="primary" data-act="resume">Resume the count</button><button data-act="count-leak">Send the pad crew to look for a leak</button>`
         : !c.poll
-          ? '<button class="danger" data-act="hold">HOLD</button>'
+          ? `${ask('Counting. You can call a hold at any time.')}<button class="danger" data-act="hold">HOLD</button>`
           : '';
     return `<h2>Blockhouse: the count</h2>
       <p>${
