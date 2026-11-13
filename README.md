@@ -10,7 +10,7 @@ This is not just a story about rockets. It is a story about the people on the gr
 
 The project has grown from a text-based experience into a playable, side-on 2D view of the launch site. Instead of encountering the whole campaign through text alone, you can now move through the range, see the buildings and crew, and choose where to go: click to walk, enter a building to work at its rooms and consoles, or approach a person to talk.
 
-The 2D presentation makes the work feel tangible—the rocket moves from the hangar to the stand and tower, the crew goes about its jobs, and the countdown unfolds around you. Text remains an important part of the game: conversations, mission updates, notebook entries, and the decisions themselves carry the historical detail and consequences. The new view brings that narrative to life rather than replacing it.
+The 2D presentation makes the work feel tangible—the rocket moves from the hangar to the stand and tower, the crew goes about its jobs, and the countdown unfolds around you. Each era has its own look, from the film grade over the scenes to the control rooms themselves: Mercury Control, then Houston's Mission Operations Control Room, then the newer Flight Control Room. Day turns to night, the weather changes, the Mission Control TV follows the climb with the cameras each era really had, and milestone photographs collect in an album. Text remains an important part of the game: conversations, mission updates, notebook entries, and the decisions themselves carry the historical detail and consequences. The new view brings that narrative to life rather than replacing it.
 
 ## What you’ll do
 
@@ -31,8 +31,11 @@ Some outcomes and technical problems are simulated, so the campaign is about mor
 - **A / D** or **← / →** walks. Hold **Shift** with those keys to pan the view.
 - **Space** pauses or resumes. **1**, **2**, and **3** select normal, fast, and fastest simulation speed.
 - Press **N** to open your notebook. **Esc** closes the notebook or current room.
+- Press **M** (or the **Sound** button) to set the sound to full, low or off.
 
-The top bar also provides pause, simulation-speed, notebook, and game options. Game progress is saved automatically in the browser or desktop app.
+The top bar also provides pause, simulation-speed, notebook, sound, and game options.
+
+The game has no flicker or repeated flashing. If you want gentler effects still, turn on **Calm effects** in the dev menu (below): no screen shake, no flash of light at ignition or explosions, no film grain. It is on by itself when your computer asks for reduced motion. Game progress is saved automatically in the browser or desktop app.
 
 ## Play
 
@@ -86,7 +89,9 @@ stays on your computer, and is kept apart from the save, so it never changes or 
   **Jump (F9)** button opens it: pick a round on the NASA route
   or the JPL route, and its first morning or launch morning. A bot plays every round before it in a second or two, so
   the record, fixes, crews and offers behind you are believable. Your game before the first jump is kept as the backup
-  (Game > go back to your backup). Each jump is noted in the log with its seed.
+  (Game > go back to your backup). Each jump is noted in the log with its seed. The menu also has three switches:
+  **Old drawing** (the old canvas code, to compare with the PixiJS scenes), **No film look** (no era film grade) and
+  **Calm effects**.
 - The desktop app writes it to `%APPDATA%\Ad Astra\playtest`: `log.json`, `save.json` (the latest checkpoint) and
   `marks\`. The **Playtest** menu (press Alt to show the menu bar) opens that folder, starts a fresh log (the old one is
   kept as `log-previous.json`), and switches the log off or on.
