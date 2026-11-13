@@ -98,6 +98,10 @@ export const INSPECTORS = {
 
 // What the player can see and say about the current kind of round (data/kits.js).
 export const kit = () => KITS[g.vehicle];
+// What the site's weather can show of the day (js/stage/fx/weather.js): the wind the forecast gave for the count, and
+// the recovery area's sea state the count is told. Both are said aloud to the player; nothing hidden.
+export const siteWind = () => g.round?.wind?.kmh ?? null;
+export const seaState = () => g.mission?.cond?.seaState ?? null;
 
 // g is the whole game state, one mutable object shared by every module. Reading a function, assume it can
 // touch any of these. The field groups:
