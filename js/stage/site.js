@@ -16,6 +16,7 @@ import { siteLive } from './site-live.js';
 import { launchFx, warmTint } from './fx/launch.js';
 import { lightAt, daylightDressing } from './fx/daylight.js';
 import { blastFx } from './fx/blast.js';
+import { siteLife } from './fx/life.js';
 import { weatherFor, weatherLayers, mulTint, forcedWeather } from './fx/weather.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
@@ -62,7 +63,8 @@ export function siteScene() {
   // The day's weather (fx/weather.js): thunderheads and overcast far off, mist over the distance, dust on the ground,
   // rain over everything.
   const weather = weatherLayers();
-  backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds, weather.far);
+  const life = siteLife();
+  backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds, life.birds, weather.far);
   const WIDE = 4000; // wider than any screen in site units
   const ranges = [
     [range(0x8d86a0, 380, [0, 60, 30, 120, 70, 150, 40, 90, 20], WIDE), 0.15],
@@ -75,7 +77,7 @@ export function siteScene() {
   const glints = new Graphics();
   const scrub = new Graphics();
   const palms = new Graphics();
-  backMid.addChild(sea, glints, scrub, palms, weather.mist);
+  backMid.addChild(sea, glints, life.surf, scrub, palms, weather.mist);
   const PALM_SPAN = 140;
   const haze = new Sprite();
   const sand = new Sprite();
@@ -110,7 +112,10 @@ export function siteScene() {
   root.addChild(nightLayer, weather.rain);
   const overlay = new Sprite();
   root.addChild(overlay);
-  root.addChild(fx.flash, blast.flash);
+  // In front of the rocket (the canvas overlay): the vapour off her when she is fuelled.
+  const frontWorld = new Container();
+  frontWorld.addChild(life.vapour);
+  root.addChild(frontWorld, fx.flash, blast.flash);
   // Speech bubbles, in screen pixels so the words stay a readable size at any zoom.
   const bubbleLayer = new Container();
   root.addChild(bubbleLayer);
@@ -332,7 +337,17 @@ export function siteScene() {
         lightLayer.addChild(l);
       }
     }
-    live.update(g, Math.min(0.1, dt));
+    live.update(g, Math.min(0.1, dt), W.wind);
+    life.update(g, Math.min(0.1, dt), {
+      vw,
+      camX,
+      wind: W.wind,
+      night: L.night,
+      fuelled: g.count != null || !!g.console || !!g.crewed,
+      t,
+    });
+    frontWorld.scale.set(s);
+    frontWorld.position.set(-camX * s, tiltPx);
     // Dusk: the site itself darkens toward the sky's colour, and the lights come on.
     // A launch's flame lights it up warm, most of all at night.
     const dim = warmTint(mulTint(L.tint, weather.tint(W)), lf.glow, dusk);

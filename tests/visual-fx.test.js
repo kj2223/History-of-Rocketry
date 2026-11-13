@@ -104,3 +104,10 @@ test('each day has its weather, true to the place and season, and the forecast w
     weatherFor({ day: 6000, month: 7, hour: 16, cape: true }),
   );
 });
+
+test('only the liquid-oxygen rockets breathe vapour on the pad', async () => {
+  const { breathes } = await import('../js/stage/fx/life.js');
+  for (const v of ['saturn5', 'atlas', 'redstone', 'shuttle', 'viking']) assert.ok(breathes(v), v);
+  // Acid and aniline (WAC, Aerobee) and the Titan II's storable propellants do not boil off.
+  for (const v of ['wac', 'aerobee', 'titan']) assert.ok(!breathes(v), v);
+});

@@ -76,13 +76,15 @@ export function siteLive() {
   door.resolution = 6;
   truckLayer.addChild(truck, door);
 
-  function update(g, dt) {
+  // wind: the day's wind in km/h (fx/weather.js), which fills the windsock and sets the flag going.
+  function update(g, dt, wind = 12) {
     const t = g.time;
     behind.clear();
     // The windsock: a striped cone on a pole.
     const wx = 1965,
       wy = GROUND - 70,
-      fill = 0.75 + 0.25 * Math.sin(t * 0.7) * Math.sin(t * 1.9);
+      steady = Math.min(1, 0.25 + wind / 28),
+      fill = Math.max(0.15, Math.min(1, steady + 0.18 * Math.sin(t * (0.5 + wind * 0.03)) * Math.sin(t * 1.9)));
     behind.rect(wx - 1, wy, 2, 70).fill(0x7a7a7a);
     behind.circle(wx, wy, 1.6).fill(0x5a5a5a);
     for (let i = 0; i < 4; i++) {
@@ -104,8 +106,9 @@ export function siteLive() {
     behind.rect(fx, fy - 2, 1, 106).fill({ color: 0x281e14, alpha: 0.25 });
     behind.circle(fx, fy - 3, 2).fill(0xc9a74a);
     for (let i = 0; i < 12; i++) {
-      const wave = Math.sin(t * 3 - i * 0.6) * i * 0.18,
-        light = 0.1 * Math.sin(t * 3 - i * 0.6);
+      const pace = 1.2 + wind * 0.09,
+        wave = Math.sin(t * pace - i * 0.6) * i * (0.08 + Math.min(0.2, wind / 150)),
+        light = 0.1 * Math.sin(t * pace - i * 0.6);
       for (let s = 0; s < 7; s++)
         behind.rect(fx + 1 + i * 2, fy + s * 2 + wave, 2, 2).fill(s % 2 ? 0xf2efe6 : 0xb0302c);
       if (i < 5) behind.rect(fx + 1 + i * 2, fy + wave, 2, 8).fill(0x2c3a6a);
@@ -270,8 +273,8 @@ export function siteLive() {
     fire,
     smoke,
     dust,
-    update: (g, dt) => {
-      update(g, dt);
+    update: (g, dt, wind) => {
+      update(g, dt, wind);
       effects(g, dt);
     },
   };
