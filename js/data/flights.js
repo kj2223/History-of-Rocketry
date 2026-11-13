@@ -58,39 +58,40 @@ const TANK = [
 ];
 // The lander's climb back to the command module, from the surface or from an abort in the descent. A weak ascent engine
 // leaves her low, and somebody has to close the gap.
-const ASCENT = (at, docked = "Houston, we're docked. Two tired men coming through the tunnel.") => [
-  {
-    at,
-    phase: 'Ascent and rendezvous',
-    moon: true,
-    when: 'lmFlown',
-    say: [['pilot', "Houston, the ascent engine's lit. We're climbing.", 'go']],
-    show: { 'ASCENT ENGINE': ['burning'] },
-  },
-  {
-    at: at + 0.15,
-    moon: true,
-    when: 'lmFlown',
-    if: 'ascent',
-    say: [
-      [
-        'kessler',
-        "Flight, the ascent engine's chamber pressure came up low all the way. She's in orbit, but low: fifteen by forty kilometres, well under the command module.",
-        'bad',
+const ASCENT = (at, docked = "Houston, we're docked. Two tired men coming through the tunnel.", rescue = true) =>
+  [
+    {
+      at,
+      phase: 'Ascent and rendezvous',
+      moon: true,
+      when: 'lmFlown',
+      say: [['pilot', "Houston, the ascent engine's lit. We're climbing.", 'go']],
+      show: { 'ASCENT ENGINE': ['burning'] },
+    },
+    {
+      at: at + 0.15,
+      moon: true,
+      when: 'lmFlown',
+      if: 'ascent',
+      say: [
+        [
+          'kessler',
+          "Flight, the ascent engine's chamber pressure came up low all the way. She's in orbit, but low: fifteen by forty kilometres, well under the command module.",
+          'bad',
+        ],
       ],
-    ],
-    show: { 'ASCENT ENGINE': ['chamber pressure low', true], 'LM ORBIT': ['15 by 40 km', true] },
-  },
-  { at: at + 0.2, moon: true, when: 'lmFlown', if: 'ascent', decide: 'rescue' },
-  {
-    at: at + 3.5,
-    moon: true,
-    when: 'lmFlown',
-    not: 'lmLost',
-    say: [['crew2', docked, 'go']],
-    show: { LM: ['docked'] },
-  },
-];
+      show: { 'ASCENT ENGINE': ['chamber pressure low', true], 'LM ORBIT': ['15 by 40 km', true] },
+    },
+    { at: at + 0.2, moon: true, when: 'lmFlown', if: 'ascent', decide: 'rescue' },
+    {
+      at: at + 3.5,
+      moon: true,
+      when: 'lmFlown',
+      not: 'lmLost',
+      say: [['crew2', docked, 'go']],
+      show: { LM: ['docked'] },
+    },
+  ].filter(step => rescue || step.if !== 'ascent');
 // The flight plan, a step at a time. (Fragment: the Saturn IB steps, sorted.)
 const IB = [
   {
@@ -2042,19 +2043,12 @@ export const FLIGHTS = {
       ...IB,
       ...EARLY,
       {
-        at: 12,
-        say: [
-          [
-            'pilot',
-            "Houston, we're an hour behind by noon every day. The timeline you sent up was written for men who don't sleep. We need a day to reset it.",
-            'warn',
-          ],
-        ],
-        show: { SCHEDULE: ['falling behind', true] },
+        at: 500,
+        offShift:
+          'Three weeks in: the Earth surveyed, the telescopes on the Sun, and a timeline that slips a little further every day.',
       },
-      { at: 12.2, decide: 'pace' },
       {
-        at: 90,
+        at: 960,
         say: [
           [
             'crew2',
@@ -2065,7 +2059,20 @@ export const FLIGHTS = {
         show: { TELESCOPE: ['on the comet', true] },
       },
       {
-        at: 500,
+        // Six weeks up (30 December 1973): the crew and the ground talked it out on an open line.
+        at: 1050,
+        say: [
+          [
+            'pilot',
+            "Houston, six weeks of this and we're an hour behind by noon every day. The timeline you send up is written for men who don't sleep. We need a day to reset it.",
+            'warn',
+          ],
+        ],
+        show: { SCHEDULE: ['falling behind', true] },
+      },
+      { at: 1050.2, decide: 'pace' },
+      {
+        at: 1400,
         offShift: 'Two months in: the comet photographed, the Earth surveyed, and a crew in rhythm with the workshop.',
       },
       {
@@ -2139,7 +2146,7 @@ export const FLIGHTS = {
     phases: 4,
     objective: 'fly the orbiter to orbit, check her tiles, and bring her home on a runway',
     rules: [
-      'The lakebed at Edwards is the primary landing site; the Cape only if the weather holds.',
+      'The lakebed at Edwards is the primary landing site; Northrup Strip at White Sands is the backup.',
       'Two good fuel cells, or the flight comes home at the next opportunity.',
       'The tiles are checked before entry is certified.',
       'Enter the atmosphere inside the corridor: steeper than 7.2 degrees crushes, shallower than 5.5 skips out.',
@@ -2163,12 +2170,12 @@ export const FLIGHTS = {
         say: [
           [
             'kessler',
-            'Flight, EECOM: the photographs from the tank show foam off the bipod ramp, and the belly took it. We are looking at the tiles.',
+            'Flight, EECOM: the crew have the doors open, and their TV shows tiles missing off the OMS pods at the tail. Nobody can see the belly from inside.',
             'warn',
           ],
         ],
-        note: "Foam came off the external tank's bipod ramp during the climb and struck the tiles on the belly. Nobody could say how deep it went from the ground.",
-        show: { TILES: ['strike suspected', true] },
+        note: 'With the payload bay doors open, the crew saw that tiles had come off the OMS pods at the tail. Nobody could see her belly from the cabin, and nobody knew whether tiles had gone there too.',
+        show: { TILES: ['some missing', true] },
       },
       { at: 2.7, if: 'foam', decide: 'tiles' },
       {
@@ -2532,7 +2539,20 @@ export const FLIGHTS = {
         ],
         show: { DRAGON: ['in orbit'], 'NOSE CONE': ['open'] },
       },
-      ...STS.slice(1),
+      // Falcon 9 carries nine first-stage engines and can lose one (as CRS-1 did in 2012); a Shuttle main engine has no
+      // place here.
+      {
+        at: 1.8,
+        if: 'merlin',
+        say: [
+          [
+            'albrecht',
+            "Flight, Booster: SpaceX reports one first-stage engine shut down early. The other eight burned longer, and Dragon's orbit is good.",
+            'warn',
+          ],
+        ],
+        show: { 'FIRST STAGE': ['eight of nine engines', true] },
+      },
       {
         at: 6,
         where: [0.02, 'Earth orbit'],
@@ -2601,7 +2621,6 @@ export const FLIGHTS = {
     ],
     steps: [
       ...SLS,
-      ...EARLY,
       {
         at: 2.4,
         if: 'relight',
@@ -2718,7 +2737,6 @@ export const FLIGHTS = {
     ],
     steps: [
       ...SLS,
-      ...EARLY,
       {
         at: 2.4,
         if: 'relight',
@@ -2841,7 +2859,6 @@ export const FLIGHTS = {
         ],
         show: { ORION: ['in orbit'], LANDER: ['ahead, station-keeping'] },
       },
-      ...EARLY,
       {
         at: 20,
         phase: 'Rendezvous and docking',
@@ -2918,7 +2935,6 @@ export const FLIGHTS = {
     ],
     steps: [
       ...SLS,
-      ...EARLY,
       {
         at: 2.4,
         if: 'relight',
@@ -2946,7 +2962,6 @@ export const FLIGHTS = {
         ],
         show: { LANDER: ['waiting in lunar orbit'] },
       },
-      ...TANK,
       {
         lunar: true,
         at: 60,
@@ -2984,14 +2999,6 @@ export const FLIGHTS = {
         show: { 'LANDER COMPUTER': ['flying the descent'] },
       },
       {
-        at: 105.03,
-        moon: true,
-        if: 'alarm',
-        say: [['pilot', 'Houston, program alarm. 1202.', 'bad']],
-        show: { 'LM COMPUTER': ['1202 alarms', true] },
-      },
-      { at: 105.05, moon: true, if: 'alarm', decide: 'alarm' },
-      {
         at: 105.2,
         moon: true,
         not: 'noLanding',
@@ -3027,9 +3034,12 @@ export const FLIGHTS = {
         show: { 'WALK LIMIT': ['reached', true] },
       },
       { at: 140.1, moon: true, when: 'landed', decide: 'traverse' },
+      // The lander's climb back to Orion. Apollo's low-orbit rescue does not carry over: SLS rounds draw none of the
+      // Saturn's faults (lightning, the cabin wiring, the oxygen tank, the 1202 alarms, the weak ascent engine).
       ...ASCENT(
         166,
         "Houston, we're docked to Orion. Two tired moonwalkers coming through the hatch, and a box of polar ice.",
+        false,
       ),
       {
         at: 218,
@@ -3395,7 +3405,7 @@ export const DECISIONS = {
     },
   },
   pace: {
-    q: 'The crew says the timeline is written for men who do not sleep, and they are falling behind by noon every day. Give them a quiet day to reset it, or hold the schedule?',
+    q: 'Six weeks up, the crew says the timeline is written for men who do not sleep, and they are falling behind by noon every day. Give them a quiet day to reset it, or hold the schedule?',
     auto: 'quiet',
     rule: 2,
     options: {
@@ -3420,24 +3430,24 @@ export const DECISIONS = {
   tiles: {
     rec: [
       'kessler',
-      'Flight, MMACS: we cannot clear the belly from the ascent film. Recommend the OMS burn and a look before entry.',
+      'Flight, MMACS: we cannot clear the belly from what the crew can see. Recommend we ask for a look at her from the ground before entry.',
       'inspect',
     ],
-    q: 'The belly took a foam hit from the tank\u2019s ramp. Burn the OMS to look her over, or trust the design and fly her home as planned?',
+    q: 'Tiles are gone from the OMS pods, and nobody can see her belly. Ask the Air Force for a look at her from the ground before entry, or trust the design and fly her home as planned?',
     auto: 'inspect',
     rule: 2,
     options: {
-      inspect: 'Burn the OMS and tip her belly to the cameras. Look her over before entry.',
-      trust: 'Trust the design. She was built with this tank, and the schedule holds.',
+      inspect: "Ask for a look. Turn her belly to the ground's cameras on a pass, and wait for the pictures.",
+      trust: 'Trust the design. The pods run cool on entry, and the belly was built for this.',
     },
   },
   tald: {
-    q: 'She is coming home. Primary is the lakebed at Edwards: long, flat, and far from home port. The Cape\u2019s runway is shorter. Which do you fly?',
+    q: 'She is coming home. The plan is the lakebed at Edwards, and the winds there are gusting near the limit. Land on the lakebed, or take the backup, Northrup Strip at White Sands?',
     auto: 'edwards',
     rule: 0,
     options: {
-      edwards: 'The lakebed at Edwards. The long, sure way down.',
-      cape: "The Cape's runway. Home in one hop, with less margin.",
+      edwards: 'The lakebed at Edwards, as planned. Miles of dry ground to land on.',
+      northrup: 'Northrup Strip at White Sands: calmer air, gypsum underfoot, and a longer trip home.',
     },
   },
   waypoint: {
@@ -3548,8 +3558,8 @@ export const DECISIONS = {
     },
   },
   wings: {
-    q: 'The solar wings are folded in the bay. Deploy both in today\u2019s sunlight, or hold the second for tomorrow\u2019s pass?',
-    auto: 'both',
+    q: 'The solar wings are folded on the truss. Deploy both in today\u2019s sunlight, or hold the second for tomorrow and look at the first overnight?',
+    auto: 'one',
     rule: 1,
     options: {
       both: 'Both wings out today, one at a time, in the sunlight.',

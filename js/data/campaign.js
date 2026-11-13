@@ -18,7 +18,7 @@ export const SEASON = [
     name: 'Bumper 1, the first V-2 with a WAC on its nose',
   }, // flew 13 May 1948
   { id: 'bumper-5', vehicle: 'bumper', start: dayOf(1949, 2, 22), name: 'Bumper 5', turningPoint: true }, // flew 24 February 1949
-  // Aerobee firings at White Sands for the Navy and Aerojet. The seat you hold decides whether you run them or work on them.
+  // Aerobee firings at White Sands for APL and the Navy (Aerojet built the rocket). The seat you hold decides whether you run them or work on them.
   { id: 'aerobee-1', vehicle: 'aerobee', start: dayOf(1949, 6, 7), name: 'an Aerobee round for the Navy' }, // Provisional
   { id: 'aerobee-2', vehicle: 'aerobee', start: dayOf(1949, 11, 15), name: 'an autumn 1949 Aerobee round' }, // Provisional
   {
@@ -1494,17 +1494,18 @@ export const NASA_OFFER = {
 };
 
 // The test conductor's offer, made at a turning point (Bumper 5, and again after the Aerobee rounds if you are still a
-// junior engineer). Aerobee: the sounding rocket Aerojet
-// built from the WAC's lessons, first flown at White Sands in November 1947.
+// junior engineer). Aerobee: the sounding rocket Aerojet built from the WAC's lessons, first flown at White Sands in
+// November 1947. Aerojet built it; the Applied Physics Laboratory directed its launches and the Navy's crews fired them,
+// so the offer comes from APL.
 export const FIRST_OFFER = {
   seat: 'test-conductor',
   title: 'Test conductor, Aerobee firings',
   from: 'ellis',
-  text: "Aerojet and the Navy are short of a test conductor for their Aerobee firings here. You'd plan the tests, run the whole count and chair the reviews. I told them you were ready.",
+  text: "Van Allen's people at the Applied Physics Lab are short of a test conductor for the Aerobee firings here. The Navy's crew fires them; you'd plan the tests, run the whole count and chair the reviews. I told them you were ready.",
   sidelined:
-    "Aerojet wanted a test conductor for their Aerobee firings. They asked me about you, and I couldn't say you were ready. Keep at it and they'll ask again.",
+    "APL wanted a test conductor for the Aerobee firings. They asked me about you, and I couldn't say you were ready. Keep at it and they'll ask again.",
   again:
-    "Aerojet are asking again. They still need a test conductor for the Aerobee firings, and after this year I can tell them you're ready.",
+    "APL are asking again. They still need a test conductor for the Aerobee firings, and after this year I can tell them you're ready.",
   takeNote: 'Take it and you plan the rounds, run the count and chair the reviews from now on.',
   declineNote: 'Turn it down and you keep your seat; they may ask again.',
 };
