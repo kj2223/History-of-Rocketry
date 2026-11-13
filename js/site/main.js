@@ -5,6 +5,7 @@ import { drawSite, drawTracking, drawControlRoom, uiEra, PLACES, VIEW_H, GROUND 
 import { consoleHud, bindConsoleHud, consoleKey } from './console-hud.js';
 import { startStage, stageFrame } from '../stage/index.js';
 import { deepMode } from '../stage/deep.js';
+import { soundFrame, cycleSound, soundSetting } from '../stage/fx/sound.js';
 
 // A flight followed from a room of its own on the scene layer, or null.
 const flightViewOf = g => (deepMode(g) ? 'deep' : g.room === 'splash' ? 'recovery' : null);
@@ -219,6 +220,7 @@ window.addEventListener('keydown', e => {
   if (e.key === '2') g.speed = 4;
   if (e.key === '3') g.speed = 16;
   if (e.key === 'n' || e.key === 'N') toggleNotebook();
+  if (e.key === 'm' || e.key === 'M') showSound(cycleSound());
   if (e.key === 'e' || e.key === 'E') {
     // Anywhere in front of a building with a room in it, over its whole width as it stands today.
     if (g.crewed && atPlace('dugout', g, you().x) && !locked()) return openRoom('dugout');
@@ -245,6 +247,14 @@ function keyWalk() {
   }
 }
 
+// The Sound button says where it is set: full, low or off.
+const SOUND_WORDS = { full: 'Sound', low: 'Sound: low', off: 'Sound: off' };
+function showSound(level) {
+  $('sound').textContent = SOUND_WORDS[level];
+  $('sound').classList.toggle('muted', level === 'off');
+}
+showSound(soundSetting());
+
 // The bar along the top.
 document.querySelector('header').addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -256,6 +266,7 @@ document.querySelector('header').addEventListener('click', e => {
   if (b.id === 'pause') g.paused = !g.paused;
   if (b.id === 'endday') endDay();
   if (b.id === 'notes') toggleNotebook();
+  if (b.id === 'sound') showSound(cycleSound());
   if (b.id === 'waiting' && awayFrom()) openRoom(awayFrom().place);
   if (b.id === 'game') openGameMenu();
 });
@@ -505,6 +516,7 @@ function frame(now) {
     renderRoom();
     liveRoom();
     hud();
+    soundFrame(g, sceneOf());
     autosave();
   } catch (e) {
     console.error('Frame skipped:', e);

@@ -61,3 +61,33 @@ test('the range plot and its camera are told what went wrong, and a pad blast is
   );
   assert.equal(flightTrouble({ vehicle: 'vanguard', flight: { result: { failure: 'injector', failAt: 0 } } }), null);
 });
+
+test('the sound follows the game: the roar while she burns, a boom when she breaks, ticks for the last ten seconds', async () => {
+  const { soundPlan } = await import('../js/stage/fx/sound.js');
+  const path = Array.from({ length: 200 }, (_, t) => ({ t, x: t / 10, h: t / 4 }));
+  const flight = (t, view, result = {}) => ({
+    vehicle: 'v2',
+    day: 0,
+    loop: [],
+    rocket: { rise: 50 },
+    flight: { t, view, result: { path, burn: 60, ...result } },
+  });
+  // On the pad she is loud and close; on the plot a far rumble; after burnout, nothing.
+  const close = soundPlan(flight(1, 'site'), 'site');
+  const far = soundPlan(flight(20, 'board'), 'tracking');
+  assert.ok(close.engine > 0.5 && close.muffle === 0);
+  assert.ok(far.engine > 0 && far.engine < close.engine && far.muffle > 0.5);
+  assert.equal(soundPlan(flight(70, 'board'), 'tracking').engine, 0);
+  // A break-up: the roar stops and one boom is due.
+  const broke = soundPlan({ ...flight(20, 'board', { failure: 'weld', failAt: 14 }), vehicle: 'wac' }, 'tracking');
+  assert.equal(broke.engine, 0);
+  assert.equal(broke.booms.length, 1);
+  // The count ticks only in the last ten seconds, and not while it is held.
+  const count = (clock, held = false) => soundPlan({ day: 0, loop: [], count: { clock, held } }, 'interior:blockhouse');
+  assert.equal(count(30).tick, null);
+  assert.equal(count(7.4).tick, 8);
+  assert.equal(count(7.4, true).tick, null);
+  // The rooms hum; outdoors it is the wind.
+  assert.ok(soundPlan(null, 'control-room').hum > 0);
+  assert.ok(soundPlan({ day: 0 }, 'site, panel board').wind > 0);
+});
