@@ -1477,7 +1477,14 @@ function rocketOnSite(ctx, g, flameToo = true) {
     wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
   // The whole round as it stands (mated), or the stage the crew handles on its own (the WAC upper stage, or the V-2).
   if (r.where === 'hangar') {
-    roundShape(ctx, g, PLACES.hangar.x + (wac ? 200 : 230), GROUND - (wac ? 26 : 30), -Math.PI / 2, r.mated);
+    roundShape(
+      ctx,
+      g,
+      wac ? PLACES.hangar.x + 200 : hangarTail(g.vehicle),
+      GROUND - (wac ? 26 : 30),
+      -Math.PI / 2,
+      r.mated,
+    );
     if (wac) cradle(ctx, PLACES.hangar.x + 200, r.mated);
     else trailer(ctx, PLACES.hangar.x + 130);
   } else if (r.where === 'carried') {
@@ -1495,7 +1502,7 @@ function rocketOnSite(ctx, g, flameToo = true) {
 // The round riding out, drawn after the truck so it sits on it. Every round is longer than the truck's bed, so its
 // tail sits on the bed and the rest rides a pole trailer hitched behind: nothing hangs off the back in mid-air.
 // length: tail to nose; fin: how far the fins stand out from the axis; body: the half-width of the body.
-const TRUCK_LOADS = {
+export const TRUCK_LOADS = {
   wac: { length: 86, fin: 9, body: 5 },
   aerobee: { length: 86, fin: 9, body: 5 },
   v2: { length: 104, fin: 16, body: 7 },
@@ -1505,6 +1512,13 @@ const TRUCK_LOADS = {
   juno: { length: 218, fin: 12, body: 8 },
   ranger: { length: 270, fin: 17, body: 8 },
 };
+// Where the tail of a round lying in the hangar goes: 230 in from the door end as before, but far enough along that a
+// long round's nose stays inside the walls (issue #255: the Atlas-Agena's nose came out through the hangar's wall).
+export function hangarTail(vehicle) {
+  const h = PLACES.hangar,
+    len = (TRUCK_LOADS[vehicle] || TRUCK_LOADS.v2).length;
+  return Math.min(h.x + h.w - 20, Math.max(h.x + 230, h.x + 20 + len));
+}
 function rocketOnTruck(ctx, g) {
   const load = TRUCK_LOADS[g.vehicle] || TRUCK_LOADS.v2,
     bed = GROUND - 2, // the top of the truck's bed
