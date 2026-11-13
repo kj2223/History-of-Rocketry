@@ -30,3 +30,20 @@ test('the camera holds on the pad, follows her up, then lets her go; big vehicle
   assert.equal(launch.warmTint(0xb4a6bf, 0, true), 0xb4a6bf);
   assert.ok(launch.warmTint(0xb4a6bf, 1, true) >> 16 > 0xb4);
 });
+
+test('the light follows the clock: lamps at night, shadows by day, the sun sets in the west', async () => {
+  const { lightAt } = await import('../js/stage/fx/daylight.js');
+  const at = h => lightAt(h * 60);
+  assert.equal(at(12).night, 0);
+  assert.ok(at(12).shadow.alpha > 0 && at(22).shadow.alpha === 0);
+  assert.equal(at(12).lamps, 0);
+  assert.equal(at(22).lamps, 1);
+  assert.ok(at(22).stars > 0.9 && at(12).stars === 0);
+  // Shadows point away from the sun: west in the morning, east in the evening; long when it is low.
+  assert.equal(at(8).shadow.dir, -1);
+  assert.equal(at(17).shadow.dir, 1);
+  assert.ok(at(17.8).shadow.length > at(12).shadow.length);
+  // The old two-look sky: day by noon, dusk lamps by 19:00 (the evening the day ends on).
+  assert.equal(at(19).dusk, true);
+  assert.equal(at(12).dusk, false);
+});

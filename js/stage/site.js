@@ -8,11 +8,12 @@
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
-import { drawSiteMachinery, skyFor, SKY, VIEW_H, GROUND } from '../site/draw.js';
+import { drawSiteMachinery, VIEW_H, GROUND } from '../site/draw.js';
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
 import { buildSite, dropSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
 import { launchFx, warmTint } from './fx/launch.js';
+import { lightAt, daylightDressing } from './fx/daylight.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
 const SKY_ABOVE = 240;
@@ -53,7 +54,9 @@ export function siteScene() {
   const sunGlow = new Sprite(puffTexture());
   sunGlow.anchor.set(0.5);
   const clouds = new Graphics();
-  backFar.addChild(sky, sunGlow, sun, clouds);
+  // The time of day: stars, moon, shadows and searchlights (fx/daylight.js).
+  const day = daylightDressing();
+  backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds);
   const WIDE = 4000; // wider than any screen in site units
   const ranges = [
     [range(0x8d86a0, 380, [0, 60, 30, 120, 70, 150, 40, 90, 20], WIDE), 0.15],
@@ -77,7 +80,7 @@ export function siteScene() {
   const world = new Container();
   root.addChild(world);
   const fore = new Sprite();
-  world.addChild(fore);
+  world.addChild(fore, day.shadows);
   let site = null,
     siteAt = '';
   const live = siteLive();
@@ -94,6 +97,9 @@ export function siteScene() {
   // After dark, the windows, doorways and floodlights glow over the dimmed site.
   const lightLayer = new Container();
   root.addChild(lightLayer);
+  const nightLayer = new Container();
+  nightLayer.addChild(day.beamLayer);
+  root.addChild(nightLayer);
   const overlay = new Sprite();
   root.addChild(overlay);
   root.addChild(fx.flash);
@@ -112,8 +118,10 @@ export function siteScene() {
       vw = screen.width / s,
       camX = g.cam.x,
       t = g.time;
-    const skyNow = skyFor(g.clock % 1440),
-      dusk = skyNow === SKY.dusk,
+    // The light of the moment, through the whole day (fx/daylight.js).
+    const L = lightAt(g.clock % 1440),
+      skyNow = L.sky,
+      dusk = L.dusk,
       cape = g.site === 'cape';
     // The launch's shake and the camera's tilt up after her.
     const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s),
@@ -127,7 +135,7 @@ export function siteScene() {
     world.position.set(-camX * s, tiltPx);
 
     // The sky, the sun, the haze and the sand: redrawn when the light or the screen changes.
-    const key = `${skyNow[0]}|${Math.ceil(vw)}|${cape}`;
+    const key = `${L.key}|${Math.ceil(vw)}|${cape}`;
     if (key !== skyKey) {
       skyKey = key;
       const setGrad = (sp, stops, x, y, w, h) => {
@@ -143,7 +151,7 @@ export function siteScene() {
       setGrad(
         sky,
         [
-          [0, dusk ? '#16142a' : '#2c5791'],
+          [0, L.night > 0.3 ? '#090c1c' : '#2c5791'],
           [at(0), skyNow[0]],
           [at(0.7), skyNow[1]],
           [1, skyNow[2]],
@@ -191,23 +199,25 @@ export function siteScene() {
         fore,
         [
           [0, 'rgba(53,46,48,0)'],
-          [1, dusk ? 'rgba(53,46,68,.38)' : 'rgba(75,57,40,.22)'],
+          [1, `rgba(${dusk ? '53,46,68' : '75,57,40'},${(0.22 + 0.2 * L.night).toFixed(2)})`],
         ],
         0,
         GROUND + 45,
         vw + 2,
         VIEW_H - GROUND - 45,
       );
-      const sx = vw * 0.12,
-        sy = dusk ? 400 : 90;
-      sun
-        .clear()
-        .circle(sx, sy, dusk ? 18 : 14)
-        .fill(dusk ? 0xffd29a : 0xfffbea);
+      // The sun crosses the sky from the east (right) in the morning to the west (left) at sunset, low and orange
+      // at either end; after sunset it is gone.
+      const sx = vw * (0.88 - 0.76 * L.sun.along),
+        sy = 470 - 390 * L.sun.elevation;
+      sun.clear();
+      sun.visible = sunGlow.visible = L.sun.up;
+      if (L.sun.up) sun.circle(sx, sy, 14 + 4 * L.sun.low).fill(L.sunColor);
       sunGlow.position.set(sx, sy);
-      sunGlow.scale.set(dusk ? 5 : 3.8);
-      sunGlow.tint = dusk ? 0xffbe78 : 0xfffceb;
+      sunGlow.scale.set(3.8 + 1.4 * L.sun.low);
+      sunGlow.tint = L.sunColor;
       sunGlow.alpha = 0.4;
+      day.sky(L, vw);
       for (const [r] of ranges) r.visible = !cape;
       for (const k of [sea, glints, scrub, palms]) k.visible = cape;
       if (cape) {
@@ -270,7 +280,7 @@ export function siteScene() {
       [1700, 140, 80],
     ]) {
       const x = ((((x0 - drift) % spanC) + spanC) % spanC) - 300;
-      const col = { color: dusk ? 0xf0aa96 : 0xffffff, alpha: dusk ? 0.35 : 0.55 };
+      const col = { color: L.cloud, alpha: 0.55 - 0.3 * L.night };
       clouds.ellipse(x + w * 0.5, y, w * 0.5, w * 0.16).fill(col);
       clouds.ellipse(x + w * 0.35, y - w * 0.1, w * 0.22, w * 0.14).fill(col);
       clouds.ellipse(x + w * 0.62, y - w * 0.12, w * 0.26, w * 0.17).fill(col);
@@ -300,11 +310,15 @@ export function siteScene() {
     live.update(g, Math.min(0.1, dt));
     // Dusk: the site itself darkens toward the sky's colour, and the lights come on.
     // A launch's flame lights it up warm, most of all at night.
-    const dim = warmTint(dusk ? 0xb4a6bf : 0xffffff, lf.glow, dusk);
+    const dim = warmTint(L.tint, lf.glow, dusk);
     if (world.tint !== dim) world.tint = overlay.tint = dim;
     lightLayer.scale.set(s);
     lightLayer.position.set(-camX * s, tiltPx);
-    for (const l of lightLayer.children) l.alpha = dusk ? l.full * (0.92 + 0.08 * Math.sin(t * 7 + l.x)) : 0;
+    for (const l of lightLayer.children) l.alpha = L.lamps * l.full * (0.92 + 0.08 * Math.sin(t * 7 + l.x));
+    // The shadows along the ground, and the searchlights on a rocket standing on the pad at night.
+    day.world(L, g, g.rocket.where === 'tower' ? GROUND - 160 : null, t);
+    nightLayer.scale.set(s);
+    nightLayer.position.set(-camX * s, tiltPx);
     // The foreground darkens toward the bottom of the screen.
     fore.x = camX;
 
