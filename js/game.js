@@ -1253,7 +1253,11 @@ export function standDecide(choices) {
     );
   } else if (hours >= 8) {
     g.slipDays += 1;
-    g.offDays[g.day + 1] = st.reworkDay;
+    // A full-duration firing and a rework share the one day: the chamber is checked while the crew has her apart.
+    g.offDays[g.day + 1] =
+      s.burn === 'long' && !st.tape
+        ? `${st.reworkDay} They checked the chamber over after the full-duration firing at the same time, so the launch slipped one day, not two.`
+        : st.reworkDay;
     say(countLead(), st.reworkSay, 'warn', 6);
   } else say(countLead(), "Good. Let's get her ready for the tower.");
   setBeat('afterStatic');
@@ -1960,6 +1964,9 @@ export function answerFirstOffer(take) {
 }
 
 // ---- Ending the day ----
+// The away card's line on the days it jumps over (n of them, between the evening you left and this morning).
+export const awaySpan = n =>
+  `${n === 1 ? 'A whole day' : `${n} whole days`} passed with nothing that needed you on site. The calendar jumps over ${n === 1 ? 'it' : 'them'} to the next morning with work for you.`;
 export function endDay() {
   if (!g.dayDone || g.fading) return;
   // On the site the night passes as a time-lapse (js/stage/fx/lapse.js): the sun goes down, the lamps come on, the
@@ -1995,7 +2002,8 @@ function nextMorning() {
     g.day += 1;
   }
   g.clock = g.day * 1440 + START_MINUTE;
-  g.away = lines.length ? { from: dateText(left), to: dateText(g.day), lines } : null;
+  // How long you were away, so a jump over a slipped day reads as days on the calendar and not as a clock running.
+  g.away = lines.length ? { from: dateText(left), to: dateText(g.day), skipped: g.day - left - 1, lines } : null;
   // A new day starts out on the site: whatever room you ended the day in (the dugout after a static fire, the hangar,
   // the blockhouse) is closed, or it stays open over the next morning's beat.
   g.room = g.away ? 'away' : null;
