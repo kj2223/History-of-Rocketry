@@ -14,6 +14,38 @@ import {
   footprint,
 } from '../data/white-sands.js';
 export { VIEW_H, GROUND, WORLD_W, PLACES, SKY };
+import {
+  capsuleShape,
+  mercuryRedstoneShape,
+  vikingShape,
+  junoShape,
+  atlasAgenaShape,
+  mercuryAtlasShape,
+  geminiTitanShape,
+  shuttleShape,
+  saturnVShape,
+  vanguardShape,
+  v2Shape,
+  wacShape,
+  flame,
+  modernLauncher,
+  boosterShape,
+} from './rockets.js';
+export {
+  capsuleShape,
+  mercuryRedstoneShape,
+  vikingShape,
+  junoShape,
+  atlasAgenaShape,
+  mercuryAtlasShape,
+  geminiTitanShape,
+  shuttleShape,
+  saturnVShape,
+  vanguardShape,
+  v2Shape,
+  wacShape,
+  flame,
+};
 import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
 import { WORLD_LAND } from '../data/world-map.js';
@@ -821,18 +853,14 @@ export function drawSiteLive(ctx, g, withPeople) {
 }
 
 // Only the machinery, for the PixiJS site scene, which draws the buildings, the dressing, the windsock and flag, the
-// beacon, the sign and the truck itself: the rack, the stand's flame, the rocket, the load on the truck, smoke and dust,
+// beacon, the sign, the truck, every flame, the smoke and the dust itself: the rack, the rocket, the load on the truck,
 // the Mercury Control screens, job bars, the marker and the hover label.
 export function drawSiteMachinery(ctx, g) {
   hangarRack(ctx, g, true);
-  if (!g.crewed && g.standFlame > 0)
-    flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
   if (g.crewed) controlScreens(ctx, g);
-  rocketOnSite(ctx, g);
+  rocketOnSite(ctx, g, false);
   if (g.rocket.where === 'truck') rocketOnTruck(ctx, g);
   for (const job of g.jobs) jobBar(ctx, job);
-  launchSmoke(ctx, g);
-  truckDust(ctx, g);
   if (g.marker != null) {
     ctx.fillStyle = 'rgba(255,240,180,.8)';
     ctx.fillRect(g.marker - 3, GROUND + 2, 6, 3);
@@ -1434,7 +1462,7 @@ function truck(ctx, x, g) {
 
 // The rocket wherever it is on the site: in pieces in the hangar, carried, on the stand, on the truck, in the tower.
 // The truck-borne round is drawn with the truck (it rides the bed); the rest draw behind the people.
-function rocketOnSite(ctx, g) {
+function rocketOnSite(ctx, g, flameToo = true) {
   if (g.rocket.where === 'truck') return;
   const r = g.rocket,
     wac = g.vehicle === 'wac' || g.vehicle === 'aerobee';
@@ -1451,7 +1479,7 @@ function rocketOnSite(ctx, g) {
   else if (r.where === 'flying') {
     const rise = flyingRise(g);
     roundShape(ctx, g, PLACES.tower.x + 25, GROUND - 8 - rise, 0, wac ? rise < 40 : true);
-    flame(ctx, PLACES.tower.x + 25, GROUND - 8 - rise, 1, Math.PI / 2, g.time, wac ? 1.6 : 2.4);
+    if (flameToo) flame(ctx, PLACES.tower.x + 25, GROUND - 8 - rise, 1, Math.PI / 2, g.time, wac ? 1.6 : 2.4);
   }
 }
 
@@ -1544,7 +1572,7 @@ function launchSmoke(ctx, g) {
 
 // How high the flying rocket has visibly climbed. Uncrewed flights rise through tickFlight; a crewed ascent climbs with
 // the console's clock, which is the only clock the site has for her.
-function flyingRise(g) {
+export function flyingRise(g) {
   if (g.rocket.where !== 'flying') return 0;
   return g.console && g.console.phase === 'ascent' ? Math.min(g.console.t * 30, 700) : g.rocket.rise || 0;
 }
@@ -2776,71 +2804,6 @@ export function consoleDesk(ctx, x, y, k, who, label, c, yours, duty) {
   }
 }
 
-export function capsuleShape(ctx, x, y, tower) {
-  ctx.fillStyle = '#1d1f22';
-  ctx.beginPath();
-  ctx.moveTo(x - 9, y);
-  ctx.lineTo(x + 9, y);
-  ctx.lineTo(x + 4, y - 14);
-  ctx.lineTo(x - 4, y - 14);
-  ctx.fill();
-  ctx.fillRect(x - 3, y - 20, 6, 6);
-  ctx.fillStyle = '#7a6a58';
-  ctx.fillRect(x - 9, y, 18, 2);
-  if (tower) {
-    ctx.strokeStyle = '#c2352a';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(x - 3, y - 20);
-    ctx.lineTo(x, y - 40);
-    ctx.lineTo(x + 3, y - 20);
-    ctx.stroke();
-    ctx.fillStyle = '#c2352a';
-    ctx.fillRect(x - 1.5, y - 46, 3, 8);
-  }
-}
-// Mercury-Redstone: the white Redstone with its stubby fins, the capsule and the escape tower. padAbort: after the four-inch
-// flight, with the tower gone and the parachutes hanging off the capsule.
-export function mercuryRedstoneShape(ctx, x, y, angle, padAbort = false) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#f1efe8';
-  ctx.fillRect(-6, -84, 12, 84);
-  ctx.fillStyle = 'rgba(0,0,0,.08)';
-  ctx.fillRect(-6, -84, 2.5, 84);
-  ctx.fillStyle = 'rgba(255,255,255,.3)';
-  ctx.fillRect(3.5, -84, 2.5, 84); // cylinder shading
-  ctx.fillStyle = '#1d1f22';
-  ctx.fillRect(-6, -60, 12, 4);
-  ctx.fillRect(-6, -20, 12, 3);
-  ctx.fillStyle = '#d8d4c8';
-  ctx.beginPath();
-  ctx.moveTo(-6, -12);
-  ctx.lineTo(-12, 0);
-  ctx.lineTo(-6, 0);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(6, -12);
-  ctx.lineTo(12, 0);
-  ctx.lineTo(6, 0);
-  ctx.fill();
-  ctx.fillStyle = '#c7c2b6';
-  ctx.fillRect(-6, -90, 12, 6);
-  capsuleShape(ctx, 0, -90, !padAbort);
-  if (padAbort) {
-    ctx.fillStyle = 'rgba(240,236,226,.9)';
-    ctx.beginPath();
-    ctx.ellipse(7, -96, 9, 12, 0.4, 0, 7);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(214,92,52,.9)';
-    ctx.beginPath();
-    ctx.ellipse(10, -84, 6, 14, 0.2, 0, 7);
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
 function trailer(ctx, x) {
   ctx.fillStyle = '#4d5b3a';
   ctx.fillRect(x - 10, GROUND - 22, 120, 6);
@@ -2852,390 +2815,6 @@ function trailer(ctx, x) {
   }
 }
 
-// The Navy's Viking: long, slim and white, with small swept fins and a gimballed engine under the tail.
-export function vikingShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#f1efe8';
-  ctx.fillRect(-5, -100, 10, 100);
-  ctx.fillStyle = 'rgba(0,0,0,.08)';
-  ctx.fillRect(-5, -100, 2, 100);
-  ctx.fillStyle = 'rgba(255,255,255,.3)';
-  ctx.fillRect(3, -100, 2, 100); // cylinder shading
-  ctx.fillStyle = '#f1efe8';
-  ctx.beginPath();
-  ctx.moveTo(-5, -100);
-  ctx.quadraticCurveTo(-4, -112, 0, -118);
-  ctx.quadraticCurveTo(4, -112, 5, -100);
-  ctx.fill();
-  ctx.fillStyle = '#2b3f6b';
-  ctx.fillRect(-5, -60, 10, 3);
-  ctx.fillRect(-5, -30, 10, 3);
-  ctx.fillStyle = '#9aa0a8';
-  ctx.beginPath();
-  ctx.moveTo(-5, -14);
-  ctx.lineTo(-13, 0);
-  ctx.lineTo(-5, 0);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(5, -14);
-  ctx.lineTo(13, 0);
-  ctx.lineTo(5, 0);
-  ctx.fill();
-  ctx.restore();
-}
-
-// Juno II: the Jupiter, fat and white with black roll stripes, then JPL's tub of upper stages under a shroud and the small
-// gold Pioneer cone.
-export function junoShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#f2f0e9';
-  ctx.fillRect(-12, -150, 24, 150);
-  ctx.fillStyle = 'rgba(0,0,0,.08)';
-  ctx.fillRect(-12, -150, 4, 150);
-  ctx.fillStyle = 'rgba(255,255,255,.3)';
-  ctx.fillRect(8, -150, 4, 150); // cylinder shading
-  ctx.fillStyle = '#26272b';
-  ctx.fillRect(-12, -40, 24, 6);
-  ctx.fillRect(-12, -110, 24, 6);
-  ctx.fillRect(-12, -150, 12, 20);
-  ctx.fillStyle = '#d9d6cc';
-  ctx.beginPath();
-  ctx.moveTo(-12, -150);
-  ctx.lineTo(-8, -200);
-  ctx.lineTo(8, -200);
-  ctx.lineTo(12, -150);
-  ctx.fill();
-  ctx.fillStyle = '#c9a24a';
-  ctx.beginPath();
-  ctx.moveTo(-5, -200);
-  ctx.lineTo(0, -218);
-  ctx.lineTo(5, -200);
-  ctx.fill();
-  ctx.restore();
-}
-
-// Atlas-Agena B with Ranger: the Atlas's steel balloon, its booster skirt, the slim Agena and the shroud over the Ranger.
-// Lettering painted up a rocket's body, `along` units from the tail, in the shape's own frame (rotated by angle). It reads
-// bottom to top when she stands; lying nose-left (on a truck, on hangar cradles) it is turned so it never reads upside down.
-function bodyText(ctx, text, along, angle) {
-  const flip = Math.cos(angle - Math.PI / 2) < -0.01;
-  ctx.save();
-  ctx.rotate(flip ? Math.PI / 2 : -Math.PI / 2);
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, flip ? -along : along, 0);
-  ctx.restore();
-}
-
-export function atlasAgenaShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#c9ccd1';
-  ctx.fillRect(-14, -170, 28, 170);
-  ctx.fillStyle = '#b3b7bd';
-  ctx.fillRect(-17, -36, 34, 36); // the booster section
-  ctx.fillStyle = '#3e4652';
-  ctx.font = 'bold 7px sans-serif';
-  ctx.textAlign = 'center';
-  bodyText(ctx, 'UNITED STATES', 100, angle);
-  ctx.fillStyle = '#e8e6df';
-  ctx.fillRect(-7, -232, 14, 62); // the Agena
-  ctx.fillStyle = '#f2f0e9';
-  ctx.beginPath();
-  ctx.moveTo(-8, -232);
-  ctx.lineTo(-8, -250);
-  ctx.lineTo(0, -270);
-  ctx.lineTo(8, -250);
-  ctx.lineTo(8, -232);
-  ctx.fill();
-  ctx.restore();
-}
-
-// Mercury-Atlas: the Atlas D's silver balloon and booster skirt, an adapter, the capsule and its escape tower.
-export function mercuryAtlasShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#c9ccd1';
-  ctx.fillRect(-14, -170, 28, 170);
-  ctx.fillStyle = '#b3b7bd';
-  ctx.fillRect(-17, -36, 34, 36);
-  ctx.fillStyle = '#3e4652';
-  ctx.font = 'bold 7px sans-serif';
-  ctx.textAlign = 'center';
-  bodyText(ctx, 'UNITED STATES', 100, angle);
-  ctx.fillStyle = '#d8d4c8';
-  ctx.beginPath();
-  ctx.moveTo(-14, -170);
-  ctx.lineTo(-9, -180);
-  ctx.lineTo(9, -180);
-  ctx.lineTo(14, -170);
-  ctx.fill();
-  capsuleShape(ctx, 0, -180, true);
-  ctx.restore();
-}
-
-// Gemini-Titan II: the Titan's two stages in white and black, the adapter, and the dark Gemini spacecraft on top. No
-// escape tower: Gemini's crew had ejection seats.
-export function geminiTitanShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#e9e7e0';
-  ctx.fillRect(-15, -150, 30, 150); // first stage
-  ctx.fillStyle = '#2b2d31';
-  ctx.fillRect(-15, -150, 30, 8);
-  ctx.fillRect(-15, -60, 30, 5);
-  ctx.fillStyle = '#e9e7e0';
-  ctx.fillRect(-15, -200, 30, 50); // second stage
-  ctx.fillStyle = '#d9d6cc';
-  ctx.beginPath();
-  ctx.moveTo(-15, -200);
-  ctx.lineTo(-12, -222);
-  ctx.lineTo(12, -222);
-  ctx.lineTo(15, -200);
-  ctx.fill(); // adapter
-  ctx.fillStyle = '#26282c';
-  ctx.beginPath();
-  ctx.moveTo(-12, -222);
-  ctx.lineTo(-6, -246);
-  ctx.lineTo(-4, -258);
-  ctx.lineTo(4, -258);
-  ctx.lineTo(6, -246);
-  ctx.lineTo(12, -222);
-  ctx.fill(); // spacecraft
-  ctx.fillStyle = '#3e4652';
-  ctx.font = 'bold 7px sans-serif';
-  ctx.textAlign = 'center';
-  bodyText(ctx, 'UNITED STATES', 90, angle);
-  ctx.restore();
-}
-
-// The Shuttle stack: the external tank with two boosters strapped on, and the orbiter on her side at the top.
-export function shuttleShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#b56b3c';
-  ctx.fillRect(-11, -160, 22, 160); // the external tank
-  ctx.fillStyle = 'rgba(0,0,0,.1)';
-  ctx.fillRect(-11, -160, 6, 160);
-  ctx.fillStyle = '#e8e4da';
-  ctx.fillRect(-26, -150, 13, 150); // left booster
-  ctx.fillRect(13, -150, 13, 150); // right booster
-  ctx.fillStyle = '#26282c';
-  ctx.fillRect(-26, -12, 13, 12);
-  ctx.fillRect(13, -12, 13, 12);
-  // The orbiter, nose up along the tank's side: wings and tail at the bottom, tiles where the belly shows.
-  ctx.fillStyle = '#f2f0ea';
-  ctx.beginPath();
-  ctx.moveTo(-2, -190);
-  ctx.lineTo(9, -160);
-  ctx.lineTo(9, -108);
-  ctx.lineTo(-14, -100);
-  ctx.lineTo(-2, -190);
-  ctx.fill();
-  ctx.fillStyle = '#3e4652';
-  ctx.fillRect(-14, -118, 10, 16); // the wing seen edge-on
-  ctx.fillRect(-2, -196, 8, 10);
-  ctx.fillStyle = '#26282c';
-  ctx.fillRect(-2, -108, 6, 10); // engines
-  ctx.fillStyle = '#3e4652';
-  ctx.font = 'bold 7px sans-serif';
-  ctx.textAlign = 'center';
-  bodyText(ctx, 'UNITED STATES', 100, angle);
-  ctx.restore();
-}
-
-// The Saturn V: three white stages with black roll bands, the lander's adapter, the command module and its escape tower.
-// The late campaign's stacks share a paint treatment, with their own proportions and hardware.
-function modernLauncher(ctx, x, y, angle, vehicle) {
-  const sls = vehicle === 'sls';
-  const half = sls ? 16 : 9;
-  const core = sls ? 244 : 150;
-  const upper = sls ? 310 : 205;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-
-  const tank = ctx.createLinearGradient(-half, 0, half, 0);
-  tank.addColorStop(0, sls ? '#925438' : '#a7adb0');
-  tank.addColorStop(0.35, sls ? '#d69960' : '#f1efe8');
-  tank.addColorStop(1, sls ? '#a25a3c' : '#bcc0c0');
-  ctx.fillStyle = tank;
-  ctx.fillRect(-half, -core, half * 2, core - 8);
-  ctx.fillStyle = '#272c30';
-  ctx.fillRect(-half, -14, half * 2, 7);
-  ctx.fillStyle = '#e7e5dd';
-  ctx.fillRect(-half, -upper, half * 2, upper - core);
-  ctx.fillStyle = '#4c5155';
-  ctx.fillRect(-half, -core - 7, half * 2, 4);
-
-  ctx.fillStyle = '#f0eee6';
-  ctx.beginPath();
-  ctx.moveTo(-half, -upper);
-  ctx.lineTo(-half * 0.65, -upper - 12);
-  ctx.quadraticCurveTo(0, -upper - 31, half * 0.65, -upper - 12);
-  ctx.lineTo(half, -upper);
-  ctx.fill();
-  if (sls) {
-    ctx.fillStyle = '#d1d3cf';
-    ctx.fillRect(-2, -upper - 49, 4, 34);
-    for (const bx of [-30, 17]) {
-      ctx.fillStyle = '#e9e6dd';
-      ctx.beginPath();
-      ctx.moveTo(bx, -9);
-      ctx.lineTo(bx, -157);
-      ctx.lineTo(bx + 6.5, -174);
-      ctx.lineTo(bx + 13, -157);
-      ctx.lineTo(bx + 13, -9);
-      ctx.fill();
-      ctx.fillStyle = '#515554';
-      for (let y = -22; y >= -142; y -= 30) ctx.fillRect(bx, y, 13, 2);
-      ctx.fillRect(bx + 1, -10, 11, 6);
-    }
-  } else {
-    ctx.fillStyle = '#303943';
-    ctx.fillRect(-half, -upper - 2, half * 2, 2);
-    ctx.fillRect(-4, -upper - 12, 8, 3);
-    ctx.fillRect(-half - 2, -44, 2, 29);
-    ctx.fillRect(half, -44, 2, 29);
-  }
-  ctx.restore();
-}
-
-export function saturnVShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#f1efe8';
-  ctx.fillRect(-22, -150, 44, 150); // S-IC
-  ctx.fillStyle = 'rgba(0,0,0,.08)';
-  ctx.fillRect(-22, -150, 6, 150);
-  ctx.fillStyle = 'rgba(255,255,255,.3)';
-  ctx.fillRect(16, -150, 6, 150); // cylinder shading
-  ctx.fillStyle = '#26282c';
-  for (const yy of [-150, -100, -50]) ctx.fillRect(-22, yy, 22, 18);
-  ctx.fillRect(0, -132, 22, 18);
-  ctx.fillRect(0, -82, 22, 18);
-  ctx.fillStyle = '#f1efe8';
-  ctx.fillRect(-22, -250, 44, 100); // S-II
-  ctx.fillStyle = '#26282c';
-  ctx.fillRect(-22, -160, 44, 8);
-  ctx.fillStyle = '#f1efe8';
-  ctx.beginPath();
-  ctx.moveTo(-22, -250);
-  ctx.lineTo(-15, -262);
-  ctx.lineTo(15, -262);
-  ctx.lineTo(22, -250);
-  ctx.fill();
-  ctx.fillRect(-15, -312, 30, 50); // S-IVB
-  ctx.fillStyle = '#26282c';
-  ctx.fillRect(-15, -312, 30, 6);
-  ctx.fillStyle = '#e6e3da';
-  ctx.beginPath();
-  ctx.moveTo(-15, -312);
-  ctx.lineTo(-11, -340);
-  ctx.lineTo(11, -340);
-  ctx.lineTo(15, -312);
-  ctx.fill(); // lander adapter
-  ctx.fillStyle = '#c9ccd1';
-  ctx.fillRect(-11, -356, 22, 16); // service module
-  ctx.fillStyle = '#d8d6cf';
-  ctx.beginPath();
-  ctx.moveTo(-11, -356);
-  ctx.lineTo(-3, -372);
-  ctx.lineTo(3, -372);
-  ctx.lineTo(11, -356);
-  ctx.fill(); // command module
-  ctx.strokeStyle = '#b33';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, -372);
-  ctx.lineTo(0, -398);
-  ctx.stroke(); // escape tower
-  ctx.fillStyle = '#3e4652';
-  ctx.font = 'bold 8px sans-serif';
-  ctx.textAlign = 'center';
-  bodyText(ctx, 'USA', 200, angle);
-  ctx.restore();
-}
-
-// Vanguard: slim and tall, white with a black band, three stages stacked, the small third stage under a pointed fairing.
-export function vanguardShape(ctx, x, y, angle) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#f3f1ea';
-  ctx.fillRect(-6, -128, 12, 128); // first stage
-  ctx.fillStyle = '#e7e4da';
-  ctx.fillRect(-5, -178, 10, 50); // second stage
-  ctx.fillStyle = '#26272b';
-  ctx.fillRect(-6, -132, 12, 5);
-  ctx.fillRect(-6, -60, 12, 4);
-  ctx.fillStyle = '#c8c4b8';
-  ctx.beginPath();
-  ctx.moveTo(-5, -178);
-  ctx.lineTo(-4, -196);
-  ctx.lineTo(0, -210);
-  ctx.lineTo(4, -196);
-  ctx.lineTo(5, -178);
-  ctx.fill();
-  ctx.fillStyle = '#2b3f6b';
-  ctx.font = 'bold 6px sans-serif';
-  ctx.textAlign = 'center';
-  bodyText(ctx, 'NAVY', 90, angle);
-  ctx.restore();
-}
-
-// A captured V-2, black-and-white checked as at White Sands, drawn from its tail at (x, y) along angle (0 = straight up),
-// with a WAC Corporal on its nose when it is a Bumper.
-export function v2Shape(ctx, x, y, angle, withWac) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#ece8dc';
-  ctx.fillRect(-7, -84, 14, 84);
-  ctx.fillStyle = 'rgba(0,0,0,.08)';
-  ctx.fillRect(-7, -84, 3, 84);
-  ctx.fillStyle = 'rgba(255,255,255,.3)';
-  ctx.fillRect(4, -84, 3, 84); // a lit nose-side edge
-  ctx.fillStyle = '#1d1f24';
-  ctx.fillRect(0, -84, 7, 21);
-  ctx.fillRect(-7, -63, 7, 21);
-  ctx.fillRect(0, -42, 7, 21);
-  ctx.fillRect(-7, -21, 7, 21);
-  ctx.fillStyle = '#ece8dc';
-  ctx.beginPath();
-  ctx.moveTo(-7, -84);
-  ctx.quadraticCurveTo(-6, -98, 0, -104);
-  ctx.quadraticCurveTo(6, -98, 7, -84);
-  ctx.fill();
-  ctx.fillStyle = '#1d1f24';
-  ctx.beginPath();
-  ctx.moveTo(-7, -20);
-  ctx.lineTo(-16, 2);
-  ctx.lineTo(-7, 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(7, -20);
-  ctx.lineTo(16, 2);
-  ctx.lineTo(7, 2);
-  ctx.fill();
-  ctx.restore();
-  if (withWac) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    wacShape(ctx, 0, -100, 0, false);
-    ctx.restore();
-  }
-}
-
 // The hangar stands under a round lying nose-left with its tail at x: a post with a saddle under the body, and one
 // more under the booster once it is mated. Every post stands under the round, none out past its tail.
 function cradle(ctx, x, mated) {
@@ -3244,77 +2823,6 @@ function cradle(ctx, x, mated) {
     ctx.fillRect(at - 2, GROUND - 21, 4, 21);
     ctx.fillRect(at - 6, GROUND - 23, 12, 3);
   }
-}
-
-// WAC Corporal upper stage (and the Tiny Tim booster under it when mated), drawn from its tail at (x, y), pointing along angle
-// (0 = straight up). Widths are exaggerated so the round reads at this scale.
-export function wacShape(ctx, x, y, angle, withBooster) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  let base = 0;
-  if (withBooster) {
-    boosterShape(ctx, 0, 0, 0, true);
-    base = -26;
-  }
-  ctx.fillStyle = '#e9e4d6';
-  ctx.fillRect(-3.5, base - 48, 7, 48);
-  ctx.fillStyle = '#c03a2b';
-  ctx.beginPath();
-  ctx.moveTo(-3.5, base - 48);
-  ctx.lineTo(0, base - 60);
-  ctx.lineTo(3.5, base - 48);
-  ctx.fill();
-  ctx.fillStyle = '#20232a';
-  ctx.fillRect(-3.5, base - 30, 7, 2);
-  ctx.fillStyle = '#9aa0a8';
-  ctx.beginPath();
-  ctx.moveTo(-3.5, base - 8);
-  ctx.lineTo(-9, base);
-  ctx.lineTo(-3.5, base);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(3.5, base - 8);
-  ctx.lineTo(9, base);
-  ctx.lineTo(3.5, base);
-  ctx.fill();
-  ctx.restore();
-}
-
-function boosterShape(ctx, x, y, angle, attached) {
-  ctx.save();
-  ctx.translate(x, y);
-  if (!attached) ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = '#5d6168';
-  ctx.fillRect(-5, -26, 10, 26);
-  ctx.fillStyle = '#3c3f44';
-  ctx.beginPath();
-  ctx.moveTo(-5, -10);
-  ctx.lineTo(-12, 0);
-  ctx.lineTo(-5, 0);
-  ctx.moveTo(5, -10);
-  ctx.lineTo(12, 0);
-  ctx.lineTo(5, 0);
-  ctx.fill();
-  ctx.restore();
-}
-
-export function flame(ctx, x, y, power, angle, time, scale = 1) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle - Math.PI / 2);
-  const len = (26 + 8 * Math.sin(time * 40)) * power * scale;
-  const grad = ctx.createLinearGradient(0, 0, 0, len);
-  grad.addColorStop(0, 'rgba(255,250,220,.95)');
-  grad.addColorStop(0.4, 'rgba(255,170,60,.85)');
-  grad.addColorStop(1, 'rgba(255,80,20,0)');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(-4 * scale, 0);
-  ctx.lineTo(0, len);
-  ctx.lineTo(4 * scale, 0);
-  ctx.fill();
-  ctx.restore();
 }
 
 function jobBar(ctx, job) {

@@ -1,11 +1,12 @@
 // THE SITE'S MOVING DRESSING, drawn in PixiJS (v0.8): the windsock by the tower filling and sagging with the gusts,
 // the flag between the office and the hangar, the beacon on the tower top that blinks after dark, and the truck in its
-// era's paint with the recovery party riding it. Redrawn every frame in world units. The rocket, its flame and smoke,
-// the load on the truck and the Mercury Control screens still come from the old drawing's machinery layer.
-import { Container, Graphics } from '../vendor/pixi.min.mjs';
+// era's paint with the recovery party riding it; the flame under the static stand and down the deflector, the launch
+// flame and the smoke that boils out round the tower, and the dust behind the truck. Redrawn every frame in world
+// units. The rocket itself, the load on the truck and the Mercury Control screens come from the canvas machinery layer.
+import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { PLACES, GROUND } from '../data/white-sands.js';
-import { eraOf, skyFor, SKY } from '../site/draw.js';
-import { label, setText } from './kit.js';
+import { eraOf, skyFor, SKY, flyingRise } from '../site/draw.js';
+import { label, setText, particles, puffTexture } from './kit.js';
 
 // The truck's paint by era: the services' olive drab, NASA white with a blue stripe from 1960, the Shuttle years' red.
 const PAINT = {
@@ -15,7 +16,58 @@ const PAINT = {
   shuttle: { body: 0xf0efea, cab: 0xf6f5f0, frame: 0x8a8f93, ink: 0xb8352a, stripe: 0xb8352a },
 };
 
+// How wide each vehicle's tail is (half-width, in site units), so its flame and smoke are in proportion.
+const TAIL = {
+  wac: 4,
+  aerobee: 4,
+  v2: 7,
+  bumper: 7,
+  viking: 5,
+  vanguard: 6,
+  juno: 12,
+  ranger: 15,
+  redstone: 6,
+  atlas: 15,
+  titan: 14,
+  saturn5: 22,
+  saturnib: 18,
+  shuttle: 26,
+  sls: 28,
+  dragon: 9,
+};
+
+// A flat flame from a nozzle at (x, y), pointing down: an orange body, a yellow core, a white heart and the shock diamonds.
+function flameAt(gr, x, y, half, len, t) {
+  const wob = Math.sin(t * 50) * half * 0.2 + Math.sin(t * 73) * half * 0.15;
+  const tongue = (k, wk, color, alpha) =>
+    gr
+      .moveTo(x - half * wk, y)
+      .quadraticCurveTo(x - half * wk * 1.25, y + len * k * 0.45, x + wob * k, y + len * k)
+      .quadraticCurveTo(x + half * wk * 1.25, y + len * k * 0.45, x + half * wk, y)
+      .closePath()
+      .fill({ color, alpha });
+  tongue(1, 1, 0xf07828, 0.85);
+  tongue(0.72, 0.72, 0xffc450, 0.92);
+  tongue(0.42, 0.42, 0xfff8dc, 0.97);
+  for (let i = 1; i <= 3; i++) {
+    const yy = y + len * 0.11 * i,
+      r = half * (0.32 - i * 0.06);
+    gr.poly([x, yy - r * 1.7, x + r, yy, x, yy + r * 1.7, x - r, yy]).fill({ color: 0xffffff, alpha: 0.7 });
+  }
+}
+
 export function siteLive() {
+  // The flames and their glow, added over the buildings; smoke and dust over everything near the ground.
+  const fire = new Container();
+  const glow = new Sprite(puffTexture());
+  glow.anchor.set(0.5);
+  glow.blendMode = 'add';
+  glow.tint = 0xffa040;
+  glow.alpha = 0;
+  const plume = new Graphics();
+  const smoke = particles();
+  const dust = particles();
+  fire.addChild(glow, plume);
   const behind = new Graphics(); // windsock, flag, beacon: behind the people
   const truckLayer = new Container(); // the truck: in front of them
   const truck = new Graphics();
@@ -24,7 +76,7 @@ export function siteLive() {
   door.resolution = 6;
   truckLayer.addChild(truck, door);
 
-  function update(g) {
+  function update(g, dt) {
     const t = g.time;
     behind.clear();
     // The windsock: a striped cone on a pole.
@@ -108,5 +160,119 @@ export function siteLive() {
     if (door.ink !== paint.ink) door.style.fill = door.ink = paint.ink;
     door.position.set(x + 8, y - 19);
   }
-  return { behind, truckLayer, update };
+  // Fire, smoke and dust.
+  function effects(g, dt) {
+    const t = g.time;
+    plume.clear();
+    glow.alpha = 0;
+    // The static stand: the flame runs down into the trench and turns east along the deflector, and the exhaust boils
+    // out of the trench's far end.
+    if (!g.crewed && g.standFlame > 0) {
+      const p = g.standFlame,
+        nx = PLACES.stand.x + 60,
+        ny = GROUND - 40,
+        floor = GROUND + 4,
+        half = 5 * Math.min(1.6, (TAIL[g.vehicle] || 6) / 5);
+      flameAt(plume, nx, ny, half, floor - ny, t);
+      const reach = (34 + 30 * p) * (1 + 0.08 * Math.sin(t * 40));
+      plume
+        .poly([nx - 8, floor - 8, nx + reach * 0.6, floor - 6, nx + reach, floor + 4, nx - 6, floor + 2])
+        .fill({ color: 0xffc060, alpha: 0.75 });
+      glow.position.set(nx + 10, floor - 10);
+      glow.scale.set(1.4 + 0.6 * p);
+      glow.alpha = 0.55 * p;
+      if (Math.random() < 0.8 * p)
+        smoke.add(nx + 30 + Math.random() * 40, floor - 4, {
+          tint: 0xbab1a2,
+          alpha: 0.6,
+          size: 0.35,
+          vx: 28 + Math.random() * 30,
+          vy: -18 - Math.random() * 22,
+          grow: 0.55,
+          fade: 0.17,
+          life: 4,
+        });
+    }
+    // The launch: the flame under her as she climbs, and the cloud boiling out round the tower's base while she is low.
+    if (g.rocket.where === 'flying') {
+      const rise = flyingRise(g),
+        half = TAIL[g.vehicle] || 7,
+        x = PLACES.tower.x + 25,
+        y = GROUND - 8 - rise,
+        len = half * (5 + Math.min(4, rise / 60)) * (1 + 0.06 * Math.sin(t * 37));
+      // The flame stops at the pad and splashes out sideways along it.
+      const floor = GROUND + 2,
+        shown = Math.min(len, floor - y);
+      flameAt(plume, x, y, half * 0.9, shown, t);
+      if (shown < len) {
+        const reach = (len - shown) * 0.8 + half;
+        for (const d of [-1, 1])
+          plume
+            .poly([x, floor - half * 0.9, x + d * reach, floor - 3, x + d * reach * 0.8, floor + 3, x, floor + 2])
+            .fill({ color: 0xffc060, alpha: 0.7 });
+      }
+      glow.position.set(x, y + len * 0.4);
+      glow.scale.set(1.2 + half / 6);
+      glow.alpha = 0.8 * Math.max(0, 1 - rise / 500);
+      const low = Math.max(0, 1 - rise / 160);
+      if (low > 0) {
+        const n = 1 + Math.round(half / 6);
+        for (let i = 0; i < n; i++)
+          if (Math.random() < 0.9 * low) {
+            const dir = Math.random() < 0.5 ? -1 : 1;
+            smoke.add(x + dir * (half + Math.random() * 20), GROUND - 4, {
+              tint: 0xe7e2d6,
+              alpha: 0.6,
+              size: 0.25 + half / 50,
+              vx: dir * (40 + Math.random() * 50 + half * 3),
+              vy: -6 - Math.random() * 18,
+              grow: 0.45 + half / 40,
+              fade: 0.09,
+              life: 7,
+            });
+          }
+      }
+      // A thin trail behind her once she is clear of the ground.
+      if (rise > 30 && rise < 700 && Math.random() < 0.7)
+        smoke.add(x + (Math.random() - 0.5) * half, y + len * 0.9, {
+          tint: 0xefebe2,
+          alpha: 0.5,
+          size: 0.18 + half / 80,
+          vx: 6,
+          vy: 10,
+          grow: 0.25,
+          fade: 0.08,
+          life: 6,
+        });
+    }
+    // The truck's dust, kicked up behind whichever way she is going.
+    if (g.truck.dust && Math.random() < 0.6) {
+      const back = g.truck.target >= g.truck.x ? -1 : 1,
+        bx = g.truck.x + (back < 0 ? 0 : 92);
+      dust.add(bx + back * Math.random() * 8, GROUND + 24, {
+        tint: 0xc8b089,
+        alpha: 0.55,
+        size: 0.15,
+        vx: back * (10 + Math.random() * 20),
+        vy: -8 - Math.random() * 10,
+        grow: 0.4,
+        fade: 0.3,
+        life: 2,
+      });
+    }
+    smoke.update(dt);
+    dust.update(dt);
+  }
+
+  return {
+    behind,
+    truckLayer,
+    fire,
+    smoke,
+    dust,
+    update: (g, dt) => {
+      update(g, dt);
+      effects(g, dt);
+    },
+  };
 }
