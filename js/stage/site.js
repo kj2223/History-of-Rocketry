@@ -1,9 +1,10 @@
 // THE SITE, rebuilt in PixiJS (v0.8): White Sands or the Cape from the side. The sky with its sun and drifting clouds,
 // the mountains in three parallax ranges (or, at the Cape, the Atlantic and a line of palmettos), the haze and the sand,
 // the buildings cut away in the style of the walk-in rooms (site-art.js), the windsock, flag, beacon and truck
-// (site-live.js), and the people walking about with their speech bubbles are drawn here. The rocket, its flame and
-// smoke, the load on the truck, the Mercury Control screens, job bars and the hover name still come from the old
-// drawing on a clear overlay. Clicks go through to the site canvas underneath, so walking and talking work as before.
+// (site-live.js), the flames, smoke and dust, and the people walking about with their speech bubbles are drawn here.
+// The rockets (js/site/rockets.js), the load on the truck, the Mercury Control screens, job bars and the hover name
+// come from the canvas drawing on a clear overlay. Clicks go through to the site canvas underneath, so walking and
+// talking work as before.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
@@ -71,9 +72,9 @@ export function siteScene() {
   let site = null,
     siteAt = '';
   const live = siteLive();
-  world.addChild(live.behind);
+  world.addChild(live.behind, live.fire);
   const people = new Graphics();
-  world.addChild(people, live.truckLayer);
+  world.addChild(people, live.truckLayer, live.dust, live.smoke);
   // The machinery not yet rebuilt, drawn by the old code on a clear canvas the size of the screen.
   const liveCanvas = document.createElement('canvas');
   const liveCtx = liveCanvas.getContext('2d');
@@ -257,7 +258,7 @@ export function siteScene() {
       site = buildSite(g);
       world.addChildAt(site, 0);
     }
-    live.update(g);
+    live.update(g, Math.min(0.1, dt));
     // The foreground darkens toward the bottom of the screen.
     fore.x = camX;
 
