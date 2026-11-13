@@ -123,7 +123,8 @@ export function siteScene() {
   const fade = new Graphics();
   root.addChild(fade);
 
-  let skyKey = '',
+  let cloudClock = 0,
+    skyKey = '',
     lastW = 0,
     lastH = 0;
   function update(dt, screen) {
@@ -132,7 +133,18 @@ export function siteScene() {
       camX = g.cam.x,
       t = g.time;
     // The light of the moment, through the whole day (fx/daylight.js).
-    const L = lightAt(g.clock % 1440),
+    // Ending the day on the site, the night passes as a time-lapse: evening runs on into the small hours as it fades,
+    // and the morning comes up out of the dawn (game.js endDay; the screen dims only part way).
+    const lapse = g.fading?.lapse && !g.room ? g.fading : null;
+    let minute = g.clock % 1440,
+      shade = g.fade;
+    if (lapse) {
+      const k = g.fade * g.fade * (3 - 2 * g.fade);
+      minute = lapse.dir > 0 ? lapse.lapse.from + (25 * 60 - lapse.lapse.from) * k : 7.5 * 60 - 3 * 60 * g.fade;
+      shade = 0.4 * g.fade;
+    }
+    cloudClock += dt * (lapse ? 30 : 1);
+    const L = lightAt(minute),
       skyNow = L.sky,
       dusk = L.dusk,
       cape = g.site === 'cape';
@@ -293,7 +305,7 @@ export function siteScene() {
     }
     // Clouds drift with the wind, and a little with the camera.
     const spanC = vw + 600,
-      drift = (t * (1 + W.wind * 0.08) + camX * 0.08) % spanC;
+      drift = (cloudClock * (1 + W.wind * 0.08) + camX * 0.08) % spanC;
     clouds.clear();
     // A cloudier day has more and bigger clouds, greyer under overcast.
     const cloudSet = [
@@ -449,7 +461,7 @@ export function siteScene() {
       }
 
     fade.clear();
-    if (g.fade > 0) fade.rect(0, 0, screen.width, screen.height).fill({ color: 0x05080e, alpha: g.fade });
+    if (shade > 0) fade.rect(0, 0, screen.width, screen.height).fill({ color: 0x05080e, alpha: shade });
   }
 
   const stale = () => false;
