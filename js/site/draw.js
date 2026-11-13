@@ -820,6 +820,30 @@ export function drawSiteLive(ctx, g, withPeople) {
     );
 }
 
+// Only the machinery, for the PixiJS site scene, which draws the buildings, the dressing, the windsock and flag, the
+// beacon, the sign and the truck itself: the rack, the stand's flame, the rocket, the load on the truck, smoke and dust,
+// the Mercury Control screens, job bars, the marker and the hover label.
+export function drawSiteMachinery(ctx, g) {
+  hangarRack(ctx, g, true);
+  if (!g.crewed && g.standFlame > 0)
+    flame(ctx, PLACES.stand.x + 60, GROUND - 40, g.standFlame, Math.PI / 2, g.time, 1.4);
+  if (g.crewed) controlScreens(ctx, g);
+  rocketOnSite(ctx, g);
+  if (g.rocket.where === 'truck') rocketOnTruck(ctx, g);
+  for (const job of g.jobs) jobBar(ctx, job);
+  launchSmoke(ctx, g);
+  truckDust(ctx, g);
+  if (g.marker != null) {
+    ctx.fillStyle = 'rgba(255,240,180,.8)';
+    ctx.fillRect(g.marker - 3, GROUND + 2, 6, 3);
+  }
+  if (g.hover)
+    label(
+      ctx,
+      g.hover.room === 'truck' && !g.crewed ? { ...g.hover, name: SITES[g.site || 'white-sands'].truck } : g.hover,
+    );
+}
+
 // The baked buildings layer at the display's scale, for the PixiJS site scene: the canvas and the key it was baked for.
 export function bakedSite(g, s) {
   const bake = bakeScale(s);
@@ -1104,9 +1128,9 @@ function hangarStructure(ctx, p) {
 
 // What waits on the rack to be mated: the WAC's Tiny Tim booster, or the WAC that rides on a Bumper's nose.
 // Hangar S: the next Mercury capsule on its stand, being checked out. Changes with the round, so it is per-frame.
-function hangarRack(ctx, g) {
+function hangarRack(ctx, g, bare = false) {
   const p = PLACES.hangar;
-  if (g.crewed) {
+  if (g.crewed && eraOf(g) !== 'shuttle') {
     capsuleShape(ctx, p.x + 220, GROUND - 30, false);
     ctx.fillStyle = '#6a5a44';
     ctx.fillRect(p.x + 200, GROUND - 22, 40, 22);
@@ -1119,6 +1143,7 @@ function hangarRack(ctx, g) {
       for (const at of [p.x + p.w - 112, p.x + p.w - 94]) ctx.fillRect(at, GROUND - 15, 3, 15);
     } else if (g.vehicle === 'bumper') wacShape(ctx, p.x + p.w - 30, GROUND - 26, -Math.PI / 2, false);
   }
+  if (bare) return;
   ctx.fillStyle = '#d9c39a';
   ctx.fillRect(p.x + 12, GROUND - 2, p.w - 24, 2);
 }
