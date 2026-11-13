@@ -312,3 +312,6 @@ body[data-era=steel] #endday, body[data-era=steel] #waiting { background: radial
 body[data-era=amber] #endday, body[data-era=amber] #waiting { background: #120c05; color: #ffb340; }
 body[data-era=desktop] #endday, body[data-era=desktop] #waiting { font-weight: bold; color: #000; background: #ffffe1; }
 body[data-era=glass] #endday, body[data-era=glass] #waiting { background: var(--accent); color: #fff; }
+header button.muted {
+  opacity: 0.6;
+}
