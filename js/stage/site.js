@@ -7,7 +7,7 @@
 // talking work as before.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
-import { g as game, siteWind, seaState } from '../game.js';
+import { g as game } from '../game.js';
 import { dateOf } from '../core/calendar.js';
 import { drawSiteMachinery, VIEW_H, GROUND } from '../site/draw.js';
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
@@ -18,7 +18,7 @@ import { lightAt, daylightDressing } from './fx/daylight.js';
 import { blastFx } from './fx/blast.js';
 import { siteLife } from './fx/life.js';
 import { siteTraffic } from './fx/traffic.js';
-import { weatherFor, weatherLayers, mulTint, forcedWeather } from './fx/weather.js';
+import { weatherLayers, mulTint, weatherNow } from './fx/weather.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
 const SKY_ABOVE = 240;
@@ -152,15 +152,7 @@ export function siteScene() {
       skyNow = L.sky,
       dusk = L.dusk,
       cape = g.site === 'cape';
-    const W = weatherFor({
-      day: g.day ?? 0,
-      month: dateOf(g.day ?? 0).month,
-      hour: L.hour,
-      cape,
-      windKmh: siteWind(),
-      seaState: seaState(),
-      force: forcedWeather(),
-    });
+    const W = weatherNow(g, minute); // the same weather the periscopes, TV and tracking camera show
     // The launch's shake and the camera's tilt up after her.
     const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s),
       tiltPx = lf.tilt * s;

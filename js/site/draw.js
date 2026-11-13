@@ -55,6 +55,7 @@ import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SEA_LIMIT } from '../data/mercury.js';
 import { callBoardLines } from '../houston.js';
 import { televisionShot, breakupAge } from './tv-shots.js';
+import { weatherNow, weatherWash } from '../stage/fx/weather-day.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -1998,6 +1999,8 @@ export function padPicture(ctx, g, x, y, w, h) {
     launchSmoke(ctx, g);
   }
   ctx.restore();
+  // The day's weather over the picture, as it is outside on the site (issue #249: rain outside, a clear periscope).
+  weatherWash(ctx, weatherNow(g), x, y, w, h, g.time || 0);
 }
 
 // The pad camera frames 370 site units above the pad. At 30 units per console second the rocket clears it at T+13.
