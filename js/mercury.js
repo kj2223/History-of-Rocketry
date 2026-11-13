@@ -579,12 +579,7 @@ export function consolePoll(go) {
     return endCount('scrub');
   }
   if (con.cond.late) {
-    speak(
-      con,
-      retroWho(con),
-      `${station} is no-go until ${lateUnit(con)} is on station.`,
-      'bad',
-    );
+    speak(con, retroWho(con), `${station} is no-go until ${lateUnit(con)} is on station.`, 'bad');
     lamp(con, 'RECOVERY', '1 SHIP', 'NOT ON STN', 'warn');
     lamp(con, mine, 'NO-GO', 'HOLDING', 'warn');
     speak(con, flight ? 'you' : 'hollis', 'Holding. Recovery, get that ship on station.', 'warn');
