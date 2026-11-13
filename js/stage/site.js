@@ -12,6 +12,10 @@ import { drawSiteMachinery, skyFor, SKY, VIEW_H, GROUND } from '../site/draw.js'
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
 import { buildSite, dropSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
+import { launchFx, warmTint } from './fx/launch.js';
+
+// How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
+const SKY_ABOVE = 240;
 
 // One mountain range: the same ridge the canvas drew (peaks repeating every half-span), long enough to scroll.
 const SPAN = 260;
@@ -37,32 +41,37 @@ export function siteScene() {
   const root = new Container();
 
   // ---- the backdrop, in site units (VIEW_H tall), scaled to the screen ----
+  // Three depths, so the camera's tilt up after a launch moves the sky least and the ground most.
   const back = new Container();
   root.addChild(back);
+  const backFar = new Container(),
+    backMid = new Container(),
+    backNear = new Container();
+  back.addChild(backFar, backMid, backNear);
   const sky = new Sprite();
   const sun = new Graphics();
   const sunGlow = new Sprite(puffTexture());
   sunGlow.anchor.set(0.5);
   const clouds = new Graphics();
-  back.addChild(sky, sunGlow, sun, clouds);
+  backFar.addChild(sky, sunGlow, sun, clouds);
   const WIDE = 4000; // wider than any screen in site units
   const ranges = [
     [range(0x8d86a0, 380, [0, 60, 30, 120, 70, 150, 40, 90, 20], WIDE), 0.15],
     [range(0xa99a8c, 440, [10, 40, 25, 60, 15, 50, 35, 20, 45], WIDE), 0.3],
     [range(0xc6aa87, 490, [8, 28, 12, 35, 15, 32, 11, 23, 5], WIDE), 0.42],
   ];
-  for (const [r] of ranges) back.addChild(r);
+  for (const [r] of ranges) backMid.addChild(r);
   // The Cape's horizon: the Atlantic, flat as a table, with glints that drift, and a green band with palmettos.
   const sea = new Sprite();
   const glints = new Graphics();
   const scrub = new Graphics();
   const palms = new Graphics();
-  back.addChild(sea, glints, scrub, palms);
+  backMid.addChild(sea, glints, scrub, palms);
   const PALM_SPAN = 140;
   const haze = new Sprite();
   const sand = new Sprite();
   const sandEdge = new Graphics();
-  back.addChild(haze, sand, sandEdge);
+  backNear.addChild(haze, sand, sandEdge);
 
   // ---- the site itself, in world units, moved by the camera ----
   const world = new Container();
@@ -75,6 +84,9 @@ export function siteScene() {
   world.addChild(live.behind, live.fire);
   const people = new Graphics();
   world.addChild(people, live.truckLayer, live.dust, live.smoke);
+  // The launch: its light on the site, the ground cloud and the trail (fx/launch.js).
+  const fx = launchFx();
+  world.addChild(fx.lightLayer, fx.front, fx.trail);
   // The machinery not yet rebuilt, drawn by the old code on a clear canvas the size of the screen.
   const liveCanvas = document.createElement('canvas');
   const liveCtx = liveCanvas.getContext('2d');
@@ -84,6 +96,7 @@ export function siteScene() {
   root.addChild(lightLayer);
   const overlay = new Sprite();
   root.addChild(overlay);
+  root.addChild(fx.flash);
   // Speech bubbles, in screen pixels so the words stay a readable size at any zoom.
   const bubbleLayer = new Container();
   root.addChild(bubbleLayer);
@@ -102,9 +115,16 @@ export function siteScene() {
     const skyNow = skyFor(g.clock % 1440),
       dusk = skyNow === SKY.dusk,
       cape = g.site === 'cape';
+    // The launch's shake and the camera's tilt up after her.
+    const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s),
+      tiltPx = lf.tilt * s;
+    root.position.set(lf.shakeX, lf.shakeY);
     back.scale.set(s);
+    backFar.y = lf.tilt * 0.3;
+    backMid.y = lf.tilt * 0.6;
+    backNear.y = lf.tilt;
     world.scale.set(s);
-    world.position.set(-camX * s, 0);
+    world.position.set(-camX * s, tiltPx);
 
     // The sky, the sun, the haze and the sand: redrawn when the light or the screen changes.
     const key = `${skyNow[0]}|${Math.ceil(vw)}|${cape}`;
@@ -117,17 +137,21 @@ export function siteScene() {
         sp.width = w;
         sp.height = h;
       };
+      // The sky reaches above the frame, deepening, for when the camera tilts up after a launch.
+      const top = SKY_ABOVE / (SKY_ABOVE + GROUND),
+        at = k => top + k * (1 - top);
       setGrad(
         sky,
         [
-          [0, skyNow[0]],
-          [0.7, skyNow[1]],
+          [0, dusk ? '#16142a' : '#2c5791'],
+          [at(0), skyNow[0]],
+          [at(0.7), skyNow[1]],
           [1, skyNow[2]],
         ],
         0,
-        0,
+        -SKY_ABOVE,
         vw + 2,
-        GROUND,
+        GROUND + SKY_ABOVE,
       );
       setGrad(
         haze,
@@ -275,10 +299,11 @@ export function siteScene() {
     }
     live.update(g, Math.min(0.1, dt));
     // Dusk: the site itself darkens toward the sky's colour, and the lights come on.
-    const dim = dusk ? 0xb4a6bf : 0xffffff;
+    // A launch's flame lights it up warm, most of all at night.
+    const dim = warmTint(dusk ? 0xb4a6bf : 0xffffff, lf.glow, dusk);
     if (world.tint !== dim) world.tint = overlay.tint = dim;
     lightLayer.scale.set(s);
-    lightLayer.position.set(-camX * s, 0);
+    lightLayer.position.set(-camX * s, tiltPx);
     for (const l of lightLayer.children) l.alpha = dusk ? l.full * (0.92 + 0.08 * Math.sin(t * 7 + l.x)) : 0;
     // The foreground darkens toward the bottom of the screen.
     fore.x = camX;
@@ -322,7 +347,7 @@ export function siteScene() {
     }
     liveCtx.setTransform(1, 0, 0, 1, 0, 0);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
-    liveCtx.setTransform(s * dpr, 0, 0, s * dpr, -camX * s * dpr, 0);
+    liveCtx.setTransform(s * dpr, 0, 0, s * dpr, -camX * s * dpr, tiltPx * dpr);
     drawSiteMachinery(liveCtx, g);
     liveTex.source.update();
 
@@ -345,7 +370,7 @@ export function siteScene() {
       const bx = (p.x - camX) * s,
         w = b.width,
         h = b.height;
-      let by = (GROUND - 42) * s;
+      let by = (GROUND - 42) * s + tiltPx;
       for (let moved = true, n = 0; moved && n < 8; n++) {
         moved = false;
         for (const r of placed)

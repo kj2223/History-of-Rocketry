@@ -13,6 +13,8 @@ import { controlScene } from './control.js';
 import { trackingScene } from './tracking.js';
 import { simScene } from './sim.js';
 import { g } from '../game.js';
+import { yearOf } from '../site/draw.js';
+import { filmLayer } from './fx/film.js';
 
 // A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
 const SCENES = {
@@ -31,7 +33,8 @@ let app = null,
   current = null,
   currentId = null,
   builtFor = null,
-  failed = false;
+  failed = false,
+  film = null;
 
 // The desktop app forbids eval (its Content-Security-Policy, desktop/main.js), and PixiJS builds its shader code with
 // it unless its 'unsafe-eval' add-on is loaded. The add-on ships as a classic script that patches the classes on a
@@ -66,6 +69,7 @@ export async function startStage(el, hooks) {
     el.appendChild(a.canvas);
     app = a;
     app.hooks = hooks;
+    film = filmLayer(app);
   } catch (e) {
     failed = true;
     console.error('The scene layer could not start; drawing with the old canvas.', e);
@@ -100,12 +104,14 @@ export function stageFrame(id, dt, reserve) {
     app.stage.addChild(current.root);
     // The site lets clicks through to the canvas underneath, which still does the walking and talking.
     host.classList.toggle('pass', !!current.passThrough);
+    film?.place();
   }
   if (host.hidden) {
     host.hidden = false;
     app.resize();
   }
   current.update(dt, app.screen, reserve);
+  film?.update(id, yearOf(g), dt, app.screen);
   app.render();
   return true;
 }
