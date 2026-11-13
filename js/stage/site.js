@@ -17,6 +17,7 @@ import { launchFx, warmTint } from './fx/launch.js';
 import { lightAt, daylightDressing } from './fx/daylight.js';
 import { blastFx } from './fx/blast.js';
 import { siteLife } from './fx/life.js';
+import { siteTraffic } from './fx/traffic.js';
 import { weatherFor, weatherLayers, mulTint, forcedWeather } from './fx/weather.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
@@ -95,8 +96,11 @@ export function siteScene() {
     siteAt = '';
   const live = siteLive();
   world.addChild(live.behind, live.fire);
+  // The umbilicals on the pad, and the traffic on the road (fx/traffic.js).
+  const traffic = siteTraffic();
+  world.addChild(traffic.pad);
   const people = new Graphics();
-  world.addChild(people, live.truckLayer, live.dust, live.smoke, weather.ground);
+  world.addChild(people, traffic.road, live.truckLayer, live.dust, live.smoke, weather.ground);
   // The launch: its light on the site, the ground cloud and the trail (fx/launch.js).
   const fx = launchFx();
   world.addChild(fx.lightLayer, fx.front, fx.trail, blast.front);
@@ -358,6 +362,7 @@ export function siteScene() {
       fuelled: g.count != null || !!g.console || !!g.crewed,
       t,
     });
+    traffic.update(g, Math.min(0.1, dt), { vw, camX, night: L.night, year: dateOf(g.day ?? 0).year });
     frontWorld.scale.set(s);
     frontWorld.position.set(-camX * s, tiltPx);
     // Dusk: the site itself darkens toward the sky's colour, and the lights come on.
