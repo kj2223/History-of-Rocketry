@@ -6,6 +6,10 @@
 // the newest (a cap that refused new puffs is what broke the trail up). Puffs only ever fade: no brightness pulses.
 
 export const TRAIL_MAX = 240;
+// Above this height (km) an exhaust leaves no smoke trail to see: the air is too thin for it to form, and the camera
+// has lost her soon after (issue #252: the trail went on into orbit). The trail fades with her as she goes.
+export const SMOKE_CEILING = 70;
+export const smokes = (burning, h) => burning && h < SMOKE_CEILING;
 const FILL_MAX = 60; // puffs added in one step at most; past that the gap is bridged straight to the nozzle
 
 export function makeTrail() {

@@ -9,7 +9,7 @@
 import { Container, Graphics, Sprite } from '../../vendor/pixi.min.mjs';
 import { puffTexture, label, setText } from '../kit.js';
 import { calm, swell } from './calm.js';
-import { makeTrail, stepTrail } from './trail.js';
+import { makeTrail, stepTrail, smokes } from './trail.js';
 import { weatherLook, weatherBelow } from './weather-day.js';
 
 const W = 320,
@@ -130,7 +130,7 @@ export function rangeCamera() {
     lastT = t;
     const size = 0.25 * k * 3;
     stepTrail(smoke, {
-      burning,
+      burning: smokes(burning, p.h),
       nx: rocket.x - Math.sin(rot) * 40 * k,
       ny: rocket.y + Math.cos(rot) * 20 * k,
       size,
@@ -227,6 +227,7 @@ export function rangeCamera() {
             : 'TRACKING CAMERA',
     );
     rocket.alpha = p.h > 90 ? Math.max(0, 1 - (p.h - 90) / 20) : 1;
+    trail.alpha = rocket.alpha; // out of sight means her smoke too
   };
   root.W = W;
   root.H = H;
