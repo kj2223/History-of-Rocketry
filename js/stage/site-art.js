@@ -311,6 +311,174 @@ function nearPlants(gr, g) {
     else creosote(gr, x + ((x * 7) % 90), GROUND + 74, 16 + (x % 7));
 }
 
+// ---- the clutter of a working range: what stands about between the buildings ----
+// Oil drums, standing and one on its side.
+function drums(gr, x) {
+  for (const [dx, col] of [
+    [0, 0x5d6b3e],
+    [11, 0x8a3a2a],
+    [22, 0x5d6b3e],
+  ]) {
+    gr.rect(x + dx, GROUND - 14, 10, 14).fill(col);
+    gr.rect(x + dx + 7, GROUND - 14, 3, 14).fill({ color: 0x000000, alpha: 0.18 });
+    for (const y of [GROUND - 10, GROUND - 4]) gr.rect(x + dx, y, 10, 1).fill({ color: 0x000000, alpha: 0.3 });
+    gr.ellipse(x + dx + 5, GROUND - 14, 5, 1.5).fill({ color: 0xffffff, alpha: 0.15 });
+  }
+  gr.rect(x + 34, GROUND - 9, 14, 9).fill(0x5d6b3e);
+  gr.ellipse(x + 48, GROUND - 4.5, 2, 4.5).fill(0x4a5631);
+}
+// Crates stacked by a door, stencilled.
+function crates(gr, x) {
+  for (const [dx, dy, w, h] of [
+    [0, 0, 22, 16],
+    [24, 0, 18, 13],
+    [5, 16, 16, 12],
+  ]) {
+    gr.rect(x + dx, GROUND - dy - h, w, h).fill(0x9a7c52);
+    gr.rect(x + dx, GROUND - dy - h, w, h).stroke({ width: 1, color: 0x6e5636 });
+    gr.moveTo(x + dx, GROUND - dy - h)
+      .lineTo(x + dx + w, GROUND - dy)
+      .stroke({ width: 0.8, color: 0x6e5636 });
+    gr.rect(x + dx + w - 4, GROUND - dy - h, 4, h).fill({ color: 0x000000, alpha: 0.12 });
+  }
+}
+// A floodlight mast: a lattice pole, a cross-arm with three lamps that light the pad at dusk.
+function floodMast(gr, x, lights) {
+  const top = GROUND - 150;
+  gr.moveTo(x - 4, GROUND)
+    .lineTo(x - 1, top)
+    .moveTo(x + 4, GROUND)
+    .lineTo(x + 1, top)
+    .stroke({ width: 1.6, color: 0x5d636b });
+  for (let y = GROUND - 10; y > top; y -= 10)
+    gr.moveTo(x - 4 + (GROUND - y) * 0.02, y).lineTo(x + 4 - (GROUND - y) * 0.02, y - 10);
+  gr.stroke({ width: 0.8, color: 0x5d636b });
+  gr.rect(x - 12, top - 2, 24, 3).fill(0x4b5056);
+  for (const dx of [-9, 0, 9]) {
+    gr.rect(x + dx - 3, top - 8, 6, 6).fill(0x2e3236);
+    gr.rect(x + dx - 2, top - 4, 4, 2).fill(0xf6e7b0);
+    lights.push([x + dx, top - 2, 34, 26, 0xfff0c0, 0.35]);
+  }
+  // The pool the lamps throw on the pad below them.
+  lights.push([x, GROUND - 4, 110, 22, 0xfff0c0, 0.22]);
+}
+// The liquid-oxygen trailer: a long insulated tank on wheels, its vent, the frost on its belly.
+function loxTrailer(gr, x, g) {
+  const col = eraOf(g) === 'early' ? 0x7d8466 : 0xd8d8d2;
+  gr.roundRect(x, GROUND - 30, 70, 20, 9).fill(col);
+  gr.roundRect(x, GROUND - 30, 70, 20, 9).stroke({ width: 0.8, color: 0x3c3f42, alpha: 0.6 });
+  gr.rect(x + 6, GROUND - 16, 58, 5).fill({ color: 0xffffff, alpha: 0.35 }); // frost
+  gr.rect(x + 4, GROUND - 26, 62, 2).fill({ color: 0xffffff, alpha: 0.25 });
+  gr.rect(x + 56, GROUND - 38, 3, 8).fill(0x6b7176);
+  gr.rect(x + 2, GROUND - 12, 70, 3).fill(0x3c3f42);
+  for (const wx of [x + 14, x + 52])
+    gr.circle(wx, GROUND - 5, 5)
+      .fill(0x1e1e1e)
+      .circle(wx, GROUND - 5, 2)
+      .fill(0x7a7a7a);
+  gr.moveTo(x + 72, GROUND - 10)
+    .lineTo(x + 84, GROUND - 3)
+    .stroke({ width: 2, color: 0x3c3f42 });
+  gr.ellipse(x + 30, GROUND - 4, 26, 2).fill({ color: 0xffffff, alpha: 0.2 }); // boil-off haze
+}
+// A generator cart with its exhaust stack, cabled toward the tower.
+function generator(gr, x) {
+  gr.rect(x, GROUND - 22, 36, 14).fill(0x8a7a3a);
+  gr.rect(x + 28, GROUND - 22, 8, 14).fill({ color: 0x000000, alpha: 0.15 });
+  for (let i = 0; i < 4; i++) gr.rect(x + 4 + i * 5, GROUND - 19, 2, 8).fill(0x5e522a);
+  gr.rect(x + 30, GROUND - 30, 3, 8).fill(0x3c3f42);
+  gr.rect(x - 2, GROUND - 8, 40, 3).fill(0x3c3f42);
+  for (const wx of [x + 6, x + 30]) gr.circle(wx, GROUND - 3, 3.5).fill(0x1e1e1e);
+  gr.moveTo(x, GROUND - 6)
+    .quadraticCurveTo(x - 30, GROUND + 4, x - 60, GROUND)
+    .stroke({ width: 1, color: 0x2a2a2a });
+}
+// A parked staff car: a jeep in the early years, a sedan later, a station wagon in the Shuttle years.
+function car(gr, x, g) {
+  const era = eraOf(g);
+  if (era === 'early') {
+    gr.rect(x, GROUND - 16, 44, 9).fill(0x56653f);
+    gr.rect(x + 14, GROUND - 24, 2, 8).fill(0x3c4630);
+    gr.rect(x + 8, GROUND - 19, 12, 3).fill(0x3c4630); // the folded screen
+    gr.rect(x + 36, GROUND - 16, 8, 9).fill({ color: 0x000000, alpha: 0.15 });
+    gr.circle(x + 30, GROUND - 13, 3).fill({ color: 0xe8e0c8, alpha: 0.9 }); // the white star
+  } else {
+    const body = era === 'shuttle' ? 0x8a3a2a : era === 'apollo' ? 0x2f5a7a : 0x3e4652;
+    gr.roundRect(x, GROUND - 16, 52, 10, 3).fill(body);
+    gr.poly([x + 10, GROUND - 16, x + 16, GROUND - 25, x + 36, GROUND - 25, x + 42, GROUND - 16]).fill(body);
+    gr.poly([x + 13, GROUND - 16, x + 18, GROUND - 23, x + 25, GROUND - 23, x + 25, GROUND - 16]).fill(0x9fc0d0);
+    gr.poly([x + 27, GROUND - 16, x + 27, GROUND - 23, x + 35, GROUND - 23, x + 39, GROUND - 16]).fill(0x9fc0d0);
+    gr.rect(x, GROUND - 9, 52, 2).fill(0xc9cdd0);
+  }
+  for (const wx of [x + 9, x + 41])
+    gr.circle(wx, GROUND - 5, 5)
+      .fill(0x1e1e1e)
+      .circle(wx, GROUND - 5, 2)
+      .fill(0x8a8a8a);
+}
+// Sandbags along the front of the stand.
+function sandbags(gr, x, n) {
+  for (let r = 0; r < 2; r++)
+    for (let i = 0; i < n - r; i++)
+      gr.roundRect(x + i * 9 + r * 4.5, GROUND - 5 - r * 4, 8, 4.5, 1.5).fill(r ? 0xbfae88 : 0xb3a380);
+}
+// The cable runs from the firing room out to the stand and the tower, laid along the sand.
+function cables(gr, g) {
+  const from = newBlockhouseStands(g)
+    ? PLACES.blockhouse.x + NEW_BLOCKHOUSE.dx + PLACES.blockhouse.w + NEW_BLOCKHOUSE.dw
+    : PLACES.blockhouse.x + PLACES.blockhouse.w;
+  gr.moveTo(from, GROUND + 2)
+    .lineTo(PLACES.tower.x, GROUND + 3)
+    .stroke({ width: 1.4, color: 0x2a2a28, alpha: 0.7 });
+  gr.moveTo(from, GROUND + 4)
+    .lineTo(PLACES.tower.x + 4, GROUND + 5)
+    .stroke({ width: 1, color: 0x2a2a28, alpha: 0.45 });
+  if (!g.crewed)
+    gr.moveTo(PLACES.blockhouse.x + (newBlockhouseStands(g) ? NEW_BLOCKHOUSE.dx : 0), GROUND + 3)
+      .lineTo(PLACES.stand.x + 100, GROUND + 3)
+      .stroke({ width: 1.2, color: 0x2a2a28, alpha: 0.6 });
+}
+// A name board over a door, so the buildings read at a glance.
+function nameBoard(gr, layer, x, y, text) {
+  const t = worldText(text, 6, 0xf1e6c8, { family: 'Arial, sans-serif', bold: true, spacing: 1 });
+  const w = Math.max(40, t.width + 10);
+  gr.rect(x - w / 2, y - 6, w, 12)
+    .fill(0x2e2a24)
+    .rect(x - w / 2, y - 6, w, 12)
+    .stroke({ width: 1, color: 0x8a7a5a });
+  t.position.set(x, y);
+  layer.addChild(t);
+}
+function clutter(gr, layer, g, lights) {
+  cables(gr, g);
+  drums(gr, 912);
+  if (!g.crewed) {
+    crates(gr, 1000);
+    sandbags(gr, PLACES.stand.x - 6, 6);
+  } else crates(gr, 990);
+  car(gr, 1700, g);
+  floodMast(gr, 2002, lights);
+  floodMast(gr, 2104, lights);
+  loxTrailer(gr, 2124, g);
+  generator(gr, 2228);
+  const o = PLACES.office,
+    h = PLACES.hangar;
+  nameBoard(gr, layer, o.x + o.w / 2, GROUND - o.h - 3, g.crewed ? 'MERCURY CONTROL' : 'TECHNICAL OFFICE');
+  nameBoard(gr, layer, h.x + h.w / 2, GROUND - h.h + (g.crewed ? 8 : 4), g.crewed ? 'HANGAR S' : 'ASSEMBLY');
+  // Lit windows and doorways, for after dark.
+  lights.push([o.x + o.w / 2, GROUND - 40, o.w * 1.1, 90, 0xffd890, 0.35]);
+  lights.push([h.x + h.w / 2, GROUND - 50, h.w * 0.9, 110, g.crewed ? 0xf4f6ff : 0xffe2a0, 0.3]);
+  const b = PLACES.blockhouse;
+  lights.push([
+    b.x + b.w / 2 + (newBlockhouseStands(g) ? NEW_BLOCKHOUSE.dx / 2 : 0),
+    GROUND - 30,
+    b.w * 1.2,
+    70,
+    0xffd28a,
+    0.3,
+  ]);
+}
+
 // ---- the buildings ----
 // The technical office, cut away: plaster inside under a hanging lamp, the drawing board with a round pinned to it,
 // the desks with their papers, the filing cabinet, the window and the door in from the site.
@@ -838,6 +1006,11 @@ export function buildSite(g) {
     const [, gr] = piece();
     tower(gr, PLACES.tower, g);
   }
+  const lights = [];
+  const props = new Graphics();
+  root.addChild(props);
+  clutter(props, texts, g, lights);
+  root.lights = lights;
   const front = new Graphics();
   shadows(front, g);
   nearPlants(front, g);

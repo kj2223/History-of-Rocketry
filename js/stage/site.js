@@ -79,6 +79,9 @@ export function siteScene() {
   const liveCanvas = document.createElement('canvas');
   const liveCtx = liveCanvas.getContext('2d');
   let liveTex = null;
+  // After dark, the windows, doorways and floodlights glow over the dimmed site.
+  const lightLayer = new Container();
+  root.addChild(lightLayer);
   const overlay = new Sprite();
   root.addChild(overlay);
   // Speech bubbles, in screen pixels so the words stay a readable size at any zoom.
@@ -257,8 +260,26 @@ export function siteScene() {
       if (site) dropSite(site);
       site = buildSite(g);
       world.addChildAt(site, 0);
+      for (const l of lightLayer.removeChildren()) l.destroy();
+      for (const [x, y, w, h, tint, alpha] of site.lights) {
+        const l = new Sprite(puffTexture());
+        l.anchor.set(0.5);
+        l.position.set(x, y);
+        l.width = w;
+        l.height = h;
+        l.tint = tint;
+        l.blendMode = 'add';
+        l.full = alpha;
+        lightLayer.addChild(l);
+      }
     }
     live.update(g, Math.min(0.1, dt));
+    // Dusk: the site itself darkens toward the sky's colour, and the lights come on.
+    const dim = dusk ? 0xb4a6bf : 0xffffff;
+    if (world.tint !== dim) world.tint = overlay.tint = dim;
+    lightLayer.scale.set(s);
+    lightLayer.position.set(-camX * s, 0);
+    for (const l of lightLayer.children) l.alpha = dusk ? l.full * (0.92 + 0.08 * Math.sin(t * 7 + l.x)) : 0;
     // The foreground darkens toward the bottom of the screen.
     fore.x = camX;
 
