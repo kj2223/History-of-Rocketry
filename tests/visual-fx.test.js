@@ -122,6 +122,25 @@ test('ending the day on the site plays the night as a slower time-lapse; scenes 
   assert.ok(Object.values(LENGTH).every(s => s <= 0.6));
 });
 
+// Aaron's F8 report, 13 Nov 2026: the screen went fully black for a moment on the way into every scene. The iris was a
+// circle cut out of a black rectangle, and once the circle reached past the edges PixiJS filled the whole rectangle
+// instead. The dark is now drawn around the opening, with no holes, and the screen is never covered at the end.
+test('the way into a scene never cuts a hole in the dark, and leaves the screen open at the end', async () => {
+  const { transitionLayer, LENGTH } = await import('../js/stage/fx/transition.js');
+  const screen = { width: 1389, height: 712 };
+  for (const kind of Object.keys(LENGTH)) {
+    const cut = transitionLayer();
+    cut.start(kind);
+    for (let i = 0; i < 120 && cut.busy(); i++) {
+      cut.update(1 / 60, screen);
+      for (const step of cut.cover.context.instructions) assert.ok(!step.data.hole, `${kind} frame ${i} has a hole`);
+    }
+    assert.equal(cut.busy(), false, kind);
+    cut.update(1 / 60, screen);
+    assert.equal(cut.cover.context.instructions.length, 0, `${kind} leaves nothing drawn`);
+  }
+});
+
 test('the swing arms go back on time: the crew arm before the last minutes, the rest as she lifts', async () => {
   const { armSwing } = await import('../js/site/draw.js');
   const pad = (clock, where = 'tower', phase = 'count', t = 0) => ({ rocket: { where }, console: { phase, clock, t } });

@@ -37,17 +37,27 @@ export function transitionLayer() {
       kind = null;
       return;
     }
-    cover.rect(0, 0, W, H).fill(0x050505);
+    // The dark is drawn around the opening, never as a shape with a hole cut in it: PixiJS fills the whole cover when
+    // a hole reaches the edge of its shape, which showed as a frame of full black at the end of every way in.
+    const dark = 0x050505;
     if (kind === 'crt') {
       // The line opens first across, then up and down.
       const wide = Math.min(1, e * 2.2),
-        tall = Math.max(0.004, (e - 0.25) / 0.75);
-      cover.rect((W * (1 - wide)) / 2, (H * (1 - tall)) / 2, W * wide, Math.max(2, H * tall)).cut();
+        tall = Math.max(0.004, (e - 0.25) / 0.75),
+        w = W * wide,
+        h = Math.min(H, Math.max(2, H * tall)),
+        x = (W - w) / 2,
+        y = (H - h) / 2;
+      if (y > 0) cover.rect(0, 0, W, y).rect(0, y + h, W, H - y - h);
+      if (x > 0) cover.rect(0, y, x, h).rect(x + w, y, W - x - w, h);
+      cover.fill(dark);
     } else if (kind === 'iris') {
-      cover.circle(W / 2, H / 2, Math.hypot(W, H) * 0.5 * e).cut();
+      // A ring from the edge of the opening out past the corners of the screen.
+      const r = Math.hypot(W, H) * 0.5 * e,
+        ring = Math.hypot(W, H);
+      cover.circle(W / 2, H / 2, r + ring / 2).stroke({ color: dark, width: ring });
     } else {
-      cover.clear();
-      cover.rect(0, 0, W, H).fill({ color: 0x050505, alpha: 1 - e });
+      cover.rect(0, 0, W, H).fill({ color: dark, alpha: 1 - e });
     }
   }
   return { cover, start, update, busy: () => !!kind };
