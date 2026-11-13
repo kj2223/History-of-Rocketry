@@ -11,6 +11,7 @@ import { g as game } from '../game.js';
 import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra, yearOf } from '../site/draw.js';
 import { dayOf } from '../core/calendar.js';
 import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture } from './kit.js';
+import { moonWall } from './moon-wall.js';
 
 // The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
 // amber terminals, the flat grey monitors of 1996–2015, and the dark glass room of 2028 with its blue light.
@@ -369,6 +370,9 @@ export function controlScene() {
 
   const tele = telemetryScreen(look);
   monitor.addChild(tele);
+  // On a flight to the Moon, the big screen's own pictures once she has left Earth orbit (moon-wall.js).
+  const moonScreen = moonWall(look);
+  monitor.addChild(moonScreen);
 
   function layout(w, h) {
     const wallH = Math.round(h * 0.56),
@@ -553,6 +557,7 @@ export function controlScene() {
     if (place !== 'cape') houstonWall();
 
     tele.place(...L.mon);
+    moonScreen.place(...L.map);
     deskKey = '';
   }
 
@@ -729,7 +734,9 @@ export function controlScene() {
           .fill(on ? (i % 9 === 4 ? 0xe8c66a : 0xe8e2c8) : 0x23272c);
       }
     }
-    map.update();
+    // The Moon's pictures take the big screen from the world map while she is out there.
+    map.visible = !moonScreen.draw(c);
+    if (map.visible) map.update();
     tv.update();
     tele.draw(c);
   }

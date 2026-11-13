@@ -35,7 +35,7 @@ export function deepMode(g) {
 
 // The Moon as a picture, painted once: lit from the upper left, its seas and craters.
 let moonTex = null;
-function moonTexture() {
+export function moonTexture() {
   if (moonTex) return moonTex;
   const cv = document.createElement('canvas');
   cv.width = cv.height = 256;
