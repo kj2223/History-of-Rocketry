@@ -17,6 +17,7 @@ import {
 } from '../data/white-sands.js';
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { eraOf } from '../site/draw.js';
+import { dayOf } from '../core/calendar.js';
 import { label, puffTexture, gradientTexture } from './kit.js';
 
 export const SIGN_X = 2930;
@@ -25,8 +26,113 @@ const W = WORLD_W + 800;
 // What the static site depends on: rebuild when any of it changes.
 export const siteKey = g => {
   const bs = blockhouseState(g.day);
-  return `${g.site || 'white-sands'}|${g.crewed ? 'crewed' : 'uncrewed'}|${newBlockhouseStands(g) ? 'built' : bs.progress.toFixed(2)}|${eraOf(g)}`;
+  const works = worksUnderway(g)
+    .map(w => `${w.id}${w.stage}`)
+    .join(',');
+  return `${g.site || 'white-sands'}|${g.crewed ? 'crewed' : 'uncrewed'}|${newBlockhouseStands(g) ? 'built' : bs.progress.toFixed(2)}|${eraOf(g)}|${works}`;
 };
+
+// THE SITE GROWING (v0.8 visual pass): what replaces what as the years go on is not swapped overnight. For the years
+// before each change the old piece is gone and its replacement is going up where it stood: the plot fenced off, the
+// footing, scaffolding, a truck crane at work, the new thing rising inside the scaffold, and the contractor's board.
+// The dates are the site's own (eraOf in site/draw.js): the fixed radar from 1960, the tracking camera from 1965, the
+// radome from 1980. Each runs from the first round flown after the plans were drawn (from) to its opening, seen in
+// four stages: the plot cleared and the footing poured, then the frame, the walls and the last of the scaffold.
+export const WORKS = [
+  { id: 'radar', x: 2560, from: 1956.5, opens: 1960, what: 'RADAR STATION', h: 74 },
+  { id: 'camera', x: 2290, from: 1961, opens: 1965, what: 'TRACKING CAMERA', h: 52 },
+  { id: 'radome', x: 2560, from: 1974, opens: 1980, what: 'RADAR DOME', h: 82 },
+];
+const STAGE_AT = [0, 0.15, 0.4, 0.7];
+const dayOfYear = y => dayOf(Math.floor(y), 1, 1) + Math.round((y % 1) * 365);
+export function worksUnderway(g) {
+  const out = [];
+  for (const w of WORKS) {
+    const start = dayOfYear(w.from),
+      open = dayOf(w.opens, 1, 1),
+      day = g.day ?? 0;
+    if (day < start || day >= open) continue;
+    const progress = (day - start) / (open - start);
+    out.push({ ...w, progress, stage: STAGE_AT.filter(k => progress >= k).length - 1 });
+  }
+  return out;
+}
+const NEW_PIECE = {
+  radar: (gr, x) => fixedRadar(gr, x),
+  camera: (gr, x) => trackingCamera(gr, x),
+  radome: (gr, x) => radome(gr, x),
+};
+function worksSite(gr, layer, w) {
+  const { x, h, stage } = w,
+    x0 = x - 14,
+    x1 = x + 84;
+  // The footing, and the plot roped off on sawhorses.
+  gr.rect(x0 + 6, GROUND - 4, x1 - x0 - 12, 4).fill(0x9a9488);
+  for (const sx of [x0 - 10, x1 + 2])
+    gr.moveTo(sx, GROUND)
+      .lineTo(sx + 4, GROUND - 12)
+      .lineTo(sx + 8, GROUND)
+      .moveTo(sx - 2, GROUND - 12)
+      .lineTo(sx + 10, GROUND - 12)
+      .stroke({ width: 2, color: 0x8a6a3a });
+  gr.moveTo(x0 - 6, GROUND - 11)
+    .lineTo(x1 + 6, GROUND - 11)
+    .stroke({ width: 1, color: 0xc9a43a, alpha: 0.8 });
+  // The new piece rising: drawn whole, shown from the ground up to how far it has got.
+  if (stage >= 1) {
+    const piece = new Graphics();
+    NEW_PIECE[w.id](piece, x);
+    const up = [0, 0.35, 0.7, 0.92][stage];
+    const mask = new Graphics().rect(x - 30, GROUND - h * up - 2, 140, h * up + 4).fill(0xffffff);
+    piece.mask = mask;
+    layer.addChild(mask, piece);
+  }
+  // The scaffold round it, a storey ahead of the work.
+  if (stage >= 1) {
+    const top = GROUND - Math.min(h, h * [0, 0.55, 0.9, 1][stage] + 10);
+    const sx0 = x + 2,
+      sx1 = x + 70;
+    for (let px = sx0; px <= sx1; px += 17) gr.rect(px, top, 1.5, GROUND - top).fill(0x7a7f84);
+    for (let py = GROUND - 14; py >= top; py -= 14) {
+      gr.rect(sx0, py, sx1 - sx0 + 1.5, 1.5).fill(0x7a7f84);
+      gr.rect(sx0, py - 1, sx1 - sx0 + 1.5, 2).fill({ color: 0x8a6a3a, alpha: 0.5 }); // the planks
+    }
+    for (let px = sx0; px < sx1; px += 17)
+      gr.moveTo(px, GROUND)
+        .lineTo(px + 17, Math.max(top, GROUND - 28))
+        .stroke({ width: 0.8, color: 0x7a7f84, alpha: 0.7 });
+  }
+  // The truck crane, its jib over the work, while the heavy parts go up.
+  if (stage === 1 || stage === 2) {
+    const cx = x1 + 30;
+    gr.rect(cx - 22, GROUND - 16, 44, 10).fill(0xc9a43a);
+    gr.rect(cx + 8, GROUND - 26, 14, 10).fill(0xb8932e);
+    gr.rect(cx + 11, GROUND - 24, 8, 5).fill(0x9fc0d0);
+    for (const wx of [cx - 14, cx + 2, cx + 16])
+      gr.circle(wx, GROUND - 5, 5)
+        .fill(0x1e1e1e)
+        .circle(wx, GROUND - 5, 2)
+        .fill(0x8a8a8a);
+    const tipX = x + 40,
+      tipY = GROUND - h - 30;
+    gr.moveTo(cx - 6, GROUND - 18)
+      .lineTo(tipX, tipY)
+      .stroke({ width: 4, color: 0xc9a43a });
+    gr.moveTo(cx - 6, GROUND - 18)
+      .lineTo(tipX, tipY)
+      .stroke({ width: 1, color: 0x6a5420 });
+    gr.moveTo(tipX, tipY)
+      .lineTo(tipX, GROUND - h * 0.7)
+      .stroke({ width: 1, color: 0x2a2a2a });
+    gr.rect(tipX - 3, GROUND - h * 0.7, 6, 5).fill(0x3a3a3a);
+  }
+  // The contractor's board.
+  gr.rect(x0 - 30, GROUND - 30, 3, 30).fill(0x5a4630);
+  gr.rect(x0 - 52, GROUND - 46, 48, 18).fill(0xe9e0c8);
+  const t = worldText(`${w.what}\nOPENS ${w.opens}`, 4.5, 0x2e2a24, { family: 'Arial, sans-serif', bold: true });
+  t.position.set(x0 - 28, GROUND - 37);
+  layer.addChild(t);
+}
 
 // ---- small helpers ----
 const shade = (gr, x, y, w, h, k = 0.1, a = 0.18) =>
@@ -287,9 +393,16 @@ function dressing(gr, layer, g) {
   if (cape) steelWaterTower(gr, 22);
   else waterTank(gr, 22);
   if (era !== 'shuttle') telephoneLine(gr, [-30, 95, 404, 990, 1440, 1736]);
-  if (era === 'early' || era === 'space') theodoliteHut(gr, 2290);
+  const works = worksUnderway(g),
+    building = id => works.find(w => w.id === id);
+  // Where a replacement is going up, the old piece has been cleared for it.
+  const camera = building('camera'),
+    radar = building('radar') || building('radome');
+  if (camera) worksSite(gr, layer, camera);
+  else if (era === 'early' || era === 'space') theodoliteHut(gr, 2290);
   else trackingCamera(gr, 2290);
-  if (era === 'early') radarTrailer(gr, 2560);
+  if (radar) worksSite(gr, layer, radar);
+  else if (era === 'early') radarTrailer(gr, 2560);
   else if (era === 'shuttle') radome(gr, 2560);
   else fixedRadar(gr, 2560);
   boundarySign(gr, layer, SIGN_X, g);
