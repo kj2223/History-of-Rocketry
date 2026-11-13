@@ -30,6 +30,7 @@ let app = null,
   host = null,
   current = null,
   currentId = null,
+  builtFor = null,
   failed = false;
 
 // The desktop app forbids eval (its Content-Security-Policy, desktop/main.js), and PixiJS builds its shader code with
@@ -90,10 +91,12 @@ export function stageFrame(id, dt, reserve) {
     if (current) drop();
     return false;
   }
-  if (currentId !== id || current?.stale?.()) {
+  // A scene holds the game it was built for, so a load, a new game or a jump builds it again.
+  if (currentId !== id || builtFor !== g || current?.stale?.()) {
     drop();
     current = SCENES[id](app.hooks);
     currentId = id;
+    builtFor = g;
     app.stage.addChild(current.root);
     // The site lets clicks through to the canvas underneath, which still does the walking and talking.
     host.classList.toggle('pass', !!current.passThrough);

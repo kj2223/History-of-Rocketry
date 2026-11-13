@@ -1,13 +1,16 @@
-// THE SITE, rebuilt in PixiJS (v0.8), first pass: White Sands from the side. The sky with its sun and drifting
-// clouds, the mountains in three parallax ranges, the haze and the sand, and the people walking about with their
-// speech bubbles are drawn here. The buildings come from the old canvas drawing as one baked texture, and the moving
-// machinery (the rocket, the truck, the rack, smoke, job bars, the hover name) from the old drawing on a clear overlay,
-// until each is rebuilt. Clicks go through to the site canvas underneath, so walking and talking work as before.
+// THE SITE, rebuilt in PixiJS (v0.8): White Sands or the Cape from the side. The sky with its sun and drifting clouds,
+// the mountains in three parallax ranges (or, at the Cape, the Atlantic and a line of palmettos), the haze and the sand,
+// the buildings cut away in the style of the walk-in rooms (site-art.js), the windsock, flag, beacon and truck
+// (site-live.js), and the people walking about with their speech bubbles are drawn here. The rocket, its flame and
+// smoke, the load on the truck, the Mercury Control screens, job bars and the hover name still come from the old
+// drawing on a clear overlay. Clicks go through to the site canvas underneath, so walking and talking work as before.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
-import { bakedSite, drawSiteLive, skyFor, SKY, VIEW_H, GROUND, WORLD_W } from '../site/draw.js';
+import { drawSiteMachinery, skyFor, SKY, VIEW_H, GROUND } from '../site/draw.js';
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
+import { buildSite, dropSite, siteKey } from './site-art.js';
+import { siteLive } from './site-live.js';
 
 // One mountain range: the same ridge the canvas drew (peaks repeating every half-span), long enough to scroll.
 const SPAN = 260;
@@ -48,6 +51,13 @@ export function siteScene() {
     [range(0xc6aa87, 490, [8, 28, 12, 35, 15, 32, 11, 23, 5], WIDE), 0.42],
   ];
   for (const [r] of ranges) back.addChild(r);
+  // The Cape's horizon: the Atlantic, flat as a table, with glints that drift, and a green band with palmettos.
+  const sea = new Sprite();
+  const glints = new Graphics();
+  const scrub = new Graphics();
+  const palms = new Graphics();
+  back.addChild(sea, glints, scrub, palms);
+  const PALM_SPAN = 140;
   const haze = new Sprite();
   const sand = new Sprite();
   const sandEdge = new Graphics();
@@ -56,18 +66,20 @@ export function siteScene() {
   // ---- the site itself, in world units, moved by the camera ----
   const world = new Container();
   root.addChild(world);
-  const buildings = new Sprite();
-  world.addChild(buildings);
   const fore = new Sprite();
   world.addChild(fore);
+  let site = null,
+    siteAt = '';
+  const live = siteLive();
+  world.addChild(live.behind);
   const people = new Graphics();
-  world.addChild(people);
+  world.addChild(people, live.truckLayer);
   // The machinery not yet rebuilt, drawn by the old code on a clear canvas the size of the screen.
   const liveCanvas = document.createElement('canvas');
   const liveCtx = liveCanvas.getContext('2d');
   let liveTex = null;
-  const live = new Sprite();
-  root.addChild(live);
+  const overlay = new Sprite();
+  root.addChild(overlay);
   // Speech bubbles, in screen pixels so the words stay a readable size at any zoom.
   const bubbleLayer = new Container();
   root.addChild(bubbleLayer);
@@ -75,8 +87,7 @@ export function siteScene() {
   const fade = new Graphics();
   root.addChild(fade);
 
-  let bakedKey = '',
-    skyKey = '',
+  let skyKey = '',
     lastW = 0,
     lastH = 0;
   function update(dt, screen) {
@@ -170,6 +181,54 @@ export function siteScene() {
       sunGlow.tint = dusk ? 0xffbe78 : 0xfffceb;
       sunGlow.alpha = 0.4;
       for (const [r] of ranges) r.visible = !cape;
+      for (const k of [sea, glints, scrub, palms]) k.visible = cape;
+      if (cape) {
+        setGrad(
+          sea,
+          [
+            [0, '#61869a'],
+            [0.55, '#436e88'],
+            [1, '#385d72'],
+          ],
+          0,
+          440,
+          vw + 2,
+          GROUND - 440,
+        );
+        scrub
+          .clear()
+          .rect(0, 488, vw + 2, GROUND - 488)
+          .fill(0x5b7a3c)
+          .rect(0, 488, vw + 2, 2)
+          .fill({ color: 0x86a35a, alpha: 0.7 });
+        palms.clear();
+        for (let x = 0; x < vw + PALM_SPAN * 2; x += PALM_SPAN) {
+          palms
+            .moveTo(x, 492)
+            .quadraticCurveTo(x + 4, 472, x + 2, 454)
+            .stroke({ width: 2, color: 0x5a4a32 });
+          for (const a of [-2.6, -2.1, -1.6, -1.1, -0.6])
+            palms
+              .moveTo(x + 2, 454)
+              .quadraticCurveTo(
+                x + 2 + Math.cos(a) * 10,
+                454 + Math.sin(a) * 9,
+                x + 2 + Math.cos(a) * 17,
+                462 + Math.sin(a) * 9,
+              )
+              .stroke({ width: 3, color: 0x3f6a35, cap: 'round' });
+        }
+      }
+    }
+    if (cape) {
+      palms.x = -((camX * 0.4) % PALM_SPAN);
+      glints.clear();
+      for (let x = ((((-camX * 0.2) % 70) + 70) % 70) - 70; x < vw; x += 70) {
+        const k = Math.round(x + camX * 0.2);
+        glints
+          .rect(x, 452 + ((((k * 3) % 20) + 20) % 20), 26, 2)
+          .fill({ color: 0xffffff, alpha: 0.25 + 0.08 * Math.sin(t + k) });
+      }
     }
     // Clouds drift with the wind, and a little with the camera.
     const spanC = vw + 600,
@@ -190,15 +249,15 @@ export function siteScene() {
     }
     for (const [r, k] of ranges) r.x = -((camX * k) % r.period);
 
-    // The buildings: the baked layer, rebaked only when the site changes (a new blockhouse, the move, an era).
-    const baked = bakedSite(g, s * (window.devicePixelRatio || 1));
-    if (baked.key !== bakedKey) {
-      bakedKey = baked.key;
-      buildings.texture?.destroy(true);
-      buildings.texture = Texture.from(baked.canvas);
-      buildings.width = WORLD_W + 400;
-      buildings.height = VIEW_H;
+    // The buildings and dressing, rebuilt only when the site changes (a new blockhouse, the move, the crewed years, an era).
+    const sk = siteKey(g);
+    if (sk !== siteAt) {
+      siteAt = sk;
+      if (site) dropSite(site);
+      site = buildSite(g);
+      world.addChildAt(site, 0);
     }
+    live.update(g);
     // The foreground darkens toward the bottom of the screen.
     fore.x = camX;
 
@@ -236,13 +295,13 @@ export function siteScene() {
       liveCanvas.height = Math.ceil(screen.height * dpr);
       liveTex?.destroy(true);
       liveTex = Texture.from(liveCanvas);
-      live.texture = liveTex;
-      live.scale.set(1 / dpr);
+      overlay.texture = liveTex;
+      overlay.scale.set(1 / dpr);
     }
     liveCtx.setTransform(1, 0, 0, 1, 0, 0);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
     liveCtx.setTransform(s * dpr, 0, 0, s * dpr, -camX * s * dpr, 0);
-    drawSiteLive(liveCtx, g, false);
+    drawSiteMachinery(liveCtx, g);
     liveTex.source.update();
 
     // Bubbles: over each speaker, stacked upward when two would overlap.
@@ -294,5 +353,5 @@ export function siteScene() {
   const stale = () => false;
   return { root, update, stale, passThrough: true };
 }
-// The White Sands site first; the Cape's comes with the Cape rooms.
-siteScene.accepts = g => g.site !== 'cape' && !g.crewed;
+// Every site: White Sands, the Cape, and the crewed years.
+siteScene.accepts = () => true;
