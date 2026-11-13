@@ -12,6 +12,7 @@ import { Container, Graphics, Sprite } from '../../vendor/pixi.min.mjs';
 import { PLACES, GROUND } from '../../data/white-sands.js';
 import { flyingRise, yearOf } from '../../site/draw.js';
 import { puffTexture } from '../kit.js';
+import { calm, swell } from './calm.js';
 
 // Half-width of each vehicle's tail in site units (as site-live.js), for the size of everything here.
 const TAIL = {
@@ -131,20 +132,22 @@ export function launchFx() {
     // The shake: builds over the first half second, dies away as she climbs.
     let shakeX = 0,
       shakeY = 0;
-    if (flying) {
-      const build = Math.min(1, since / 0.5),
+    const quiet = calm();
+    if (flying && !quiet) {
+      const build = Math.min(1, since / 0.6),
         fall = Math.max(0, 1 - rise / 700),
-        a = (1.5 + 7 * m) * build * fall * s;
+        a = (1 + 4 * m) * build * fall * s;
       const t = g.time;
-      shakeX = a * (Math.sin(t * 31 + phase[0]) * 0.6 + Math.sin(t * 57 + phase[1]) * 0.4);
-      shakeY = a * (Math.sin(t * 43 + phase[2]) * 0.6 + Math.sin(t * 71 + phase[3]) * 0.4);
+      // A rumble, not a buzz: a few shakes a second.
+      shakeX = a * (Math.sin(t * 17 + phase[0]) * 0.6 + Math.sin(t * 26 + phase[1]) * 0.4);
+      shakeY = a * (Math.sin(t * 21 + phase[2]) * 0.6 + Math.sin(t * 29 + phase[3]) * 0.4);
     }
 
-    // The flash: a white bloom in the first moments, bigger in the dark.
+    // The ignition: one soft swell of light, capped and smoothed (fx/calm.js), never a white pop.
     flash.clear();
-    if (flying && since < 1.2) {
-      const k = Math.exp(-since * 5.5) * (0.18 + 0.3 * m) * (dusk ? 1.7 : 1);
-      if (k > 0.01) flash.rect(0, 0, screen.width, screen.height).fill({ color: 0xfff1d6, alpha: Math.min(0.5, k) });
+    if (flying && !quiet) {
+      const k = swell(since, (0.08 + 0.12 * m) * (dusk ? 1.6 : 1), 0.15, 0.9);
+      if (k > 0.005) flash.rect(0, 0, screen.width, screen.height).fill({ color: 0xffe2b0, alpha: k });
     }
 
     // The plume's light, following the flame up.

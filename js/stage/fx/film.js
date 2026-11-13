@@ -1,5 +1,6 @@
 // THE ERA'S FILM (v0.8 visual pass): one grade laid over every PixiJS scene, so the whole game looks like the footage
-// of its years. Late-1940s and 1950s newsreel: faded, warm, grainy, a dark vignette, a flicker and the odd scratch.
+// of its years. Late-1940s and 1950s newsreel: faded, warm, grainy, a dark vignette and the odd faint scratch. No flicker:
+// the brightness never pulses (photosensitivity, fx/calm.js).
 // 1958 to 1975 Kodachrome: rich warm colour, fine grain. 1976 to 1995 broadcast video: a touch cooler, scanlines.
 // 1996 to 2015 early digital: nearly clean. From 2016: clean. The screens of Mission Control and the range plot get
 // a lighter hand than the site and the walk-in rooms, so the readings stay crisp.
@@ -13,6 +14,7 @@ import {
   Texture,
   TilingSprite,
 } from '../../vendor/pixi.min.mjs';
+import { calm } from './calm.js';
 
 export const FILM_KEY = 'pa-film';
 export const filmWanted = () => {
@@ -24,7 +26,7 @@ export const filmWanted = () => {
 };
 
 // The grade for a year. sat: saturation (0 = unchanged, -1 = grey); sepia: how far toward a warm print; contrast;
-// lift: brightness; grain: film noise; vignette: how dark the corners go; scan: video scanlines; flicker and scratch.
+// lift: brightness; grain: film noise; vignette: how dark the corners go; scan: video scanlines; scratch.
 export function filmLookFor(year) {
   if (year < 1958)
     return {
@@ -33,10 +35,9 @@ export function filmLookFor(year) {
       sepia: 0.3,
       contrast: 0.1,
       lift: 0.02,
-      grain: 0.06,
+      grain: 0.035,
       vignette: 0.6,
       scan: 0,
-      flicker: 0.035,
       scratch: 1,
     };
   if (year < 1976)
@@ -49,7 +50,6 @@ export function filmLookFor(year) {
       grain: 0.05,
       vignette: 0.38,
       scan: 0,
-      flicker: 0.008,
       scratch: 0,
     };
   if (year < 1996)
@@ -62,7 +62,6 @@ export function filmLookFor(year) {
       grain: 0.035,
       vignette: 0.28,
       scan: 0.09,
-      flicker: 0,
       scratch: 0,
       cool: 0.04,
     };
@@ -76,7 +75,6 @@ export function filmLookFor(year) {
       grain: 0.012,
       vignette: 0.18,
       scan: 0,
-      flicker: 0,
       scratch: 0,
     };
   return {
@@ -88,7 +86,6 @@ export function filmLookFor(year) {
     grain: 0,
     vignette: 0.12,
     scan: 0,
-    flicker: 0,
     scratch: 0,
   };
 }
@@ -134,11 +131,11 @@ function contrast(c, lift) {
 const cool = k => [1 - k, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1 + k, 0, 0, 0, 0, 0, 1, 0];
 
 // The whole grade as one matrix, at a strength (0 = none). Exported for the tests.
-export function filmMatrix(look, strength = 1, flicker = 0) {
+export function filmMatrix(look, strength = 1) {
   let m = saturation(look.sat * strength);
   if (look.sepia) m = mul(mix(ID, SEPIA, look.sepia * strength), m);
   if (look.cool) m = mul(cool(look.cool * strength), m);
-  m = mul(contrast(look.contrast * strength, look.lift * strength + flicker), m);
+  m = mul(contrast(look.contrast * strength, look.lift * strength), m);
   return m;
 }
 
@@ -176,7 +173,8 @@ export function filmLayer(app) {
   top.addChild(scan, vignette, marks);
   let on = null,
     t = 0,
-    scratches = [];
+    scratches = [],
+    grainClock = 0;
 
   function update(id, year, dt, screen) {
     const want = filmWanted();
@@ -190,10 +188,15 @@ export function filmLayer(app) {
     const look = filmLookFor(year),
       k = FILM_STRENGTH[id] ?? 0.7;
     app.stage.filterArea = screen;
-    const flick = look.flicker ? (Math.random() - 0.5) * look.flicker * k : 0;
-    grade.matrix = filmMatrix(look, k, flick);
-    grain.noise = look.grain * k;
-    grain.seed = Math.random();
+    grade.matrix = filmMatrix(look, k);
+    // The grain moves at film speed (12 a second), not every screen frame, and is off in calm mode.
+    const quiet = calm();
+    grain.noise = quiet ? 0 : look.grain * k;
+    grainClock += dt;
+    if (grainClock > 1 / 12) {
+      grainClock = 0;
+      grain.seed = Math.random();
+    }
     grain.enabled = grain.noise > 0.001;
     vignette.width = screen.width;
     vignette.height = screen.height;
@@ -204,28 +207,22 @@ export function filmLayer(app) {
       scan.height = screen.height;
       scan.tileScale.set(Math.max(1, Math.round(screen.height / 380)));
       scan.alpha = look.scan * k;
-      scan.tilePosition.y = (t * 9) % 3;
     }
-    // Newsreel scratches and specks: a thin line that wanders for a few frames, and dust that comes and goes.
+    // Newsreel scratches: now and then a faint thin line that fades in, wanders a little and fades out. No specks.
     marks.clear();
-    if (look.scratch && k > 0.5) {
-      if (Math.random() < dt * 0.35)
+    if (look.scratch && k > 0.5 && !quiet) {
+      if (Math.random() < dt * 0.2)
         scratches.push({
           x: Math.random() * screen.width,
-          life: 0.25 + Math.random() * 0.6,
-          drift: (Math.random() - 0.5) * 40,
+          age: 0,
+          life: 1.2 + Math.random() * 1.5,
+          drift: (Math.random() - 0.5) * 20,
         });
-      scratches = scratches.filter(s => (s.life -= dt) > 0);
+      scratches = scratches.filter(s => (s.age += dt) < s.life);
       for (const s of scratches) {
         s.x += s.drift * dt;
-        marks.rect(s.x, 0, 1, screen.height).fill({ color: 0xf4ecd8, alpha: 0.12 });
-      }
-      if (Math.random() < 0.25) {
-        const n = 1 + Math.floor(Math.random() * 3);
-        for (let i = 0; i < n; i++)
-          marks
-            .circle(Math.random() * screen.width, Math.random() * screen.height, 0.6 + Math.random() * 1.6)
-            .fill({ color: Math.random() < 0.5 ? 0x1a1410 : 0xf4ecd8, alpha: 0.35 });
+        const f = Math.sin((Math.PI * s.age) / s.life);
+        marks.rect(s.x, 0, 1, screen.height).fill({ color: 0xf4ecd8, alpha: 0.07 * f });
       }
     }
   }

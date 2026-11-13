@@ -184,7 +184,8 @@ export function trackingShot(ctx, g, x, y, w, h, c) {
   if (sAt != null && t - sAt < 4) {
     const age = t - sAt + (time % 1) * 0.2,
       fr = h * (0.05 + age * 0.06);
-    ctx.fillStyle = `rgba(255,240,210,${Math.max(0, 0.8 - age * 0.25)})`;
+    // A soft glow, not a pop (photosensitivity: js/stage/fx/calm.js).
+    ctx.fillStyle = `rgba(255,240,210,${0.4 * Math.max(0, 1 - age / 4) ** 2})`;
     ctx.beginPath();
     ctx.arc(cx, cy, fr, 0, 7);
     ctx.fill();
