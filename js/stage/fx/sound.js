@@ -40,9 +40,12 @@ export function soundPlan(g, where = 'site') {
   const v = g.vehicle,
     big = might(v);
   // The static firing: heard through the dugout's concrete, or across the site.
+  // The dugout sits a stone's throw from the stand, so even a small round is loud there: nearly as loud as a launch,
+  // a little dulled by the concrete, with the thump as she lights (Aaron, 13 Nov: it was too faint to hear at all).
   if (g.standFlame > 0) {
-    plan.engine = big * g.standFlame * (where === 'interior:dugout' ? 0.6 : 0.8);
-    plan.muffle = where === 'interior:dugout' ? 0.55 : 0.25;
+    const dug = where === 'interior:dugout';
+    plan.engine = (dug ? 0.45 + 0.35 * big : 0.5 + 0.4 * big) * g.standFlame;
+    plan.muffle = dug ? 0.4 : 0.15;
   }
   const f = g.flight;
   if (f?.result?.path) {
