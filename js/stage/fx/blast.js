@@ -7,6 +7,7 @@ import { Container, Graphics, Sprite } from '../../vendor/pixi.min.mjs';
 import { PLACES, GROUND } from '../../data/white-sands.js';
 import { puffTexture } from '../kit.js';
 import { calm, swell } from './calm.js';
+import { aftermath, blastAge, columnRate, landing } from './blast-time.js';
 
 export const BLAST_SHAKE = 1.6; // seconds of shaking
 
@@ -61,16 +62,18 @@ export function blastFx() {
   const ring = new Graphics();
   const flash = new Graphics();
   flash.blendMode = 'add';
+  // The smoke hangs behind the people and the trucks going out to the pad (issue #250); the fire and pieces in front.
   const front = new Container();
-  front.addChild(smoke, fire, pieces, ring);
+  front.addChild(fire, pieces, ring);
   let seen = null,
     since = 0,
     debris = [],
     fires = [];
 
-  function start(b) {
+  function start(b, g) {
     seen = b;
     since = 0;
+    const late = aftermath(b, g);
     const x = PLACES.tower.x + 25,
       y = GROUND - 30 - (b.rise || 0);
     for (let i = 0; i < 26; i++) {
@@ -87,6 +90,18 @@ export function blastFx() {
         burning: Math.random() < 0.5,
         down: false,
       });
+    }
+    // Come out to the site after it is over: the pieces lie where they fell, the fires are out, only smoke is left.
+    if (late) {
+      since = 60;
+      for (const p of debris) {
+        p.x = landing(p.x, p.y, p.vx, p.vy, GROUND + 4);
+        p.y = GROUND + 4;
+        p.down = true;
+        p.burning = false;
+      }
+      fires = [];
+      return;
     }
     fires = [...Array(6)].map(() => ({ x: x + (Math.random() - 0.5) * 220, life: 6 + Math.random() * 14 }));
     for (let i = 0; i < 40; i++) {
@@ -123,7 +138,7 @@ export function blastFx() {
   // Returns the shake (screen px) for the frame.
   function state(g, dt, screen, s) {
     const b = g.flight?.blast;
-    if (b && b !== seen) start(b);
+    if (b && b !== seen) start(b, g);
     if (!b || b.day !== g.day) {
       if (seen && (!b || b.day !== g.day)) {
         seen = null;
@@ -221,11 +236,11 @@ export function blastFx() {
           max: 5,
         });
     }
-    const rate = since < 20 ? 6 : Math.max(0.4, 6 * Math.exp(-(since - 20) / 60));
+    const rate = columnRate(since, blastAge(b, g));
     if (smoke.count() < 260 && Math.random() < rate * dt * 3)
       smoke.add(x + (Math.random() - 0.5) * 40, GROUND - 10, {
         tint: 0x2c2723,
-        alpha: 0.55,
+        alpha: aftermath(b, g) ? 0.3 : 0.55, // a thinner, greyer column once the fire is out
         size: 0.5 + Math.random() * 0.4,
         vx: 0,
         vy: -30 - Math.random() * 20,
@@ -241,5 +256,5 @@ export function blastFx() {
     const a = since < BLAST_SHAKE && !quiet ? 6 * s * (1 - since / BLAST_SHAKE) ** 1.5 : 0;
     return { shakeX: a * Math.sin(g.time * 19), shakeY: a * Math.sin(g.time * 23 + 1) };
   }
-  return { scorch, front, flash, state };
+  return { scorch, smoke, front, flash, state };
 }

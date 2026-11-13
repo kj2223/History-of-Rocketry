@@ -1631,7 +1631,7 @@ function tickFlight(dt) {
     // A round lost on the pad (Vanguard TV-3): she settles back and explodes in front of the site, which watches the
     // fire for a few seconds before the plot (js/stage/fx/blast.js draws it; the smoke hangs over the pad all day).
     if (!f.blast && PAD_BLAST[g.vehicle] === f.result.failure && f.t >= f.result.failAt) {
-      f.blast = { rise: g.rocket.rise, day: g.day, real: f.real };
+      f.blast = { rise: g.rocket.rise, day: g.day, real: f.real, clock: g.clock };
       g.rocket.where = 'gone';
     }
     if (!f.blast) g.rocket.rise += dt * (40 + g.rocket.rise * 2.2) * lift;

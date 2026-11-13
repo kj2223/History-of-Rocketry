@@ -91,7 +91,7 @@ export function siteScene() {
   const fore = new Sprite();
   // A rocket lost on the pad (fx/blast.js): the scorch under everything, the fire and smoke over it.
   const blast = blastFx();
-  world.addChild(fore, day.shadows, blast.scorch);
+  world.addChild(fore, day.shadows, blast.scorch, blast.smoke);
   let site = null,
     siteAt = '';
   const live = siteLive();
