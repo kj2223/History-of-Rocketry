@@ -224,6 +224,29 @@ body[data-era] #room.clipboard h2 { text-decoration: underline; background: none
 body[data-era] #room.clipboard .muted { color: #5e543f; }
 body[data-era] #room.clipboard .close { color: #2a2418; background: transparent; border-color: #5a4a32; }
 /* The photographs (js/site/album.js): a print with a white border, laid a little askew on the write-up. */
+/* The next morning's front page on the write-up (js/site/paper.js), in its decade's type. */
+.paper { margin: .5rem auto 1rem; padding: 12px 14px 10px; max-width: 34rem; background: #f1ebdb; color: #1f1c18; transform: rotate(-0.8deg); box-shadow: 0 6px 18px rgba(0,0,0,.45); font-family: Georgia, 'Times New Roman', serif; }
+.paper .paper-head { border-bottom: 3px double #2a2622; margin-bottom: .4rem; }
+.paper .mast { text-align: center; font-size: 1.6rem; line-height: 1.05; font-weight: bold; letter-spacing: .02em; }
+.paper .dateline { display: flex; justify-content: space-between; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; border-top: 1px solid #2a2622; margin-top: .25rem; padding: .15rem 0; }
+.paper .kicker { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #5a5248; }
+.paper h3 { margin: .1rem 0 .3rem; font-size: 1.55rem; line-height: 1.05; text-transform: uppercase; font-weight: 900; }
+.paper.paper-banner h3 { font-size: 2.1rem; text-align: center; }
+.paper.paper-grave h3 { font-size: 1.8rem; }
+.paper .deck { font-style: italic; font-size: .92rem; margin-bottom: .4rem; }
+.paper .cols { columns: 2; column-gap: 1rem; column-rule: 1px solid #b9b09c; font-size: .8rem; line-height: 1.32; text-align: justify; }
+.paper .cols img { width: 100%; display: block; margin-bottom: .35rem; filter: grayscale(1) contrast(1.15); break-inside: avoid; }
+.paper .cols p { margin: 0 0 .45rem; }
+.paper-old .mast { font-family: 'Old English Text MT', 'UnifrakturMaguntia', Georgia, serif; font-weight: normal; font-size: 1.8rem; }
+.paper-mid { background: #f4efe2; }
+.paper-mid .mast { font-family: 'Times New Roman', Georgia, serif; letter-spacing: .04em; }
+.paper-mid .cols img { filter: saturate(.75); }
+.paper-new { background: #fbfaf6; font-family: Arial, Helvetica, sans-serif; transform: rotate(-0.4deg); }
+.paper-new .paper-head { border-bottom: 4px solid #1a1a1a; }
+.paper-new .mast { font-family: Arial, Helvetica, sans-serif; font-weight: 900; letter-spacing: .25em; text-align: left; }
+.paper-new h3 { text-transform: none; font-family: Arial, Helvetica, sans-serif; font-weight: 800; }
+.paper-new .cols { text-align: left; }
+.paper-new .cols img { filter: none; }
 .print { margin: .4rem auto .9rem; padding: 10px 10px 8px; background: #f3efe4; color: #2a2622; width: fit-content; max-width: 100%; transform: rotate(-1.2deg); box-shadow: 0 6px 18px rgba(0,0,0,.45); }
 .print img { display: block; max-width: 100%; height: auto; border: 1px solid #c9c2b0; }
 .print figcaption { margin-top: .45rem; font-family: Georgia, 'Times New Roman', serif; font-size: .85rem; line-height: 1.3; }
