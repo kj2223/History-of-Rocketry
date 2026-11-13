@@ -47,3 +47,25 @@ test('the light follows the clock: lamps at night, shadows by day, the sun sets 
   assert.equal(at(19).dusk, true);
   assert.equal(at(12).dusk, false);
 });
+
+// Aaron, 13 Nov: the film's flicker was hard to look at and a seizure risk. Nothing may pulse the screen's brightness.
+test('photosensitivity: the film never flickers, and one-off flashes are capped and smooth', async () => {
+  const { swell, FLASH_MAX } = await import('../js/stage/fx/calm.js');
+  for (const y of [1947, 1962, 1981, 2005, 2028]) {
+    const look = film.filmLookFor(y);
+    assert.equal(look.flicker, undefined, `${look.name} has no flicker`);
+    // The grade is the same every frame.
+    assert.deepEqual(film.filmMatrix(look, 1), film.filmMatrix(look, 1));
+  }
+  let peak = 0,
+    prev = 0,
+    biggestStep = 0;
+  for (let t = 0; t < 2; t += 1 / 60) {
+    const v = swell(t, 1, 0.15, 0.9);
+    peak = Math.max(peak, v);
+    biggestStep = Math.max(biggestStep, Math.abs(v - prev));
+    prev = v;
+  }
+  assert.ok(peak <= FLASH_MAX + 1e-9 && FLASH_MAX <= 0.25);
+  assert.ok(biggestStep < 0.05, `a frame-to-frame jump of ${biggestStep}`);
+});

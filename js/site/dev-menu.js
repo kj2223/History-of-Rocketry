@@ -8,6 +8,7 @@ import { startOver, readSave } from '../core/save.js';
 import { trace, traceError } from './playtest.js';
 import { RENDERER_KEY, pixiWanted } from '../stage/index.js';
 import { FILM_KEY, filmWanted } from '../stage/fx/film.js';
+import { CALM_KEY, calm } from '../stage/fx/calm.js';
 
 // The menu is hidden from players. Ctrl+Shift+F9 switches it on or off on this computer (kept in localStorage); while it
 // is on, F9 and the Jump button in the bar open it.
@@ -107,6 +108,7 @@ function render() {
         .join('')}
     </div>
     <label><input type="checkbox" id="dev-canvas" ${pixiWanted() ? '' : 'checked'}> Old drawing: show the rooms rebuilt in PixiJS with the old canvas code, to compare</label>
+    <label><input type="checkbox" id="dev-calm" ${calm() ? 'checked' : ''}> Calm effects: no screen shake, no flash of light at ignition or explosions, no film grain (also on when Windows asks for reduced motion)</label>
     <label><input type="checkbox" id="dev-film" ${filmWanted() ? '' : 'checked'}> No film look: switch off the era's film grade (grain, colour, vignette) over the scenes</label>
     <label>Seed <input id="dev-seed" type="text" inputmode="numeric" size="9" value="${esc(state.seed)}" placeholder="random"> <span class="muted">Blank for a new one each time. A seed gives the same game again.</span></label>
     <p class="dev-status ${state.message.startsWith('Could not') ? 'bad' : ''}" role="status">${esc(state.message)}</p>
@@ -135,6 +137,10 @@ function onChange(e) {
     if (e.target.checked) localStorage.setItem(RENDERER_KEY, 'canvas');
     else localStorage.removeItem(RENDERER_KEY);
     trace('dev-renderer', { canvas: e.target.checked });
+  } else if (e.target.id === 'dev-calm') {
+    if (e.target.checked) localStorage.setItem(CALM_KEY, 'on');
+    else localStorage.removeItem(CALM_KEY);
+    trace('dev-calm', { on: e.target.checked });
   } else if (e.target.id === 'dev-film') {
     if (e.target.checked) localStorage.setItem(FILM_KEY, 'off');
     else localStorage.removeItem(FILM_KEY);
