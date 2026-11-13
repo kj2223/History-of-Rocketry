@@ -7,7 +7,7 @@
 import { Graphics } from '../../vendor/pixi.min.mjs';
 import { calm } from './calm.js';
 
-const SCREENS = new Set(['control', 'tracking', 'sim']);
+const SCREENS = new Set(['control', 'tracking', 'sim', 'deep']);
 export function transitionKind(id, year) {
   if (calm()) return 'lift';
   if (SCREENS.has(id) && year >= 1958) return 'crt';

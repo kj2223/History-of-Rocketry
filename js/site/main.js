@@ -4,6 +4,10 @@
 import { drawSite, drawTracking, drawControlRoom, uiEra, PLACES, VIEW_H, GROUND } from './draw.js';
 import { consoleHud, bindConsoleHud, consoleKey } from './console-hud.js';
 import { startStage, stageFrame } from '../stage/index.js';
+import { deepMode } from '../stage/deep.js';
+
+// A flight followed from a room of its own on the scene layer, or null.
+const flightViewOf = g => (deepMode(g) ? 'deep' : g.room === 'splash' ? 'recovery' : null);
 import { footprint, atPlace } from '../data/white-sands.js';
 import {
   g,
@@ -447,6 +451,11 @@ function frame(now) {
       staged = stageFrame('control', dt, 0);
       if (staged) snap('control');
       else drawControlRoom(ctx, g, view);
+    } else if (flightViewOf(g)) {
+      // The deep-space flights, followed from JPL's tracking (js/stage/deep.js), and the recovery (recovery.js); the old
+      // drawing shows the site.
+      staged = stageFrame(flightViewOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
+      if (!staged) drawSite(ctx, g, view);
     } else if (interiorOf(g)) {
       // A room rebuilt in PixiJS draws on the scene layer; the rest still draw on this canvas.
       staged = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
@@ -457,7 +466,7 @@ function frame(now) {
       else drawSite(ctx, g, view);
     }
     // in-scene: a walk-in room is drawn on the scene layer, so its panel keeps only the decision.
-    inScene = staged && !!interiorOf(g);
+    inScene = staged && (!!interiorOf(g) || !!flightViewOf(g));
     document.body.classList.toggle('in-scene', inScene);
     renderRoom();
     liveRoom();
@@ -473,6 +482,7 @@ function frame(now) {
 const sceneOf = () => {
   if (g.flight?.view === 'board') return 'tracking';
   if (g.room === 'console' && g.console) return 'control-room';
+  if (flightViewOf(g)) return `flight:${flightViewOf(g)}`;
   const inside = interiorOf(g);
   if (inside) return `interior:${inside}`;
   if (g.away) return 'away';

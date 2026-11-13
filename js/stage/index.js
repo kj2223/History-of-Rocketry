@@ -12,6 +12,8 @@ import { siteScene } from './site.js';
 import { controlScene } from './control.js';
 import { trackingScene } from './tracking.js';
 import { simScene } from './sim.js';
+import { deepScene } from './deep.js';
+import { recoveryScene } from './recovery.js';
 import { g } from '../game.js';
 import { yearOf } from '../site/draw.js';
 import { filmLayer } from './fx/film.js';
@@ -26,6 +28,8 @@ const SCENES = {
   control: controlScene,
   tracking: trackingScene,
   sim: simScene,
+  deep: deepScene,
+  recovery: recoveryScene,
 };
 export const RENDERER_KEY = 'pa-renderer';
 
