@@ -1471,6 +1471,8 @@ function flightCalls(r) {
 }
 
 // How fast each vehicle climbs off the pad on the site, against the WAC Corporal's leap off its rail.
+// The failures that destroy a round in sight of the site: Vanguard TV-3's first stage lost thrust two seconds up.
+const PAD_BLAST = { vanguard: 'injector' };
 const LIFT = {
   wac: 1,
   aerobee: 1,
@@ -1490,8 +1492,14 @@ function tickFlight(dt) {
     // The site watches her go: the small sounding rockets leap off the rail; the big ones climb slowly off the pad, and
     // the camera tilts up after them (js/stage/fx/launch.js) until they are out of sight, then the range plot takes over.
     const lift = LIFT[g.vehicle] ?? 0.6;
-    g.rocket.rise += dt * (40 + g.rocket.rise * 2.2) * lift;
-    if (f.real > 2.2 / lift || g.rocket.rise > 2600) {
+    // A round lost on the pad (Vanguard TV-3): she settles back and explodes in front of the site, which watches the
+    // fire for a few seconds before the plot (js/stage/fx/blast.js draws it; the smoke hangs over the pad all day).
+    if (!f.blast && PAD_BLAST[g.vehicle] === f.result.failure && f.t >= f.result.failAt) {
+      f.blast = { rise: g.rocket.rise, day: g.day, real: f.real };
+      g.rocket.where = 'gone';
+    }
+    if (!f.blast) g.rocket.rise += dt * (40 + g.rocket.rise * 2.2) * lift;
+    if (f.blast ? f.real - f.blast.real > 5 : f.real > 2.2 / lift || g.rocket.rise > 2600) {
       f.view = 'board';
       g.rocket.where = 'gone';
     }

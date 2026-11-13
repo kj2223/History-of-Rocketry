@@ -14,6 +14,7 @@ import { buildSite, dropSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
 import { launchFx, warmTint } from './fx/launch.js';
 import { lightAt, daylightDressing } from './fx/daylight.js';
+import { blastFx } from './fx/blast.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
 const SKY_ABOVE = 240;
@@ -80,7 +81,9 @@ export function siteScene() {
   const world = new Container();
   root.addChild(world);
   const fore = new Sprite();
-  world.addChild(fore, day.shadows);
+  // A rocket lost on the pad (fx/blast.js): the scorch under everything, the fire and smoke over it.
+  const blast = blastFx();
+  world.addChild(fore, day.shadows, blast.scorch);
   let site = null,
     siteAt = '';
   const live = siteLive();
@@ -89,7 +92,7 @@ export function siteScene() {
   world.addChild(people, live.truckLayer, live.dust, live.smoke);
   // The launch: its light on the site, the ground cloud and the trail (fx/launch.js).
   const fx = launchFx();
-  world.addChild(fx.lightLayer, fx.front, fx.trail);
+  world.addChild(fx.lightLayer, fx.front, fx.trail, blast.front);
   // The machinery not yet rebuilt, drawn by the old code on a clear canvas the size of the screen.
   const liveCanvas = document.createElement('canvas');
   const liveCtx = liveCanvas.getContext('2d');
@@ -102,7 +105,7 @@ export function siteScene() {
   root.addChild(nightLayer);
   const overlay = new Sprite();
   root.addChild(overlay);
-  root.addChild(fx.flash);
+  root.addChild(fx.flash, blast.flash);
   // Speech bubbles, in screen pixels so the words stay a readable size at any zoom.
   const bubbleLayer = new Container();
   root.addChild(bubbleLayer);
@@ -126,7 +129,8 @@ export function siteScene() {
     // The launch's shake and the camera's tilt up after her.
     const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s),
       tiltPx = lf.tilt * s;
-    root.position.set(lf.shakeX, lf.shakeY);
+    const bl = blast.state(g, Math.min(0.1, dt), screen, s);
+    root.position.set(lf.shakeX + bl.shakeX, lf.shakeY + bl.shakeY);
     back.scale.set(s);
     backFar.y = lf.tilt * 0.3;
     backMid.y = lf.tilt * 0.6;
