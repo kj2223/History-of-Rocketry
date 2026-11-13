@@ -26,6 +26,8 @@ const LOX_HEIGHT = {
   dragon: 260,
 };
 export const breathes = v => v in LOX_HEIGHT;
+// How tall she stands on the pad (site units), for the fuelled vehicles; 0 for the rest.
+export const padHeight = v => LOX_HEIGHT[v] || 0;
 
 export function siteLife() {
   const vapour = new Container(); // world units

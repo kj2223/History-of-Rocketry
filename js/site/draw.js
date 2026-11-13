@@ -1849,6 +1849,113 @@ export function drawWallMap(ctx, g, x, y, w, h) {
 
 // The live pad picture: sky and sea in the day's light, the gantry, the round on it, flame and smoke when she flies.
 // Drawn clipped into the rectangle given, wherever it is wanted — the wall television, or the console scene's inset.
+// The big crewed rockets' umbilical towers on the pad camera, with their swing arms (Saturn IB and V, the Shuttle, SLS
+// and Dragon): each arm reaches across to her side at its level. Seen side on, an arm swinging back on its hinge looks
+// as if it shortens toward the tower. The crew access arm goes back before the last minutes of the count (Saturn V at
+// T-5 minutes, the Shuttle's at T-7:30, Dragon's at T-42), the Shuttle's vent hood at T-2:30, and the rest as she
+// lifts. height: her height on the pad (site units); half: her half-width; arms: [level as a share of her height,
+// count seconds before lift-off it swings back, or 0 for lift-off].
+const SWING_ARMS = {
+  saturn5: {
+    height: 400,
+    half: 22,
+    paint: '#a8432f',
+    arms: [
+      [0.94, 300],
+      [0.8, 0],
+      [0.62, 0],
+      [0.42, 0],
+      [0.22, 0],
+    ],
+  },
+  saturnib: {
+    height: 300,
+    half: 18,
+    paint: '#a8432f',
+    arms: [
+      [0.93, 300],
+      [0.68, 0],
+      [0.44, 0],
+      [0.2, 0],
+    ],
+  },
+  shuttle: {
+    height: 330,
+    half: 26,
+    paint: '#7a7f86',
+    arms: [
+      [0.96, 150],
+      [0.55, 450],
+      [0.3, 0],
+    ],
+  },
+  sls: {
+    height: 400,
+    half: 28,
+    paint: '#5d636b',
+    arms: [
+      [0.9, 300],
+      [0.66, 0],
+      [0.4, 0],
+    ],
+  },
+  dragon: {
+    height: 260,
+    half: 9,
+    paint: '#6a7078',
+    arms: [
+      [0.93, 2520],
+      [0.55, 0],
+    ],
+  },
+};
+// How far back an arm has swung: 0 reaching across to her, 1 parked against the tower. before: as in SWING_ARMS.
+export function armSwing(g, before) {
+  const c = g.console,
+    rise = flyingRise(g);
+  if (!before) return Math.min(1, rise / 30);
+  if (rise > 0 || g.rocket.where !== 'tower') return 1;
+  if (c?.phase === 'count') return Math.max(0, Math.min(1, (before - c.clock) / 12));
+  return c ? 1 : 0;
+}
+function swingArms(ctx, g, cx, spec) {
+  const mastW = 24,
+    mx = cx - spec.half - 40 - mastW, // the mast's left edge
+    top = GROUND - spec.height - 40;
+  ctx.fillStyle = spec.paint;
+  ctx.strokeStyle = spec.paint;
+  // The tower: two legs and the lattice between them, and a crane on top.
+  ctx.fillRect(mx, top, 3, GROUND - top);
+  ctx.fillRect(mx + mastW - 3, top, 3, GROUND - top);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let y = top; y < GROUND; y += 16) {
+    ctx.moveTo(mx, y);
+    ctx.lineTo(mx + mastW, y + 16);
+    ctx.moveTo(mx + mastW, y);
+    ctx.lineTo(mx, y + 16);
+    ctx.moveTo(mx, y);
+    ctx.lineTo(mx + mastW, y);
+  }
+  ctx.stroke();
+  ctx.fillRect(mx - 4, top - 4, mastW + 30, 4);
+  ctx.fillRect(mx - 30, GROUND - 6, 140 + spec.half * 2, 6); // the launcher's deck
+  for (const [level, before] of spec.arms) {
+    const swing = armSwing(g, before);
+    const reach = (cx - spec.half - (mx + mastW)) * Math.cos(swing * 1.35),
+      y = GROUND - 8 - spec.height * level;
+    if (reach < 1) continue;
+    ctx.fillRect(mx + mastW, y - 4, reach, 2);
+    ctx.fillRect(mx + mastW, y + 2, reach, 2);
+    ctx.beginPath();
+    for (let x = 0; x + 6 <= reach; x += 6) {
+      ctx.moveTo(mx + mastW + x, y + 4);
+      ctx.lineTo(mx + mastW + x + 6, y - 4);
+    }
+    ctx.stroke();
+  }
+}
+
 export function padPicture(ctx, g, x, y, w, h) {
   ctx.save();
   ctx.beginPath();
@@ -1872,7 +1979,9 @@ export function padPicture(ctx, g, x, y, w, h) {
   }
   ctx.fillStyle = '#e4d8b4';
   ctx.fillRect(cx - 3000, GROUND, 6000, 80);
-  tower(ctx, PLACES.tower);
+  const arms = SWING_ARMS[g.vehicle];
+  if (arms && g.crewed) swingArms(ctx, g, cx, arms);
+  else tower(ctx, PLACES.tower);
   if (g.rocket.where === 'tower') roundShape(ctx, g, cx, GROUND - 8, 0, true);
   else if (g.rocket.where === 'flying') {
     const wac = g.vehicle === 'wac' || g.vehicle === 'aerobee',

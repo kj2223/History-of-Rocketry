@@ -121,3 +121,23 @@ test('ending the day on the site plays the night as a slower time-lapse; scenes 
   assert.equal(transitionKind('site', 1985), 'lift');
   assert.ok(Object.values(LENGTH).every(s => s <= 0.6));
 });
+
+test('the swing arms go back on time: the crew arm before the last minutes, the rest as she lifts', async () => {
+  const { armSwing } = await import('../js/site/draw.js');
+  const pad = (clock, where = 'tower', phase = 'count', t = 0) => ({ rocket: { where }, console: { phase, clock, t } });
+  assert.equal(armSwing(pad(600), 300), 0); // T-10 minutes: the crew arm still across
+  assert.equal(armSwing(pad(280), 300), 1); // T-4:40: parked
+  assert.ok(armSwing(pad(294), 300) > 0 && armSwing(pad(294), 300) < 1); // on its way
+  assert.equal(armSwing(pad(5), 0), 0); // the service arms stay until lift-off
+  assert.equal(armSwing(pad(0, 'flying', 'ascent', 2), 0), 1);
+});
+
+test('the site road: the fleet of the place and years, and closed for counts, firings and flights', async () => {
+  const { fleetFor, roadClosed } = await import('../js/stage/fx/traffic.js');
+  assert.ok(fleetFor('sands', 1947).some(([k]) => k === 'jeep'));
+  assert.ok(fleetFor('cape', 1962).every(([k]) => k !== 'suv'));
+  assert.ok(fleetFor('cape', 2026).some(([k]) => k === 'suv'));
+  assert.equal(roadClosed({ rocket: { where: 'hangar' } }), false);
+  assert.equal(roadClosed({ count: {}, rocket: { where: 'tower' } }), true);
+  assert.equal(roadClosed({ standFlame: 0.5, rocket: {} }), true);
+});
