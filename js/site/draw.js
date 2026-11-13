@@ -55,6 +55,7 @@ import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SEA_LIMIT } from '../data/mercury.js';
 import { callBoardLines } from '../houston.js';
 import { televisionShot, breakupAge } from './tv-shots.js';
+import { crewCountShot, cabinShot } from './crew-tv.js';
 import { weatherNow, weatherWash } from '../stage/fx/weather-day.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
@@ -2027,7 +2028,13 @@ export function controlTelevision(ctx, g, x, y, w, h) {
   // While she climbs the picture follows her: the tracking cameras, and the onboard cameras of the years that had them
   // live (js/site/tv-shots.js). The readings ride along in the caption. A breakup stays on the screen a while.
   if (last && ((live && last.t >= 13) || breakupAge(g, c) != null) && televisionShot(ctx, g, x, y, w, h)) return;
-  if (c?.flight && !['ascent', 'insertion'].includes(c.phase)) return flightStatusBoard(ctx, c.flight, x, y, w, h);
+  if (c?.flight && !['ascent', 'insertion'].includes(c.phase)) {
+    // The spacecraft's own television shares the screen with the board while the board is quiet (crew-tv.js).
+    if (cabinShot(ctx, g, x, y, w, h, c.flight)) return;
+    return flightStatusBoard(ctx, c.flight, x, y, w, h);
+  }
+  // In the count, the network's replays of the crew's morning before the pad camera goes live.
+  if (!last && crewCountShot(ctx, g, x, y, w, h, c)) return;
   if (!last || (live && last.t < 13)) return padPicture(ctx, g, x, y, w, h);
 
   const size = Math.min(w / 28, h / 5);
