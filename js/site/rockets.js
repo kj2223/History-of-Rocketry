@@ -282,35 +282,93 @@ export function geminiTitanShape(ctx, x, y, angle) {
   ctx.restore();
 }
 
-// The Shuttle stack: the orange external tank with two white boosters, and the orbiter on her side at the top.
+// The Shuttle stack.
 export function shuttleShape(ctx, x, y, angle) {
+  // Seen from the side, as the crawler-way photographs show her: the external tank in the middle, the near booster
+  // in front of it (the far one hidden behind), and the orbiter in profile on the tank's right, belly against it,
+  // nose up, the tail fin standing out to the right and the three main engines at her tail.
   const s = frame(ctx, x, y, angle);
-  tube(ctx, 11, -160, 0, '#c0703e', s, [-120, -60]);
-  for (const bx of [-19.5, 19.5]) {
-    ctx.save();
-    ctx.translate(bx, 0);
-    tube(ctx, 6.5, -150, 0, '#ece8de', s, [-100, -50]);
-    ogive(ctx, 6.5, -150, 12, '#ece8de', s);
-    band(ctx, 6.5, -12, 12, '#2e3034', s);
-    ctx.restore();
-  }
-  // The orbiter, nose up along the tank's side: wing seen edge-on, tail fin, and black tiles where the belly shows.
-  shape(ctx, [-2, -190, 9, -160, 9, -108, -14, -100], '#f2f0ea', s);
+  ctx.save();
+  ctx.translate(-6, 0);
+  tube(ctx, 11, -160, -4, '#c0703e', s, [-120, -60]);
+  ogive(ctx, 11, -160, 22, '#c0703e', s);
+  ctx.fillStyle = '#9c5a30';
+  ctx.fillRect(-11, -112, 22, 3); // the intertank
+  ctx.restore();
+  // The near booster, in front of the tank.
+  ctx.save();
+  ctx.translate(-8, 0);
+  tube(ctx, 6.5, -150, 0, '#ece8de', s, [-100, -50]);
+  ogive(ctx, 6.5, -150, 12, '#ece8de', s);
+  band(ctx, 6.5, -12, 12, '#2e3034', s);
+  ctx.restore();
+  // The orbiter in profile: belly line on the tank at x = 5, the payload-bay doors along x = 17, the cockpit hump and
+  // nose at the top, the OMS pod and the tail fin at the aft end.
+  const B = 5,
+    T = 17,
+    aft = -14,
+    nose = -150;
+  ctx.fillStyle = '#26282c';
+  ctx.fillRect(B + 2, -40, 10, 10); // the wing root, seen side-on behind the fuselage
+  shape(
+    ctx,
+    [
+      B,
+      aft,
+      B,
+      nose + 14,
+      B + 2,
+      nose + 3,
+      B + 6,
+      nose,
+      B + 11,
+      nose + 4,
+      T + 2,
+      nose + 16,
+      T + 1,
+      nose + 24,
+      T,
+      nose + 30,
+      T,
+      aft - 18,
+      T - 2,
+      aft,
+    ],
+    '#f2f0ea',
+    s,
+    false,
+  );
+  ctx.fillStyle = SHADE;
+  ctx.fillRect(T - 4, nose + 30, 4, aft - nose - 30); // the far side of her fuselage, away from the light
+  // Black tiles along the belly and the nose cap, the payload-bay door line and the windows.
   ctx.fillStyle = '#2a2c30';
   ctx.beginPath();
-  ctx.moveTo(-2, -190);
-  ctx.lineTo(-14, -100);
-  ctx.lineTo(-11.5, -100);
-  ctx.lineTo(-0.6, -186);
+  ctx.moveTo(B, aft);
+  ctx.lineTo(B, nose + 14);
+  ctx.lineTo(B + 2, nose + 3);
+  ctx.lineTo(B + 6, nose);
+  ctx.lineTo(B + 6.5, nose + 3);
+  ctx.lineTo(B + 3.5, nose + 6);
+  ctx.lineTo(B + 2.4, nose + 16);
+  ctx.lineTo(B + 2.4, aft);
   ctx.closePath();
   ctx.fill();
-  shape(ctx, [-14, -118, -4, -118, -4, -102, -14, -102], '#3e4652', s, false);
-  shape(ctx, [-2, -196, 6, -196, 6, -186, -2, -186], '#3e4652', s, false);
-  ctx.fillStyle = 'rgba(160,190,210,.8)';
-  ctx.fillRect(1, -176, 3, 2);
-  bells(ctx, [1], 7, -100);
-  bodyText(ctx, 'UNITED STATES', 60, angle, 6, '#3a2a20');
-  bells(ctx, [-19.5, 19.5], 9);
+  ctx.fillStyle = SEAM;
+  ctx.fillRect(T - 2.5, nose + 30, 0.8, aft - 14 - (nose + 30)); // the payload-bay door line
+  ctx.fillStyle = '#2e3440';
+  for (const yy of [nose + 10, nose + 13]) ctx.fillRect(B + 9, yy, 4, 1.6);
+  // The OMS pod and the tail fin, standing out to the right at her tail.
+  shape(ctx, [T, aft - 4, T + 5, aft - 6, T + 5, aft - 22, T, aft - 26], '#e8e4da', s, false);
+  shape(ctx, [T, aft - 36, T + 16, aft - 14, T + 16, aft - 6, T, aft - 4], '#f2f0ea', s, false);
+  ctx.fillStyle = '#2a2c30';
+  ctx.fillRect(T + 14, aft - 15, 2, 9); // the fin's tip
+  // The three main engines, angled down under her tail, and the lettering on her side.
+  bells(ctx, [B + 4, B + 8, B + 12], 5, aft);
+  ctx.save();
+  ctx.translate(B + 7, 0);
+  bodyText(ctx, 'UNITED STATES', 95, angle, 5, '#2c3440');
+  ctx.restore();
+  bells(ctx, [-8], 9);
   ctx.restore();
 }
 
