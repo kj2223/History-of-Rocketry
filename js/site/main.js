@@ -461,6 +461,8 @@ function autosave() {
 // The canvas pixels the room's panel covers on the right, so a walk-in scene keeps its middle clear of it.
 function panelReserve() {
   const el = $('room');
+  // A call strip sits along the bottom of the scene, so the scene keeps its whole width.
+  if (el.classList.contains('strip') && document.body.classList.contains('in-scene')) return 0;
   return el.hidden ? 0 : (el.offsetWidth + 24) * (window.devicePixelRatio || 1);
 }
 

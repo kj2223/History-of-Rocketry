@@ -198,6 +198,31 @@ body.in-scene #room .clock, body.in-scene #room .gauges, body.in-scene #room [da
 body.in-scene #room .readings, body.in-scene #room > p.muted:not(.keep),
 body.in-scene #room > canvas { display: none; }
 body.in-scene #room { width: 26.7em; }
+/* The call strip (js/scenes/rooms.js): in a rebuilt scene the count and the static fire have no card. The scene shows
+   every reading; what is left is the question and its buttons, as a slim console strip along the bottom right, with a
+   lamp that is lit, steady, while the call waits on you. Nothing on it flashes or pulses. When there is nothing to
+   decide (watching, the crew out on the stand) there is no strip at all. The objective bar says what the job is. */
+#room .ask:not(.always) { display: none; }
+.call-lamp { flex: none; display: inline-block; width: .8em; height: .8em; margin: .3em .6em 0 0; border-radius: 50%;
+  background: #3a3226; border: 1px solid #111; }
+.call-lamp.on { background: radial-gradient(circle at 40% 35%, #fff3c4, #e8a63c 70%); box-shadow: 0 0 6px rgba(232,166,60,.6); }
+body.in-scene #room.strip { top: auto; bottom: 12px; width: auto; max-width: min(46em, calc(100% - 760px)); min-width: 22em; max-height: 45%;
+  padding: .6rem .8rem; }
+body.in-scene #room.strip > h2, body.in-scene #room.strip > p, body.in-scene #room.strip > .close,
+body.in-scene #room.strip .poll > p:not(.ask), body.in-scene #room.strip .reports, body.in-scene #room.strip .lamp { display: none; }
+body.in-scene #room.strip .ask { display: flex; margin: 0 0 .5rem; font-weight: bold; line-height: 1.35; }
+body.in-scene #room.strip .poll, body.in-scene #room.strip .actions { margin: 0; padding: 0; border: 0; background: none; }
+body.in-scene #room.strip button { margin: 0 .4rem .3rem 0; }
+body.in-scene #room.strip label { display: block; margin: .2rem 0; }
+body.in-scene #room.strip:not(:has(button:not(.close))) { display: none; }
+@media (prefers-reduced-motion: reduce) { .call-lamp.on { box-shadow: none; } }
+/* The mission plan and the drawing board: a typed sheet on a clipboard, not a dark card. */
+body[data-era] #room.clipboard, #room.clipboard { background: #ece3c8; background-image: repeating-linear-gradient(transparent 0 1.55em, rgba(90,74,50,.12) 1.55em 1.6em); color: #2a2418; border: 0; border-top: 18px solid #5a4a32; border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace; box-shadow: 4px 6px 0 rgba(0,0,0,.4); transform: rotate(-.4deg); }
+body[data-era] #room.clipboard, body[data-era] #room.clipboard h2, body[data-era] #room.clipboard h3, body[data-era] #room.clipboard strong, body[data-era] #room.clipboard label, body[data-era] #room.clipboard p { color: #2a2418; font-family: "Courier New", Courier, monospace; }
+body[data-era] #room.clipboard h2 { text-decoration: underline; background: none; border: 0; }
+body[data-era] #room.clipboard .muted { color: #5e543f; }
+body[data-era] #room.clipboard .close { color: #2a2418; background: transparent; border-color: #5a4a32; }
 /* The photographs (js/site/album.js): a print with a white border, laid a little askew on the write-up. */
 .print { margin: .4rem auto .9rem; padding: 10px 10px 8px; background: #f3efe4; color: #2a2622; width: fit-content; max-width: 100%; transform: rotate(-1.2deg); box-shadow: 0 6px 18px rgba(0,0,0,.45); }
 .print img { display: block; max-width: 100%; height: auto; border: 1px solid #c9c2b0; }
