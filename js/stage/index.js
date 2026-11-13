@@ -15,6 +15,7 @@ import { simScene } from './sim.js';
 import { g } from '../game.js';
 import { yearOf } from '../site/draw.js';
 import { filmLayer } from './fx/film.js';
+import { transitionLayer, transitionKind } from './fx/transition.js';
 
 // A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
 const SCENES = {
@@ -34,7 +35,8 @@ let app = null,
   currentId = null,
   builtFor = null,
   failed = false,
-  film = null;
+  film = null,
+  cut = null;
 
 // The desktop app forbids eval (its Content-Security-Policy, desktop/main.js), and PixiJS builds its shader code with
 // it unless its 'unsafe-eval' add-on is loaded. The add-on ships as a classic script that patches the classes on a
@@ -70,6 +72,7 @@ export async function startStage(el, hooks) {
     app = a;
     app.hooks = hooks;
     film = filmLayer(app);
+    cut = transitionLayer();
   } catch (e) {
     failed = true;
     console.error('The scene layer could not start; drawing with the old canvas.', e);
@@ -105,6 +108,11 @@ export function stageFrame(id, dt, reserve) {
     // The site lets clicks through to the canvas underneath, which still does the walking and talking.
     host.classList.toggle('pass', !!current.passThrough);
     film?.place();
+    // The way in to the new scene, in the era's manner (fx/transition.js).
+    if (cut) {
+      app.stage.addChild(cut.cover);
+      cut.start(transitionKind(id, yearOf(g)));
+    }
   }
   if (host.hidden) {
     host.hidden = false;
@@ -112,6 +120,7 @@ export function stageFrame(id, dt, reserve) {
   }
   current.update(dt, app.screen, reserve);
   film?.update(id, yearOf(g), dt, app.screen);
+  cut?.update(dt, app.screen);
   app.render();
   return true;
 }

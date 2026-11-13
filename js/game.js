@@ -1834,7 +1834,9 @@ export function answerFirstOffer(take) {
 // ---- Ending the day ----
 export function endDay() {
   if (!g.dayDone || g.fading) return;
-  g.fading = { dir: 1, then: nextMorning };
+  // On the site the night passes as a time-lapse (js/stage/fx/lapse.js): the sun goes down, the lamps come on, the
+  // stars wheel over and the dawn comes up, rather than a cut to black. from: the minute of the day it starts at.
+  g.fading = { dir: 1, then: nextMorning, lapse: { from: g.clock % 1440 } };
 }
 function nextMorning() {
   const lines = [],
@@ -1887,10 +1889,12 @@ const lunarClock = () =>
 export function tick(dt) {
   g.time += dt;
   if (g.fading) {
-    g.fade = Math.max(0, Math.min(1, g.fade + g.fading.dir * dt * 1.6));
+    // A night seen from the site passes slower, so the time-lapse can be seen; anywhere else it is a quick fade.
+    const lapse = g.fading.lapse && !g.room && !g.console;
+    g.fade = Math.max(0, Math.min(1, g.fade + g.fading.dir * dt * (lapse ? 0.5 : 1.6)));
     if (g.fading.dir > 0 && g.fade >= 1) {
       const then = g.fading.then;
-      g.fading = { dir: -1 };
+      g.fading = { dir: -1, lapse: g.fading.lapse };
       then();
     } else if (g.fading.dir < 0 && g.fade <= 0) g.fading = null;
     return;

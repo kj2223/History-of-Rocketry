@@ -111,3 +111,13 @@ test('only the liquid-oxygen rockets breathe vapour on the pad', async () => {
   // Acid and aniline (WAC, Aerobee) and the Titan II's storable propellants do not boil off.
   for (const v of ['wac', 'aerobee', 'titan']) assert.ok(!breathes(v), v);
 });
+
+test('ending the day on the site plays the night as a slower time-lapse; scenes open in the era manner', async () => {
+  const src = await import('node:fs').then(fs => fs.readFileSync(new URL('../js/game.js', import.meta.url), 'utf8'));
+  assert.match(src, /lapse: \{ from: g\.clock % 1440 \}/);
+  const { transitionKind, LENGTH } = await import('../js/stage/fx/transition.js');
+  assert.equal(transitionKind('control', 1969), 'crt');
+  assert.equal(transitionKind('hangar', 1951), 'iris');
+  assert.equal(transitionKind('site', 1985), 'lift');
+  assert.ok(Object.values(LENGTH).every(s => s <= 0.6));
+});
