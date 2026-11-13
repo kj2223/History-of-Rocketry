@@ -7,7 +7,8 @@
 // talking work as before.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
-import { g as game } from '../game.js';
+import { g as game, siteWind, seaState } from '../game.js';
+import { dateOf } from '../core/calendar.js';
 import { drawSiteMachinery, VIEW_H, GROUND } from '../site/draw.js';
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
 import { buildSite, dropSite, siteKey } from './site-art.js';
@@ -15,6 +16,7 @@ import { siteLive } from './site-live.js';
 import { launchFx, warmTint } from './fx/launch.js';
 import { lightAt, daylightDressing } from './fx/daylight.js';
 import { blastFx } from './fx/blast.js';
+import { weatherFor, weatherLayers, mulTint, forcedWeather } from './fx/weather.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
 const SKY_ABOVE = 240;
@@ -57,7 +59,10 @@ export function siteScene() {
   const clouds = new Graphics();
   // The time of day: stars, moon, shadows and searchlights (fx/daylight.js).
   const day = daylightDressing();
-  backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds);
+  // The day's weather (fx/weather.js): thunderheads and overcast far off, mist over the distance, dust on the ground,
+  // rain over everything.
+  const weather = weatherLayers();
+  backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds, weather.far);
   const WIDE = 4000; // wider than any screen in site units
   const ranges = [
     [range(0x8d86a0, 380, [0, 60, 30, 120, 70, 150, 40, 90, 20], WIDE), 0.15],
@@ -70,7 +75,7 @@ export function siteScene() {
   const glints = new Graphics();
   const scrub = new Graphics();
   const palms = new Graphics();
-  backMid.addChild(sea, glints, scrub, palms);
+  backMid.addChild(sea, glints, scrub, palms, weather.mist);
   const PALM_SPAN = 140;
   const haze = new Sprite();
   const sand = new Sprite();
@@ -89,7 +94,7 @@ export function siteScene() {
   const live = siteLive();
   world.addChild(live.behind, live.fire);
   const people = new Graphics();
-  world.addChild(people, live.truckLayer, live.dust, live.smoke);
+  world.addChild(people, live.truckLayer, live.dust, live.smoke, weather.ground);
   // The launch: its light on the site, the ground cloud and the trail (fx/launch.js).
   const fx = launchFx();
   world.addChild(fx.lightLayer, fx.front, fx.trail, blast.front);
@@ -102,7 +107,7 @@ export function siteScene() {
   root.addChild(lightLayer);
   const nightLayer = new Container();
   nightLayer.addChild(day.beamLayer);
-  root.addChild(nightLayer);
+  root.addChild(nightLayer, weather.rain);
   const overlay = new Sprite();
   root.addChild(overlay);
   root.addChild(fx.flash, blast.flash);
@@ -126,6 +131,15 @@ export function siteScene() {
       skyNow = L.sky,
       dusk = L.dusk,
       cape = g.site === 'cape';
+    const W = weatherFor({
+      day: g.day ?? 0,
+      month: dateOf(g.day ?? 0).month,
+      hour: L.hour,
+      cape,
+      windKmh: siteWind(),
+      seaState: seaState(),
+      force: forcedWeather(),
+    });
     // The launch's shake and the camera's tilt up after her.
     const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s),
       tiltPx = lf.tilt * s;
@@ -274,17 +288,24 @@ export function siteScene() {
     }
     // Clouds drift with the wind, and a little with the camera.
     const spanC = vw + 600,
-      drift = (t * 2 + camX * 0.08) % spanC;
+      drift = (t * (1 + W.wind * 0.08) + camX * 0.08) % spanC;
     clouds.clear();
-    for (const [x0, y, w] of [
+    // A cloudier day has more and bigger clouds, greyer under overcast.
+    const cloudSet = [
       [80, 120, 90],
       [520, 70, 130],
       [930, 160, 70],
       [1300, 100, 110],
       [1700, 140, 80],
-    ]) {
+      [300, 180, 120],
+      [1100, 60, 150],
+      [1500, 190, 100],
+    ].slice(0, 3 + Math.round(5 * W.cloud));
+    const cloudCol = mulTint(L.cloud, W.overcast > 0.3 ? 0xc4c8d0 : 0xffffff);
+    for (const [x0, y, w0] of cloudSet) {
+      const w = w0 * (0.8 + 0.6 * W.cloud);
       const x = ((((x0 - drift) % spanC) + spanC) % spanC) - 300;
-      const col = { color: L.cloud, alpha: 0.55 - 0.3 * L.night };
+      const col = { color: cloudCol, alpha: 0.55 - 0.3 * L.night + 0.2 * W.overcast };
       clouds.ellipse(x + w * 0.5, y, w * 0.5, w * 0.16).fill(col);
       clouds.ellipse(x + w * 0.35, y - w * 0.1, w * 0.22, w * 0.14).fill(col);
       clouds.ellipse(x + w * 0.62, y - w * 0.12, w * 0.26, w * 0.17).fill(col);
@@ -314,13 +335,14 @@ export function siteScene() {
     live.update(g, Math.min(0.1, dt));
     // Dusk: the site itself darkens toward the sky's colour, and the lights come on.
     // A launch's flame lights it up warm, most of all at night.
-    const dim = warmTint(L.tint, lf.glow, dusk);
+    const dim = warmTint(mulTint(L.tint, weather.tint(W)), lf.glow, dusk);
     if (world.tint !== dim) world.tint = overlay.tint = dim;
     lightLayer.scale.set(s);
     lightLayer.position.set(-camX * s, tiltPx);
     for (const l of lightLayer.children) l.alpha = L.lamps * l.full * (0.92 + 0.08 * Math.sin(t * 7 + l.x));
     // The shadows along the ground, and the searchlights on a rocket standing on the pad at night.
     day.world(L, g, g.rocket.where === 'tower' ? GROUND - 160 : null, t);
+    weather.update(W, L, { vw, camX, screen, s, t, dt: Math.min(0.1, dt) });
     nightLayer.scale.set(s);
     nightLayer.position.set(-camX * s, tiltPx);
     // The foreground darkens toward the bottom of the screen.

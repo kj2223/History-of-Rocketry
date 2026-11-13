@@ -81,3 +81,26 @@ test('a round lost on the pad blows up in sight of the site, and the site watche
   assert.equal(breakupAge({ time: 15 }, c), 5);
   assert.equal(breakupAge({ time: 40 }, c), null);
 });
+
+test('each day has its weather, true to the place and season, and the forecast wind drives the dust', async () => {
+  const { weatherFor } = await import('../js/stage/fx/weather.js');
+  const days = [...Array(400).keys()].map(d => d + 5000);
+  const kinds = (o, hour = 15) => days.map(day => weatherFor({ day, hour, ...o }).kind);
+  // White Sands: the monsoon's storms only in July and August; no sea fog or rain days.
+  assert.ok(kinds({ month: 7, cape: false }).includes('storms'));
+  assert.ok(!kinds({ month: 3, cape: false }).includes('storms'));
+  assert.ok(!kinds({ month: 1, cape: false }).some(k => k === 'fog' || k === 'rain'));
+  // The Cape: summer afternoon storms, winter morning fog that burns off.
+  assert.ok(kinds({ month: 8, cape: true }).includes('storms'));
+  const fogDay = days.find(day => weatherFor({ day, month: 1, hour: 8, cape: true }).kind === 'fog');
+  assert.ok(weatherFor({ day: fogDay, month: 1, hour: 8, cape: true }).fog > 0.5);
+  assert.equal(weatherFor({ day: fogDay, month: 1, hour: 12, cape: true }).fog, 0);
+  // A stiff forecast wind blows dust at White Sands; a rough sea brings low cloud at the Cape.
+  assert.equal(weatherFor({ day: 5001, month: 4, hour: 12, cape: false, windKmh: 35 }).kind, 'dust');
+  assert.equal(weatherFor({ day: 5001, month: 4, hour: 12, cape: true, seaState: 5 }).kind, 'rough');
+  // The same day always looks the same.
+  assert.deepEqual(
+    weatherFor({ day: 6000, month: 7, hour: 16, cape: true }),
+    weatherFor({ day: 6000, month: 7, hour: 16, cape: true }),
+  );
+});
