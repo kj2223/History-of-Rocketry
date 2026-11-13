@@ -8,17 +8,78 @@
 // same places on the wall as before. Reads only what the room could see, through game.js and the site drawing.
 import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
-import { drawWallMap, controlTelevision, controlDesks, deskLines } from '../site/draw.js';
+import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra } from '../site/draw.js';
 import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture } from './kit.js';
 
-const INK = { go: 0x9fdc9a, warn: 0xe8c66a, bad: 0xd0634f };
-const inkOf = tone => INK[tone] || INK.go;
-let enamelTex = null; // one gradient shared by every desk
+// The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
+// amber terminals, the flat grey monitors of 1996–2015, and the dark glass room of 2028 with its blue light.
+export const LOOKS = {
+  steel: {
+    wall: ['#202831', '#343f47', '#20272c'],
+    carpet: ['#2a3031', '#423d33', '#292824'],
+    enamel: ['#5c646a', '#414950', '#343a40'],
+    trim: 0x626a71,
+    glass: 0x161e24,
+    glassTop: 0x243139,
+    ink: 0x9fdc9a,
+    dim: 0x5a6a60,
+    rule: 0x31413a,
+    pool: 0xefc683,
+    rack: 0x2c3138,
+    screens: 0xffffff, // the old drawing's wall pictures, tinted to the room's screens
+  },
+  amber: {
+    wall: ['#2a2622', '#3d3730', '#25221e'],
+    carpet: ['#2d2a26', '#4a3d2e', '#2a2520'],
+    enamel: ['#6e675c', '#4f4a42', '#3a3631'],
+    trim: 0x7a7266,
+    glass: 0x1a130b,
+    glassTop: 0x2c2216,
+    ink: 0xffb347,
+    dim: 0x8a6a40,
+    rule: 0x4a3a22,
+    pool: 0xf0b070,
+    rack: 0x35302a,
+    screens: 0xffcf8a, // the old drawing's wall pictures, tinted to the room's screens
+  },
+  desktop: {
+    wall: ['#4a525c', '#5d6670', '#3f464e'],
+    carpet: ['#2f3a48', '#3a4656', '#28313c'],
+    enamel: ['#a3a6a8', '#86898c', '#6c6f72'],
+    trim: 0xb8bbbe,
+    glass: 0x16305a,
+    glassTop: 0x24467a,
+    ink: 0xdbe8f4,
+    dim: 0x7f93ad,
+    rule: 0x2c4466,
+    pool: 0xdfe6f0,
+    rack: 0x3a4048,
+    screens: 0xffffff, // the old drawing's wall pictures, tinted to the room's screens
+  },
+  glass: {
+    wall: ['#0a0e14', '#141b25', '#0b0f15'],
+    carpet: ['#0f1318', '#161c24', '#0c0f13'],
+    enamel: ['#2a2f37', '#1f232a', '#16191e'],
+    trim: 0x3fa9d8,
+    glass: 0x07121c,
+    glassTop: 0x0f2436,
+    ink: 0x7fd7ff,
+    dim: 0x3f6a85,
+    rule: 0x15324a,
+    pool: 0x4a9fd8,
+    rack: 0x161b22,
+    screens: 0xa8e4ff, // the old drawing's wall pictures, tinted to the room's screens
+  },
+};
+export const lookOf = g => LOOKS[uiEra(g)] || LOOKS.steel;
+const TONE = { warn: 0xe8c66a, bad: 0xd0634f };
+const inkOf = (tone, look = LOOKS.steel) => TONE[tone] || look.ink;
+const enamelTex = new Map(); // one gradient per look, shared by every desk
 const LIMIT = 6; // the abort rule: six degrees off the planned line
 
 // A console desk in its own units (190 wide, or 460 for yours, by 60), scaled by the room. Returns the container
 // with update(c) to refresh its screens.
-export function desk(d) {
+export function desk(d, look = LOOKS.steel) {
   const dw = d.yours ? 460 : 190,
     dh = 60;
   const c = new Container();
@@ -36,17 +97,21 @@ export function desk(d) {
     if (d.who.hat) p.rect(px - 10, -38, 20, 4).fill(colorOf(d.who.hat));
     c.addChild(p);
   }
-  enamelTex ??= gradientTexture([
-    [0, '#5c646a'],
-    [0.75, '#414950'],
-    [1, '#343a40'],
-  ]);
-  const enamel = new Sprite(enamelTex);
+  if (!enamelTex.has(look))
+    enamelTex.set(
+      look,
+      gradientTexture([
+        [0, look.enamel[0]],
+        [0.75, look.enamel[1]],
+        [1, look.enamel[2]],
+      ]),
+    );
+  const enamel = new Sprite(enamelTex.get(look));
   enamel.width = dw;
   enamel.height = dh;
   const trim = new Graphics()
     .rect(0, 0, dw, 10)
-    .fill(0x626a71)
+    .fill(look.trim)
     .rect(dw * 0.92, 0, dw * 0.08, dh)
     .fill({ color: 0x000000, alpha: 0.08 })
     .rect(1, 1, dw - 2, 1)
@@ -63,12 +128,12 @@ export function desk(d) {
       .rect(off - 2, 14, sw + 4, sh + 4)
       .fill(0x0d1117)
       .rect(off, 16, sw, sh)
-      .fill(0x161e24)
+      .fill(look.glass)
       .rect(off, 16, sw, sh * 0.35)
-      .fill({ color: 0x243139, alpha: 0.6 })
+      .fill({ color: look.glassTop, alpha: 0.6 })
       .rect(off + 2, 18, sw - 4, 1)
       .fill({ color: 0xb2c8c5, alpha: 0.14 });
-    const t = label('', 9, INK.go, { ax: 0, ay: 0.5 });
+    const t = label('', 9, look.ink, { ax: 0, ay: 0.5 });
     t.position.set(off + 5, 31);
     const mask = new Graphics().rect(off, 16, sw, sh).fill(0xffffff);
     t.mask = mask;
@@ -94,24 +159,24 @@ export function desk(d) {
     const [lines, tone] = deskLines(con, d.duty, d.yours);
     texts.forEach((tx, i) => {
       setText(tx, lines[i] ?? '');
-      tx.style.fill = inkOf(tone);
+      tx.style.fill = inkOf(tone, look);
     });
     const lit = tone === 'bad' || tone === 'warn';
     lampG.visible = lit && (tone === 'warn' || Math.sin(t * 7) > -0.3);
-    lampG.tint = inkOf(tone);
+    lampG.tint = inkOf(tone, look);
   };
   return c;
 }
 
 // The monitoring screen, as a piece any console room can hang on its wall: place(x, y, w, h) once the room knows its
 // size, then draw(c) every frame; it redraws only when the telemetry has moved on.
-export function telemetryScreen() {
+export function telemetryScreen(look = LOOKS.steel) {
   const c0 = new Container();
   let at = [0, 0, 100, 60];
   // The monitoring screen: a frame and its glass, the plot drawn fresh when the telemetry moves on.
   const monFrame = new Graphics();
   const plot = new Graphics();
-  const monTitle = label('', 12, 0x5a6a60, { ax: 0, ay: 0 });
+  const monTitle = label('', 12, look.dim, { ax: 0, ay: 0 });
   const monWords = new Container();
   c0.addChild(monFrame, plot, monTitle, monWords);
   const words = [];
@@ -135,7 +200,7 @@ export function telemetryScreen() {
       .rect(mx - 6, my - 6, mw + 12, mh + 12)
       .fill(0x181b1f)
       .rect(mx, my, mw, mh)
-      .fill(0x0d1117);
+      .fill(look.glass);
     monTitle.position.set(mx + 6, my + 4);
     monTitle.style.fontSize = Math.max(9, Math.round(mw / 30));
     monKey = '';
@@ -172,9 +237,9 @@ export function telemetryScreen() {
       const rowY = k => top + 4 + barH + (body - barH - 4) * k;
       word(0, fs * 1.25, 0xe8c66a).position.set(x + 12, rowY(0.22));
       setText(words[0], `PHASE ${at} OF ${n}`);
-      word(1, fs * 1.1, 0x9fdc9a).position.set(x + 12, rowY(0.52));
+      word(1, fs * 1.1, look.ink).position.set(x + 12, rowY(0.52));
       setText(words[1], (f.phase || '').toUpperCase());
-      word(2, fs, f.decision ? 0xe8c66a : 0x5a6a60).position.set(x + 12, rowY(0.8));
+      word(2, fs, f.decision ? 0xe8c66a : look.dim).position.set(x + 12, rowY(0.8));
       setText(words[2], f.decision ? 'A CALL IS WAITING' : 'NOMINAL');
       return;
     }
@@ -195,9 +260,9 @@ export function telemetryScreen() {
       const rh = (y + h - top - 6) / rows.length;
       rows.forEach(([k, v, tone], i) => {
         const ry = top + rh * (i + 0.5);
-        word(i * 2, fs, 0x5a6a60).position.set(x + 12, ry);
+        word(i * 2, fs, look.dim).position.set(x + 12, ry);
         setText(words[i * 2], k);
-        word(i * 2 + 1, fs * 1.15, inkOf(tone)).position.set(x + w * 0.38, ry);
+        word(i * 2 + 1, fs * 1.15, inkOf(tone, look)).position.set(x + w * 0.38, ry);
         setText(words[i * 2 + 1], v);
       });
       // The fuel as a bar, beside its figure.
@@ -205,13 +270,13 @@ export function telemetryScreen() {
       plot.rect(x + w * 0.62, fy - 5, w * 0.33, 10).fill(0x1f2a30);
       plot
         .rect(x + w * 0.62, fy - 5, w * 0.33 * Math.max(0, Math.min(1, s.fuel ?? 1)), 10)
-        .fill(rows[2][2] === 'warn' ? INK.warn : INK.go);
+        .fill(rows[2][2] === 'warn' ? TONE.warn : look.ink);
       return;
     }
     // The climb: three strips, each with its scale, its live figure, and the staging marked across all three.
     setText(monTitle, 'TELEMETRY · THE CLIMB');
     if (!trace.length) {
-      word(0, fs * 1.3, 0x5a6a60, 0.5).position.set(x + w / 2, (top + y + h) / 2);
+      word(0, fs * 1.3, look.dim, 0.5).position.set(x + w / 2, (top + y + h) / 2);
       setText(
         words[0],
         c && (c.phase === 'count' || c.phase === 'hold' || c.poll) ? 'STANDBY · AWAITING LIFTOFF' : 'STANDBY',
@@ -241,21 +306,21 @@ export function telemetryScreen() {
     strips.forEach((s, i) => {
       const sy = top + i * sh,
         py = v => sy + sh - 3 - ((Math.max(s.lo, Math.min(s.hi, v)) - s.lo) / (s.hi - s.lo)) * (sh - 6);
-      plot.rect(left, sy + sh - 1, right - left, 1).fill({ color: 0x31413a, alpha: 0.8 });
+      plot.rect(left, sy + sh - 1, right - left, 1).fill({ color: look.rule, alpha: 0.8 });
       if (s.limit != null) {
         for (const d of [s.limit, -s.limit])
           plot.rect(left, py(d), right - left, 1).fill({ color: 0xd0634f, alpha: 0.45 });
-        plot.rect(left, py(0), right - left, 1).fill({ color: 0x31413a, alpha: 1 });
+        plot.rect(left, py(0), right - left, 1).fill({ color: look.rule, alpha: 1 });
       }
       const pts = [];
       for (const p of trace) pts.push(px(p.t), py(s.of(p)));
-      if (pts.length >= 4) plot.poly(pts, false).stroke({ width: 1.5, color: 0x9fdc9a });
+      if (pts.length >= 4) plot.poly(pts, false).stroke({ width: 1.5, color: look.ink });
       const v = s.of(last),
         bad = s.limit != null && Math.abs(v) > s.limit;
       plot.circle(px(last.t), py(v), 2.5).fill(0xffffff);
-      word(i * 2, Math.max(8, fs * 0.8), 0x5a6a60).position.set(right + 8, sy + sh * 0.3);
+      word(i * 2, Math.max(8, fs * 0.8), look.dim).position.set(right + 8, sy + sh * 0.3);
       setText(words[i * 2], s.name);
-      word(i * 2 + 1, fs * 1.2, bad ? INK.bad : INK.go).position.set(right + 8, sy + sh * 0.68);
+      word(i * 2 + 1, fs * 1.2, bad ? TONE.bad : look.ink).position.set(right + 8, sy + sh * 0.68);
       setText(words[i * 2 + 1], s.fmt(v));
     });
     // Staging: a mark down all three strips wherever the stage changed.
@@ -268,6 +333,8 @@ export function telemetryScreen() {
 
 export function controlScene() {
   const g = game;
+  const era = uiEra(g),
+    look = lookOf(g);
   const root = new Container();
   const shell = new Container(); // the room: rebuilt when the screen changes size
   const racks = new Graphics(); // the rack lamps, every frame
@@ -282,7 +349,7 @@ export function controlScene() {
     desks = [],
     L = null;
 
-  const tele = telemetryScreen();
+  const tele = telemetryScreen(look);
   monitor.addChild(tele);
 
   function layout(w, h) {
@@ -324,9 +391,9 @@ export function controlScene() {
     shell.addChild(new Graphics().rect(0, 0, w, h).fill(0x14171c));
     grad(
       [
-        [0, '#202831'],
-        [0.53, '#343f47'],
-        [1, '#20272c'],
+        [0, look.wall[0]],
+        [0.53, look.wall[1]],
+        [1, look.wall[2]],
       ],
       leftW,
       0,
@@ -339,9 +406,9 @@ export function controlScene() {
     shell.addChild(lines);
     grad(
       [
-        [0, '#2a3031'],
-        [0.4, '#423d33'],
-        [1, '#292824'],
+        [0, look.carpet[0]],
+        [0.4, look.carpet[1]],
+        [1, look.carpet[2]],
       ],
       leftW,
       wallH,
@@ -364,7 +431,7 @@ export function controlScene() {
     pool.position.set(w * 0.46, h * 0.8);
     pool.width = w * 0.75;
     pool.height = (h - wallH) * 0.9;
-    pool.tint = 0xefc683;
+    pool.tint = look.pool;
     pool.alpha = 0.16;
     shell.addChild(pool);
     // The racks along the left wall (their lamps are drawn every frame), and the gallery along the right.
@@ -374,7 +441,7 @@ export function controlScene() {
     for (let i = 0; i < units; i++) {
       const uy = 10 + (i * (h - 20)) / units,
         uh = (h - 20) / units - 8;
-      bank.rect(5, uy, leftW - 10, uh).fill(0x2c3138);
+      bank.rect(5, uy, leftW - 10, uh).fill(look.rack);
       bank.rect(10, uy + 5, leftW - 20, uh - 10).fill(0x0d1117);
       bank.rect(leftW / 2 - 8, uy + uh - 16, 16, 8).fill(0x454c55);
       for (let v = 0; v < 3; v++)
@@ -449,6 +516,7 @@ export function controlScene() {
       },
       50,
     );
+    map.tint = tv.tint = look.screens;
 
     tele.place(...L.mon);
     deskKey = '';
@@ -472,7 +540,7 @@ export function controlScene() {
     const bSpan = back.length * 190 * backK + (back.length - 1) * backGap;
     desks = [];
     back.forEach((d, i) => {
-      const c = desk(d);
+      const c = desk(d, look);
       c.scale.set(backK);
       c.position.set(rowMid - bSpan / 2 + i * (190 * backK + backGap), wallH + floor * 0.16);
       deskLayer.addChild(c);
@@ -481,7 +549,7 @@ export function controlScene() {
     const frontGap = 24;
     let fx = rowMid - ((4 * 190 + 460) * frontK + 4 * frontGap) / 2;
     for (const d of front) {
-      const c = desk(d);
+      const c = desk(d, look);
       c.scale.set(frontK);
       c.position.set(fx, wallH + floor * 0.6);
       deskLayer.addChild(c);
@@ -510,7 +578,7 @@ export function controlScene() {
     L.units.forEach((uy, i) => {
       for (let l = 0; l < 6; l++) {
         const on = (i * 13 + l * 7 + Math.floor(g.time * 2)) % 5 < 3;
-        racks.rect(14 + l * ((lw - 34) / 6), uy + 9, Math.max(3, lw / 26), 4).fill(on ? 0x9fdc9a : 0x31413a);
+        racks.rect(14 + l * ((lw - 34) / 6), uy + 9, Math.max(3, lw / 26), 4).fill(on ? look.ink : look.rule);
       }
     });
     map.update();
@@ -518,6 +586,6 @@ export function controlScene() {
     tele.draw(c);
   }
 
-  const stale = () => false;
+  const stale = () => uiEra(g) !== era;
   return { root, update, stale, passThrough: true };
 }
