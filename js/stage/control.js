@@ -12,6 +12,7 @@ import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra, yearOf 
 import { dayOf } from '../core/calendar.js';
 import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture } from './kit.js';
 import { moonWall } from './moon-wall.js';
+import { roomMood } from './fx/moods.js';
 
 // The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
 // amber terminals, the flat grey monitors of 1996–2015, and the dark glass room of 2028 with its blue light.
@@ -97,24 +98,96 @@ const LIMIT = 6; // the abort rule: six degrees off the planned line
 
 // A console desk in its own units (190 wide, or 460 for yours, by 60), scaled by the room. Returns the container
 // with update(c) to refresh its screens.
+// One controller, by the room's mood: at work in the chair; leaning in on their feet when the room is tense; up and
+// cheering, with a few small flags and, in the cigar years, a cigar's slow smoke, when a crew is home safe or down on
+// the Moon; slumped, heads down, when a crew is lost. The arms move slowly; nothing changes brightness.
+export function drawController(p, px, who, mood, t, i, year) {
+  const body = colorOf(who.color || '#4a5568'),
+    skin = 0xe2b993;
+  p.clear();
+  const up = mood === 'cheer' || (mood === 'tense' && i % 3 === 1) ? 12 : 0,
+    slump = mood === 'grief' ? 6 : 0;
+  const top = -25 - up + slump;
+  if (up)
+    p.rect(px - 10, top + 26, 8, up + 2)
+      .fill(0x2b2e33)
+      .rect(px + 2, top + 26, 8, up + 2)
+      .fill(0x2b2e33);
+  p.rect(px - 14, top, 28, 27 + up - slump).fill(body);
+  const hx = px + (mood === 'tense' && up ? 0 : 0),
+    hy = top - 6 + slump * 1.2;
+  if (mood === 'cheer') {
+    // Arms up, each swaying slowly on its own beat; every third waves a small flag.
+    const sway = Math.sin(t * 2.2 + i * 1.7) * 3;
+    p.moveTo(px - 12, top + 3)
+      .lineTo(px - 18 + sway, top - 18)
+      .moveTo(px + 12, top + 3)
+      .lineTo(px + 18 + sway, top - 18)
+      .stroke({ width: 5, color: body });
+    p.circle(px - 18 + sway, top - 19, 3)
+      .fill(skin)
+      .circle(px + 18 + sway, top - 19, 3)
+      .fill(skin);
+    if (i % 3 === 0) {
+      const fx = px + 18 + sway,
+        fy = top - 34;
+      p.rect(fx - 0.5, fy, 1.5, 16).fill(0x8a7a5a);
+      p.rect(fx + 1, fy, 12, 8).fill(0xb22234);
+      for (let k = 1; k < 4; k++) p.rect(fx + 1, fy + k * 2, 12, 1).fill(0xf3efe4);
+      p.rect(fx + 1, fy, 5, 4).fill(0x3c3b6e);
+    }
+    if (year < 1980 && i % 4 === 2) {
+      // A cigar's smoke, rising and thinning slowly.
+      for (let k = 0; k < 4; k++) {
+        const rise = ((t * 6 + k * 9) % 36) + 2;
+        p.circle(hx + 9 + Math.sin(t + k) * 2, hy - rise, 2 + rise * 0.08).fill({
+          color: 0xd8d4cc,
+          alpha: 0.35 * (1 - rise / 40),
+        });
+      }
+    }
+  } else if (mood === 'grief') {
+    // Elbows on the desk, a hand to the head for some.
+    if (i % 2)
+      p.moveTo(px + 12, top + 4)
+        .lineTo(px + 7, hy)
+        .stroke({ width: 5, color: body });
+  } else if (mood === 'tense' && up) {
+    p.moveTo(px - 12, top + 4)
+      .lineTo(px - 14, top + 22 + up)
+      .moveTo(px + 12, top + 4)
+      .lineTo(px + 14, top + 22 + up)
+      .stroke({ width: 5, color: body });
+  }
+  p.circle(hx, hy, 8).fill(skin);
+  p.moveTo(hx - 7, hy)
+    .arc(hx, hy, 7, Math.PI, 2 * Math.PI)
+    .stroke({ width: 2, color: 0x373b3e });
+  if (who.hat) p.rect(hx - 10, hy - 7, 20, 4).fill(colorOf(who.hat));
+}
+
 export function desk(d, look = LOOKS.steel) {
   const dw = d.yours ? 460 : 190,
     dh = 60;
   const c = new Container();
   const shadow = new Graphics().rect(5, dh, dw, 6).fill({ color: 0x0c0d0f, alpha: 0.38 });
   c.addChild(shadow);
+  // The controller, seen from behind at the desk: drawn again whenever the room's mood changes (fx/moods.js), and every
+  // frame while the room is on its feet.
+  const fig = new Graphics();
   if (d.who) {
-    const p = new Graphics();
-    const px = dw / 2;
-    p.rect(px - 18, -19, 36, 21).fill(0x272d32);
-    p.rect(px - 14, -25, 28, 27).fill(colorOf(d.who.color || '#4a5568'));
-    p.circle(px, -31, 8).fill(0xe2b993);
-    p.moveTo(px - 7, -31)
-      .arc(px, -31, 7, Math.PI, 2 * Math.PI)
-      .stroke({ width: 2, color: 0x373b3e });
-    if (d.who.hat) p.rect(px - 10, -38, 20, 4).fill(colorOf(d.who.hat));
-    c.addChild(p);
+    const chair = new Graphics().rect(dw / 2 - 18, -19, 36, 21).fill(0x272d32);
+    c.addChild(chair, fig);
   }
+  let poseKey = 'calm';
+  if (d.who) drawController(fig, dw / 2, d.who, 'calm', 0, 0, 1960);
+  c.pose = (mood, t, i, year) => {
+    if (!d.who) return;
+    const key = mood === 'cheer' ? `${mood}|${Math.round(t * 8)}` : mood;
+    if (key === poseKey) return;
+    poseKey = key;
+    drawController(fig, dw / 2, d.who, mood, t, i, year);
+  };
   if (!enamelTex.has(look))
     enamelTex.set(
       look,
@@ -707,7 +780,11 @@ export function controlScene() {
       deskKey = key;
       buildDesks();
     }
-    for (const d of desks) d.update(c, g.time);
+    const mood = roomMood(g, c);
+    desks.forEach((d, i) => {
+      d.update(c, g.time);
+      d.pose?.(mood, g.time, i, yearOf(g));
+    });
     // The racks' lamps, ticking over.
     racks.clear();
     const lw = L.leftW;
