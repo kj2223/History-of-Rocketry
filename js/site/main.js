@@ -324,10 +324,44 @@ function awayFrom() {
   if (!g.crewed && g.lunar?.poll && !['cruise', 'encounter'].includes(g.room)) return { place: 'office', mine: true };
   return null;
 }
+// The looks in the order the years bring them, and the card each new one gets (style.css, era interface).
+const ERA_ORDER = ['field', 'steel', 'amber', 'desktop', 'glass'];
+const ERA_CARDS = {
+  steel: [
+    'New consoles',
+    'Painted steel, engraved plates, lamp push-buttons and Nixie clocks: the control rooms of the space age.',
+  ],
+  amber: [
+    'New terminals',
+    'The consoles now show their words on amber screens, and the choices come up on the function keys.',
+  ],
+  desktop: [
+    'Computers on every desk',
+    'The terminals have given way to desktop computers, with their grey windows and buttons.',
+  ],
+  glass: ['Flat screens', "Today's operations software: flat screens, dark rooms and one accent colour."],
+};
+let eraTimer = 0,
+  eraGame = null; // the game the look was last set for: a load or a jump makes a new one, and gets no card
+function eraCard(era) {
+  const el = $('era-card'),
+    [head, text] = ERA_CARDS[era];
+  el.innerHTML = `<b>${head}</b>${text}`;
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('show'));
+  clearTimeout(eraTimer);
+  eraTimer = setTimeout(() => el.classList.remove('show'), 7000);
+}
 function hud() {
   // The interface era: style.css dresses the panels, clocks and buttons by it (v0.8 era interface).
   const era = uiEra(g);
-  if (document.body.dataset.era !== era) document.body.dataset.era = era;
+  if (document.body.dataset.era !== era) {
+    const was = document.body.dataset.era;
+    document.body.dataset.era = era;
+    // A change of look in play (not on loading a game or jumping) gets a short card saying what changed.
+    if (was && eraGame === g && ERA_ORDER.indexOf(era) === ERA_ORDER.indexOf(was) + 1) eraCard(era);
+  }
+  eraGame = g;
   consoleHud(g, g.room === 'console' && !!g.console && !(g.flight && g.flight.view === 'board'));
   $('date').textContent = `${dateText()} · ${clockText()}`;
   $('objective').textContent = g.objective;
