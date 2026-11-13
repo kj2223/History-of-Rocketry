@@ -6,6 +6,7 @@
 // range could see, through game.js and the world record (the scenes never import js/truth).
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
 import { g as game, flightTrouble } from '../game.js';
+import { weatherNow } from './fx/weather-day.js';
 import { rangeCamera } from './fx/range-camera.js';
 import { SITES } from '../data/campaign.js';
 import { KITS } from '../data/kits.js';
@@ -303,7 +304,7 @@ export function trackingScene() {
       const cw = Math.min(camera.W, (P.right - P.left) * 0.34);
       camera.scale.set(cw / camera.W);
       camera.position.set(P.left + 14, P.topY + 6);
-      camera.update(f, bad, g.vehicle, dt);
+      camera.update(f, bad, g.vehicle, dt, weatherNow(g));
     }
 
     const p = path[upto];

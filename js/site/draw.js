@@ -55,6 +55,7 @@ import { blockhouseState, SITES } from '../data/campaign.js';
 import { UNITS, ORBIT_UNITS, PAD_OPTIONS, PACK_OPTIONS, RETRO_OPTIONS, SEA_LIMIT } from '../data/mercury.js';
 import { callBoardLines } from '../houston.js';
 import { televisionShot, breakupAge } from './tv-shots.js';
+import { weatherNow, weatherWash } from '../stage/fx/weather-day.js';
 
 const SKY = { day: ['#5d8fc4', '#a9c8e4', '#ead9b8'], dusk: ['#2b3150', '#8a5a6a', '#e09a62'] };
 
@@ -1183,6 +1184,13 @@ export function standStructure(ctx, p) {
   ctx.fillRect(p.x - 10, GROUND - 4, p.w + 20, 8);
   ctx.fillStyle = '#2a2420';
   ctx.fillRect(p.x + 40, GROUND - 2, 40, 6);
+  // A concrete lip and the steel grating over the pit, so it reads as a pit, not a dark slab.
+  ctx.fillStyle = '#a89a86';
+  ctx.fillRect(p.x + 37, GROUND - 3, 3, 4);
+  ctx.fillRect(p.x + 80, GROUND - 3, 3, 4);
+  ctx.fillStyle = '#8a8f96';
+  ctx.fillRect(p.x + 40, GROUND - 3, 40, 1);
+  for (let x = p.x + 42; x < p.x + 80; x += 5) ctx.fillRect(x, GROUND - 2, 2, 2);
   ctx.strokeStyle = '#5b5f66';
   ctx.lineWidth = 4;
   ctx.beginPath();
@@ -1991,6 +1999,8 @@ export function padPicture(ctx, g, x, y, w, h) {
     launchSmoke(ctx, g);
   }
   ctx.restore();
+  // The day's weather over the picture, as it is outside on the site (issue #249: rain outside, a clear periscope).
+  weatherWash(ctx, weatherNow(g), x, y, w, h, g.time || 0);
 }
 
 // The pad camera frames 370 site units above the pad. At 30 units per console second the rocket clears it at T+13.

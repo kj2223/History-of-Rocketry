@@ -5,9 +5,9 @@
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
 import { Container, Graphics } from '../vendor/pixi.min.mjs';
 import { g as game, countChannels, stageChannels, conducting } from '../game.js';
-import { padPicture, uiEra, PLACES } from '../site/draw.js';
+import { padPicture, uiEra } from '../site/draw.js';
 import { blockhouseState } from '../data/campaign.js';
-import { atPlace } from '../data/white-sands.js';
+import { inside as insideOf } from '../site/interiors.js';
 import {
   paletteFor,
   label,
@@ -37,11 +37,8 @@ const ST_W = 350,
   X0 = (W - (4 * ST_W + 3 * ST_GAP)) / 2,
   DESK_Y = 360;
 
-// Who is in the blockhouse: the people within reach of its door, or standing in front of it as it stands today.
-const inside = g =>
-  Object.values(g.people).filter(
-    p => !p.hidden && (Math.abs(p.x - PLACES.blockhouse.door) < 180 || atPlace('blockhouse', g, p.x)),
-  );
+// Who is in the blockhouse: the people staying within reach of its door (js/site/interiors.js, shared with the old room).
+const inside = g => insideOf(g, 'blockhouse', 180);
 const seats = () => {
   const tc = conducting();
   return { range: 'morgan', press: tc ? 'delgado' : 'you', tc: tc ? 'you' : 'ellis', pad: 'vega' };

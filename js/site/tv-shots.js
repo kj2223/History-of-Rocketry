@@ -15,6 +15,7 @@
 // Every shot keeps a caption strip with the latest ascent sample, so no reading is lost from the wall.
 import { roundShape, yearOf } from './draw.js';
 import { flame } from './rockets.js';
+import { weatherNow, weatherWash, weatherBelow } from '../stage/fx/weather-day.js';
 
 // The size of each vehicle as the tracker sees her: tail half-width in site units (as the site's flames use).
 const TAIL = { redstone: 6, atlas: 15, titan: 14, saturnib: 18, saturn5: 22, shuttle: 26, sls: 28, dragon: 9 };
@@ -394,6 +395,11 @@ export function breakupShot(ctx, g, x, y, w, h, c, age) {
 }
 
 // The whole screen: the shot for the moment, under its caption. Returns false when the board should show instead.
+// The day's weather over a tracking shot (issue #249): all of it while she is low, gone once she is through the cloud.
+function skyWeather(ctx, g, x, y, w, h, t) {
+  weatherWash(ctx, weatherBelow(weatherNow(g), 1 - altitude(t) / 0.3), x, y, w, h, g.time || 0);
+}
+
 export function televisionShot(ctx, g, x, y, w, h) {
   const c = g.console,
     last = c?.trace?.at(-1);
@@ -407,6 +413,7 @@ export function televisionShot(ctx, g, x, y, w, h) {
     ctx.clip();
     if (!colour) ctx.filter = 'grayscale(1) contrast(1.15)';
     breakupShot(ctx, g, x, y, w, h, c, broke);
+    skyWeather(ctx, g, x, y, w, h, last.t);
     ctx.filter = 'none';
     screenLook(ctx, x, y, w, h);
     caption(ctx, x, y, w, h, 'TRACKING · LONG RANGE', last, true, Math.floor((g.time || 0) * 2) % 2 === 0);
@@ -422,7 +429,10 @@ export function televisionShot(ctx, g, x, y, w, h) {
   ctx.clip();
   if (!src.colour) ctx.filter = 'grayscale(1) contrast(1.15)';
   if (shot === 'onboard') onboardShot(ctx, g, x, y, w, h, c, src.onboard);
-  else trackingShot(ctx, g, x, y, w, h, c);
+  else {
+    trackingShot(ctx, g, x, y, w, h, c);
+    skyWeather(ctx, g, x, y, w, h, last.t);
+  }
   ctx.filter = 'none';
   screenLook(ctx, x, y, w, h);
   const cam =

@@ -9,6 +9,8 @@
 import { Container, Graphics, Sprite } from '../../vendor/pixi.min.mjs';
 import { puffTexture, label, setText } from '../kit.js';
 import { calm, swell } from './calm.js';
+import { makeTrail, stepTrail } from './trail.js';
+import { weatherLook, weatherBelow } from './weather-day.js';
 
 const W = 320,
   H = 210;
@@ -35,7 +37,8 @@ export function rangeCamera() {
   glow.blendMode = 'add';
   glow.alpha = 0;
   const pieces = new Graphics();
-  view.addChild(sky, trail, cloud, pieces, rocket, glow);
+  const rain = new Graphics();
+  view.addChild(sky, trail, cloud, pieces, rocket, glow, rain);
   const caption = label('TRACKING CAMERA', 11, 0x9fdcb0, { ax: 0, ay: 0, spacing: 1 });
   caption.position.set(6, H + 4);
   root.addChild(view, mask, frame, caption);
@@ -47,7 +50,7 @@ export function rangeCamera() {
 
   let striped = false,
     drawn = false,
-    puffs = [],
+    smoke = makeTrail(),
     bits = [],
     lastT = 0,
     gone = false;
@@ -63,8 +66,9 @@ export function rangeCamera() {
     if (v === 'bumper') body.rect(-3, -74, 6, 14).fill(0xd8d8d2).poly([-3, -74, 3, -74, 0, -82]).fill(0x2a2a2a);
   }
 
-  // f: the flight; trouble: flightTrouble(g) or null; v: the vehicle; dt: real seconds.
-  root.update = (f, trouble, v, dt) => {
+  let rainClock = 0;
+  // f: the flight; trouble: flightTrouble(g) or null; v: the vehicle; dt: real seconds; wx: the day's weather (weatherNow).
+  root.update = (f, trouble, v, dt, wx = null) => {
     if (!drawn) {
       drawn = true;
       drawBody(v);
@@ -75,12 +79,30 @@ export function rangeCamera() {
     const p = f.result.path[Math.min(f.result.path.length - 1, Math.floor(t))];
     // The sky darkens as she climbs; the camera's view of her shrinks with the distance.
     const dark = Math.min(1, p.h / 120);
+    // The day's weather (issue #249): grey sky, rain, fog or dust while she is low, clear once she is through the cloud.
+    const L = weatherLook(wx ? weatherBelow(wx, 1 - p.h / 4) : { overcast: 0, cloud: 0, rain: 0, fog: 0, dust: 0 });
+    let skyCol = mix(0x8fb4d4, 0x101a2c, dark);
+    skyCol = mix(skyCol, 0x7a8088, L.grey * 0.7);
+    if (L.dust > 0) skyCol = mix(skyCol, 0xc4aa80, L.dust * 0.45);
+    if (L.fog > 0) skyCol = mix(skyCol, 0xdee2e4, L.fog * 0.7);
     sky
       .clear()
       .rect(0, 0, W, H)
-      .fill(mix(0x8fb4d4, 0x101a2c, dark))
+      .fill(skyCol)
       .rect(0, H * 0.6, W, H * 0.4)
       .fill({ color: 0xffffff, alpha: 0.08 * (1 - dark) });
+    rainClock += dt;
+    rain.clear();
+    if (L.rain > 0.02) {
+      const n = Math.round(30 + 60 * L.rain),
+        len = 16;
+      for (let i = 0; i < n; i++) {
+        const sx = (i * 0.618034 * W * 3) % W,
+          sy = ((((i * 0.37) % 1) * H + rainClock * H * 0.9) % (H + len)) - len;
+        rain.moveTo(sx, sy).lineTo(sx - len * L.slant, sy + len);
+      }
+      rain.stroke({ width: 1, color: 0xd2d8e0, alpha: 0.45 * L.rain });
+    }
     const k = Math.max(0.12, 1 / (1 + p.h / 6));
     rocket.scale.set(k * 1.4);
     const cx = W / 2,
@@ -102,29 +124,37 @@ export function rangeCamera() {
     rocket.rotation = rot;
     rocket.position.set(cx + (trouble?.kind === 'tumble' && since > 0 ? Math.sin(since * 0.7) * 30 : 0), cy);
 
-    // The trail: puffs left behind as she goes, drifting down the frame as the camera follows her up.
+    // The trail: smoke left behind as she goes, streaming down the frame as the camera follows her up (fx/trail.js
+    // keeps it joined to her flame; issue #246). Every puff moves together, so the column stays even.
     const step = Math.max(0, t - lastT);
     lastT = t;
-    if (burning && step > 0 && puffs.length < 60) {
+    const size = 0.25 * k * 3;
+    stepTrail(smoke, {
+      burning,
+      nx: rocket.x - Math.sin(rot) * 40 * k,
+      ny: rocket.y + Math.cos(rot) * 20 * k,
+      size,
+      spacing: size * 64 * 0.3,
+      drift: (26 + 40 * k) * Math.min(step, 0.5) * 0.5,
+      dt,
+      alpha: 0.55 * (1 - dark * 0.6),
+      bottom: H + 40,
+    });
+    const tint = striped ? 0xd8d0c0 : 0xe8e4dc;
+    while (trail.children.length < smoke.puffs.length) {
       const s = new Sprite(puffTexture());
       s.anchor.set(0.5);
-      s.tint = striped ? 0xd8d0c0 : 0xe8e4dc;
-      s.alpha = 0.55 * (1 - dark * 0.6);
-      s.scale.set(0.25 * k * 3);
-      s.position.set(rocket.x - Math.sin(rot) * 40 * k, rocket.y + Math.cos(rot) * 20 * k);
       trail.addChild(s);
-      puffs.push({ s, vy: 26 + 40 * k });
     }
-    for (let i = puffs.length - 1; i >= 0; i--) {
-      const q = puffs[i];
-      q.s.y += q.vy * Math.min(step, 0.5) * 0.5;
-      q.s.scale.set(q.s.scale.x + dt * 0.12);
-      q.s.alpha -= dt * 0.12;
-      if (q.s.alpha <= 0 || q.s.y > H + 40) {
-        q.s.destroy();
-        puffs.splice(i, 1);
-      }
-    }
+    trail.children.forEach((s, i) => {
+      const q = smoke.puffs[i];
+      s.visible = !!q;
+      if (!q) return;
+      s.tint = tint;
+      s.position.set(q.x, q.y);
+      s.scale.set(q.size);
+      s.alpha = q.alpha;
+    });
 
     // She comes apart: the rocket goes, a cloud boils up where she was, pieces fall out of it trailing smoke.
     if (trouble?.kind === 'break' && since >= 0 && !gone) {

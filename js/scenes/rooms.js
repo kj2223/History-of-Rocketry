@@ -56,7 +56,7 @@ import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from
 import { SHORT } from '../data/kits.js';
 import { fixesForCard } from '../world/programme.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
-import { PLACES, atPlace } from '../data/white-sands.js';
+import { PLACES, atPlace, staysNear } from '../data/white-sands.js';
 import { roundPrint } from '../site/album.js';
 
 const panel = () => document.getElementById('room');
@@ -274,7 +274,9 @@ function watch(building) {
   const place = PLACES[building];
   // In or near the building as it stands today (the new blockhouse reaches well left of the old one's door).
   const near = (x, reach) => Math.abs(x - place.door) < place.w / 2 + reach || atPlace(building, g, x, reach - 40);
-  const here = Object.values(g.people).filter(person => !person.hidden && near(person.x, 40) && person.id !== 'you');
+  const here = Object.values(g.people).filter(
+    person => !person.hidden && staysNear(person, x => near(x, 40)) && person.id !== 'you',
+  );
   const busy = g.jobs.filter(j => near(j.at, 60)).map(j => j.label);
   const name = building === 'truck' && !g.crewed ? SITES[g.site || 'white-sands'].truck : placeName(building);
   return `<h2>${esc(name)}</h2><p class="muted">Nothing here needs you right now. You can watch.</p>

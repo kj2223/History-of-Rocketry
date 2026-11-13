@@ -40,6 +40,11 @@ export function footprint(id, g) {
   return p;
 }
 
+// Whether someone is at a place and staying there: near(x) for where they stand and for where they are walking to.
+// Anyone only walking past (the pad crew on their way to the tower) is not in the building, so they are never drawn
+// inside it (issue #248).
+export const staysNear = (p, near) => near(p.x) && near(p.target ?? p.x);
+
 // Whether x is in front of the building: within its footprint, with a little slack at each end.
 export const atPlace = (id, g, x, slack = 10) => {
   const f = footprint(id, g);
