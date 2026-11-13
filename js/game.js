@@ -1489,6 +1489,33 @@ const LIFT = {
   redstone: 0.55,
 };
 
+// What the range sees go wrong on a flight, for the range plot and its tracking camera (js/stage/tracking.js): the moment
+// the loop calls it and how it looks. 'break': she comes apart (a flash, pieces); 'tumble': she rolls off her line;
+// 'loose': off the stand, until the engine is cut; 'cut': the thrust stops early and she coasts. From the loop's own
+// calls (data/kits.js), so it shows only what the range saw. The pad explosion is fx/blast.js's.
+const TROUBLE = {
+  weld: 'break',
+  ignition: 'tumble',
+  vanes: 'tumble',
+  fin: 'tumble',
+  liner: 'tumble',
+  holddown: 'loose',
+};
+export function flightTrouble(g) {
+  const f = g.flight;
+  if (!f || !f.result.failure || f.result.deep || PAD_BLAST[g.vehicle] === f.result.failure) return null;
+  const failure = f.result.failure;
+  // Bumper's upper-stage misfire is the WAC not lighting: she just coasts on the V-2's speed.
+  const kind = g.vehicle === 'bumper' && failure === 'ignition' ? 'cut' : TROUBLE[failure] || 'cut';
+  const rso = /range safety/i.test((KITS[g.vehicle].calls?.fail?.[failure] || []).map(l => l.text).join(' '));
+  return {
+    at: f.result.failAt,
+    kind,
+    rso,
+    upper: g.vehicle === 'bumper' && ['ignition', 'weld', 'leak'].includes(failure),
+  };
+}
+
 function tickFlight(dt) {
   const f = g.flight;
   f.real += dt;

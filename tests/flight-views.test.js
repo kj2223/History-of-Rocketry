@@ -46,3 +46,18 @@ test('the board reaches out to the furthest planet on the route', () => {
   assert.equal(routeReach('voyager'), PLANETS.neptune.au);
   assert.equal(routeReach('mariner-2'), 1.6);
 });
+
+test('the range plot and its camera are told what went wrong, and a pad blast is left to the pad', async () => {
+  const { flightTrouble } = await import('../js/game.js');
+  const g = failure => ({ vehicle: 'wac', flight: { result: { failure, failAt: 14 } } });
+  assert.equal(flightTrouble({ vehicle: 'wac', flight: { result: {} } }), null);
+  assert.equal(flightTrouble(g('weld')).kind, 'break');
+  assert.equal(flightTrouble(g('weld')).at, 14);
+  assert.equal(flightTrouble(g('fin')).kind, 'tumble');
+  assert.equal(flightTrouble(g('leak')).kind, 'cut');
+  assert.equal(
+    flightTrouble({ vehicle: 'bumper', flight: { result: { failure: 'ignition', failAt: 30 } } }).upper,
+    true,
+  );
+  assert.equal(flightTrouble({ vehicle: 'vanguard', flight: { result: { failure: 'injector', failAt: 0 } } }), null);
+});
