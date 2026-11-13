@@ -157,7 +157,8 @@ export function trackingShot(ctx, g, x, y, w, h, c) {
   // The trail: a widening pale band back down to where she came from.
   const back = [-Math.sin(pitch), Math.cos(pitch)];
   const trail = ctx.createLinearGradient(cx, cy, cx + back[0] * h, cy + back[1] * h);
-  trail.addColorStop(0, `rgba(250,246,236,${0.75 - alt * 0.4})`);
+  // No smoke forms in the thin air high up (issue #252): the trail thins out as she climbs and is gone by then.
+  trail.addColorStop(0, `rgba(250,246,236,${0.75 * Math.max(0, 1 - alt / 0.6)})`);
   trail.addColorStop(1, 'rgba(250,246,236,0)');
   ctx.fillStyle = trail;
   ctx.beginPath();

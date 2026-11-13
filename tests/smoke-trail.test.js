@@ -80,3 +80,19 @@ test('the smoke only fades: no puff ever gets brighter', () => {
     for (const q of tr.puffs) if (before.has(q)) assert.ok(q.alpha <= before.get(q));
   });
 });
+
+// Issue #252 (Aaron's playtest mark 19, Vanguard TV-4 at 610 km): the trail went on puffing into orbit.
+test('no smoke trail is laid above the thin air, however long the upper stages burn', async () => {
+  const { smokes, SMOKE_CEILING } = await import('../js/stage/fx/trail.js');
+  assert.equal(smokes(true, 10), true);
+  assert.equal(smokes(false, 10), false);
+  assert.equal(smokes(true, SMOKE_CEILING + 1), false);
+  assert.equal(smokes(true, 610), false);
+  // Once she is above it, what is left drifts off and the frame clears.
+  const tr = makeTrail();
+  const o = { nx: 160, ny: 115, size: 0.1, spacing: 2, drift: 2, dt: 1 / 60, alpha: 0.5, bottom: 250 };
+  for (let i = 0; i < 120; i++) stepTrail(tr, { ...o, burning: smokes(true, 40) });
+  assert.ok(tr.puffs.length > 0);
+  for (let i = 0; i < 600; i++) stepTrail(tr, { ...o, burning: smokes(true, 600) });
+  assert.equal(tr.puffs.length, 0);
+});
