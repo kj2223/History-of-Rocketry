@@ -116,6 +116,13 @@ export function hdLayer(w = 320, h = 180, { mx = 0, my = 0, unit = PX, lightRes 
       L.fillRect(...light.all);
       L.globalCompositeOperation = 'lighter';
     },
+    // A patch of the light map set to colour c (a darker or lit area: a room underground, a sunlit doorway).
+    fill(x, y, rw, rh, c) {
+      L.globalCompositeOperation = 'source-over';
+      L.fillStyle = css(c);
+      L.fillRect(x, y, rw, rh);
+      L.globalCompositeOperation = 'lighter';
+    },
     // A halo added over the picture: the bloom round something bright.
     glow(x, y, rx, c, k = 0.5, ry) {
       spot(G, x, y, rx, ry ?? rx, c, k);
@@ -158,4 +165,30 @@ export function hdLayer(w = 320, h = 180, { mx = 0, my = 0, unit = PX, lightRes 
     },
   };
   return H;
+}
+
+// The light for a scene drawn with ordinary shapes in a W x H world (1600 x 900 units) and turned into pixels by the
+// pixel pass (pixelate.js). The layer is marked crisp and put first in the world, so it lands over the pixel picture
+// and under every label, reading and screen the scene draws at full resolution. paint(hd, t) lays the light out each
+// frame in world units. A scene not on the pixel pass (overPixels false) puts it where it likes, with `at`.
+export function sceneLight(world, paint, { w = 1600, h = 900, mx = 400, my = 300, at = 0, overPixels = true } = {}) {
+  const hd = hdLayer(w, h, { mx, my, unit: 1, lightRes: 0.1, glowRes: 0.2 });
+  hd.root.crisp = true;
+  world.addChildAt(hd.root, at);
+  return {
+    hd,
+    update(t) {
+      let pixels = true;
+      if (overPixels)
+        try {
+          pixels = localStorage.getItem('pa-pixel') !== 'off'; // the light sits over the pixel picture (stage/index.js)
+        } catch {
+          /* no storage: pixels on */
+        }
+      hd.root.visible = pixels && hdWanted();
+      if (!hd.root.visible) return;
+      paint(hd, t);
+      hd.commit();
+    },
+  };
 }

@@ -8,6 +8,7 @@
 import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { yearOf } from '../site/draw.js';
+import { sceneLight } from './fx/hd.js';
 import { label, setText, outButton, puffTexture, gradientTexture } from './kit.js';
 
 const W = 1600,
@@ -320,6 +321,15 @@ export function recoveryScene({ leave }) {
   const swell = new Graphics();
   const glints = new Graphics();
   world.addChild(swell, glints);
+  // 2D-HD light (fx/hd.js): the sun's bloom, the haze along the horizon, the sun's path on the water.
+  const light = sceneLight(world, hd => {
+    hd.begin(0xffffff);
+    hd.glow(1000, 120, 220, 0xfff4d8, 0.3);
+    hd.glow(1000, 120, 44, 0xffffff, 0.35);
+    hd.glow(800, SEA, 1300, 0xeef4f2, 0.22, 46);
+    if (!runway) hd.glow(1000, SEA + 120, 160, 0xfff4d8, 0.12, 120);
+    hd.vignette(0.3, 800, 420);
+  });
 
   // ---- the recovery ship, the flag at half mast if they were lost ----
   const ship = new Container();
@@ -507,6 +517,7 @@ export function recoveryScene({ leave }) {
     }
     for (const v of world.convoy || []) v.x = Math.max(980 + (v.x - 1150) * 0.1, v.x - v.speed * dt);
 
+    light.update(g.time || 0);
     // The flag on the ship's mast: at half mast if the crew was lost.
     flag.clear();
     if (!runway && kind !== 'dragon') {

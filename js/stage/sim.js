@@ -7,6 +7,7 @@ import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { label, setText, speech, outButton, puffTexture } from './kit.js';
 import { desk, telemetryScreen, lookOf } from './control.js';
+import { sceneLight } from './fx/hd.js';
 
 const W = 1600,
   H = 900,
@@ -106,6 +107,18 @@ export function simScene({ leave }) {
   const out = outButton(leave);
   root.addChild(out);
 
+  // 2D-HD light (fx/hd.js): a dim room lit by its screens, the clock's glow, the sign when a run is on.
+  const light = sceneLight(world, () => {
+    const hd = light.hd;
+    hd.begin(0x9496a0);
+    hd.light(470, 340, 620, 460, 0xb8e0e8, 0.35);
+    hd.light(1390, 300, 360, 360, 0xd0dae6, 0.25);
+    hd.glow(460, 315, 440, 0x649da7, 0.1, 210);
+    hd.glow(1020, 205, 170, 0xff7a2a, 0.16, 60);
+    if (signGlow.alpha > 0) hd.glow(800, 70, 320, 0xe0543c, signGlow.alpha * 0.8, 90);
+    hd.vignette(0.4, 800, 400);
+  });
+
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
     const s = Math.min(roomW / W, screen.height / H);
@@ -150,6 +163,7 @@ export function simScene({ leave }) {
     yours.update(c, t);
     const last = c && c.chatter.length ? c.chatter[c.chatter.length - 1] : null;
     talk.update(last ? { text: `${last.who}: ${last.text}`, tone: last.tone } : null);
+    light.update(g.time || 0);
   }
 
   const stale = () => false;

@@ -12,6 +12,7 @@ import { roundShape, uiEra, PLACES } from '../site/draw.js';
 import { SHAPE, spotAt, spread } from '../site/interiors.js';
 import { inspectFlags } from '../scenes/rooms.js';
 import { atPlace } from '../data/white-sands.js';
+import { sceneLight } from './fx/hd.js';
 import { KITS } from '../data/kits.js';
 import { label, speech, canvasPicture, outButton, standingFigure } from './kit.js';
 
@@ -439,6 +440,29 @@ export function hangarScene({ leave, look, engLook }) {
   glow.blendMode = 'add';
   world.addChild(glow);
 
+  // 2D-HD light (fx/hd.js): the quonset dim between its lamps, each lamp a pool and a cone of dusty light; Hangar S
+  // brighter and cooler under its long tubes.
+  const light = sceneLight(world, (hd, t) => {
+    if (crewed) {
+      hd.begin(0xc8c8ce);
+      for (const lx of [270, 800, 1330]) {
+        hd.light(lx, 420, 420, 420, 0xffffff, 0.35);
+        hd.beam(lx, 92, 220, 720, FLOOR - 60, 0, 0xf6f8ff, 0.05);
+        hd.glow(lx, 82, 130, 0xffffff, 0.35, 10);
+      }
+    } else {
+      hd.begin(0x8e8c94);
+      for (const lx of [400, 800, 1200]) {
+        hd.light(lx, 520, 380, 380, 0xffe2a8, 0.5);
+        hd.beam(lx, 118, 60, 560, FLOOR - 70, 0, 0xffe6b0, 0.07);
+        hd.motes(lx, 124, 60, 500, FLOOR - 120, 0, 0xfff0c8, 22, t, 0.45, 3);
+        hd.glow(lx, 112, 44, 0xfff2c0, 0.6, 14);
+        hd.glow(lx, 130, 150, 0xf3dd8a, 0.14, 60);
+      }
+    }
+    hd.vignette(0.35, 800, 450);
+  });
+
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
     const s = Math.min(roomW / W, screen.height / H);
@@ -465,6 +489,7 @@ export function hangarScene({ leave, look, engLook }) {
       c.b.position.set(x, FLOOR - 70);
       c.b.update(p ? p.bubble : null);
     });
+    light.update(t);
   }
 
   const keyNow = () =>

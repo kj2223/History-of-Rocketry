@@ -9,6 +9,7 @@ import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game, kit, standChannels, stageChannels } from '../game.js';
 import { standStructure, roundShape, skyFor, uiEra, PLACES, GROUND } from '../site/draw.js';
 import { atPlace } from '../data/white-sands.js';
+import { sceneLight } from './fx/hd.js';
 import {
   paletteFor,
   label,
@@ -257,6 +258,23 @@ export function dugoutScene({ leave }) {
   roomLight.alpha = 0.16;
   roomLight.blendMode = 'add';
   world.addChild(bulb, roomLight);
+  // 2D-HD light (fx/hd.js): the dugout dim under the desert, a pool and a cone of dusty light under the lamp, and the
+  // burn's glow over the stand.
+  let hdPower = 0;
+  const light = sceneLight(world, (hd, t) => {
+    hd.begin(0xffffff);
+    hd.fill(DUG.x, DUG.y, DUG.w, DUG.h, 0x8a8478);
+    hd.light(456, DUG.y + 120, 420, 320, 0xffd9a0, 0.42 + 0.06 * hdPower);
+    hd.beam(456, DUG.y + 46, 14, 520, DUG.h - 60, 0, 0xffdca0, 0.09);
+    hd.motes(456, DUG.y + 50, 14, 460, DUG.h - 80, 0, 0xfff0c8, 34, t, 0.5, 3);
+    hd.glow(456, DUG.y + 40, 22, 0xfff4d0, 0.9);
+    hd.glow(456, DUG.y + 44, 110, 0xffd890, 0.2);
+    if (hdPower > 0) {
+      hd.glow(nx, ny + 30, 120 + 80 * hdPower, 0xfff0c8, 0.6 * Math.min(1, hdPower));
+      hd.glow(nx, ny + 60, 420, 0xffa040, 0.25 * Math.min(1, hdPower), 260);
+    }
+    hd.vignette(0.35, 800, 420);
+  });
 
   // ---- the panel ----
   const panel = new Graphics();
@@ -518,6 +536,8 @@ export function dugoutScene({ leave }) {
     glow.alpha = power * 0.9;
     glow.scale.set(5 + power * 3);
     roomLight.alpha = 0.16 + power * 0.05 + Math.sin(t * 2.1) * 0.01;
+    hdPower = power;
+    light.update(t);
     if (firing && !wasFiring)
       for (let i = 0; i < 30; i++)
         dust.add(DUG.x + 20 + Math.random() * (DUG.w - 40), DUG.y + 6, {
