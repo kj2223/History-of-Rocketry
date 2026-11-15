@@ -196,6 +196,8 @@ function recoveryShip(kind, year, x, y) {
   return s;
 }
 
+// Pixel art (pixelate.js): lines thinner than this many units are drawn one art pixel wide.
+recoveryScene.hairline = 5;
 export function recoveryScene({ leave }) {
   const g = game;
   const root = new Container();
