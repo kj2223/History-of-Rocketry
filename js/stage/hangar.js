@@ -33,6 +33,8 @@ const inside = g =>
 // What the inspector sees at a spot once it has been looked at, by the kind of fault the spot is listed for.
 const MARK = { leak: 'leak', lox: 'leak', oring: 'leak', fitting: 'leak', weld: 'crack', tank: 'crack' };
 
+// Pixel art (pixelate.js): lines thinner than this many units are drawn one art pixel wide.
+hangarScene.hairline = 5;
 export function hangarScene({ leave, look, engLook }) {
   const g = game;
   const crewed = !!g.crewed,

@@ -44,6 +44,8 @@ const inside = g =>
     p => !p.hidden && (Math.abs(p.x - PLACES.dugout.door) < 140 || atPlace('dugout', g, p.x)),
   );
 
+// Pixel art (pixelate.js): lines thinner than this many units are drawn one art pixel wide.
+dugoutScene.hairline = 5;
 export function dugoutScene({ leave }) {
   const g = game;
   const era = uiEra(g),

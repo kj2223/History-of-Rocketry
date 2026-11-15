@@ -23,6 +23,8 @@ function pool(x, y, w, h, tint, alpha) {
   return s;
 }
 
+// Pixel art (pixelate.js): lines thinner than this many units are drawn one art pixel wide.
+simScene.hairline = 5;
 export function simScene({ leave }) {
   const g = game;
   const root = new Container();
