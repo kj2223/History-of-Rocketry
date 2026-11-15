@@ -324,6 +324,7 @@ export function outButton(leave, text = '◂ Out to the site') {
   const t = label(text, 16, 0xf1e6c8, { family: 'Georgia, serif' });
   t.position.set(90, 20);
   out.addChild(card, t);
+  out.crisp = true; // a button stays sharp over pixel art (pixelate.js)
   out.eventMode = 'static';
   out.cursor = 'pointer';
   out.hitArea = new Rectangle(0, 0, 180, 40);
