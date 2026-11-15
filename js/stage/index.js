@@ -97,6 +97,9 @@ export async function startStage(el, hooks) {
   }
 }
 
+// For tests and the screenshot tools: the Pixi application, once started.
+export const stageApp = () => app;
+
 export const pixiWanted = () => {
   try {
     return localStorage.getItem(RENDERER_KEY) !== 'canvas';

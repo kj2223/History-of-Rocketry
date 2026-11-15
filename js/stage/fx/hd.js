@@ -26,7 +26,7 @@ const rgba = (c, a) => {
 };
 
 // A canvas shown as a smooth sprite over art-pixel coordinates, res canvas pixels to an art pixel.
-function surface(w, h, mx, my, res, blendMode) {
+function surface(w, h, mx, my, res, blendMode, unit) {
   const cv = document.createElement('canvas');
   cv.width = Math.ceil((w + 2 * mx) * res);
   cv.height = Math.ceil((h + 2 * my) * res);
@@ -34,8 +34,8 @@ function surface(w, h, mx, my, res, blendMode) {
   const tex = Texture.from(cv);
   tex.source.scaleMode = 'linear';
   const sprite = new Sprite(tex);
-  sprite.scale.set(PX / res);
-  sprite.position.set(-mx * PX, -my * PX);
+  sprite.scale.set(unit / res);
+  sprite.position.set(-mx * unit, -my * unit);
   sprite.blendMode = blendMode;
   // Art-pixel coordinates from here on.
   const reset = () => ctx.setTransform(res, 0, 0, res, mx * res, my * res);
@@ -70,12 +70,13 @@ function beamPath(ctx, x, y, w0, w1, len, lean) {
   ctx.closePath();
 }
 
-// A light layer for a scene w x h art pixels with a margin mx, my (as its pixel layers have).
-export function hdLayer(w = 320, h = 180, { mx = 0, my = 0 } = {}) {
+// A light layer for a scene w x h art pixels with a margin mx, my (as its pixel layers have). unit: scene units to a
+// pixel; lightRes, glowRes: canvas pixels to a pixel (the light is smooth, so it can be coarse).
+export function hdLayer(w = 320, h = 180, { mx = 0, my = 0, unit = PX, lightRes = 0.5, glowRes = 1 } = {}) {
   const root = new Container();
   root.label = 'hd-light';
-  const light = surface(w, h, mx, my, 0.5, 'multiply'),
-    glow = surface(w, h, mx, my, 1, 'add');
+  const light = surface(w, h, mx, my, lightRes, 'multiply', unit),
+    glow = surface(w, h, mx, my, glowRes, 'add', unit);
   root.addChild(light.sprite, glow.sprite);
   const L = light.ctx,
     G = glow.ctx;
@@ -129,8 +130,8 @@ export function hdLayer(w = 320, h = 180, { mx = 0, my = 0 } = {}) {
       beamPath(G, x, y, w0, w1, len, lean);
       G.fill();
     },
-    // Dust drifting in a beam: n motes, slow, each seeded so they stay put from frame to frame. t is in seconds.
-    motes(x, y, w0, w1, len, lean, c, n, t, k = 0.5) {
+    // Dust drifting in a beam: n motes of size pixels, slow, each seeded so they stay put from frame to frame. t is in seconds.
+    motes(x, y, w0, w1, len, lean, c, n, t, k = 0.5, size = 0.6) {
       G.fillStyle = css(c);
       for (let i = 0; i < n; i++) {
         const a = Math.sin(i * 12.9898 + x) * 43758.5453,
@@ -143,7 +144,7 @@ export function hdLayer(w = 320, h = 180, { mx = 0, my = 0 } = {}) {
         const px = x + Math.sin(lean) * len * along + across * wide * 0.9,
           py = y + Math.cos(lean) * len * along;
         G.globalAlpha = k * (0.4 + 0.6 * fb) * Math.sin(Math.PI * along);
-        G.fillRect(px, py, 0.6, 0.6);
+        G.fillRect(px, py, size, size);
       }
       G.globalAlpha = 1;
     },

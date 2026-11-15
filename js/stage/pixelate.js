@@ -71,16 +71,23 @@ GraphicsContext.prototype.stroke = function (style) {
 export const pixelSize = h => Math.max(2, Math.round(h / ART_H));
 
 // Sorts the drawn things under root into the picture (pixelated) and the type (crisp). A container marked crisp counts
-// as type with everything in it.
-function sort(node, crisp, pic, type) {
+// as type with everything in it. A container marked smooth (2D-HD, fx/hd.js: the far backdrop, soft and out of focus)
+// is left out of the pixels altogether and drawn at full resolution underneath them.
+function sort(node, crisp, pic, type, under) {
+  if (node.passPicture) return; // the pass's own picture, when it sits in the scene
+  if (node.smooth) {
+    under.push(node);
+    return;
+  }
   const isCrisp = crisp || !!node.crisp;
   if (node.renderPipeId) (isCrisp || TYPE.has(node.renderPipeId) ? type : pic).push(node);
-  for (const ch of node.children) sort(ch, isCrisp, pic, type);
+  for (const ch of node.children) sort(ch, isCrisp, pic, type, under);
 }
 
 export function pixelPass(renderer) {
   const sprite = new Sprite();
   sprite.label = 'pixel-pass';
+  sprite.passPicture = true;
   let dither = null;
   try {
     dither = ditherFilter();
@@ -91,7 +98,9 @@ export function pixelPass(renderer) {
   let rt = null;
   const m = new Matrix();
   const pic = [],
-    type = [];
+    type = [],
+    under = [];
+  let home = null; // where the pass's picture normally sits (the stage, under the scene)
   // Draws root small into the texture and leaves only its type showing for the ordinary full-size pass that follows.
   function draw(root, screen, background = 0x0d0c0a) {
     const s = pixelSize(screen.height);
@@ -102,23 +111,41 @@ export function pixelPass(renderer) {
       rt = RenderTexture.create({ width: w, height: h, resolution: 1, antialias: false, scaleMode: 'nearest' });
       sprite.texture = rt;
     }
-    pic.length = type.length = 0;
-    sort(root, false, pic, type);
+    pic.length = type.length = under.length = 0;
+    sort(root, false, pic, type, under);
+    // With a smooth backdrop, the picture goes into the scene just over it (root.pixelSlot), on a clear background.
+    home ??= sprite.parent;
+    const slot = under.length ? root.pixelSlot : null;
+    if (slot && sprite.parent !== slot) slot.addChild(sprite);
+    else if (!slot && home && sprite.parent !== home) home.addChildAt(sprite, 0);
+    sprite.visible = false;
+    for (const n of under) n.visible = false;
     for (const n of type) n.renderable = false;
     for (const n of pic) n.renderable = true;
     m.identity().scale(1 / s, 1 / s);
-    renderer.render({ container: root, target: rt, transform: m, clear: true, clearColor: background });
+    renderer.render({
+      container: root,
+      target: rt,
+      transform: m,
+      clear: true,
+      clearColor: slot ? [0, 0, 0, 0] : background,
+    });
     for (const n of pic) n.renderable = false;
     for (const n of type) n.renderable = true;
+    for (const n of under) n.visible = true;
     sprite.scale.set(s);
+    // In the slot the picture moves with the scene (its shake), which the drawing already has in it.
+    if (slot) sprite.position.set(-root.x, -root.y);
+    else sprite.position.set(0, 0);
     if (dither) dither.resources.ditherUniforms.uniforms.uPix = s * (globalThis.devicePixelRatio || 1);
     sprite.visible = true;
   }
   // Puts everything back as it was, for a scene that is not pixelated.
   function release() {
     for (const n of pic) n.renderable = true;
-    pic.length = type.length = 0;
+    pic.length = type.length = under.length = 0;
     sprite.visible = false;
+    if (home && sprite.parent !== home) home.addChildAt(sprite, 0);
   }
   function destroy() {
     release();

@@ -6,14 +6,16 @@
 // come from the canvas drawing on a clear overlay. Clicks go through to the site canvas underneath, so walking and
 // talking work as before.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
-import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
+import { BlurFilter, Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { dateOf } from '../core/calendar.js';
-import { drawSiteMachinery, siteLabelsShown, VIEW_H, GROUND } from '../site/draw.js';
+import { drawSiteMachinery, siteLabelsShown, flyingRise, VIEW_H, GROUND } from '../site/draw.js';
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
 import { buildSite, dropSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
-import { launchFx, warmTint } from './fx/launch.js';
+import { launchFx, warmTint, tailOf, might } from './fx/launch.js';
+import { hdLayer, hdWanted } from './fx/hd.js';
+import { PLACES } from '../data/white-sands.js';
 import { lightAt, daylightDressing } from './fx/daylight.js';
 import { blastFx } from './fx/blast.js';
 import { siteLife } from './fx/life.js';
@@ -56,6 +58,13 @@ export function siteScene() {
     backMid = new Container(),
     backNear = new Container();
   back.addChild(backFar, backMid, backNear);
+  // 2D-HD (fx/hd.js): the sky and the far mountains or sea are drawn smooth and a little out of focus, under the
+  // pixels, which the pixel pass puts here, just over them.
+  const pixelSlot = new Container();
+  root.addChild(pixelSlot);
+  root.pixelSlot = pixelSlot;
+  const farBlur = new BlurFilter({ strength: 2, quality: 3 }),
+    cloudBlur = new BlurFilter({ strength: 3, quality: 3 });
   const sky = new Sprite();
   const sun = new Graphics();
   const sunGlow = new Sprite(puffTexture());
@@ -81,6 +90,11 @@ export function siteScene() {
   const scrub = new Graphics();
   const palms = new Graphics();
   backMid.addChild(sea, glints, life.surf, scrub, palms, weather.mist);
+  // 2D-HD: the haze along the horizon, glowing, warmest when the sun is low (behind the site, so it never washes it).
+  const horizonHaze = new Sprite(puffTexture());
+  horizonHaze.anchor.set(0.5);
+  horizonHaze.blendMode = 'add';
+  backMid.addChild(horizonHaze);
   const PALM_SPAN = 140;
   const haze = new Sprite();
   const sand = new Sprite();
@@ -129,12 +143,91 @@ export function siteScene() {
   const frontWorld = new Container();
   frontWorld.addChild(life.vapour);
   root.addChild(frontWorld, fx.flash, blast.flash);
+  // 2D-HD light over the pixels, at full resolution: the haze along the horizon, the sun's bloom and its rays when it
+  // is low, the bloom of the flame and of the ground cloud it lights. Built to the width of the screen.
+  const hdBox = new Container();
+  hdBox.crisp = true;
+  root.addChild(hdBox);
+  let hd = null,
+    hdW = 0,
+    sunX = 0,
+    sunY = 0;
   // Speech bubbles, in screen pixels so the words stay a readable size at any zoom.
   const bubbleLayer = new Container();
   root.addChild(labels, bubbleLayer);
   const bubbles = new Map();
   const fade = new Graphics();
   root.addChild(fade);
+
+  // The 2D-HD light for this frame (in site units across the screen).
+  function hdLight(L, lf, vw, s, camX) {
+    const on = hdWanted();
+    backFar.smooth = backMid.smooth = on;
+    backMid.filters = on ? [farBlur] : null;
+    clouds.filters = on ? [cloudBlur] : null;
+    horizonHaze.visible = on;
+    farBlur.strength = 1.6 * s;
+    cloudBlur.strength = 2.4 * s;
+    hdBox.visible = on;
+    if (!on) return;
+    const w = Math.ceil(vw) + 2;
+    if (!hd || Math.abs(w - hdW) > 1) {
+      hd?.destroy();
+      hdW = w;
+      hd = hdLayer(w, VIEW_H, { unit: 1, lightRes: 0.1, glowRes: 0.25 });
+      hdBox.addChild(hd.root);
+    }
+    hdBox.scale.set(s);
+    const tilt = lf.tilt,
+      sky = L.sky;
+    hd.begin(0xffffff);
+    const low = L.sun.up ? L.sun.low : 0;
+    horizonHaze.position.set(vw / 2, 470);
+    horizonHaze.width = vw * 1.8;
+    horizonHaze.height = 150;
+    horizonHaze.tint = sky[2];
+    horizonHaze.alpha = 0.3 + 0.4 * low;
+    // The sun's bloom, and its rays slanting down through the haze when it is low.
+    if (L.sun.up) {
+      const sy = sunY + tilt * 0.3;
+      hd.glow(sunX, sy, 120, L.sunColor, 0.18 + 0.22 * low);
+      hd.glow(sunX, sy, 30, 0xffffff, 0.2);
+      if (low > 0.25)
+        for (const [lean, wide] of [
+          [0.35, 90],
+          [0.75, 120],
+          [-0.3, 80],
+          [-0.8, 110],
+        ])
+          hd.beam(
+            sunX,
+            sy,
+            8,
+            wide,
+            520,
+            Math.sign(sunX - w / 2) * Math.abs(lean) + lean * 0.4,
+            L.sunColor,
+            0.05 * low,
+          );
+    }
+    // The flame: a white-hot bloom at the nozzle and a wide warm halo, and the ground cloud lit from inside.
+    if (lf.glow > 0) {
+      const v = g.vehicle,
+        m = might(v),
+        rise = Math.min(4000, flyingRise(g));
+      const x = PLACES.tower.x + 25 - camX,
+        y = GROUND - 6 - rise + tailOf(v) * 2 + tilt;
+      hd.glow(x, y, 16 + 40 * m, 0xfff2d0, 0.75 * lf.glow, (16 + 40 * m) * 1.6);
+      hd.glow(x, y + 10, 90 + 220 * m, 0xffa850, 0.32 * lf.glow);
+      if (rise < 320) {
+        const k = lf.glow * (1 - rise / 320);
+        hd.glow(x, GROUND - 12 + tilt, 120 + 360 * m, 0xffc680, 0.3 * k, 26 + 40 * m);
+        hd.motes(x, GROUND - 40 + tilt, 120 + 300 * m, 200 + 500 * m, 40, 0, 0xffe6b0, 40, g.time || 0, 0.8 * k, 2.5);
+      }
+    }
+    hd.vignette(0.3, w / 2, VIEW_H * 0.45);
+    hd.commit();
+  }
 
   let cloudClock = 0,
     skyKey = '',
@@ -250,6 +343,8 @@ export function siteScene() {
       // at either end; after sunset it is gone.
       const sx = vw * (0.88 - 0.76 * L.sun.along),
         sy = 470 - 390 * L.sun.elevation;
+      sunX = sx;
+      sunY = sy;
       sun.clear();
       sun.visible = sunGlow.visible = L.sun.up;
       if (L.sun.up) sun.circle(sx, sy, 14 + 4 * L.sun.low).fill(L.sunColor);
@@ -380,6 +475,7 @@ export function siteScene() {
     nightLayer.position.set(-camX * s, tiltPx);
     // The foreground darkens toward the bottom of the screen.
     fore.x = camX;
+    hdLight(L, lf, vw, s, camX);
 
     // The people: legs that step while they walk, coat, head, hat, the sparks of work, the marker over you.
     people.clear();
