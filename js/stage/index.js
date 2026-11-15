@@ -18,6 +18,7 @@ import { g } from '../game.js';
 import { yearOf } from '../site/draw.js';
 import { filmLayer } from './fx/film.js';
 import { transitionLayer, transitionKind } from './fx/transition.js';
+import { pixelPass, setHairline } from './pixelate.js';
 
 // A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
 const SCENES = {
@@ -32,6 +33,15 @@ const SCENES = {
   recovery: recoveryScene,
 };
 export const RENDERER_KEY = 'pa-renderer';
+// The pixel art look (pixelate.js): on unless the dev menu switches it off, to compare (localStorage 'pa-pixel' = 'off').
+export const PIXEL_KEY = 'pa-pixel';
+export const pixelWanted = () => {
+  try {
+    return localStorage.getItem(PIXEL_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+};
 
 let app = null,
   host = null,
@@ -40,7 +50,8 @@ let app = null,
   builtFor = null,
   failed = false,
   film = null,
-  cut = null;
+  cut = null,
+  pixels = null;
 
 // The desktop app forbids eval (its Content-Security-Policy, desktop/main.js), and PixiJS builds its shader code with
 // it unless its 'unsafe-eval' add-on is loaded. The add-on ships as a classic script that patches the classes on a
@@ -76,6 +87,9 @@ export async function startStage(el, hooks) {
     app = a;
     app.hooks = hooks;
     film = filmLayer(app);
+    // The pixel pass's picture sits under every scene; the scene itself then draws only its type over it.
+    pixels = pixelPass(app.renderer);
+    app.stage.addChildAt(pixels.sprite, 0);
     cut = transitionLayer();
   } catch (e) {
     failed = true;
@@ -90,6 +104,9 @@ export const pixiWanted = () => {
     return true;
   }
 };
+// A scene drawn with ordinary shapes and pixelated declares how thin a line may be before it is drawn one art pixel
+// wide (its factory's `hairline`, in its own units). Off for the scenes that paint their own pixels.
+const hairlineFor = id => (pixelWanted() && SCENES[id]?.hairline) || 0;
 const takes = id => !!id && !!SCENES[id] && (!SCENES[id].accepts || SCENES[id].accepts(g));
 export const hasScene = id => takes(id);
 
@@ -105,6 +122,7 @@ export function stageFrame(id, dt, reserve) {
   // A scene holds the game it was built for, so a load, a new game or a jump builds it again.
   if (currentId !== id || builtFor !== g || current?.stale?.()) {
     drop();
+    setHairline(hairlineFor(id));
     current = SCENES[id](app.hooks);
     currentId = id;
     builtFor = g;
@@ -122,7 +140,12 @@ export function stageFrame(id, dt, reserve) {
     host.hidden = false;
     app.resize();
   }
+  setHairline(hairlineFor(id));
   current.update(dt, app.screen, reserve);
+  setHairline(0);
+  // A scene still drawn with ordinary shapes is turned into pixel art here; the blockhouse paints its own pixels.
+  if (SCENES[id].hairline && pixelWanted()) pixels.draw(current.root, app.screen);
+  else pixels?.release();
   film?.update(id, yearOf(g), dt, app.screen);
   cut?.update(dt, app.screen);
   app.render();
@@ -131,6 +154,7 @@ export function stageFrame(id, dt, reserve) {
 
 function drop() {
   if (!current) return;
+  pixels?.release();
   app.stage.removeChild(current.root);
   current.root.destroy({ children: true });
   current = null;

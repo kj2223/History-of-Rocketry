@@ -9,7 +9,7 @@
 import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { dateOf } from '../core/calendar.js';
-import { drawSiteMachinery, VIEW_H, GROUND } from '../site/draw.js';
+import { drawSiteMachinery, siteLabelsShown, VIEW_H, GROUND } from '../site/draw.js';
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
 import { buildSite, dropSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
@@ -42,6 +42,8 @@ function range(color, base, peaks, width) {
   return gr;
 }
 
+// Pixel art (pixelate.js): lines thinner than this many site units are drawn one art pixel wide.
+siteScene.hairline = 3.5;
 export function siteScene() {
   const g = game;
   const root = new Container();
@@ -116,13 +118,20 @@ export function siteScene() {
   root.addChild(nightLayer, weather.rain);
   const overlay = new Sprite();
   root.addChild(overlay);
+  // The job bars, the walking marker and the hover name, on a canvas of their own that the pixel art pass keeps sharp.
+  const labelCanvas = document.createElement('canvas');
+  const labelCtx = labelCanvas.getContext('2d');
+  let labelTex = null,
+    labelsWere = true;
+  const labels = new Sprite();
+  labels.crisp = true;
   // In front of the rocket (the canvas overlay): the vapour off her when she is fuelled.
   const frontWorld = new Container();
   frontWorld.addChild(life.vapour);
   root.addChild(frontWorld, fx.flash, blast.flash);
   // Speech bubbles, in screen pixels so the words stay a readable size at any zoom.
   const bubbleLayer = new Container();
-  root.addChild(bubbleLayer);
+  root.addChild(labels, bubbleLayer);
   const bubbles = new Map();
   const fade = new Graphics();
   root.addChild(fade);
@@ -408,12 +417,28 @@ export function siteScene() {
       liveTex = Texture.from(liveCanvas);
       overlay.texture = liveTex;
       overlay.scale.set(1 / dpr);
+      labelCanvas.width = liveCanvas.width;
+      labelCanvas.height = liveCanvas.height;
+      labelTex?.destroy(true);
+      labelTex = Texture.from(labelCanvas);
+      labels.texture = labelTex;
+      labels.scale.set(1 / dpr);
+      labelsWere = true;
     }
     liveCtx.setTransform(1, 0, 0, 1, 0, 0);
     liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
     liveCtx.setTransform(s * dpr, 0, 0, s * dpr, -camX * s * dpr, tiltPx * dpr);
-    drawSiteMachinery(liveCtx, g);
+    drawSiteMachinery(liveCtx, g, 'art');
     liveTex.source.update();
+    const labelsNow = siteLabelsShown(g);
+    if (labelsNow || labelsWere) {
+      labelCtx.setTransform(1, 0, 0, 1, 0, 0);
+      labelCtx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+      labelCtx.setTransform(s * dpr, 0, 0, s * dpr, -camX * s * dpr, tiltPx * dpr);
+      if (labelsNow) drawSiteMachinery(labelCtx, g, 'labels');
+      labelTex.source.update();
+    }
+    labelsWere = labelsNow;
 
     // Bubbles: over each speaker, stacked upward when two would overlap.
     const talking = Object.values(g.people)
