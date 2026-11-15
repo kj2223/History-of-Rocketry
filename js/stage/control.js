@@ -422,6 +422,8 @@ export function telemetryScreen(look = LOOKS.steel) {
   return c0;
 }
 
+// Pixel art (pixelate.js): lines thinner than this many screen pixels are drawn one art pixel wide.
+controlScene.hairline = 5;
 export function controlScene() {
   const g = game;
   const era = uiEra(g),
@@ -611,6 +613,9 @@ export function controlScene() {
         every,
       );
       s.ownTex = true;
+      // The map and the television carry readings (station codes, the ascent numbers), so they stay sharp over the
+      // pixel art (pixelate.js).
+      s.crisp = true;
       s.scale.set(1 / dpr);
       s.position.set(x - pad, y - pad);
       shell.addChild(s);
