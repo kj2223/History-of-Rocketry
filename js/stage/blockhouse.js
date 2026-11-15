@@ -1,27 +1,27 @@
-// THE BLOCKHOUSE, rebuilt in PixiJS (v0.8): the count, seen from behind the firing panel. Every reading the
-// blockhouse had is on the wall or the desk: the count drum, the status lamps, the pressurisation panel's dials (each
-// tank, the pressurant, propellant loaded, oxygen temperature), the firing panel (continuity, arming, the firing bus),
-// the range scope, and pen recorders tracing the tanks. The room panel keeps only the call.
+// THE BLOCKHOUSE (v0.8, pixel art pass): the count, seen from behind the firing panel, painted at 320 x 180 pixels
+// and scaled up crisp (js/stage/pixel.js). Every reading the blockhouse had is on the wall or the desk: the count drum,
+// the status lamps, the pressurisation panel's dials (each tank, the pressurant, propellant loaded, oxygen
+// temperature), the firing panel (continuity, arming, the firing bus), the range scope, and pen recorders tracing the
+// tanks. The numbers and labels are full-resolution type over the pixels; the room panel keeps only the call.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
-import { Container, Graphics } from '../vendor/pixi.min.mjs';
+import { Container } from '../vendor/pixi.min.mjs';
 import { g as game, countChannels, stageChannels, conducting } from '../game.js';
-import { padPicture, uiEra } from '../site/draw.js';
+import { uiEra } from '../site/draw.js';
+import { paintPad } from './pixel-pad.js';
 import { blockhouseState } from '../data/campaign.js';
 import { inside as insideOf } from '../site/interiors.js';
+import { paletteFor, label, setText, speech, outButton } from './kit.js';
 import {
-  paletteFor,
-  label,
-  setText,
-  dial,
-  lamp,
-  bar,
-  recorder,
-  seatedBack,
-  speech,
-  canvasPicture,
-  colorOf,
-  outButton,
-} from './kit.js';
+  PX,
+  pixelLayer,
+  shade,
+  dialFace,
+  dialNeedle,
+  dialAngle,
+  pixelLamp,
+  pixelBack,
+  pixelStanding,
+} from './pixel.js';
 
 export const W = 1600,
   H = 900,
@@ -32,10 +32,16 @@ const STATIONS = [
   { id: 'tc', label: 'TEST CONDUCTOR' },
   { id: 'pad', label: 'PAD · FIRING' },
 ];
-const ST_W = 350,
-  ST_GAP = 22,
-  X0 = (W - (4 * ST_W + 3 * ST_GAP)) / 2,
-  DESK_Y = 360;
+// The layout in art pixels (one pixel is PX world units).
+const FL = FLOOR / PX, // 128: where the wall meets the floor
+  ST_W = 70,
+  ST_GAP = 4,
+  X0 = 14,
+  DESK = 72,
+  FACE_Y = 76,
+  FACE_H = 33,
+  SEAT_TOP = 126; // the top of a seated controller's shoulders
+const stX = i => X0 + i * (ST_W + ST_GAP);
 
 // Who is in the blockhouse: the people staying within reach of its door (js/site/interiors.js, shared with the old room).
 const inside = g => insideOf(g, 'blockhouse', 180);
@@ -55,231 +61,254 @@ export function blockhouseScene({ leave }) {
   const root = new Container();
   const world = new Container();
   root.addChild(world);
+  // The still room is painted with a margin all round, so a window wider or taller than 16:9 shows more room.
+  const back = pixelLayer(320, 180, { mx: 80, my: 40 }),
+    live = pixelLayer();
+  world.addChild(back.sprite, live.sprite);
+  const type = new Container(); // the full-resolution type, over the pixels
+  world.addChild(type);
+  // A label at art-pixel position (x, y).
+  const say = (text, size, color, x, y, opts = {}) => {
+    const t = label(text, size, color, { bold: true, ...opts });
+    t.position.set(x * PX, y * PX);
+    type.addChild(t);
+    return t;
+  };
+  const B = back;
 
-  // ---- the room: concrete wall with formwork marks, the roof beam, the lights, the floor ----
-  const room = new Graphics();
-  room.rect(-800, -800, W + 1600, FLOOR + 800).fill(built ? pal.wall : pal.wallOld);
-  for (let y = 40; y < FLOOR; y += 46) {
-    room.rect(-800, y, W + 1600, 2).fill({ color: 0x000000, alpha: 0.07 });
-    room.rect(-800, y + 2, W + 1600, 1).fill({ color: 0xd9cfb5, alpha: 0.12 });
-  }
-  room.rect(-800, FLOOR, W + 1600, H - FLOOR + 800).fill(pal.floor);
-  room.rect(-800, FLOOR, W + 1600, 8).fill({ color: 0x000000, alpha: 0.25 });
-  room.rect(-800, -800, W + 1600, 838).fill(pal.beam);
-  world.addChild(room);
-  const light = new Graphics();
+  // ---- the room: the wall (cinder block in the first blockhouse, poured concrete in the later ones), the roof beam,
+  // the lights, the floor ----
+  const wall = built ? pal.wall : pal.wallOld;
+  const L0 = -B.mx,
+    LW0 = 320 + 2 * B.mx;
+  B.vgrad(L0, -B.my, LW0, FL + B.my, [shade(wall, 0.8), shade(wall, 0.86), wall, shade(wall, 1.07)]);
+  const mortar = shade(wall, 0.8);
+  if (!built)
+    for (let y = 8; y < FL; y += 7) {
+      B.rect(L0, y, LW0, 1, mortar);
+      const off = (y / 7) % 2 ? 0 : 9;
+      for (let x = L0 + off; x < L0 + LW0; x += 18) B.rect(x, y, 1, 7, mortar);
+    }
+  else
+    for (let y = 14; y < FL; y += 9) {
+      B.rect(L0, y, LW0, 1, mortar);
+      B.rect(L0, y + 1, LW0, 1, shade(wall, 1.1));
+      for (let x = L0 + 37; x < L0 + LW0; x += 64) B.px(x, y + 4, mortar);
+    }
   if (built)
-    for (const lx of [300, 800, 1300]) {
-      light.rect(lx - 90, 38, 180, 9).fill(0xf4f0dc);
-      light.poly([lx - 90, 47, lx - 260, FLOOR, lx + 260, FLOOR, lx + 90, 47]).fill({ color: 0xf4f0dc, alpha: 0.05 });
+    for (const lx of [60, 160, 260]) {
+      B.rect(lx - 18, 8, 36, 2, 0xf4f0dc);
+      B.rect(lx - 18, 10, 36, 1, shade(wall, 0.6));
+      B.glow(lx, 14, 60, 40, shade(wall, 1.16), 0.45);
     }
   else {
-    light.moveTo(470, 38).lineTo(470, 76).stroke({ width: 2, color: 0x222222 });
-    light.circle(470, 84, 10).fill(0xffe9a8);
-    light.circle(470, 84, 320).fill({ color: 0xf9da9e, alpha: 0.08 });
+    B.rect(94, 8, 1, 9, 0x2c2822);
+    B.rect(92, 16, 5, 2, 0x3d372f);
+    B.glow(94, 26, 46, 30, shade(wall, 1.18), 0.55);
+    B.circ(94, 19, 1, 0xffe9a8);
   }
-  world.addChild(light);
+  B.rect(L0, -B.my, LW0, 7 + B.my, pal.beam);
+  B.rect(L0, 7, LW0, 1, shade(pal.beam, 0.6));
+  B.vgrad(L0, FL, LW0, 180 + B.my - FL, [pal.floor, shade(pal.floor, 0.75), shade(pal.floor, 0.6)]);
+  B.rect(L0, FL, LW0, 1, shade(pal.floor, 0.6));
+  for (let x = -320; x <= 640; x += 32)
+    B.line(160 + (x - 160) * 0.6, FL + 1, 160 + (x - 160) * 1.6, 179 + B.my, shade(pal.floor, 0.88));
 
-  // ---- the periscopes: the pad, round, in a brass ring (the old canvas painting, as a texture for now) ----
+  // ---- the periscopes: the pad, round, in a brass ring ----
   const scopes = built
     ? [
-        [190, 200, 'PERISCOPE 1'],
-        [450, 200, 'PERISCOPE 2'],
+        [34, 40, 'PERISCOPE 1'],
+        [93, 40, 'PERISCOPE 2'],
       ]
-    : [[230, 200, 'PERISCOPE']];
-  const R = built ? 118 : 128;
-  const pictures = scopes.map(([cx, cy, name], i) => {
-    const tube = new Graphics();
-    tube.rect(cx + R + 6, 38, 20, cy - 18).fill(0x5b5f66);
-    tube.rect(cx + R - 8, cy + 6, 50, 28).fill(0x5b5f66);
-    tube.circle(cx + 5, cy + 8, R + 16).fill(0x34352f);
-    tube.circle(cx, cy, R + 10).fill(0xb08a4a);
-    world.addChild(tube);
-    const pic = canvasPicture(256, 256, (ctx, w, h) => {
-      padPicture(ctx, game, 0, 0, w, h);
-      if (i === 1) {
-        ctx.fillStyle = 'rgba(30,60,40,.18)';
-        ctx.fillRect(0, 0, w, h);
-      }
-    });
-    pic.position.set(cx - R, cy - R);
-    pic.width = pic.height = 2 * R;
-    const mask = new Graphics().circle(cx, cy, R).fill(0xffffff);
-    pic.mask = mask;
-    world.addChild(pic, mask);
-    const cross = new Graphics();
-    cross
-      .moveTo(cx - R, cy)
-      .lineTo(cx + R, cy)
-      .moveTo(cx, cy - R)
-      .lineTo(cx, cy + R)
-      .stroke({ width: 1, color: 0x000000, alpha: 0.35 });
-    cross.arc(cx, cy, R + 5, Math.PI * 1.05, Math.PI * 1.58).stroke({ width: 2, color: 0xffe6af, alpha: 0.5 });
-    world.addChild(cross);
-    const t = label(name, 16, pal.label, { family: 'Georgia, serif' });
-    t.position.set(cx, cy + R + 26);
-    world.addChild(t);
-    return pic;
+    : [[46, 40, 'PERISCOPE']];
+  const R = built ? 22 : 25;
+  for (const [cx, cy, name] of scopes) {
+    B.rect(cx + R + 2, 8, 4, cy - 10, 0x4d5157);
+    B.rect(cx + R + 3, 8, 1, cy - 10, 0x6a6e75);
+    B.rect(cx + R - 2, cy - 3, 9, 6, 0x4d5157);
+    B.circ(cx + 1, cy + 2, R + 3, shade(wall, 0.55));
+    B.circ(cx, cy, R + 2, 0xa8823f);
+    B.ring(cx, cy, R + 1, 0x7a5c2a);
+    for (let a = 3.3; a < 4.9; a += 0.05)
+      B.px(cx + Math.round((R + 2) * Math.cos(a)), cy + Math.round((R + 2) * Math.sin(a)), 0xe0c07a);
+    say(name, 15, pal.label, cx, cy + R + 7, { family: 'Georgia, serif', bold: false });
+  }
+  // Each view is the pad painted in pixels (pixel-pad.js); the second periscope's glass is a little green.
+  const views = scopes.map((s, i) => {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 2 * R + 1;
+    const ctx = cv.getContext('2d');
+    return {
+      cv,
+      paint() {
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        paintPad(ctx, game, cv.width);
+        if (i === 1) {
+          ctx.fillStyle = 'rgba(30,60,40,.18)';
+          ctx.fillRect(0, 0, cv.width, cv.width);
+        }
+      },
+    };
   });
 
   // ---- the count drum and the status lamps, over the conductor's end of the panel ----
-  const clockX = built ? 700 : 640;
-  const board = new Graphics();
-  board.roundRect(clockX, 80, 340, 150, 6).fill(0x2c2e30).stroke({ width: 3, color: 0x1b1c1e });
-  board
-    .roundRect(clockX + 20, 112, 300, 76, 4)
-    .fill(0x120c0a)
-    .stroke({ width: 2, color: 0x3a2a22 });
-  world.addChild(board);
-  const boardTitle = label(
+  const CX = built ? 140 : 128;
+  B.rect(CX, 16, 68, 30, 0x2c2e30);
+  B.box(CX - 1, 15, 70, 32, 0x1b1c1e);
+  B.rect(CX + 4, 22, 60, 15, 0x120c0a);
+  B.box(CX + 4, 22, 60, 15, 0x3a2a22);
+  B.rect(CX + 5, 23, 58, 1, 0x1f1612);
+  say(
     cape ? 'BLOCKHOUSE · CAPE CANAVERAL' : built ? 'LAUNCH CONTROL · NEW BLOCKHOUSE' : 'W.S.P.G. BLOCKHOUSE',
-    15,
+    14,
     pal.label,
-    { bold: true, spacing: 1 },
+    CX + 34,
+    19.4,
+    {
+      spacing: 1,
+    },
   );
-  boardTitle.position.set(clockX + 170, 97);
-  const drum = label('T- --:--', 50, pal.count, { bold: true, family: pal.mono });
-  drum.position.set(clockX + 170, 151);
-  const word = label('NO COUNT', 17, pal.label, { bold: true, spacing: 2 });
-  word.position.set(clockX + 170, 210);
-  world.addChild(boardTitle, drum, word);
+  const drum = say('T- --:--', 48, pal.count, CX + 34, 30.2, { family: pal.mono });
+  const word = say('NO COUNT', 16, pal.label, CX + 34, 42);
 
-  const lampX = clockX + 380;
-  const lampBoard = new Graphics().roundRect(lampX, 80, W - 40 - lampX, 150, 6).fill(0x2c2e30);
-  world.addChild(lampBoard);
+  const LX = CX + 76,
+    LW = 312 - LX;
+  B.rect(LX, 16, LW, 30, 0x2c2e30);
+  B.box(LX - 1, 15, LW + 2, 32, 0x1b1c1e);
   const LAMPS = [
     ['hold', 'HOLD', 0xe0543c],
     ['poll', 'POLL', 0xf0b440],
     ['igniter', 'IGNITER', 0x7fdc8a],
     ['fire', 'FIRE', 0xff8a5a],
   ];
-  const lamps = Object.fromEntries(
-    LAMPS.map(([id, name, color], i) => {
-      const l = lamp(name, color, 20, pal);
-      l.position.set(lampX + 50 + i * ((W - 40 - lampX - 60) / 4), 140);
-      world.addChild(l);
-      return [id, l];
-    }),
-  );
+  const lampAt = {};
+  LAMPS.forEach(([id, name, color], i) => {
+    const x = Math.round(LX + LW / 8 + (i * LW) / 4);
+    lampAt[id] = { x, y: 27, color };
+    say(name, 13, pal.label, x, 37.5);
+  });
 
   // ---- the pen recorders, tracing the tanks and the pressurant (and the oxygen's temperature where there is one) ----
   const traced = ['tank.ox', 'tank.fuel', 'bottle', chans['lox.temp'] ? 'lox.temp' : 'bus'].map(id => chans[id]);
-  const pens = recorder(W - 40 - clockX, 52, traced, pal);
-  pens.position.set(clockX, 258);
-  world.addChild(pens);
+  const RY = 52,
+    RH = 10,
+    RW = 312 - CX,
+    SW = Math.floor((RW - 3 * 2) / 4);
+  B.rect(CX - 1, RY - 2, RW + 2, RH + 9, 0x2a2c2e);
+  traced.forEach((ch, i) => {
+    const x = CX + i * (SW + 2);
+    B.rect(x, RY, SW, RH, 0xf6f1e2);
+    for (let gy = 1; gy < 4; gy++) B.rect(x, RY + Math.round((gy * RH) / 4), SW, 1, 0xdcd3bb);
+    if (ch.band) {
+      const y = v => RY + RH - ((v - ch.range[0]) / (ch.range[1] - ch.range[0])) * RH;
+      const top = Math.round(y(ch.band[1])),
+        bot = Math.round(y(ch.band[0]));
+      B.dith(x, top, SW, Math.max(1, bot - top), 0xf6f1e2, 0xd5ead0);
+    }
+    say(ch.label.toUpperCase(), 12, pal.label, x + SW / 2, RY + RH + 3.6);
+  });
+  const hist = traced.map(() => []);
 
   // ---- the firing panel: one long desk, a station each ----
-  const desk = new Graphics();
-  desk.rect(X0 - 24, DESK_Y, 4 * ST_W + 3 * ST_GAP + 48, 190).fill(pal.panel);
-  desk.rect(X0 - 24, DESK_Y, 4 * ST_W + 3 * ST_GAP + 48, 8).fill(pal.panelTop);
-  desk.rect(X0 - 34, DESK_Y + 190, 4 * ST_W + 3 * ST_GAP + 68, 20).fill(pal.desk);
-  desk.rect(X0 - 28, DESK_Y + 210, 4 * ST_W + 3 * ST_GAP + 56, FLOOR - DESK_Y - 210).fill(pal.deskFront);
-  world.addChild(desk);
-  const S = {}; // the instruments, by station
+  const DW = 4 * ST_W + 3 * ST_GAP;
+  B.rect(X0 - 5, DESK, DW + 10, 38, pal.panel);
+  B.rect(X0 - 5, DESK, DW + 10, 2, pal.panelTop);
+  B.rect(X0 - 7, DESK + 38, DW + 14, 4, pal.desk);
+  B.rect(X0 - 7, DESK + 38, DW + 14, 1, shade(pal.desk, 1.2));
+  B.rect(X0 - 6, DESK + 42, DW + 12, FL - DESK - 42, pal.deskFront);
+  for (let x = X0; x < X0 + DW; x += 29) B.rect(x, DESK + 42, 1, FL - DESK - 42, shade(pal.deskFront, 0.85));
+  B.rect(X0 - 6, FL - 1, DW + 12, 1, shade(pal.deskFront, 0.7));
   const seatOf = seats();
   STATIONS.forEach((st, i) => {
-    const x = X0 + i * (ST_W + ST_GAP);
-    const face = new Graphics().rect(x, DESK_Y + 18, ST_W, 166).fill(pal.face);
+    const x = stX(i);
     const mine = seatOf[st.id] === 'you';
-    if (mine) face.rect(x - 3, DESK_Y + 15, ST_W + 6, 172).stroke({ width: 3, color: 0xe8c66a });
-    world.addChild(face);
-    const t = label(st.label + (mine ? ' · YOU' : ''), 16, mine ? 0xe8c66a : pal.label, { bold: true });
-    t.position.set(x + ST_W / 2, DESK_Y + 33);
-    world.addChild(t);
-    S[st.id] = { x, y: DESK_Y + 48 };
+    B.rect(x, FACE_Y, ST_W, FACE_H, pal.face);
+    B.box(x, FACE_Y, ST_W, FACE_H, shade(pal.face, 0.75));
+    if (mine) B.box(x - 1, FACE_Y - 1, ST_W + 2, FACE_H + 2, 0xe8c66a);
+    say(st.label + (mine ? ' · YOU' : ''), 15, mine ? 0xe8c66a : pal.label, x + ST_W / 2, FACE_Y + 3.4);
+    // The empty chair, which a controller covers when there is one.
+    const cx = x + ST_W / 2;
+    B.rect(cx - 9, SEAT_TOP + 2, 18, 20, 0x2b2520);
+    B.rect(cx - 8, SEAT_TOP + 2, 16, 1, 0x3e352c);
+    B.rect(cx - 1, SEAT_TOP + 22, 2, 6, 0x2b2520);
+    B.rect(cx - 7, SEAT_TOP + 28, 14, 1, 0x2b2520);
   });
+
   // RANGE: the plot scope and its sweep, the range-clear lamp.
-  {
-    const { x, y } = S.range;
-    const scope = new Graphics();
-    scope.circle(x + 80, y + 62, 56).fill(0x0d1a14);
-    scope.circle(x + 80, y + 62, 28).stroke({ width: 1, color: 0x1f3b2d });
-    const sweep = new Graphics();
-    sweep.position.set(x + 80, y + 62);
-    sweep.moveTo(0, 0).lineTo(56, 0).stroke({ width: 2, color: 0x9ff0b8 });
-    const clear = lamp('RANGE CLEAR', 0x7fdc8a, 15, pal);
-    clear.position.set(x + 250, y + 50);
-    world.addChild(scope, sweep, clear);
-    S.range.sweep = sweep;
-    S.range.clear = clear;
-  }
+  const rx = stX(0);
+  const scope = { x: rx + 17, y: 94, r: 11 };
+  B.circ(scope.x, scope.y, scope.r + 1, 0x151412);
+  B.circ(scope.x, scope.y, scope.r, 0x0d1a12);
+  B.ring(scope.x, scope.y, 6, 0x1f3b2d);
+  B.rect(scope.x - scope.r + 1, scope.y, 2 * scope.r - 1, 1, 0x15281e);
+  const rangeLamp = { x: rx + 50, y: 89 };
+  say('RANGE CLEAR', 12, pal.label, rx + 50, 97);
+
   // PRESS: a dial for each tank and the pressurant, propellant loaded, the oxygen's temperature.
-  {
-    const { x, y } = S.press;
-    const shortName = {
-      'tank.ox': chans['lox.temp'] ? 'LOX' : 'Acid',
-      'tank.fuel': 'Fuel',
-      bottle: chans.bottle.label.startsWith('Helium') ? 'Helium' : 'Gas gen',
-    };
-    const dials = ['tank.ox', 'tank.fuel', 'bottle'].map((id, i) => {
-      const d = dial(chans[id], 40, pal, shortName[id]);
-      d.position.set(x + 60 + i * 115, y + 34);
-      world.addChild(d);
-      return [id, d];
-    });
-    const loaded = bar(chans.loaded, chans['lox.temp'] ? 170 : 310, 12, pal, 'Loaded');
-    loaded.position.set(x + 20, y + 100);
-    world.addChild(loaded);
-    S.press.dials = dials;
-    S.press.loaded = loaded;
-    if (chans['lox.temp']) {
-      const lox = bar(chans['lox.temp'], 120, 12, pal, 'LOX');
-      lox.position.set(x + 210, y + 100);
-      world.addChild(lox);
-      S.press.lox = lox;
-    }
+  const ppx = stX(1);
+  const shortName = {
+    'tank.ox': chans['lox.temp'] ? 'LOX' : 'Acid',
+    'tank.fuel': 'Fuel',
+    bottle: chans.bottle.label.startsWith('Helium') ? 'Helium' : 'Gas gen',
+  };
+  const dials = ['tank.ox', 'tank.fuel', 'bottle'].map((id, i) => {
+    const d = { id, x: ppx + 12 + i * 23, y: 89, r: 7, ang: dialAngle(chans[id]), shown: chans[id].range[0] };
+    dialFace(B, d.x, d.y, d.r, chans[id]);
+    d.read = say('—', 12, pal.ink, d.x, d.y + 3.2, { family: pal.mono });
+    say(
+      `${shortName[id].toUpperCase()}${chans[id].unit ? ` · ${chans[id].unit.toUpperCase()}` : ''}`,
+      11,
+      pal.label,
+      d.x,
+      d.y + 10.6,
+    );
+    return d;
+  });
+  const loaded = { ch: chans.loaded, x: ppx + 4, y: 105, w: chans['lox.temp'] ? 34 : 62 };
+  B.rect(loaded.x - 1, loaded.y - 1, loaded.w + 2, 4, 0x2b2a24);
+  B.rect(loaded.x, loaded.y, loaded.w, 2, 0x15130f);
+  loaded.t = say('LOADED —', 11, pal.label, loaded.x, loaded.y - 2.6, { ax: 0 });
+  let lox = null;
+  if (chans['lox.temp']) {
+    lox = { ch: chans['lox.temp'], x: ppx + 42, y: 105, w: 24 };
+    B.rect(lox.x - 1, lox.y - 1, lox.w + 2, 4, 0x2b2a24);
+    B.rect(lox.x, lox.y, lox.w, 2, 0x15130f);
+    lox.t = say('LOX —', 11, pal.label, lox.x, lox.y - 2.6, { ax: 0 });
   }
   // TEST CONDUCTOR: the seconds counter, the hold button, the intercom keys.
-  {
-    const { x, y } = S.tc;
-    const box = new Graphics()
-      .rect(x + 20, y + 6, 170, 52)
-      .fill(0x120c0a)
-      .stroke({ width: 2, color: 0x3a2a22 });
-    const secs = label('---', 30, pal.count, { bold: true, family: pal.mono });
-    secs.position.set(x + 105, y + 33);
-    const hold = new Graphics();
-    hold.circle(x + 270, y + 38, 30).fill(0x7a1f16);
-    hold.circle(x + 270, y + 35, 25).fill(0xd0634f);
-    const holdT = label('HOLD', 14, 0xffffff, { bold: true });
-    holdT.position.set(x + 270, y + 36);
-    const keys = new Graphics();
-    for (let k = 0; k < 5; k++) keys.roundRect(x + 22 + k * 34, y + 80, 26, 20, 3).fill(0x26292c);
-    const keysT = label('INTERCOM', 13, pal.label, { bold: true });
-    keysT.position.set(x + 105, y + 116);
-    world.addChild(box, secs, hold, holdT, keys, keysT);
-    S.tc.secs = secs;
+  const tx = stX(2);
+  B.rect(tx + 4, 82, 34, 11, 0x120c0a);
+  B.box(tx + 4, 82, 34, 11, 0x3a2a22);
+  const secs = say('---', 26, pal.count, tx + 21, 87.6, { family: pal.mono });
+  B.circ(tx + 54, 89, 7, 0x151412);
+  B.circ(tx + 54, 89, 6, 0x7a1f16);
+  B.circ(tx + 54, 88, 5, 0xd0634f);
+  B.px(tx + 52, 86, 0xff9a8a);
+  say('HOLD', 12, 0xffffff, tx + 54, 88.2);
+  for (let k = 0; k < 5; k++) {
+    B.rect(tx + 4 + k * 7, 97, 5, 4, 0x26292c);
+    B.rect(tx + 4 + k * 7, 97, 5, 1, 0x3a3e42);
   }
-  // PAD · FIRING: continuity, arming, the firing bus, the firing key in its guard.
-  {
-    const { x, y } = S.pad;
-    const cont = lamp('CONTINUITY', 0x7fdc8a, 14, pal);
-    cont.position.set(x + 55, y + 18);
-    const armed = lamp('ARMED', 0xf0b440, 14, pal);
-    armed.position.set(x + 55, y + 78);
-    const bus = dial(chans.bus, 30, pal, 'Bus');
-    bus.position.set(x + 160, y + 58);
-    const guard = new Graphics();
-    guard.rect(x + 232, y + 6, 92, 92).fill(0x1b1c1e);
-    guard.rect(x + 242, y + 16, 72, 72).fill(0xcc9944);
-    guard.circle(x + 278, y + 52, 16).fill(0x2a2a2a);
-    const key = new Graphics().rect(-4, -20, 8, 20).fill(0xdddddd);
-    key.position.set(x + 278, y + 52);
-    const keyT = label('FIRE', 14, pal.label, { bold: true });
-    keyT.position.set(x + 278, y + 112);
-    world.addChild(cont, armed, bus, guard, key, keyT);
-    Object.assign(S.pad, { cont, armed, bus, key });
-  }
+  say('INTERCOM', 12, pal.label, tx + 21, 104.6);
 
-  // ---- the people: a controller at each station, seen from behind; anyone else stands at the back ----
-  const chairs = STATIONS.map((st, i) => {
-    const c = seatedBack(null);
-    c.position.set(X0 + i * (ST_W + ST_GAP) + ST_W / 2, DESK_Y + 300);
-    world.addChild(c);
-    return c;
-  });
-  const standers = new Graphics();
-  world.addChild(standers);
+  // PAD · FIRING: continuity, arming, the firing bus, the firing key in its guard.
+  const fx = stX(3);
+  const contLamp = { x: fx + 11, y: 83 },
+    armLamp = { x: fx + 11, y: 97 };
+  say('CONTINUITY', 11, pal.label, fx + 11, 89.6);
+  say('ARMED', 11, pal.label, fx + 11, 103.6);
+  const bus = { id: 'bus', x: fx + 33, y: 92, r: 7, ang: dialAngle(chans.bus), shown: chans.bus.range[0] };
+  dialFace(B, bus.x, bus.y, bus.r, chans.bus);
+  bus.read = say('—', 11, pal.ink, bus.x, bus.y + 3.4, { family: pal.mono });
+  say('BUS · V', 11, pal.label, bus.x, bus.y + 10);
+  B.rect(fx + 46, 81, 19, 19, 0x1b1c1e);
+  B.rect(fx + 48, 83, 15, 15, 0xcc9944);
+  B.rect(fx + 48, 83, 15, 1, 0xe2b866);
+  B.circ(fx + 55, 90, 3, 0x2a2a2a);
+  say('FIRE', 12, pal.label, fx + 55, 104);
+  const keyAt = { x: fx + 55, y: 90 };
+
+  // ---- speech, over the pixels at full resolution ----
   const talk = STATIONS.map(() => {
     const b = speech();
     world.addChild(b);
@@ -287,19 +316,21 @@ export function blockhouseScene({ leave }) {
   });
   const extraTalk = [speech(), speech()];
   world.addChild(...extraTalk);
+  back.commit();
 
   // ---- the way out ----
   const out = outButton(leave);
   root.addChild(out);
 
   // ---- each frame ----
-  let lastPush = -1;
+  let lastPush = -1,
+    viewAt = -1;
   function update(dt, screen, reserve) {
     // Fit the room into the screen left of the room panel, as the canvas interiors did.
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
     const k = Math.min(roomW / W, screen.height / H);
     world.scale.set(k);
-    world.position.set((roomW - W * k) / 2, (screen.height - H * k) / 2);
+    world.position.set(Math.round((roomW - W * k) / 2), Math.round((screen.height - H * k) / 2));
     out.position.set(10, screen.height - 40 - 46);
 
     const c = g.count,
@@ -314,30 +345,104 @@ export function blockhouseScene({ leave }) {
       word,
       !c ? 'NO COUNT' : c.checking ? 'HOLD · PAD CREW OUT' : c.poll ? 'POLL' : c.held ? 'HOLDING' : 'COUNTING',
     );
-    lamps.hold.update(!!c && (c.held || c.checking));
-    lamps.poll.update(!!c && !!c.poll);
-    lamps.igniter.update(!!read && read.igniter);
-    lamps.fire.update(!!c && c.clock <= 10 && !c.held && !c.poll);
+    const P = live;
+    P.clear();
+
+    // The periscopes: the views are repainted at most five times a second.
+    const now = performance.now();
+    if (viewAt < 0 || now - viewAt > 200) {
+      viewAt = now;
+      views.forEach(vw => vw.paint());
+    }
+    scopes.forEach(([cx, cy], i) => {
+      P.disc(views[i].cv, cx, cy, R, false);
+      // The graticule: a dotted cross, so it marks the middle without hiding the pad.
+      for (let k = -R; k <= R; k += 2) {
+        P.px(cx + k, cy, 0x2a3a40);
+        P.px(cx, cy + k, 0x2a3a40);
+      }
+    });
+
+    // The status lamps.
+    const lit = {
+      hold: !!c && (c.held || c.checking),
+      poll: !!c && !!c.poll,
+      igniter: !!read && read.igniter,
+      fire: !!c && c.clock <= 10 && !c.held && !c.poll,
+    };
+    for (const [id, l] of Object.entries(lampAt)) pixelLamp(P, l.x, l.y, 4, l.color, lit[id]);
+
     // A point on the recorders each count second; the paper stands still when the count does.
     const sec = c ? Math.floor(c.since ?? 0) : -1;
-    pens.update(
-      traced.map(ch => v(ch.id)),
-      c && sec !== lastPush,
-    );
+    if (c && sec !== lastPush)
+      traced.forEach((ch, i) => (hist[i].push(v(ch.id)), hist[i].length > SW * 3 && hist[i].shift()));
     lastPush = sec;
+    traced.forEach((ch, i) => {
+      const x0 = CX + i * (SW + 2),
+        pts = hist[i],
+        ink = i % 2 ? 0x4b6a8a : 0xa3321f;
+      const y = val =>
+        RY +
+        RH -
+        1 -
+        ((Math.max(ch.range[0], Math.min(ch.range[1], val)) - ch.range[0]) / (ch.range[1] - ch.range[0])) * (RH - 1);
+      let prev = null;
+      for (let j = 0; j < pts.length; j += 3) {
+        const val = pts[j];
+        const px = x0 + SW - 1 - Math.floor((pts.length - 1 - j) / 3);
+        if (val == null || px < x0) {
+          prev = null;
+          continue;
+        }
+        const py = Math.round(y(val));
+        if (prev) P.line(prev[0], prev[1], px, py, ink);
+        else P.px(px, py, ink);
+        prev = [px, py];
+      }
+    });
 
-    S.range.sweep.rotation = c ? t * 2 : 0;
-    S.range.clear.update(!!c);
-    for (const [id, d] of S.press.dials) d.update(v(id), dt);
-    S.press.loaded.update(v('loaded'));
-    S.press.lox?.update(v('lox.temp'));
-    setText(S.tc.secs, c ? `${Math.ceil(c.clock)} s` : '---');
-    S.pad.cont.update(!!read && read.igniter);
-    S.pad.armed.update(!!c && c.clock <= 60);
-    S.pad.bus.update(v('bus'), dt);
-    S.pad.key.rotation = c && c.clock <= 1 ? 0.8 : 0;
+    // The range scope's sweep, with a fading trail.
+    if (c) {
+      const a = t * 2;
+      for (const [back, col] of [
+        [0.5, 0x1f4a32],
+        [0.25, 0x3f8a5a],
+        [0, 0x9ff0b8],
+      ])
+        P.line(
+          scope.x,
+          scope.y,
+          scope.x + Math.round((scope.r - 1) * Math.cos(a - back)),
+          scope.y + Math.round((scope.r - 1) * Math.sin(a - back)),
+          col,
+        );
+    }
+    pixelLamp(P, rangeLamp.x, rangeLamp.y, 3, 0x7fdc8a, !!c);
 
-    for (const p of pictures) p.update();
+    // The dials: a needle has weight, so it swings to the reading rather than jumping.
+    for (const d of [...dials, bus]) {
+      const val = v(d.id);
+      setText(
+        d.read,
+        val == null || typeof val !== 'number' ? '—' : Math.abs(val) >= 100 ? String(Math.round(val)) : val.toFixed(1),
+      );
+      const target = typeof val === 'number' ? val : chans[d.id].range[0];
+      d.shown += (target - d.shown) * Math.min(1, dt * 6);
+      dialNeedle(P, d.x, d.y, d.r, d.ang(d.shown));
+    }
+    for (const b of [loaded, lox]) {
+      if (!b) continue;
+      const val = v(b.ch.id);
+      const kk = val == null ? 0 : Math.max(0, Math.min(1, (val - b.ch.range[0]) / (b.ch.range[1] - b.ch.range[0])));
+      P.rect(b.x, b.y, Math.round(b.w * kk), 2, pal.band);
+      setText(b.t, `${b === loaded ? 'LOADED' : 'LOX'} ${val == null ? '—' : `${val.toFixed(1)} ${b.ch.unit}`}`);
+    }
+    setText(secs, c ? `${Math.ceil(c.clock)} s` : '---');
+    pixelLamp(P, contLamp.x, contLamp.y, 3, 0x7fdc8a, !!read && read.igniter);
+    pixelLamp(P, armLamp.x, armLamp.y, 3, 0xf0b440, !!c && c.clock <= 60);
+    const turned = c && c.clock <= 1;
+    if (turned) P.line(keyAt.x, keyAt.y, keyAt.x + 3, keyAt.y - 3, 0xefe6cf);
+    else P.rect(keyAt.x, keyAt.y - 4, 1, 4, 0xefe6cf);
 
     // Who sits where, who stands at the back, and what they are saying.
     const seat = seats();
@@ -347,24 +452,32 @@ export function blockhouseScene({ leave }) {
     STATIONS.forEach((st, i) => {
       const who = g.people[seat[st.id]];
       const present = who && !who.hidden && (c ? !away(who.id) : here.has(who.id));
-      chairs[i].update(present ? who : null, t);
-      talk[i].position.set(chairs[i].x, DESK_Y - 4);
+      const x = stX(i) + ST_W / 2;
+      if (present) {
+        pixelBack(P, x, SEAT_TOP, who);
+        if (who.id === 'you')
+          P.poly(
+            [
+              [x + 12, SEAT_TOP - 14],
+              [x + 19, SEAT_TOP - 14],
+              [x + 15.5, SEAT_TOP - 10],
+            ],
+            0xe8c66a,
+          );
+      }
+      talk[i].position.set(x * PX, DESK * PX - 4);
       talk[i].update(present ? who.bubble : null);
     });
-    standers.clear();
     const extra = [...here].map(id => g.people[id]).filter(p => p && !Object.values(seat).includes(p.id));
     extra.slice(0, 2).forEach((p, i) => {
-      const x = i ? W - 90 : 90,
-        y = FLOOR + 160;
-      standers.rect(x - 22, y - 120, 44, 70).fill(colorOf(p.color));
-      standers.circle(x, y - 140, 18).fill(0xe2b993);
-      if (p.hat) standers.rect(x - 22, y - 162, 44, 10).fill(colorOf(p.hat));
-      standers.rect(x - 18, y - 50, 14, 50).fill(0x2b2620);
-      standers.rect(x + 4, y - 50, 14, 50).fill(0x2b2620);
-      extraTalk[i].position.set(x, y - 166);
+      const x = i ? 302 : 18,
+        feet = 160;
+      pixelStanding(P, x, feet, p);
+      extraTalk[i].position.set(x * PX, (feet - 47) * PX);
       extraTalk[i].update(p.bubble);
     });
     for (let i = extra.length; i < 2; i++) extraTalk[i].update(null);
+    P.commit();
   }
 
   // Rebuild when the blockhouse itself changes (the new one is built, the move to the Cape, a new era).
