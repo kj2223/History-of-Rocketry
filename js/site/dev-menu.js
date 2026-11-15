@@ -6,7 +6,7 @@ import { SEASON } from '../data/campaign.js';
 import { stagesFor, skipWithRetries, STOPS } from '../dev/skip.js';
 import { startOver, readSave } from '../core/save.js';
 import { trace, traceError } from './playtest.js';
-import { RENDERER_KEY, pixiWanted } from '../stage/index.js';
+import { RENDERER_KEY, pixiWanted, PIXEL_KEY, pixelWanted } from '../stage/index.js';
 import { FILM_KEY, filmWanted } from '../stage/fx/film.js';
 import { CALM_KEY, calm } from '../stage/fx/calm.js';
 import { WEATHER_KEY, WEATHER_KINDS, forcedWeather } from '../stage/fx/weather.js';
@@ -111,6 +111,7 @@ function render() {
     <label><input type="checkbox" id="dev-canvas" ${pixiWanted() ? '' : 'checked'}> Old drawing: show the rooms rebuilt in PixiJS with the old canvas code, to compare</label>
     <label><input type="checkbox" id="dev-calm" ${calm() ? 'checked' : ''}> Calm effects: no screen shake, no flash of light at ignition or explosions, no film grain (also on when Windows asks for reduced motion)</label>
     <label>Weather <select id="dev-weather"><option value="">The day's own</option>${WEATHER_KINDS.map(k => `<option ${forcedWeather() === k ? 'selected' : ''}>${k}</option>`).join('')}</select> <span class="muted">Force the site's weather, to look at it</span></label>
+ <label><input type="checkbox" id="dev-pixel" ${pixelWanted() ? '' : 'checked'}> No pixel art: draw the scenes still on the pixel pass with smooth shapes, to compare</label>
     <label><input type="checkbox" id="dev-film" ${filmWanted() ? '' : 'checked'}> No film look: switch off the era's film grade (grain, colour, vignette) over the scenes</label>
     <label>Seed <input id="dev-seed" type="text" inputmode="numeric" size="9" value="${esc(state.seed)}" placeholder="random"> <span class="muted">Blank for a new one each time. A seed gives the same game again.</span></label>
     <p class="dev-status ${state.message.startsWith('Could not') ? 'bad' : ''}" role="status">${esc(state.message)}</p>
@@ -146,6 +147,10 @@ function onChange(e) {
     if (e.target.checked) localStorage.setItem(CALM_KEY, 'on');
     else localStorage.removeItem(CALM_KEY);
     trace('dev-calm', { on: e.target.checked });
+  } else if (e.target.id === 'dev-pixel') {
+    if (e.target.checked) localStorage.setItem(PIXEL_KEY, 'off');
+    else localStorage.removeItem(PIXEL_KEY);
+    trace('dev-pixel', { off: e.target.checked });
   } else if (e.target.id === 'dev-film') {
     if (e.target.checked) localStorage.setItem(FILM_KEY, 'off');
     else localStorage.removeItem(FILM_KEY);

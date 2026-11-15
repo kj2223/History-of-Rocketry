@@ -858,11 +858,16 @@ export function drawSiteLive(ctx, g, withPeople) {
 // Only the machinery, for the PixiJS site scene, which draws the buildings, the dressing, the windsock and flag, the
 // beacon, the sign, the truck, every flame, the smoke and the dust itself: the rack, the rocket, the load on the truck,
 // the Mercury Control screens, job bars, the marker and the hover label.
-export function drawSiteMachinery(ctx, g) {
-  hangarRack(ctx, g, true);
-  if (g.crewed) controlScreens(ctx, g);
-  rocketOnSite(ctx, g, false);
-  if (g.rocket.where === 'truck') rocketOnTruck(ctx, g);
+// part 'art': only the pictures (the rack, the screens, the rockets); 'labels': only the job bars, the marker and the
+// hover label, which the pixel art pass keeps sharp (js/stage/pixelate.js).
+export function drawSiteMachinery(ctx, g, part = 'all') {
+  if (part !== 'labels') {
+    hangarRack(ctx, g, true);
+    if (g.crewed) controlScreens(ctx, g);
+    rocketOnSite(ctx, g, false);
+    if (g.rocket.where === 'truck') rocketOnTruck(ctx, g);
+  }
+  if (part === 'art') return;
   for (const job of g.jobs) jobBar(ctx, job);
   if (g.marker != null) {
     ctx.fillStyle = 'rgba(255,240,180,.8)';
@@ -874,6 +879,8 @@ export function drawSiteMachinery(ctx, g) {
       g.hover.room === 'truck' && !g.crewed ? { ...g.hover, name: SITES[g.site || 'white-sands'].truck } : g.hover,
     );
 }
+// Whether the labels part has anything to draw.
+export const siteLabelsShown = g => g.jobs.length > 0 || g.marker != null || !!g.hover;
 
 // The baked buildings layer at the display's scale, for the PixiJS site scene: the canvas and the key it was baked for.
 export function bakedSite(g, s) {
