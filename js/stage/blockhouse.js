@@ -8,6 +8,7 @@ import { Container } from '../vendor/pixi.min.mjs';
 import { g as game, countChannels, stageChannels, conducting } from '../game.js';
 import { uiEra } from '../site/draw.js';
 import { paintPad } from './pixel-pad.js';
+import { hdLayer, hdWanted } from './fx/hd.js';
 import { blockhouseState } from '../data/campaign.js';
 import { inside as insideOf } from '../site/interiors.js';
 import { paletteFor, label, setText, speech, outButton } from './kit.js';
@@ -65,6 +66,9 @@ export function blockhouseScene({ leave }) {
   const back = pixelLayer(320, 180, { mx: 80, my: 40 }),
     live = pixelLayer();
   world.addChild(back.sprite, live.sprite);
+  // The 2D-HD light over the pixels and under the type, so the readings stay sharp and bright (fx/hd.js).
+  const hd = hdLayer(320, 180, { mx: 80, my: 40 });
+  world.addChild(hd.root);
   const type = new Container(); // the full-resolution type, over the pixels
   world.addChild(type);
   // A label at art-pixel position (x, y).
@@ -478,6 +482,53 @@ export function blockhouseScene({ leave }) {
     });
     for (let i = extra.length; i < 2; i++) extraTalk[i].update(null);
     P.commit();
+    hd.root.visible = hdWanted();
+    if (hd.root.visible) light(c, read, lit);
+  }
+
+  // The light: the room's own lamps, the daylight down the periscopes, and the halo of everything lit on the panel.
+  function light(c, read, lit) {
+    const t = g.time || 0;
+    hd.begin(built ? 0x9696a0 : 0x77737a);
+    if (built)
+      for (const lx of [60, 160, 260]) {
+        hd.light(lx, 30, 95, 75, 0xf2f0e6, 0.5);
+        hd.lightBeam(lx, 10, 36, 96, FL - 10, 0, 0xf2f0e6, 0.12);
+        hd.beam(lx, 11, 34, 92, FL - 4, 0, 0xf4f2ea, 0.07);
+        hd.motes(lx, 12, 30, 80, FL - 14, 0, 0xfff8e4, 26, t, 0.4);
+        hd.glow(lx, 9, 24, 0xfffbea, 0.55, 4);
+        hd.glow(lx, 12, 46, 0xf4f0dc, 0.12, 16);
+      }
+    else {
+      // The one bare bulb: a warm pool under it and a cone of light through the dust.
+      hd.light(94, 40, 160, 120, 0xffd9a0, 0.62);
+      hd.lightBeam(94, 20, 6, 150, FL, 0, 0xffd9a0, 0.18);
+      hd.beam(94, 20, 4, 130, FL + 10, 0, 0xffdca0, 0.12);
+      hd.motes(94, 22, 6, 120, FL - 10, 0, 0xfff0c8, 40, t, 0.55);
+      hd.glow(94, 19, 7, 0xfff4d0, 0.95);
+      hd.glow(94, 21, 34, 0xffd890, 0.22);
+    }
+    // The desk: a little light thrown down on to the panel, so the faces read.
+    hd.light(stX(0) + (4 * ST_W + 3 * ST_GAP) / 2, FACE_Y + 14, 175, 34, 0xffffff, 0.3);
+    // Daylight down the periscopes; once she lights, the glass glows with the flame.
+    const flying = g.rocket?.where === 'flying';
+    for (const [cx, cy] of scopes) {
+      hd.light(cx, cy, R + 26, R + 26, 0xbcd8ff, 0.35);
+      hd.glow(cx - R / 3, cy - R / 3, R * 0.7, 0xffffff, 0.07);
+      if (flying) hd.glow(cx, cy + R / 2, R + 14, 0xffa860, 0.22);
+    }
+    // The count drum and the lamps: a bloom round each lit thing.
+    hd.glow(CX + 34, 30, 36, pal.count, c ? 0.16 : 0.05, 10);
+    for (const [id, l] of Object.entries(lampAt)) if (lit[id]) hd.glow(l.x, l.y, 11, l.color, 0.55);
+    if (c) {
+      hd.glow(rangeLamp.x, rangeLamp.y, 8, 0x7fdc8a, 0.45);
+      hd.glow(scope.x, scope.y, 15, 0x9ff0b8, 0.14);
+      hd.glow(tx + 21, 87.5, 22, pal.count, 0.1, 7);
+      if (c.clock <= 60) hd.glow(armLamp.x, armLamp.y, 8, 0xf0b440, 0.45);
+    }
+    if (read && read.igniter) hd.glow(contLamp.x, contLamp.y, 8, 0x7fdc8a, 0.45);
+    hd.vignette(0.5, 160, 70);
+    hd.commit();
   }
 
   // Rebuild when the blockhouse itself changes (the new one is built, the move to the Cape, a new era).
