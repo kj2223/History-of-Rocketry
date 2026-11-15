@@ -12,6 +12,7 @@ import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra, yearOf 
 import { dayOf } from '../core/calendar.js';
 import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture } from './kit.js';
 import { moonWall } from './moon-wall.js';
+import { sceneLight } from './fx/hd.js';
 import { roomMood } from './fx/moods.js';
 
 // The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
@@ -435,6 +436,7 @@ export function controlScene() {
   const deskLayer = new Container();
   const monitor = new Container();
   root.addChild(shell, racks, deskLayer, monitor);
+  let light = null;
   let map = null,
     tv = null,
     lastW = 0,
@@ -778,6 +780,28 @@ export function controlScene() {
       lastW = screen.width;
       lastH = screen.height;
       buildShell(screen.width, screen.height);
+      // 2D-HD light (fx/hd.js), the size of the screen: a dim room lit by its big screens, the desks in a pool of light.
+      light?.hd.destroy();
+      const w = screen.width,
+        h = screen.height;
+      light = sceneLight(
+        root,
+        hd => {
+          hd.begin(0xa2a4ac);
+          for (const [r, c, k] of [
+            [L.map, 0xbcd6f4, 0.4],
+            [L.tv, 0xd8e4f0, 0.25],
+          ]) {
+            if (!r) continue;
+            const [x, y, rw, rh] = r;
+            hd.light(x + rw / 2, y + rh / 2, rw * 0.85, rh * 1.4, c, k);
+            hd.glow(x + rw / 2, y + rh / 2, rw * 0.62, c, k * 0.22, rh * 0.85);
+          }
+          hd.light(w / 2, h * 0.8, w * 0.6, h * 0.28, 0xfff6e6, 0.35);
+          hd.vignette(0.4, w / 2, h * 0.45);
+        },
+        { w, h, mx: 0, my: 0 },
+      );
     }
     const { back, front } = controlDesks(g);
     const key = [...back, ...front].map(d => `${d.id}:${d.label}:${d.who?.color}:${d.who?.hat}`).join('|');
@@ -821,6 +845,7 @@ export function controlScene() {
     if (map.visible) map.update();
     tv.update();
     tele.draw(c);
+    light.update(g.time || 0);
   }
 
   const stale = () => uiEra(g) !== era || roomOf(g) !== place;

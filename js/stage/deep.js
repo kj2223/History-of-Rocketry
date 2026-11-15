@@ -16,6 +16,7 @@ import { MOON_KM, MOON_RADIUS } from '../lunar.js';
 import { PLANETS, ROUTES, planetAt, craftAt, routeReach } from '../data/deep-space.js';
 import { yearOf } from '../site/draw.js';
 import { label, setText, outButton, puffTexture, standingFigure } from './kit.js';
+import { sceneLight } from './fx/hd.js';
 import { lookOf } from './control.js';
 
 const W = 1600,
@@ -181,6 +182,25 @@ export function deepScene({ leave }) {
   glow.tint = plotting ? 0x9fb8a8 : look.pool;
   glow.alpha = 0.16;
   world.addChild(room, glow);
+  // 2D-HD light (fx/hd.js) on the room only, under the board, so no trace or reading is touched: a dim room lit by
+  // the board.
+  const light = sceneLight(
+    world,
+    hd => {
+      hd.begin(0x8e9098);
+      hd.light(BOARD.x + BOARD.w / 2, BOARD.y + BOARD.h / 2, BOARD.w * 0.9, BOARD.h * 1.3, 0xd8e4ee, 0.4);
+      hd.glow(
+        BOARD.x + BOARD.w / 2,
+        BOARD.y + BOARD.h / 2,
+        BOARD.w * 0.7,
+        plotting ? 0x9fb8a8 : look.pool,
+        0.08,
+        BOARD.h,
+      );
+      hd.vignette(0.45, 800, 420);
+    },
+    { at: 2, overPixels: false },
+  );
 
   // ---- the board: frame, face, the fixed drawing (rebuilt when the mode changes), the moving drawing ----
   const frame = new Graphics()
@@ -687,6 +707,7 @@ export function deepScene({ leave }) {
         .rect(1176, 618 - h, 308, 3)
         .fill(0xd8ceb0);
     }
+    light.update(g.time || 0);
   }
 
   const stale = () => false;
