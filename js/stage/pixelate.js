@@ -42,8 +42,11 @@ void main(void) {
   vec4 c = texture(uTexture, vTextureCoord);
   vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
   float d = bayer(floor(screen / uPix)) - 0.5;
-  vec3 q = clamp(floor(c.rgb * uLevels + 0.5 + d) / uLevels, 0.0, 1.0);
-  finalColor = vec4(q, c.a);
+  // The colour is stepped before its transparency is applied, so a see-through haze over the smooth backdrop dithers
+  // like the rest instead of breaking into a checkerboard.
+  vec3 rgb = c.a > 0.0 ? c.rgb / c.a : c.rgb;
+  vec3 q = clamp(floor(rgb * uLevels + 0.5 + d) / uLevels, 0.0, 1.0);
+  finalColor = vec4(q * c.a, c.a);
 }`;
 function ditherFilter() {
   return new Filter({
@@ -76,7 +79,7 @@ export const pixelSize = h => Math.max(2, Math.round(h / ART_H));
 function sort(node, crisp, pic, type, under) {
   if (node.passPicture) return; // the pass's own picture, when it sits in the scene
   if (node.smooth) {
-    under.push(node);
+    if (node.visible) under.push(node); // one the scene has hidden stays hidden
     return;
   }
   const isCrisp = crisp || !!node.crisp;

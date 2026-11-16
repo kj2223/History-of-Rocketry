@@ -162,8 +162,13 @@ export function siteScene() {
   // The 2D-HD light for this frame (in site units across the screen).
   function hdLight(L, lf, vw, s, camX) {
     const on = hdWanted();
-    backFar.smooth = backMid.smooth = on;
-    backMid.filters = on ? [farBlur] : null;
+    // Only the sky and the far distance go soft: the two far ranges (or the sea). The near dunes stay in pixels, so
+    // the ground the site stands on stays sharp.
+    backFar.smooth = on;
+    for (const far of [ranges[0][0], ranges[1][0], sea, glints]) {
+      far.smooth = on;
+      far.filters = on ? [farBlur] : null;
+    }
     clouds.filters = on ? [cloudBlur] : null;
     horizonHaze.visible = on;
     farBlur.strength = 1.6 * s;
