@@ -92,6 +92,15 @@ test('a saved morning resumes as the same round on the same day, and the hidden 
   assert.deepEqual(g.flagged, { fins: true });
 });
 
+test('a bad checkpoint the game writes itself falls back to the morning before it', () => {
+  newGame(31);
+  const good = JSON.parse(JSON.stringify(checkpoint()));
+  const storage = memoryStorage();
+  writeSave(storage, good);
+  writeSave(storage, { ...good, beat: 'flight' });
+  assert.deepEqual(readSave(storage, checkCheckpoint), good);
+});
+
 test('a bad or foreign save is refused and never resumed', () => {
   newGame(3);
   const good = exportSave(checkpoint());

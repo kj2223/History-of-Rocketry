@@ -277,7 +277,8 @@ export function issueReport(log, markEntry, lines = 20) {
   let n = lines,
     body = make(n);
   while (n > 0 && encodeURIComponent(body).length + encodeURIComponent(title).length > URL_ROOM) body = make((n -= 4));
-  if (encodeURIComponent(body).length > URL_ROOM) body = cut(body, 1500);
+  // Cut by the encoded length: a dash or a curly quote takes 9 characters in the link.
+  while (encodeURIComponent(body).length > URL_ROOM) body = cut(body, Math.floor(body.length * 0.8));
   const url = `${ISSUE_URL}?${new URLSearchParams({ title: cut(title, 120), body, labels: 'playtest' })}`;
   return { title, body, url };
 }
