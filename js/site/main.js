@@ -42,7 +42,11 @@ import {
   swapBackup,
   memoryStorage,
   KEYS,
+  MANAGEMENT,
 } from '../core/save.js';
+import { showTitle, hideTitle } from './title.js';
+import { newManagement, checkManagement, managementWhere } from '../manage/state.js';
+import { showManagement, hideManagement } from '../manage/screen.js';
 import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
 import { startDevMenu, clearDevFlag } from './dev-menu.js';
 import { drawInterior, interiorOf, interiorButtonAt, doorRight } from './interiors.js';
@@ -205,6 +209,7 @@ window.addEventListener('pointerup', () => {
 });
 
 window.addEventListener('keydown', e => {
+  if (screen !== 'flight') return; // the title screen and the management game take no Flight Director keys
   if (e.target.tagName === 'INPUT') return;
   if (consoleKey(e)) return;
   keys[e.key] = true;
@@ -437,6 +442,7 @@ bindRoom({
     const c = readBackup(storage, checkCheckpoint);
     return c ? where(c) : null;
   },
+  title: () => toTitle(),
   restore: () => {
     if (!swapBackup(storage, checkCheckpoint)) return;
     clearDevFlag();
@@ -482,6 +488,12 @@ let last = performance.now(),
   inScene = false,
   staged = false;
 function frame(now) {
+  // Off the Flight Director's game (the title screen, a management game) its clock stands still.
+  if (screen !== 'flight') {
+    last = now;
+    requestAnimationFrame(frame);
+    return;
+  }
   const steps = frameSteps((now - last) / 1000),
     dt = Math.min(MAX_STEP, (now - last) / 1000);
   playtestFrame(now - last);
@@ -566,6 +578,68 @@ trace('load', { found: !!saved, beat: saved?.beat ?? null, day: saved?.day ?? nu
 if (saved) newGame(saved.seed, saved);
 else newGame(seed);
 startDevMenu({ storage, check: checkCheckpoint, fresh });
+
+// The title screen: Flight Director or Management, each with its own saves. A seeded replay (?seed=) or ?mode=flight
+// goes straight into the Flight Director's game, as before; so does any jump from the dev menu.
+let screen = 'flight';
+function play() {
+  screen = 'flight';
+  hideTitle($('title'));
+  hideManagement($('manage'));
+  trace('mode', { mode: 'flight' });
+}
+function manage(game) {
+  screen = 'management';
+  hideTitle($('title'));
+  showManagement($('manage'), game, {
+    back: toTitle,
+    save: m => {
+      try {
+        writeSave(storage, m, MANAGEMENT);
+      } catch (e) {
+        traceError('save-failed', e);
+      }
+    },
+  });
+  trace('mode', { mode: 'management', day: game.day });
+}
+function toTitle() {
+  screen = 'title';
+  if (g.room === 'game') g.room = g.beat === 'seasonEnd' ? 'seasonEnd' : null; // from the Game menu
+  hideManagement($('manage'));
+  const flight = readSave(storage, checkCheckpoint),
+    managed = readSave(storage, checkManagement, MANAGEMENT);
+  showTitle($('title'), {
+    flight: {
+      saved: flight ? where(flight) : null,
+      onContinue: play, // the game loaded at start (or left for this screen) is still running underneath
+      onNew: () => {
+        startOver(storage, checkCheckpoint);
+        clearDevFlag();
+        newGame();
+        fresh();
+        play();
+      },
+    },
+    management: {
+      saved: managed ? managementWhere(managed) : null,
+      replaces: 'The one you have now is replaced.', // kept in the save as a backup, but nothing restores it yet
+      onContinue: () => manage(managed),
+      onNew: () => {
+        startOver(storage, checkManagement, MANAGEMENT);
+        const game = newManagement();
+        try {
+          writeSave(storage, game, MANAGEMENT);
+        } catch (e) {
+          traceError('save-failed', e);
+        }
+        manage(game);
+      },
+    },
+  });
+}
+document.addEventListener('aa-flight', play);
+if (!seed && new URLSearchParams(location.search).get('mode') !== 'flight') toTitle();
 bindConsoleHud();
 startStage($('stage'), {
   leave: () => closeRoom(),
