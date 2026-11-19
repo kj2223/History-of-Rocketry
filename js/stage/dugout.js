@@ -10,6 +10,18 @@ import { g as game, kit, standChannels, stageChannels } from '../game.js';
 import { standStructure, roundShape, skyFor, uiEra, PLACES, GROUND } from '../site/draw.js';
 import { atPlace } from '../data/white-sands.js';
 import { sceneLight } from './fx/hd.js';
+import { PX, pixelLayer } from './pixel.js';
+import { paintDugout } from './dugout-art.js';
+import { pixelSize } from './pixelate.js';
+
+// Hand-painted in pixel art (dugout-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
+const pixelOn = () => {
+  try {
+    return localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    return true;
+  }
+};
 import {
   paletteFor,
   label,
@@ -61,6 +73,14 @@ export function dugoutScene({ leave }) {
   const back = new Graphics();
   world.addChild(back);
   const sky = skyFor(g.clock % 1440).map(colorOf);
+  const painted = pixelOn();
+  const art = painted ? pixelLayer(320, 180, { mx: 160, my: 60 }) : null;
+  if (painted) {
+    paintDugout(art, { sky, cape, dug: DUG, surface: SURFACE, standX: STAND_X });
+    art.commit();
+    world.addChildAt(art.sprite, 0);
+    back.visible = false;
+  }
   const mix = (a, b, k) =>
     (Math.round(((a >> 16) & 255) * (1 - k) + ((b >> 16) & 255) * k) << 16) |
     (Math.round(((a >> 8) & 255) * (1 - k) + ((b >> 8) & 255) * k) << 8) |
@@ -198,6 +218,7 @@ export function dugoutScene({ leave }) {
     ])
     .fill(0x5b544a);
   world.addChild(pit, standPic);
+  pit.visible = !painted;
   // The cable from the stand back to the dugout.
   const cable = new Graphics()
     .moveTo(DUG.x + DUG.w + 30, SURFACE + 6)
@@ -246,6 +267,7 @@ export function dugoutScene({ leave }) {
   dug.rect(766, 68, 42, 22).fill(0x323b2e);
   dug.rect(806, 72, 10, 14).fill(0x1d2420);
   world.addChild(dug);
+  dug.visible = !painted;
   // A lamp hanging from the roof, and its light.
   const bulb = new Graphics();
   bulb.rect(455, DUG.y, 2, 34).fill(0x222222);
@@ -391,9 +413,14 @@ export function dugoutScene({ leave }) {
     wasFiring = false;
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    const k = Math.min(roomW / W, screen.height / H);
+    let k = Math.min(roomW / W, screen.height / H);
+    // Painted, each art pixel is a whole number of screen pixels, the pixel pass's own size where it fits, and the
+    // room sits on the pass's grid.
+    const ps = pixelSize(screen.height);
+    if (painted) k = Math.max(1, Math.min(ps, Math.floor(k * PX))) / PX;
     world.scale.set(k);
     base = { x: (roomW - W * k) / 2, y: (screen.height - H * k) / 2 };
+    if (painted) base = { x: Math.round(base.x / ps) * ps, y: Math.round(base.y / ps) * ps };
     out.position.set(10, screen.height - 40 - 46);
     const t = g.time,
       s = g.stand,
