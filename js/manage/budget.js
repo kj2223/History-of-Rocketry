@@ -3,6 +3,7 @@
 // move money between them at any time. Rules for later (overspending slips dates, capped; probe windows) are in the
 // project's management/BUDGET-RULES.md.
 import { dayOf } from '../core/calendar.js';
+import { combined } from './pressure.js';
 
 // NASA's appropriations by fiscal year, millions of dollars of the day (NASA historical data books, rounded). Years past
 // the table carry the last figure until it is extended.
@@ -54,15 +55,16 @@ export function recordFactor(flown = []) {
 }
 
 // The centre's money for the fiscal year containing `day`: the year's figure, the part of the year left when the game
-// began (the first year is prorated), moved by the record. Millions of dollars.
-export function appropriation(day, startDay, flown = []) {
+// began (the first year is prorated), moved by the record and the centre's standing with Congress and the press
+// (pressure.js), together at most a tenth either way. Millions of dollars.
+export function appropriation(day, startDay, flown = [], standing = 0) {
   const year = fiscalYear(day),
     days = year.end - year.start + 1,
     quarter = year.fy === 'TQ' ? 0.25 : 1, // a quarter's money for the transition quarter
     left = Math.min(1, (year.end - Math.max(year.start, startDay) + 1) / days);
   return {
     fy: year.fy,
-    total: nasaFor(year.fy) * quarter * CAPE_SHARE * left * recordFactor(flown),
+    total: nasaFor(year.fy) * quarter * CAPE_SHARE * left * combined(recordFactor(flown), standing),
     start: year.start,
     end: year.end,
   };
