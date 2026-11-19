@@ -18,6 +18,17 @@ import { yearOf } from '../site/draw.js';
 import { label, setText, outButton, puffTexture, standingFigure } from './kit.js';
 import { sceneLight } from './fx/hd.js';
 import { lookOf } from './control.js';
+import { PX, pixelLayer } from './pixel.js';
+import { pixelPen, paintDeepRoom, paintDeepBoard } from './deep-art.js';
+
+// Hand-painted in pixel art (deep-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
+const pixelOn = () => {
+  try {
+    return localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    return true;
+  }
+};
 
 const W = 1600,
   H = 900,
@@ -181,7 +192,15 @@ export function deepScene({ leave }) {
   glow.height = BOARD.h * 1.6;
   glow.tint = plotting ? 0x9fb8a8 : look.pool;
   glow.alpha = 0.16;
-  world.addChild(room, glow);
+  const painted = pixelOn();
+  // Painted: the room behind the light (with a margin, for wide windows), the board and its furniture over it, the
+  // board's fixed drawing for the mode, and its live drawing, repainted each frame.
+  const roomArt = painted ? pixelLayer(320, 180, { mx: 80, my: 40 }) : null,
+    boardArt = painted ? pixelLayer() : null,
+    modeArt = painted ? pixelLayer() : null,
+    liveArt = painted ? pixelLayer() : null;
+  if (painted) world.addChild(roomArt.sprite);
+  else world.addChild(room, glow);
   // 2D-HD light (fx/hd.js) on the room only, under the board, so no trace or reading is touched: a dim room lit by
   // the board.
   const light = sceneLight(
@@ -199,7 +218,7 @@ export function deepScene({ leave }) {
       );
       hd.vignette(0.45, 800, 420);
     },
-    { at: 2, overPixels: false },
+    { at: painted ? 1 : 2, overPixels: false },
   );
 
   // ---- the board: frame, face, the fixed drawing (rebuilt when the mode changes), the moving drawing ----
@@ -220,10 +239,21 @@ export function deepScene({ leave }) {
   title.position.set(BOARD.x + 18, BOARD.y + 14);
   const note = label('', 13, plotting ? 0x8fa49a : look.dim, { ax: 1, ay: 1 });
   note.position.set(BOARD.x + BOARD.w - 14, BOARD.y + BOARD.h - 10);
-  world.addChild(frame, face, fixed, moving, marks, title, note);
   const INK = plotting ? 0xe8c66a : look.ink,
     DIM = plotting ? 0x4f6660 : look.rule,
     TEXT = plotting ? 0xb9c4b8 : look.dim;
+  const faceColor = plotting ? 0x101a1c : look.glass;
+  if (painted) {
+    paintDeepRoom(roomArt, { plotting, look, board: BOARD, floor: FLOOR });
+    roomArt.commit();
+    paintDeepBoard(boardArt, { plotting, look, board: BOARD, dim: DIM });
+    boardArt.commit();
+    world.addChild(boardArt.sprite, modeArt.sprite, fixed, liveArt.sprite, marks, title, note);
+  } else world.addChild(frame, face, fixed, moving, marks, title, note);
+  // The board's pens: pixel pens clipped to the board when painted, the Graphics otherwise.
+  const boardClip = [BOARD.x, BOARD.y, BOARD.w, BOARD.h];
+  const modePen = painted ? pixelPen(modeArt, { clip: boardClip, bg: faceColor }) : null;
+  const ink = painted ? pixelPen(liveArt, { clip: boardClip, bg: faceColor }) : moving;
 
   // ---- the stations' lamps under the board ----
   const lamps = new Container();
@@ -273,7 +303,8 @@ export function deepScene({ leave }) {
   clockBig.position.set(1330, 188);
   const clockSmall = label('', 15, plotting ? 0xc8a070 : look.dim, { spacing: 1 });
   clockSmall.position.set(1330, 250);
-  world.addChild(clock, clockBig, clockSmall);
+  if (painted) world.addChild(clockBig, clockSmall);
+  else world.addChild(clock, clockBig, clockSmall);
 
   // ---- the monitor: what she sees, near the end ----
   const monitor = new Container();
@@ -319,7 +350,8 @@ export function deepScene({ leave }) {
   paper.addChild(paperBg, paperText);
   const paperMask = new Graphics().rect(1170, 300, 330, 320).fill(0xffffff);
   paper.mask = paperMask;
-  world.addChild(paper, paperMask, tty);
+  world.addChild(paper, paperMask);
+  if (!painted) world.addChild(tty);
   // Morgan by the board, moving the pin.
   const morgan = standingFigure();
   morgan.position.set(1085, FLOOR);
@@ -342,16 +374,22 @@ export function deepScene({ leave }) {
   function build(m) {
     fixed.removeChildren().forEach(c => c.destroy({ children: true }));
     marks.removeChildren().forEach(c => c.destroy({ children: true }));
+    modeArt?.clear();
+    // The grid is painted with the board (deep-art.js) when the room is painted.
     const grid = new Graphics();
     for (let x = BOARD.x + 40; x < BOARD.x + BOARD.w; x += 40)
       grid.moveTo(x, BOARD.y + 6).lineTo(x, BOARD.y + BOARD.h - 6);
     for (let y = BOARD.y + 40; y < BOARD.y + BOARD.h; y += 40)
       grid.moveTo(BOARD.x + 6, y).lineTo(BOARD.x + BOARD.w - 6, y);
     grid.stroke({ width: 1, color: DIM, alpha: 0.45 });
-    fixed.addChild(grid);
+    if (painted) grid.destroy();
+    else fixed.addChild(grid);
+    // Graphics for the smooth drawing, the pixel pen for the painted one; either way the same calls.
+    const G = () => (painted ? modePen : new Graphics());
+    const put = (...items) => fixed.addChild(...items.filter(i => !i.isPixelPen));
     if (m === 'cruise' || m === 'moonProbe') {
       const { x0, x1, mid } = em();
-      const earth = new Graphics()
+      const earth = G()
         .circle(x0, mid, 28)
         .fill(0x2f5f8c)
         .poly([
@@ -379,14 +417,16 @@ export function deepScene({ leave }) {
       moon.anchor.set(0.5);
       moon.position.set(x1, mid);
       moon.width = moon.height = 34;
-      const path = new Graphics();
+      const path = G();
       for (let i = 0; i <= 60; i += 2) {
         const d0 = (MOON_KM * i) / 60,
           d1 = (MOON_KM * (i + 1)) / 60;
         path.moveTo(emX(d0), emY(d0)).lineTo(emX(d1), emY(d1));
       }
       path.stroke({ width: 2, color: TEXT, alpha: 0.5 });
-      const axis = new Graphics().moveTo(x0, BOARD.y + BOARD.h - 60).lineTo(x1, BOARD.y + BOARD.h - 60);
+      const axis = G()
+        .moveTo(x0, BOARD.y + BOARD.h - 60)
+        .lineTo(x1, BOARD.y + BOARD.h - 60);
       for (let k = 100000; k < MOON_KM; k += 100000) {
         axis.moveTo(emX(k), BOARD.y + BOARD.h - 66).lineTo(emX(k), BOARD.y + BOARD.h - 54);
         const t = label(`${k / 1000},000 km`, 13, TEXT);
@@ -398,7 +438,11 @@ export function deepScene({ leave }) {
         mn = label(`MOON  ${fmt(MOON_KM)} KM`, 14, TEXT, { spacing: 2 });
       en.position.set(x0, mid + 50);
       mn.position.set(x1 - 40, mid + 46);
-      fixed.addChild(path, axis, earth, moon, en, mn);
+      put(path, axis, earth, en, mn);
+      if (painted) {
+        modeArt.disc(moon.texture.source.resource, Math.round(x1 / PX), Math.round(mid / PX), 3);
+        moon.destroy();
+      } else fixed.addChild(moon);
     } else if (m === 'approach') {
       const moon = new Sprite(moonTexture());
       moon.anchor.set(0.5);
@@ -414,14 +458,14 @@ export function deepScene({ leave }) {
       sun.scale.set(1.1);
       sun.tint = 0xffd27a;
       sun.blendMode = 'add';
-      const orbits = new Graphics().circle(cx, cy, 6).fill(0xffe2a0);
+      const orbits = G().circle(cx, cy, 6).fill(0xffe2a0);
       const reach = routeReach(id);
       for (const [pid, p] of Object.entries(PLANETS)) {
         if (p.au > reach * 1.05) continue;
         orbits.circle(cx, cy, rad(p.au)).stroke({ width: 1, color: TEXT, alpha: 0.35 });
       }
       // The whole route as planned, dashed.
-      const plan = new Graphics();
+      const plan = G();
       for (const craft of ROUTES[id]) {
         const L = craft.legs;
         for (let d = L[0].day; d < L[L.length - 1].day; d += 6) {
@@ -432,8 +476,8 @@ export function deepScene({ leave }) {
         }
       }
       plan.stroke({ width: 1.5, color: INK, alpha: 0.35 });
-      orbits.mask = boardMask;
-      fixed.addChild(sun, orbits, plan);
+      if (!painted) orbits.mask = boardMask;
+      put(sun, orbits, plan);
       // The flight plan's list down the right of the board: every place each craft passes, and when.
       let y = BOARD.y + 60;
       const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -497,9 +541,11 @@ export function deepScene({ leave }) {
 
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    const s = Math.min(roomW / W, screen.height / H);
+    let s = Math.min(roomW / W, screen.height / H);
+    // Painted, a whole number of screen pixels to each art pixel, so every pixel is the same size.
+    if (painted) s = Math.max(1, Math.floor(s * PX)) / PX;
     world.scale.set(s);
-    world.position.set((roomW - W * s) / 2, (screen.height - H * s) / 2);
+    world.position.set(Math.round((roomW - W * s) / 2), Math.round((screen.height - H * s) / 2));
     out.position.set(10, screen.height - 86);
 
     const m = deepMode(g);
@@ -509,7 +555,8 @@ export function deepScene({ leave }) {
       mode = m;
       build(m);
     }
-    moving.clear();
+    ink.clear();
+    liveArt?.clear();
     const here = SEASON[g.roundIndex],
       L = g.lunar;
     let tv = null; // what the monitor shows: { ground: k } for Ranger's pictures, { planet } on encounter days
@@ -523,15 +570,15 @@ export function deepScene({ leave }) {
         const back = d < peak - 1;
         peak = Math.max(peak, d);
         const y = emY(d) + (back ? 40 * (1 - d / peak) + 10 : 0);
-        if (first) moving.moveTo(emX(d), y);
-        else moving.lineTo(emX(d), y);
+        if (first) ink.moveTo(emX(d), y);
+        else ink.lineTo(emX(d), y);
         first = false;
       }
-      moving.stroke({ width: 4, color: INK });
+      ink.stroke({ width: 4, color: INK });
       const back = L.dist < peak - 1;
       const hx = emX(L.dist),
         hy = emY(L.dist) + (back ? 40 * (1 - L.dist / Math.max(1, peak)) + 10 : 0);
-      moving.circle(hx, hy, 9).fill(0xffffff).circle(hx, hy, 9).stroke({ width: 2, color: 0x222222 });
+      ink.circle(hx, hy, 9).fill(0xffffff).circle(hx, hy, 9).stroke({ width: 2, color: 0x222222 });
       drawLamps(STATIONS.early, L.station);
       setText(clockBig, `HOUR ${Math.floor(L.h)}`);
       setText(clockSmall, `${fmt(Math.round(L.dist / 1000) * 1000)} KM FROM EARTH`);
@@ -548,22 +595,31 @@ export function deepScene({ leave }) {
       moon.width = moon.height = r * 2;
       const cx = moon.x,
         cy = moon.y;
+      // Painted, the Moon is drawn into the board's pixels at its size this frame.
+      if (painted) {
+        moon.visible = false;
+        liveArt.disc(
+          moon.texture.source.resource,
+          Math.round(cx / PX),
+          Math.round(cy / PX),
+          Math.max(2, Math.round(r / PX)),
+        );
+      }
       if (L.vehicle === 'ranger') {
         moving
           .moveTo(cx - 10, cy)
           .lineTo(cx + 10, cy)
           .moveTo(cx, cy - 10)
           .lineTo(cx, cy + 10);
-        moving.stroke({ width: 2.5, color: 0x6fc88a });
+        ink.stroke({ width: 2.5, color: 0x6fc88a });
         const off = (r * (L.predicted || 0)) / MOON_RADIUS;
-        moving.circle(cx + off * 0.8, cy - off * 0.6, 9).stroke({ width: 2.5, color: 0xe8c66a });
+        ink.circle(cx + off * 0.8, cy - off * 0.6, 9).stroke({ width: 2.5, color: 0xe8c66a });
         if (L.video) tv = { ground: 1 - Math.min(1, L.minutes / Math.max(1, L.lead || 20)) };
         else if (L.video === false) tv = { none: 'NO VIDEO' };
       } else {
         const off = Math.min(BOARD.w * 0.5, r * (1 + (L.predicted || 0) / MOON_RADIUS / 12));
-        for (let y = BOARD.y + 8; y < BOARD.y + BOARD.h - 8; y += 16)
-          moving.moveTo(cx + off, y).lineTo(cx + off, y + 8);
-        moving.stroke({ width: 2.5, color: 0xe8c66a });
+        for (let y = BOARD.y + 8; y < BOARD.y + BOARD.h - 8; y += 16) ink.moveTo(cx + off, y).lineTo(cx + off, y + 8);
+        ink.stroke({ width: 2.5, color: 0xe8c66a });
       }
       drawLamps(STATIONS.early, 'Goldstone');
       setText(clockBig, L.minutes > 0 ? `${Math.ceil(L.minutes)} MIN` : L.vehicle === 'ranger' ? 'IMPACT' : 'PASSED');
@@ -587,10 +643,10 @@ export function deepScene({ leave }) {
         setText(note, 'Not to scale');
         const k = step ? 0.85 : 0.08;
         const d = MOON_KM * k;
-        moving.moveTo(emX(0), emY(0));
-        for (let i = 1; i <= 30; i++) moving.lineTo(emX((d * i) / 30), emY((d * i) / 30));
-        moving.stroke({ width: 4, color: INK });
-        moving.circle(emX(d), emY(d), 9).fill(0xffffff);
+        ink.moveTo(emX(0), emY(0));
+        for (let i = 1; i <= 30; i++) ink.lineTo(emX((d * i) / 30), emY((d * i) / 30));
+        ink.stroke({ width: 4, color: INK });
+        ink.circle(emX(d), emY(d), 9).fill(0xffffff);
         if (step) tv = { planet: 'moon' };
         setText(clockBig, `DAY ${Math.max(0, day - here.start)}`);
         setText(clockSmall, `${fmt(Math.round(d / 1000) * 1000)} KM FROM EARTH`);
@@ -604,8 +660,8 @@ export function deepScene({ leave }) {
         for (const [pid, p] of Object.entries(PLANETS)) {
           if (p.au > reach * 1.05) continue;
           const [x, y] = at(...planetAt(pid, day));
-          moving.circle(x, y, p.r).fill(p.color);
-          if (p.ring) moving.ellipse(x, y, p.r * 1.9, p.r * 0.5).stroke({ width: 2, color: 0xcdbb88 });
+          ink.circle(x, y, p.r).fill(p.color);
+          if (p.ring) ink.ellipse(x, y, p.r * 1.9, p.r * 0.5).stroke({ width: 2, color: 0xcdbb88 });
           // A name is left off where it would sit on another planet's.
           if (placed.some(([px, py]) => Math.abs(px - x) < 60 && Math.abs(py - y) < 18)) continue;
           placed.push([x, y]);
@@ -632,12 +688,12 @@ export function deepScene({ leave }) {
           for (let d = L0; d < day; d += 4) {
             const [x0, y0] = at(...craftAt(craft, d)),
               [x1, y1] = at(...craftAt(craft, Math.min(day, d + 4)));
-            moving.moveTo(x0, y0).lineTo(x1, y1);
+            ink.moveTo(x0, y0).lineTo(x1, y1);
           }
-          moving.stroke({ width: 3.5, color: INK });
+          ink.stroke({ width: 3.5, color: INK });
           const [a, r] = craftAt(craft, day);
           const [x, y] = at(a, r);
-          moving.circle(x, y, 7).fill(0xffffff).circle(x, y, 7).stroke({ width: 2, color: 0x222222 });
+          ink.circle(x, y, 7).fill(0xffffff).circle(x, y, 7).stroke({ width: 2, color: 0x222222 });
           const n = label(craft.name, 14, INK, { bold: true, ax: 0 });
           n.position.set(x + 12, y - 14 + nth++ * 22);
           marks.addChild(n);
@@ -707,6 +763,7 @@ export function deepScene({ leave }) {
         .rect(1176, 618 - h, 308, 3)
         .fill(0xd8ceb0);
     }
+    liveArt?.commit();
     light.update(g.time || 0);
   }
 
