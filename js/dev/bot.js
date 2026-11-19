@@ -282,7 +282,7 @@ export const MERCURY_DEFAULTS = {
 // A training sim, played with the same calls.
 export function runSim(opts = {}) {
   const o = { ...MERCURY_DEFAULTS, ...opts };
-  simStart();
+  simStart(o.pick ?? null);
   for (let n = 0; n < 50 && g.console && g.console.kind === 'sim' && g.console.phase !== 'debrief'; n++) {
     const c = g.console;
     if (c.poll || ['poll', 'ip', 'pad', 'ascent', 'insertion', 'pack', 'retro'].includes(c.phase)) work(c, o);

@@ -14,6 +14,7 @@ import {
   simStart,
   simClose,
   simOpen,
+  simChoices,
   toReview,
   board,
   consoleInsertion,
@@ -55,6 +56,7 @@ import {
 import { KITS } from '../data/kits.js';
 import { ROUTE_MODES } from '../data/route.js';
 import { SEASON } from '../data/campaign.js';
+import { SIM_CARDS } from '../data/sim-cards.js';
 
 const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -71,13 +73,14 @@ export const CONTROL_ROOMS = {
       <p>A copy of your console, wired to the sim supervisor's desk. He can give you any flight he likes: a clean one, a booster going off her line,
       an engine stopping early, a radar losing its track, a rough sea or a ship off station${g.mission && SEASON[g.roundIndex].orbital ? ', and in orbit a warning light, a bad horizon scanner or a short orbit' : ''}. Nobody can get hurt in here. Each sim takes about ${SIM_MINUTES} minutes.</p>
       ${sims.length ? `<p>Your sims so far: ${sims.length}, with ${sims.reduce((a, s) => a + s.right, 0)} of ${sims.reduce((a, s) => a + s.of, 0)} calls right.</p>` : '<p class="muted">You have not run a sim yet.</p>'}
-      ${simOpen() ? '<button class="primary" data-act="sim-start">Run a launch sim</button>' : '<p class="muted">Not now: the real flight has the consoles.</p>'}`;
+      ${simOpen() ? simPicker() : '<p class="muted">Not now: the real flight has the consoles.</p>'}`;
     if (c.phase === 'debrief') {
       const d = c.debrief;
       return `<h2>Sim debrief</h2><p><strong>What the sim supervisor gave you:</strong> ${esc(d.scenario)}</p>
         ${d.lines && d.lines.length ? `<ul>${d.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
         <ul>${d.graded.map(x => `<li>${esc(x.what)}: <strong class="${x.right ? 'go-text' : 'danger-text'}">${x.right ? 'right' : 'wrong'}</strong></li>`).join('')}</ul>
         <p>${d.right} of ${d.of} right.</p>
+        ${d.card ? `<p><strong>A new card for your console:</strong> ${esc(d.card)}</p><p class="muted">It will be on your console on the real flights, whenever this call comes up.</p>` : ''}
         <button class="primary" data-act="sim-close">Done</button>`;
     }
     return `<h2>The simulator <span class="muted">(a sim: nobody is flying)</span></h2>
@@ -267,6 +270,20 @@ function consoleView(c) {
   if (c.phase === 'coast')
     return `${head}${readouts()}<p class="muted">The capsule is coasting. Recovery is on its way.</p>`;
   return `${head}<p class="muted">Done.</p>`;
+}
+// The sim supervisor's menu: let him choose (a real test), or ask for a trouble you want to practise. A clean sim of a
+// trouble earns its card for your console; the cards you hold are listed with the trouble.
+function simPicker() {
+  const held = g.record.cards || {};
+  const rows = Object.entries(simChoices())
+    .map(
+      ([k, t]) =>
+        `<li><button data-act="sim-start" data-id="${k}">Practise</button> ${esc(t)}${held[k] ? ' <strong class="go-text">(card on your console)</strong>' : SIM_CARDS[k] ? '' : ' <span class="muted">(no card)</span>'}</li>`,
+    )
+    .join('');
+  return `<button class="primary" data-act="sim-start">Let the sim supervisor choose</button>
+    <p class="muted">Or ask for a trouble to practise. Get every call right and its card goes on your console for the real flights.</p>
+    <ul class="sim-menu">${rows}</ul>`;
 }
 // The flight's board: the phase, the elapsed time and the lamps the flight plan has lit.
 function flightBoard(c) {
@@ -481,7 +498,7 @@ export const CONTROL_ACTS = {
   'm-retro': id => consoleRetro(id),
   pad: id => padChoose(id),
   'm-present': id => missionPresent(id),
-  'sim-start': simStart,
+  'sim-start': id => simStart(id),
   'eng-look': id => lookSpot(id),
   'eng-flag': id => flagSpot(id),
   'eng-qual': id => runQual(id),
