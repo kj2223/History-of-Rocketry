@@ -35,6 +35,12 @@ const TAIL = {
 };
 export const tailOf = v => TAIL[v] || 7;
 
+// How long the smoke column hangs in the sky (seconds, doubled for the biggest vehicles), and how fast the wind
+// carries it sideways at a height (site units a second): the wind (km/h) picks up with height, so the column leans
+// and then breaks into a dog-leg.
+export const LINGER = 30;
+export const shear = (windKmh, rise) => (windKmh || 0) * 0.35 * (0.3 + Math.min(2.5, rise / 600));
+
 // How hard a vehicle shakes the ground, 0..1, by its size: a WAC Corporal barely, a Saturn V or SLS fully.
 export const might = v => Math.min(1, Math.max(0.15, (tailOf(v) - 3) / 22));
 
@@ -44,10 +50,15 @@ export const TILT_MAX = 460;
 export const tiltFor = rise => Math.max(0, Math.min(TILT_MAX, (rise - 140) * 0.8));
 
 // Billows that roll out fast and slow down, rise a little, grow and fade: the ground cloud of a launch.
-function billows() {
+// cap: with a cap, the oldest puff gives way to a new one (never the other way round, which broke trails up: #246).
+function billows(cap = Infinity) {
   const c = new Container();
   const live = [];
   c.add = (x, y, o) => {
+    if (live.length >= cap) {
+      live[0].s.destroy();
+      live.shift();
+    }
     const s = new Sprite(puffTexture());
     s.anchor.set(0.5);
     s.position.set(x, y);
@@ -62,6 +73,7 @@ function billows() {
       grow: o.grow,
       fade: o.fade,
       drag: o.drag ?? 1.2,
+      wind: o.wind || 0,
       life: 0,
       max: o.life,
       a0: o.alpha,
@@ -74,7 +86,7 @@ function billows() {
       const d = Math.exp(-p.drag * dt);
       p.vx *= d;
       p.vy = p.vy * d - 3 * dt; // the warm cloud lifts slowly
-      p.s.x += p.vx * dt;
+      p.s.x += (p.vx + p.wind) * dt;
       p.s.y += p.vy * dt;
       p.s.scale.set(p.s.scale.x + p.grow * dt * Math.max(0.2, 1 - p.life / p.max));
       p.s.alpha = p.a0 * Math.max(0, 1 - p.life / p.max) ** 0.7;
@@ -91,7 +103,8 @@ function billows() {
 export function launchFx() {
   // In the world, over the buildings and the people: the ground cloud and the trail high up.
   const front = billows();
-  const trail = billows();
+  // The trail hangs in the sky long after she has gone, sheared by the wind: higher air moves faster.
+  const trail = billows(520);
   // In the world, additive: the plume's light on everything round the pad.
   const light = new Sprite(puffTexture());
   light.anchor.set(0.5);
@@ -110,8 +123,9 @@ export function launchFx() {
     trailAt = 0,
     phase = [Math.random() * 9, Math.random() * 9, Math.random() * 9, Math.random() * 9];
 
-  // dusk: whether it is dark. Returns { shakeX, shakeY (screen px), tilt (site units), glow (0..1) }.
-  function state(g, dt, dusk, screen, s) {
+  // dusk: whether it is dark; wind: the day's wind (km/h). Returns { shakeX, shakeY (screen px), tilt (site units),
+  // glow (0..1) }.
+  function state(g, dt, dusk, screen, s, wind = 10) {
     const flying = g.rocket.where === 'flying',
       rise = flyingRise(g),
       v = g.vehicle,
@@ -186,7 +200,7 @@ export function launchFx() {
     if (!flying) trailAt = 0;
     const from = Math.max(trailAt, 200, rise - 900);
     if (flying && rise > 200 && rise < 4000) trailAt = rise;
-    for (let r = from; flying && r < Math.min(rise, 4000) && trail.count() < 320; r += 6 + half * 0.6) {
+    for (let r = from; flying && r < Math.min(rise, 4000); r += 6 + half * 0.6) {
       const ty = GROUND - 8 - r + half * 6;
       trail.add(x + (Math.random() - 0.5) * half, ty, {
         tint: 0xf0ece4,
@@ -194,9 +208,10 @@ export function launchFx() {
         size: 0.2 + m * 0.5,
         vx: 4 + Math.random() * 6,
         vy: 0,
-        grow: 0.35 + m * 0.6,
+        grow: 0.18 + m * 0.3,
         drag: 0.5,
-        life: 5 + m * 4,
+        wind: shear(wind, r),
+        life: LINGER + m * LINGER,
       });
     }
     front.update(dt);

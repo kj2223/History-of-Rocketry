@@ -76,6 +76,23 @@ export function lightAt(minute) {
   };
 }
 
+// The Moon's phase on a date: 0 new, 0.25 first quarter, 0.5 full, 0.75 last quarter. From the mean synodic month
+// counted from the new moon of 6 January 2000, 18:14 UT: good to within a day, which is all the sky needs.
+export const SYNODIC = 29.530588853;
+export function moonPhase(year, month, date, hour = 12) {
+  const days = (Date.UTC(year, month - 1, date) + hour * 3.6e6 - Date.UTC(2000, 0, 6, 18, 14)) / 864e5;
+  return (((days / SYNODIC) % 1) + 1) % 1;
+}
+
+// Where the Moon is in the sky at an hour of the day, for its phase: it crosses the sky about 50 minutes later each
+// day, so a full moon rises at sunset and a new moon is up with the sun. along: 0 rising in the east .. 1 setting in
+// the west (as the sun's), or null when it is below the horizon. lit: the fraction of its face that is lit.
+export function moonAt(phase, hour) {
+  const transit = 12 + phase * 24.84;
+  const dh = (((hour - transit + 6) % 24) + 24) % 24;
+  return { along: dh < 12 ? dh / 12 : null, lit: (1 - Math.cos(2 * Math.PI * phase)) / 2 };
+}
+
 // Stars, the moon, the shadows and the searchlights.
 export function daylightDressing() {
   const stars = new Graphics();
@@ -92,7 +109,8 @@ export function daylightDressing() {
   let starW = 0;
 
   // vw: the screen's width in site units. Stars and moon are drawn in the far backdrop's units.
-  function sky(L, vw) {
+  // phase: the Moon's phase today (moonPhase), so the sky shows the moon that night really had.
+  function sky(L, vw, phase = 0.5) {
     if (Math.ceil(vw) !== starW) {
       starW = Math.ceil(vw);
       stars.clear();
@@ -106,11 +124,30 @@ export function daylightDressing() {
     stars.alpha = L.stars;
     stars.visible = L.stars > 0;
     moon.clear();
-    if (L.night > 0.5) {
-      const mx = vw * 0.72,
-        my = 110;
-      moon.circle(mx, my, 11).fill({ color: 0xf2efe2, alpha: Math.min(1, (L.night - 0.5) * 3) });
-      moon.circle(mx + 4, my - 2, 10).fill({ color: 0x0b1024, alpha: 0.18 * Math.min(1, (L.night - 0.5) * 3) });
+    const M = moonAt(phase, L.hour);
+    if (M.along != null && M.lit > 0.03) {
+      // Faint by day, bright by night; low it sits a little warmer.
+      const up = Math.sin(Math.PI * M.along);
+      const mx = vw * (0.88 - 0.76 * M.along),
+        my = 470 - 390 * up,
+        r = 11;
+      const a = 0.3 + 0.7 * Math.min(1, L.night * 1.6);
+      // The dark of the disc, just showing against the night sky (earthshine).
+      if (L.night > 0.5) moon.circle(mx, my, r).fill({ color: 0x2a3050, alpha: 0.35 * (L.night - 0.5) * 2 });
+      // The lit part: the bright limb on one side and the terminator, an ellipse, on the other. Waxing lit on the
+      // right, waning on the left (as seen from the northern hemisphere).
+      const waxing = phase < 0.5,
+        c = Math.cos(2 * Math.PI * phase),
+        pts = [];
+      for (let i = 0; i <= 16; i++) {
+        const th = -Math.PI / 2 + (Math.PI * i) / 16;
+        pts.push(mx + (waxing ? 1 : -1) * r * Math.cos(th), my + r * Math.sin(th));
+      }
+      for (let i = 16; i >= 0; i--) {
+        const th = -Math.PI / 2 + (Math.PI * i) / 16;
+        pts.push(mx + (waxing ? c : -c) * r * Math.cos(th), my + r * Math.sin(th));
+      }
+      moon.poly(pts).fill({ color: up < 0.25 ? 0xf6e2c0 : 0xf2efe2, alpha: a });
     }
   }
 
