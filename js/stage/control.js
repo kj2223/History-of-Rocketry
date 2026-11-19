@@ -24,6 +24,7 @@ const pixelOn = () => {
   }
 };
 import { roomMood } from './fx/moods.js';
+import { roomDepth } from './fx/room-depth.js';
 
 // The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
 // amber terminals, the flat grey monitors of 1996–2015, and the dark glass room of 2028 with its blue light.
@@ -459,6 +460,9 @@ export function controlScene() {
   const deskLayer = new Container();
   const monitor = new Container();
   root.addChild(shell, racks, deskLayer, monitor);
+  // Depth: the near, out-of-focus shapes along the bottom and the haze in the air (fx/room-depth.js), over the rest.
+  const depth = roomDepth();
+  root.addChild(depth.root);
   let light = null;
   let map = null,
     tv = null,
@@ -885,6 +889,11 @@ export function controlScene() {
     tv.update();
     tele.draw(c);
     light.update(g.time || 0);
+    depth.update(Math.min(0.1, dt), screen, {
+      era,
+      year: yearOf(g),
+      glow: { amber: 0xffc890, desktop: 0xc8d0e0, glass: 0x9cc0ff }[era] ?? 0xc8d8d0,
+    });
   }
 
   const stale = () => uiEra(g) !== era || roomOf(g) !== place;
