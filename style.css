@@ -418,3 +418,8 @@ header button.muted {
 #manage .mg-tip { position: fixed; padding: .15rem .5rem; background: rgba(17,20,18,.92); border: 1px solid #5d6661; pointer-events: none; z-index: 2; font-size: .85em; }
 #manage .mg-log { position: absolute; left: 10px; bottom: 10px; width: min(34em, calc(100% - min(19em, 34vw) - 40px)); z-index: 1; pointer-events: none; font-size: .9em; }
 #manage .mg-log div { background: rgba(11,20,14,.88); color: #8fd69b; font-family: Consolas, var(--mono); padding: .25rem .6rem; margin-top: 2px; border-left: 3px solid #5fae6c; }
+#manage .mg-lines label { display: block; margin: .4rem 0 .6rem; }
+#manage .mg-lines input[type=range] { display: block; width: 100%; accent-color: #ffb648; }
+#manage .mg-post { margin: 0 0 .7rem; padding-bottom: .5rem; border-bottom: 1px solid #1c201e; }
+#manage .mg-post p { margin: .2rem 0; }
+#manage .mg-post button { margin-left: .3rem; padding: .2em .5em; }
