@@ -6,6 +6,7 @@ import { paintBase, paintRockets, tileAt, ART } from './paint.js';
 import { CAPE_1958_BASE, CAPE_1958_ROADS, PREFABS, buildingAt } from './base.js';
 import { CAPE_1958, PAD_KINDS } from './manifest.js';
 import { schedule } from './schedule.js';
+import { flightOutcome, report } from './outcome.js';
 import { SECONDS_PER_DAY, SPEEDS, managementWhere } from './state.js';
 import { dateLabel } from '../core/calendar.js';
 
@@ -110,19 +111,29 @@ export function startBaseView(el, game, { save, back }) {
           .filter(f => f.launch >= game.day)
           .slice(0, 6)
           .map(f => `<li>${esc(f.name)} <span class="muted">${esc(dateLabel(f.launch))}</span></li>`)
-          .join('')}</ol><p class="muted">Click a building to look at it.</p>`;
+          .join('')}</ol>${record()}<p class="muted">Click a building to look at it.</p>`;
     $('[data-live=log]').innerHTML = log
       .slice(-3)
       .map(l => `<div>${esc(l)}</div>`)
       .join('');
   }
 
+  function record() {
+    const flown = game.flown ?? [];
+    if (!flown.length) return '';
+    const good = flown.filter(f => f.result === 'good').length,
+      short = flown.filter(f => f.result === 'short').length;
+    return `<p>Flown since October 1958: ${flown.length}. ${good} good, ${short} partly done, ${flown.length - good - short} lost.</p>`;
+  }
+
   function newDay() {
     game.day += 1;
-    for (const f of sched.flights.filter(f => f.launch === game.day - 1))
-      log.push(
-        `${dateLabel(f.launch)}: ${f.name} lifted off from ${base.find(b => b.id === f.pad).name}. Its result will be reported here once flights are built.`,
-      );
+    // The day after a flight its report comes in, and goes on the record.
+    for (const f of sched.flights.filter(f => f.launch === game.day - 1)) {
+      const o = flightOutcome(game.seed, f);
+      game.flown = [...(game.flown ?? []), { id: f.id, day: f.launch, result: o.result, cause: o.cause }];
+      log.push(report(f, o));
+    }
     save(game);
     info();
   }

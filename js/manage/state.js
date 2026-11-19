@@ -20,6 +20,8 @@ export function checkManagement(c) {
   if (!Number.isInteger(c.seed)) throw new Error('no seed');
   if (!Number.isInteger(c.day) || c.day < START_DAY) throw new Error('no date');
   if (!(c.site in SITES)) throw new Error(`unknown site ${c.site}`);
+  if (c.flown !== undefined && !(Array.isArray(c.flown) && c.flown.every(f => typeof f?.id === 'string')))
+    throw new Error('bad flight record');
 }
 
 // Where a management game stands, for the title screen.
