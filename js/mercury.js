@@ -100,6 +100,7 @@ import { GEMINI_TAPES, GEMINI_SIMS, GEMINI_SPOTS, GEMINI_QUALS } from './data/ge
 import { FAULT_AT_SPOT } from './data/kits.js';
 import { APOLLO_TAPES, APOLLO_SIMS, APOLLO_SPOTS, APOLLO_QUALS } from './data/apollo.js';
 import { earnCard } from './data/sim-cards.js';
+import { remember, recall } from './world/memory.js';
 import { FAMILY as LEDGER_FAMILY, textOf as ledgerText } from './world/ledger.js';
 
 export {
@@ -391,6 +392,13 @@ function seatPeople() {
 export function startMission() {
   g.mission = { sims: 0, trained: false, cond: null, scrubs: 0, pad: null, reading: null, calls: {} };
   morning('mBrief');
+  // Someone who remembers something you did says so now (world/memory.js), once.
+  const m = recall(g.record, g.people);
+  if (m) {
+    say(m.seat, m.text, m.tone, 9);
+    note(`${nameOf(m.seat)}: "${m.text}"`);
+    if (m.trust) shiftTrust(g.record, m.trust);
+  }
 }
 
 // ---- Which room each building opens in a Mercury round ----
@@ -1347,6 +1355,36 @@ export function missionPresent(key) {
   }
   const fix = decision && decision !== 'nominal' ? adopt(g.programme, decision) : null;
   g.review = { key, view, agree, decision, fix };
+  // What the boss will remember when the hardware has had its say: an overrule the hardware proved wrong, or a reading of
+  // yours they went with that was not what happened.
+  const flight = SEASON[g.roundIndex].name;
+  if (!agree && decision === view && key !== 'unknown' && happened.has(key) && !happened.has(view))
+    remember(
+      g.record,
+      g.people,
+      'hollis',
+      `On ${flight} I took my reading of the tapes over yours, and the hardware said you were right. I won't do that twice.`,
+      { tone: 'go', trust: 1 },
+      g.day,
+    );
+  else if (!agree && decision === key && happened.size && !happened.has(key))
+    remember(
+      g.record,
+      g.people,
+      'hollis',
+      `I went with your reading on ${flight}. The teardown says it was something else: we fixed the wrong thing.`,
+      { tone: 'warn', trust: -1 },
+      g.day,
+    );
+  if (g.mission.fate === 'killed')
+    remember(
+      g.record,
+      g.people,
+      'hollis',
+      `Before we start: ${crewNames() || pilotName()}. ${flight}. Every one of us checks twice this time.`,
+      {},
+      g.day,
+    );
   if (g.mission.fate === 'killed') reply = `We lost ${pilotName()}. Whatever we find, we find all of it. ${reply}`;
   say('hollis', reply, tone, 8);
   const judged = judgeCalls();

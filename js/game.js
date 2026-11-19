@@ -22,7 +22,9 @@ import {
   DEFAULT_PROGRAMME,
 } from './truth/round.js';
 import { TRAITS } from './world/people.js';
+import { remember } from './world/memory.js';
 import {
+  deskOf,
   FAMILY,
   afterFlight,
   withLedger,
@@ -1808,6 +1810,14 @@ export function finishReview(entry) {
     const was = f.failure ? onLedgerFor(g.programme, g.vehicle, f.failure) : [];
     if (was.length) {
       entry.ledgerLoss = was[0].seen[0];
+      remember(
+        g.record,
+        g.people,
+        deskOf(was[0].fault),
+        `I flagged that after ${was[0].seen[0]}. It went on the ledger, and it was signed off as in family. I want it on the record that I flagged it.`,
+        { tone: 'warn' },
+        g.day,
+      );
       note(
         `It was on the anomaly ledger. It was first seen after ${was[0].seen[0]}, and signed off as in family${was[0].seen.length > 1 ? ` ${was[0].seen.length} times` : ''}.`,
       );
@@ -1906,6 +1916,16 @@ export function ledgerCall(id, how) {
   const r = ledgerWork(g.programme, id);
   if (!r) return;
   shiftTrust(g.record, r.found ? 1 : -1);
+  const item = g.programme.ledger.find(x => x.id === id);
+  if (r.found)
+    remember(
+      g.record,
+      g.people,
+      deskOf(item.fault),
+      'You held my item open when it would have been easy to sign it off. It was real. I will bring you the next one too.',
+      { tone: 'go' },
+      g.day,
+    );
   const i = nextIndex();
   const apollo = i != null && SEASON[i].crewed === 'apollo';
   if (apollo) g.programme.apolloSlip = (g.programme.apolloSlip || 0) + SLIP_DAYS;
