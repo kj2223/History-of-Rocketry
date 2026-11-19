@@ -22,6 +22,7 @@ import { blastFx } from './fx/blast.js';
 import { siteLife } from './fx/life.js';
 import { siteTraffic } from './fx/traffic.js';
 import { weatherLayers, mulTint, weatherNow } from './fx/weather.js';
+import { flameLight, flameX, wetness } from './fx/flame-light.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
 const SKY_ABOVE = 240;
@@ -89,7 +90,9 @@ export function siteScene() {
   // rain over everything.
   const weather = weatherLayers();
   const life = siteLife();
-  backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds, life.birds, weather.far);
+  // The launch's flame as a moving light: shadows, lit cloud undersides, reflections on wet ground (fx/flame-light.js).
+  const flame = flameLight();
+  backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds, flame.cloudGlow, life.birds, weather.far);
   const WIDE = 4000; // wider than any screen in site units
   const makeRange = (color, base, peaks, far) =>
     painted ? paintedRange(color, base, peaks, WIDE, SPAN, far) : range(color, base, peaks, WIDE);
@@ -122,7 +125,7 @@ export function siteScene() {
   const fore = new Sprite();
   // A rocket lost on the pad (fx/blast.js): the scorch under everything, the fire and smoke over it.
   const blast = blastFx();
-  world.addChild(fore, day.shadows, blast.scorch, blast.smoke);
+  world.addChild(fore, day.shadows, flame.shadows, flame.wet, blast.scorch, blast.smoke);
   let site = null,
     siteAt = '';
   const live = siteLive();
@@ -184,7 +187,7 @@ export function siteScene() {
       far.smooth = on;
       far.filters = on ? [farBlur] : null;
     }
-    clouds.filters = on ? [cloudBlur] : null;
+    clouds.filters = flame.cloudGlow.filters = on ? [cloudBlur] : null;
     horizonHaze.visible = on;
     farBlur.strength = 1.6 * s;
     cloudBlur.strength = 2.4 * s;
@@ -462,9 +465,11 @@ export function siteScene() {
       [1500, 190, 100],
     ].slice(0, 3 + Math.round(5 * W.cloud));
     const cloudCol = mulTint(L.cloud, W.overcast > 0.3 ? 0xc4c8d0 : 0xffffff);
+    const cloudSpots = [];
     for (const [x0, y, w0] of cloudSet) {
       const w = w0 * (0.8 + 0.6 * W.cloud);
       const x = ((((x0 - drift) % spanC) + spanC) % spanC) - 300;
+      cloudSpots.push([x, y, w]);
       const col = { color: cloudCol, alpha: 0.55 - 0.3 * L.night + 0.2 * W.overcast };
       clouds.ellipse(x + w * 0.5, y, w * 0.5, w * 0.16).fill(col);
       clouds.ellipse(x + w * 0.35, y - w * 0.1, w * 0.22, w * 0.14).fill(col);
@@ -513,6 +518,25 @@ export function siteScene() {
     for (const l of lightLayer.children) l.alpha = L.lamps * l.full * (0.92 + 0.08 * Math.sin(t * 7 + l.x));
     // The shadows along the ground, and the searchlights on a rocket standing on the pad at night.
     day.world(L, g, g.rocket.where === 'tower' ? GROUND - 160 : null, t);
+    // The flame's own light: shadows swinging away from it, the clouds' undersides, and reflections when it is wet.
+    {
+      const rise = Math.min(4000, flyingRise(g)),
+        fx0 = flameX(),
+        lit = { glow: lf.glow, night: L.night };
+      flame.ground(g, { fx: fx0, rise, ...lit });
+      flame.clouds(cloudSpots, { sx: fx0 - camX, sy: GROUND - 8 - rise + lf.tilt * 0.7, m: might(g.vehicle), ...lit });
+      flame.reflections(g, {
+        wetK: wetness(W),
+        lights: site?.lights || [],
+        lamps: L.lamps,
+        fx: fx0,
+        rise,
+        glow: lf.glow,
+        camX,
+        vw,
+        sky: parseInt(L.sky[2].slice(1), 16),
+      });
+    }
     weather.update(W, L, { vw, camX, screen, s, t, dt: Math.min(0.1, dt) });
     nightLayer.scale.set(s);
     nightLayer.position.set(-camX * s, tiltPx);
