@@ -99,6 +99,7 @@ import { flightPredictions, flightRecoveryHours } from './truth/flights.js';
 import { GEMINI_TAPES, GEMINI_SIMS, GEMINI_SPOTS, GEMINI_QUALS } from './data/gemini.js';
 import { FAULT_AT_SPOT } from './data/kits.js';
 import { APOLLO_TAPES, APOLLO_SIMS, APOLLO_SPOTS, APOLLO_QUALS } from './data/apollo.js';
+import { earnCard } from './data/sim-cards.js';
 
 export {
   ABORT_LIMIT,
@@ -1692,14 +1693,16 @@ export const simOpen = () =>
   !consoleLocked() &&
   !['mFlight', 'mRecovery'].includes(g.beat) &&
   !(g.console && g.console.kind === 'sim' && g.console.live);
-export function simStart() {
+// choice: a trouble you ask the sim supervisor for (a key of the flight's sim list); left out, he picks one himself.
+export function simStart(choice = null) {
   if (!simOpen()) return;
   const n = (g.record.sims || []).length,
     orbital = !!SEASON[g.roundIndex].orbital;
   const round = newRound((g.seed + 50000 + n * 7907) >>> 0, g.programme, orbital ? g.vehicle : 'redstone');
   const list = orbital ? (BOOSTERS[g.vehicle] || BOOSTERS.atlas).sims : SIMS,
     keys = Object.keys(list),
-    scenario = keys[Math.floor(draw(round.rng.forecast) * keys.length)];
+    picked = keys[Math.floor(draw(round.rng.forecast) * keys.length)],
+    scenario = keys.includes(choice) ? choice : picked;
   if (scenario === 'radar') round.forceRadar = true;
   if (orbital) {
     // The sim supervisor sets the capsule's troubles himself.
@@ -1719,6 +1722,11 @@ export function simStart() {
   speak(con, 'hollis', 'Sim supervisor has the board. We pick up at T minus ten. Retro, recovery status?');
   g.clock += SIM_MINUTES;
   roomChanged();
+}
+// The troubles you can ask the sim supervisor for before this flight: { key: what it is }.
+export function simChoices() {
+  const orbital = !!SEASON[g.roundIndex]?.orbital;
+  return orbital ? (BOOSTERS[g.vehicle] || BOOSTERS.atlas).sims : SIMS;
 }
 const simFailure = scenario => (['control', 'lox', 'thrust'].includes(scenario) ? scenario : 'nominal');
 
@@ -1745,10 +1753,13 @@ function finishSim(con, why = null) {
   }
   const right = graded.filter(x => x.right).length;
   const simList = con.orbital ? boosterOf(con).sims : SIMS;
-  con.debrief = { scenario: simList[s], graded, right, of: graded.length, lines: con.lines };
+  // A clean sim of a real trouble earns its card, for the real flights (data/sim-cards.js).
+  const card = right === graded.length && why !== 'scrub' ? earnCard(g.record, s, g.day) : null;
+  con.debrief = { scenario: simList[s], graded, right, of: graded.length, lines: con.lines, card };
   addSim(g.record, { day: g.day, scenario: s, right, of: graded.length });
   if (g.mission) g.mission.trained = true;
   note(`Training sim: ${simList[s]} You got ${right} of ${graded.length} calls right.`);
+  if (card) note(`A new card for your console: ${card}`);
   speak(
     con,
     'hollis',

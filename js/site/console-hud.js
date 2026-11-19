@@ -6,6 +6,7 @@
 import { consolePanelModel, flightSteps, countClock, missionClock, siteClock } from './draw.js';
 import { CONTROL_ACTS } from '../scenes/control.js';
 import { trace } from './playtest.js';
+import { cardsFor } from '../data/sim-cards.js';
 
 const $ = id => document.getElementById(id);
 const esc = t =>
@@ -31,12 +32,17 @@ function panelHtml(g) {
         `<button class="lamp-btn ${b.tone || ''}" data-act="${esc(b.act)}" data-id="${esc(b.id ?? '')}" data-key="${i + 1}">${esc(b.label)}</button>`,
     )
     .join('');
+  // Your sim cards for this call (data/sim-cards.js): what to do if you see the trouble, never that it is there.
+  const cards = cardsFor(g.record, g.console)
+    .map(t => `<li>${esc(t)}</li>`)
+    .join('');
   return `<div class="mc-plate">YOUR CONSOLE</div>
     <div class="mc-clock nixie">${esc(P.clock)}</div>
     ${P.state ? `<div class="mc-state${P.ask ? ' ask' : ''}">${esc(P.state)}</div>` : ''}
     ${P.ask ? `<p class="mc-ask">${esc(P.ask)}</p>` : ''}
     <ul class="mc-lines">${lines}</ul>
-    <div class="mc-buttons">${buttons}</div>`;
+    <div class="mc-buttons">${buttons}</div>
+    ${cards ? `<div class="mc-cards"><b>FROM YOUR SIMS</b><ul>${cards}</ul></div>` : ''}`;
 }
 
 function clocksHtml(g) {
