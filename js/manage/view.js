@@ -12,6 +12,7 @@ import { SECONDS_PER_DAY, SPEEDS, START_DAY, managementWhere } from './state.js'
 import { TW, TH } from './iso.js';
 import { dateLabel } from '../core/calendar.js';
 import { appropriation, lines, resplit, money, DEFAULT_SPLIT } from './budget.js';
+import { announce, settle, news, standingText, watched } from './pressure.js';
 import { staffing, candidate } from './people.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -73,6 +74,8 @@ export function flyDue(game, sched, day) {
     const o = flightOutcome(game.seed, f);
     game.flown = [...(game.flown ?? []), { id: f.id, day: f.launch, result: o.result, cause: o.cause }];
     out.push(report(f, o));
+    const promise = settle(game, f, o.result); // pressure.js: a public date kept, slipped or lost
+    if (promise) out.push(promise);
   }
   return out;
 }
@@ -156,7 +159,7 @@ export function startBaseView(el, game, { save, back }) {
     game.split ??= { ...DEFAULT_SPLIT };
     game.heads ??= {};
     if (!game.budget || game.day > game.budget.end) {
-      game.budget = appropriation(game.day, START_DAY, game.flown);
+      game.budget = appropriation(game.day, START_DAY, game.flown, game.pressure?.standing);
       return true;
     }
     return false;
@@ -172,7 +175,8 @@ export function startBaseView(el, game, { save, back }) {
           <input type="range" min="0" max="100" step="5" value="${l.share}" data-line="${l.id}" aria-label="${esc(l.name)}: share of the budget"></label>`,
         )
         .join('')}</div>
-      <p class="muted">Move money between the lines at any time. Your record with Congress sets next year’s figure.</p>`;
+      <p class="muted">Move money between the lines at any time. Your record and your standing with Congress set next year’s figure.</p>
+      <p><b>Standing:</b> ${esc(standingText(game.pressure?.standing))}${watched(game.day) ? ' <span class="mg-warn">Moscow is in the news: every promised date is watched.</span>' : ''}</p>`;
   }
 
   function peoplePanel() {
@@ -226,7 +230,16 @@ export function startBaseView(el, game, { save, back }) {
     }
     return `<h3>The manifest</h3><ol>${sched.flights
       .slice(0, 6)
-      .map(f => `<li>${esc(f.name)} <span class="muted">${esc(dateLabel(f.launch))}</span></li>`)
+      .map(f => {
+        const promised = game.pressure?.announced?.[f.id];
+        return `<li>${esc(f.name)} <span class="muted">${esc(dateLabel(f.launch))}</span>${
+          promised != null
+            ? ` <span class="${f.launch > promised ? 'mg-warn' : 'muted'}">(announced for ${esc(dateLabel(promised))})</span>`
+            : f.launch > game.day
+              ? ` <button data-act="announce" data-id="${esc(f.id)}" title="Tell the press the date: kept, it earns standing with Congress; slipped or lost, it costs">Announce</button>`
+              : ''
+        }</li>`;
+      })
       .join('')}</ol>${
       sched.unplaced.length
         ? `<p class="mg-warn">Cannot fly as planned:</p><ul>${sched.unplaced.map(f => `<li>${esc(f.name)}: ${esc(f.why)}.</li>`).join('')}</ul>`
@@ -260,6 +273,7 @@ export function startBaseView(el, game, { save, back }) {
 
   function newDay() {
     game.day += 1;
+    log.push(...news(game)); // pressure.js: Soviet firsts as they break
     const reports = flyDue(game, sched, game.day);
     if (reports.length) {
       log.push(...reports);
@@ -422,6 +436,14 @@ export function startBaseView(el, game, { save, back }) {
       game.heads = { ...game.heads, [b.dataset.post]: b.dataset.who };
       log.push(`${candidate(b.dataset.post, b.dataset.who).name} takes up the post.`);
       save(game);
+    }
+    if (b.dataset.act === 'announce') {
+      const f = sched.flights.find(x => x.id === b.dataset.id),
+        line = f && announce(game, f);
+      if (line) {
+        log.push(line);
+        save(game);
+      }
     }
     if (b.dataset.act === 'vacate') {
       const { [b.dataset.post]: gone, ...rest } = game.heads;

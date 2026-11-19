@@ -3,6 +3,7 @@
 // 2026). This is the groundwork: a game that starts, saves in its own slot (js/core/save.js MANAGEMENT) and loads.
 // The base, money, people and the round scheduler build on it. Nothing here touches the Flight Director's game.
 import { dayOf, dateLabel } from '../core/calendar.js';
+import { checkPressure } from './pressure.js';
 
 export const START_DAY = dayOf(1958, 10, 1); // NASA opens its doors
 // How long one game day lasts at normal speed, in real seconds (Aaron, 19 Nov 2026: about 10, to be tuned later).
@@ -28,6 +29,7 @@ export function checkManagement(c) {
   if (c.heads !== undefined && (typeof c.heads !== 'object' || c.heads === null)) throw new Error('bad heads');
   if (c.flown !== undefined && !(Array.isArray(c.flown) && c.flown.every(f => typeof f?.id === 'string')))
     throw new Error('bad flight record');
+  checkPressure(c.pressure); // optional: games saved before promises load without it
 }
 
 // Where a management game stands, for the title screen.
