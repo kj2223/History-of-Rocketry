@@ -123,6 +123,10 @@ export const ANOMALIES = {
   ],
 };
 
+// Who flagged it: Booster for the rocket's own hardware, EECOM for the spacecraft's.
+const BOOSTER_SIDE = ['control', 'pogo', 'oring', 'foam', 'merlin'];
+export const deskOf = fault => (BOOSTER_SIDE.includes(fault) ? 'albrecht' : 'kessler');
+
 export const NEW_CHANCE = 0.3; // after a flight, the chance of a new item on the ledger
 export const MAX_GRADE = 3; // how much worse a real item can get
 export const GROWTH = 0.35; // a real item signed off raises its fault's risk by this much per grade

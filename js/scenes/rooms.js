@@ -56,7 +56,7 @@ import { COSTS, planCost, dollars } from '../world/budget.js';
 import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
 import { fixesForCard } from '../world/programme.js';
-import { openItems, signedOff, textOf } from '../world/ledger.js';
+import { openItems, signedOff, textOf, deskOf } from '../world/ledger.js';
 import { chronicle, milestoneRow, MILESTONES } from '../career/chronicle.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
 import { PLACES, atPlace, staysNear } from '../data/white-sands.js';
@@ -645,7 +645,8 @@ function ledgerBlock() {
   const open = openItems(g.programme),
     off = signedOff(g.programme);
   if (!open.length && !off.length) return '';
-  const seen = e => `seen after ${e.seen.map(esc).join(', ')}`;
+  const seen = e =>
+    `flagged by ${esc(g.people[deskOf(e.fault)]?.name || 'the back room')}, seen after ${e.seen.map(esc).join(', ')}`;
   const rows = open
     .map(
       e => `<li><p>${esc(textOf(e))} <span class="muted">(${seen(e)})</span>${e.trend === 'worse' ? ' <strong class="danger-text">Worse than last time.</strong>' : ''}</p>
