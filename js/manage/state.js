@@ -5,6 +5,9 @@
 import { dayOf, dateLabel } from '../core/calendar.js';
 
 export const START_DAY = dayOf(1958, 10, 1); // NASA opens its doors
+// How long one game day lasts at normal speed, in real seconds (Aaron, 19 Nov 2026: about 10, to be tuned later).
+export const SECONDS_PER_DAY = 10;
+export const SPEEDS = [1, 4, 16];
 export const SITES = { cape: 'Cape Canaveral' }; // one site on screen at a time, the Cape first (answer M2)
 
 export function newManagement(seed = Math.floor(Math.random() * 1e9)) {

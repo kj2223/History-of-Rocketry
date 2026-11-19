@@ -394,3 +394,15 @@ header button.muted {
 .manage-sheet { width: min(40em, 92vw); padding: 1.4rem 1.6rem; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; }
 .manage-sheet .kicker { margin: 0; color: var(--accent); text-transform: uppercase; letter-spacing: .1em; font-size: .85em; }
 .manage-sheet h1 { margin: .2rem 0 .8rem; font-weight: normal; color: var(--cream); }
+#manage { display: block; background: #1f5577; }
+#manage[hidden] { display: none; }
+#manage .mg-view { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; cursor: grab; }
+#manage .mg-bar { position: absolute; inset: 0 0 auto 0; height: var(--bar); display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: rgba(11,15,20,.88); border-bottom: 1px solid var(--rule); z-index: 1; }
+#manage .mg-bar .mg-next { flex: 1; color: var(--cream); }
+#manage .mg-bar button.on { background: var(--accent); border-color: var(--accent); color: #14181e; }
+#manage .mg-panel { position: absolute; top: calc(var(--bar) + 12px); right: 12px; width: 20em; padding: .8rem 1rem; background: rgba(20,24,30,.94); border: 1px solid var(--line); border-radius: 6px; z-index: 1; }
+#manage .mg-panel h3 { margin: 0 0 .4rem; color: var(--accent); font-weight: normal; }
+#manage .mg-panel ol { margin: 0; padding-left: 1.3em; }
+#manage .mg-tip { position: fixed; padding: .15rem .5rem; background: rgba(11,15,20,.9); border: 1px solid var(--line); pointer-events: none; z-index: 2; font-size: .85em; }
+#manage .mg-log { position: absolute; left: 12px; bottom: 12px; width: 40em; z-index: 1; pointer-events: none; }
+#manage .mg-log div { background: rgba(11,15,20,.85); padding: .25rem .6rem; margin-top: 2px; border-left: 3px solid var(--accent); }

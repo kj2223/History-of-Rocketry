@@ -585,7 +585,16 @@ function play() {
 function manage(game) {
   screen = 'management';
   hideTitle($('title'));
-  showManagement($('manage'), game, { back: toTitle });
+  showManagement($('manage'), game, {
+    back: toTitle,
+    save: m => {
+      try {
+        writeSave(storage, m, MANAGEMENT);
+      } catch (e) {
+        traceError('save-failed', e);
+      }
+    },
+  });
   trace('mode', { mode: 'management', day: game.day });
 }
 function toTitle() {
