@@ -595,6 +595,70 @@ const RESOLVE = {
       "No burn after the Moon. The free return brought them in at about 152 hours, past what the lander's batteries could give at her lowest load.";
     return out;
   },
+  // Apollo 13's power-up from cold. Decided by what was switched on (data/powerup.js); no draw of its own.
+  powerup(choice, { out }) {
+    if (choice === 'clean') {
+      out.lines.push([
+        'kessler',
+        "Flight, EECOM: she's up. Platform aligned, quads warm, and I can see all of her. The batteries hold to splashdown.",
+        'go',
+      ]);
+      out.verdict = 'good';
+      out.judge =
+        'The full sequence, with the lander topping up the battery. It fitted, and we saw every system come up.';
+      out.note =
+        "The command module came back from cold on the tiger team's sequence, two hours before entry, with the lander's power topping up an entry battery.";
+      return out;
+    }
+    if (choice === 'margin') {
+      out.lines.push([
+        'kessler',
+        "Flight, EECOM: she's up, on the lean sequence. Everything she needs for entry is on. Nothing to spare if something comes up wrong.",
+        'warn',
+      ]);
+      out.verdict = 'fair';
+      out.judge = 'A lean power-up: everything for entry, nothing for troubleshooting. It held.';
+      out.note = 'The command module came back from cold on a lean sequence, with no time or telemetry to spare.';
+      return out;
+    }
+    if (choice === 'cold') {
+      out.hurt = 0.3;
+      out.lines.push([
+        'pilot',
+        "Houston, the thrusters are sluggish. She's wallowing in the entry. We're holding her by hand.",
+        'bad',
+      ]);
+      out.verdict = 'bad';
+      out.judge = 'We left a must-have off the power-up, and the crew flew the entry short of it.';
+      out.note =
+        'The power-up left a system the entry needed switched off. The crew fought the spacecraft through the entry.';
+      return out;
+    }
+    if (choice === 'blind') {
+      out.hurt = 0.45;
+      out.lines.push([
+        'tate',
+        "Flight, Retro: no platform, so she's flying a ballistic entry. Steep, hot, and well off the ships.",
+        'bad',
+      ]);
+      out.verdict = 'bad';
+      out.judge =
+        'Without the guidance platform she flew a ballistic entry. Steep, hot, and a long way from the ships.';
+      out.note =
+        'The power-up left the guidance platform off. The entry was ballistic: steep, hot and far from the recovery ships.';
+      return out;
+    }
+    out.hurt = 0.6;
+    out.lines.push([
+      'kessler',
+      "Flight, EECOM: main bus voltage is falling. The entry batteries won't make the parachutes at this load.",
+      'bad',
+    ]);
+    out.verdict = 'bad';
+    out.judge = 'We switched on more than the batteries held. They went flat on the way down.';
+    out.note = 'The power-up drew more than the entry batteries held. They went flat in the descent.';
+    return out;
+  },
   co2(choice, { d, out }) {
     if (choice === 'build') {
       out.lines.push([

@@ -1220,6 +1220,8 @@ export const FLIGHTS = {
         ],
         show: { 'LM POWER': ['short of entry', true] },
       },
+      // The command module comes back from cold on her entry batteries: the tiger team's power-up, as a budget.
+      { lunar: true, at: 134, when: 'lifeboat', decide: 'powerup' },
       // No tank failure: the landing at Fra Mauro.
       {
         lunar: true,
@@ -3259,6 +3261,24 @@ export const DECISIONS = {
       pacific: 'The burn for the Pacific, at about 142 hours.',
       fast: 'Drop the service module and burn for the fastest way home.',
       none: 'No burn. Save the descent engine and stretch the power.',
+    },
+  },
+  // Apollo 13's power-up from cold (data/powerup.js): the board in the room picks the option from what you switch on.
+  powerup: {
+    rec: [
+      'kessler',
+      'Flight, EECOM: the back room has a sequence. It fits, just. Recommend we read it up as written.',
+      'clean',
+    ],
+    q: "The command module has to come back from cold on her entry batteries alone, and they must last to splashdown. Every system switched on is amp-hours you can't get back. Work the power-up on the board, then read it up.",
+    auto: 'clean',
+    puzzle: true,
+    options: {
+      clean: 'Read up the full sequence: guidance, thruster heaters, voice, displays, telemetry, and two hours early.',
+      margin: 'Read up a lean sequence: everything she needs for entry, and nothing to spare.',
+      cold: 'Read up a sequence that leaves a must-have off.',
+      blind: 'Read up a sequence without the guidance platform.',
+      over: 'Read up a sequence that runs past the batteries.',
     },
   },
   co2: {
