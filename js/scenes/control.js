@@ -1,7 +1,7 @@
 // MERCURY CONTROL'S ROOMS: the Retrofire officer's console for the count and the flight, the simulator, the pad after a
 // shutdown, Recovery's board and the review. Panels over the site, like the rooms at White Sands. They read only what
 // Mercury Control could see: g.console and g.mission, which the game fills from the telemetry and the radars.
-import { g, dateText, clockText, placeName, who } from '../game.js';
+import { g, dateText, clockText, placeName, who, roomChanged } from '../game.js';
 import { callBoardLines } from '../houston.js';
 import {
   consoleStart,
@@ -59,6 +59,7 @@ import { KITS } from '../data/kits.js';
 import { ROUTE_MODES } from '../data/route.js';
 import { SEASON } from '../data/campaign.js';
 import { SIM_CARDS } from '../data/sim-cards.js';
+import { POWER_SYSTEMS, POWER_BUDGET, TOPUP, powerTotal, powerPlan } from '../data/powerup.js';
 
 const panel = () => document.getElementById('room');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -66,6 +67,31 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 export const CONTROL_ROOMS = {
   console() {
     return ''; // your console is drawn into the room itself (drawControlRoom); the panel stays out of its way
+  },
+  // Apollo 13's power-up from cold, on a board: switch systems on within the entry batteries, then read it up.
+  powerup() {
+    const c = g.console,
+      d = c?.flight?.decision;
+    if (!d || d.id !== 'powerup') return '';
+    const on = powerBoard(c),
+      t = powerTotal(on),
+      noTopup = !!c.flight.state?.powerShort;
+    const need = { must: 'needed for entry', should: 'should have', nice: 'would be a mercy' };
+    const rows = Object.entries(POWER_SYSTEMS)
+      .map(
+        ([k, s]) => `<li><label><input type="checkbox" data-act="pu-toggle" data-id="${k}"${on[k] ? ' checked' : ''}>
+        <strong>${esc(s.name)}</strong>, ${s.ah} Ah <span class="muted">(${need[s.need]})</span></label><br><small>${esc(s.why)}</small></li>`,
+      )
+      .join('');
+    const pct = Math.min(100, Math.round((100 * t.used) / Math.max(t.budget, 1)));
+    return `<h2>The power-up from cold</h2>
+      <p>${who('kessler')} has the back room's numbers on the board. The command module's re-entry batteries hold <strong>${POWER_BUDGET} amp-hours</strong>, and they must carry her from power-up to splashdown. Everything you switch on comes out of them.</p>
+      <ul class="power-board">${rows}
+      <li><label><input type="checkbox" data-act="pu-toggle" data-id="topup"${on.topup ? ' checked' : ''}${noTopup ? ' disabled' : ''}>
+        <strong>${esc(TOPUP.name)}</strong>, +${TOPUP.ah} Ah</label><br><small>${noTopup ? "The lander's own batteries are short: there is nothing to spare for a top-up." : "The lander's batteries have the margin, through the umbilical."}</small></li></ul>
+      <div class="power-meter${t.over ? ' over' : ''}"><span style="width:${pct}%"></span></div>
+      <p><strong>${t.used} of ${t.budget} amp-hours.</strong> ${t.over ? '<span class="danger-text">More than the batteries hold.</span>' : `${t.budget - t.used} to spare.`}</p>
+      <button class="primary" data-act="pu-read">Read it up to the crew</button>`;
   },
   sim() {
     const c = g.console && g.console.kind === 'sim' ? g.console : null;
@@ -285,6 +311,10 @@ function consoleView(c) {
   if (c.phase === 'coast')
     return `${head}${readouts()}<p class="muted">The capsule is coasting. Recovery is on its way.</p>`;
   return `${head}<p class="muted">Done.</p>`;
+}
+// The power-up board's switches, kept on the console until the call is made. Starts with nothing on.
+function powerBoard(c) {
+  return (c.powerup = c.powerup || {});
 }
 // The sim supervisor's menu: let him choose (a real test), or ask for a trouble you want to practise. A clean sim of a
 // trouble earns its card for your console; the cards you hold are listed with the trouble.
@@ -514,6 +544,25 @@ export const CONTROL_ACTS = {
   pad: id => padChoose(id),
   'm-present': id => missionPresent(id),
   'm-inquire': id => inquire(id),
+  'pu-open': () => {
+    g.room = 'powerup';
+    roomChanged();
+  },
+  'pu-toggle': id => {
+    const c = g.console;
+    if (!c?.flight?.decision || c.flight.decision.id !== 'powerup') return;
+    if (id === 'topup' && c.flight.state?.powerShort) return;
+    const on = powerBoard(c);
+    on[id] = !on[id];
+    roomChanged();
+  },
+  'pu-read': () => {
+    const c = g.console;
+    if (!c?.flight?.decision || c.flight.decision.id !== 'powerup') return;
+    consoleDecide(powerPlan(powerBoard(c)));
+    g.room = null;
+    roomChanged();
+  },
   'sim-start': id => simStart(id),
   'eng-look': id => lookSpot(id),
   'eng-flag': id => flagSpot(id),

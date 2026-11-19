@@ -434,3 +434,8 @@ header button.muted {
 .chronicle table { width: 100%; border-collapse: collapse; font-size: .92em; }
 .chronicle th, .chronicle td { text-align: left; vertical-align: top; padding: .25em .4em; border-bottom: 1px solid rgba(255,255,255,.12); }
 .history-line { border-left: 3px solid var(--accent); padding-left: .6em; }
+
+/* Apollo 13's power-up board (scenes/control.js powerup): switches against the entry batteries. */
+.power-board { list-style: none; padding: 0; } .power-board li { margin: .45em 0; } .power-board small { opacity: .8; }
+.power-meter { height: .8em; background: #1a1f1c; border: 1px solid #4a554e; border-radius: 2px; overflow: hidden; }
+.power-meter span { display: block; height: 100%; background: #6fbf73; } .power-meter.over span { background: #d0533a; }

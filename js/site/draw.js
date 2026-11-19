@@ -2606,6 +2606,11 @@ export function consolePanelModel(c, g) {
       );
     for (const l of callBoardLines(c.flight, d)) P.lines.push(l.text);
     if (d.rule) P.lines.push('Rule: ' + d.rule);
+    // Apollo 13's power-up is worked on a board, not picked from a list (data/powerup.js, scenes/control.js).
+    if (d.id === 'powerup') {
+      btn('pu-open', null, 'OPEN THE POWER-UP BOARD', 'go');
+      return P;
+    }
     for (const [id, text] of Object.entries(d.options)) btn('m-decide', id, text);
     return P;
   }
