@@ -20,6 +20,12 @@ export function checkManagement(c) {
   if (!Number.isInteger(c.seed)) throw new Error('no seed');
   if (!Number.isInteger(c.day) || c.day < START_DAY) throw new Error('no date');
   if (!(c.site in SITES)) throw new Error(`unknown site ${c.site}`);
+  if (c.split !== undefined) {
+    const v = Object.values(c.split ?? {});
+    if (v.length !== 3 || v.some(x => !Number.isInteger(x) || x < 0) || v.reduce((a, b) => a + b, 0) !== 100)
+      throw new Error('bad budget split');
+  }
+  if (c.heads !== undefined && (typeof c.heads !== 'object' || c.heads === null)) throw new Error('bad heads');
   if (c.flown !== undefined && !(Array.isArray(c.flown) && c.flown.every(f => typeof f?.id === 'string')))
     throw new Error('bad flight record');
 }

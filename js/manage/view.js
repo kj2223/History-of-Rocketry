@@ -11,6 +11,8 @@ import { flightOutcome, report } from './outcome.js';
 import { SECONDS_PER_DAY, SPEEDS, START_DAY, managementWhere } from './state.js';
 import { TW, TH } from './iso.js';
 import { dateLabel } from '../core/calendar.js';
+import { appropriation, lines, resplit, money, DEFAULT_SPLIT } from './budget.js';
+import { staffing, candidate } from './people.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const art = () => {
@@ -45,6 +47,7 @@ const SLOT_NAMES = {
 };
 const list = xs => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}`);
 const vehicles = kind => list(PAD_KINDS[kind].vehicles.map(v => VEHICLE_NAMES[v] ?? v));
+const spentText = m => (m < 0.05 ? 'nothing spent yet' : `${money(m)} spent`);
 const days = n => (n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`);
 
 // What stands on the pads on a day (and how far it has risen, on launch day), from the schedule.
@@ -96,6 +99,8 @@ export function startBaseView(el, game, { save, back }) {
         ${SPEEDS.map((s, i) => `<button data-speed="${s}" title="Speed (${i + 1})">${s}×</button>`).join('')}
       </span>
       <span data-live="next" class="mg-next"></span>
+      <button data-act="budget" title="The year's money (B)">Budget</button>
+      <button data-act="people" title="Your heads (P)">People</button>
       <button data-act="reports" title="Every flight's report (R)">Reports</button>
       <button data-act="title">Title screen</button>
     </div>
@@ -116,7 +121,7 @@ export function startBaseView(el, game, { save, back }) {
     zoom = 0,
     cam = null,
     selected = null,
-    showReports = false,
+    showing = null, // the panel: null (the manifest), 'reports', 'budget' or 'people'
     drag = null,
     running = true,
     log = [],
@@ -146,9 +151,53 @@ export function startBaseView(el, game, { save, back }) {
   const at = (tx, ty, z = 0) => ({ x: ART.ox + (tx - ty) * (TW / 2), y: ART.oy + (tx + ty) * (TH / 2) - z });
   const padName = id => base.find(b => b.id === id)?.name ?? id;
 
+  // The year's money, set when the game begins and at the start of each fiscal year.
+  function ensureBudget() {
+    game.split ??= { ...DEFAULT_SPLIT };
+    game.heads ??= {};
+    if (!game.budget || game.day > game.budget.end) {
+      game.budget = appropriation(game.day, START_DAY, game.flown);
+      return true;
+    }
+    return false;
+  }
+  const fyName = fy => (fy === 'TQ' ? 'the transition quarter, 1976' : `fiscal ${fy}`);
+
+  function budgetPanel() {
+    const b = game.budget;
+    return `<h3>Budget</h3><p>${esc(money(b.total))} for ${esc(fyName(b.fy))}${b.start < START_DAY ? ' (from 1 October: NASA began a quarter into the year)' : ''}, to ${esc(dateLabel(b.end))}.</p>
+      <div class="mg-lines">${lines(b, game.split, game.day, START_DAY)
+        .map(
+          l => `<label>${esc(l.name)} <b>${l.share}%</b> <span class="muted">${esc(money(l.amount))}, ${esc(spentText(l.spent))}</span>
+          <input type="range" min="0" max="100" step="5" value="${l.share}" data-line="${l.id}" aria-label="${esc(l.name)}: share of the budget"></label>`,
+        )
+        .join('')}</div>
+      <p class="muted">Move money between the lines at any time. Your record with Congress sets next year’s figure.</p>`;
+  }
+
+  function peoplePanel() {
+    return `<h3>People</h3>${staffing(
+      game.heads,
+      game.day,
+      gameSchedule({ ...game, flown: [] }, CAPE_1958, START_DAY).flights,
+    )
+      .map(p => {
+        if (!p.open)
+          return `<div class="mg-post"><b>${esc(p.name)}</b><p class="muted">Opens when Mercury flights begin.</p></div>`;
+        if (p.head)
+          return `<div class="mg-post"><b>${esc(p.name)}</b>: ${esc(p.head.name)}<p class="muted">${esc(p.head.text)}</p>
+            <button data-act="vacate" data-post="${p.id}">Choose someone else</button></div>`;
+        return `<div class="mg-post"><b>${esc(p.name)}</b> <span class="mg-warn">nobody yet</span><p class="muted">${esc(p.text)}</p>
+          ${p.candidates.map(c => `<p>${esc(c.name)}: ${esc(c.text)} <button data-act="appoint" data-post="${p.id}" data-who="${c.id}">Appoint</button></p>`).join('')}</div>`;
+      })
+      .join('')}`;
+  }
+
   function panel() {
     const b = selected;
-    if (showReports) {
+    if (showing === 'budget') return budgetPanel();
+    if (showing === 'people') return peoplePanel();
+    if (showing === 'reports') {
       const flown = [...(game.flown ?? [])].reverse(),
         all = gameSchedule({ ...game, flown: [] }, CAPE_1958, START_DAY).flights;
       return `<h3>Reports</h3>${
@@ -197,8 +246,12 @@ export function startBaseView(el, game, { save, back }) {
     $('[data-act=pause]').classList.toggle('on', paused);
     const n = game.flown?.length ?? 0;
     $('.mg-bar [data-act=reports]').textContent = n ? `Reports (${n})` : 'Reports';
-    $('.mg-bar [data-act=reports]').classList.toggle('on', showReports);
-    $('[data-live=panel]').innerHTML = panel();
+    for (const k of ['reports', 'budget', 'people']) $(`.mg-bar [data-act=${k}]`).classList.toggle('on', showing === k);
+    const empty = staffing(game.heads, game.day, sched.flights).filter(p => p.open && !p.head).length;
+    $('.mg-bar [data-act=people]').textContent = empty ? `People (${empty} to choose)` : 'People';
+    // Not while a slider in the panel is held, so moving money is never cut off by the clock.
+    if (!$('[data-live=panel]').contains(document.activeElement) || document.activeElement.type !== 'range')
+      $('[data-live=panel]').innerHTML = panel();
     $('[data-live=log]').innerHTML = log
       .slice(-3)
       .map(l => `<div>${esc(l)}</div>`)
@@ -218,6 +271,10 @@ export function startBaseView(el, game, { save, back }) {
       speed = 1;
       log.push(`Slowed to 1× for ${launch.name}’s launch today.`);
     }
+    if (ensureBudget())
+      log.push(
+        `${fyName(game.budget.fy)[0].toUpperCase()}${fyName(game.budget.fy).slice(1)} begins: Congress gives the centre ${money(game.budget.total)}.`,
+      );
     save(game);
     info();
   }
@@ -355,8 +412,22 @@ export function startBaseView(el, game, { save, back }) {
     if (!b) return;
     if (b.dataset.act === 'title') return back();
     if (b.dataset.act === 'pause') paused = !paused;
-    if (b.dataset.act === 'reports') showReports = !showReports;
+    for (const k of ['reports', 'budget', 'people'])
+      if (b.dataset.act === k) {
+        showing = showing === k ? null : k;
+        selected = null;
+      }
     if (b.dataset.act === 'deselect') selected = null;
+    if (b.dataset.act === 'appoint') {
+      game.heads = { ...game.heads, [b.dataset.post]: b.dataset.who };
+      log.push(`${candidate(b.dataset.post, b.dataset.who).name} takes up the post.`);
+      save(game);
+    }
+    if (b.dataset.act === 'vacate') {
+      const { [b.dataset.post]: gone, ...rest } = game.heads;
+      game.heads = rest;
+      save(game);
+    }
     if (b.dataset.speed) {
       speed = Number(b.dataset.speed);
       paused = false;
@@ -394,7 +465,7 @@ export function startBaseView(el, game, { save, back }) {
       const a = toArt(e),
         t = tileAt(a.x, a.y);
       selected = buildingAt(base, t.tx, t.ty);
-      if (selected) showReports = false;
+      if (selected) showing = null;
       info();
     }
     drag = null;
@@ -416,19 +487,37 @@ export function startBaseView(el, game, { save, back }) {
     } else if (['1', '2', '3'].includes(e.key)) {
       speed = SPEEDS[Number(e.key) - 1];
       paused = false;
-    } else if (e.key === 'r' || e.key === 'R') showReports = !showReports;
-    else if (e.key === 'ArrowLeft' || e.key === 'a') cam.x -= step;
+    } else if ('rbp'.includes(e.key.toLowerCase()) && e.key.length === 1) {
+      const k = { r: 'reports', b: 'budget', p: 'people' }[e.key.toLowerCase()];
+      showing = showing === k ? null : k;
+    } else if (e.key === 'ArrowLeft' || e.key === 'a') cam.x -= step;
     else if (e.key === 'ArrowRight' || e.key === 'd') cam.x += step;
     else if (e.key === 'ArrowUp' || e.key === 'w') cam.y -= step;
     else if (e.key === 'ArrowDown' || e.key === 's') cam.y += step;
     else if (e.key === 'Escape') {
       selected = null;
-      showReports = false;
+      showing = null;
     } else return;
     clampCam();
     info();
   };
   window.addEventListener('keydown', onKey);
+  // Moving money between the lines.
+  el.addEventListener('input', e => {
+    const id = e.target.dataset?.line;
+    if (!id) return;
+    game.split = resplit(game.split, id, Number(e.target.value));
+    save(game);
+    el.querySelectorAll('[data-line]').forEach(r => {
+      if (r !== e.target) r.value = game.split[r.dataset.line];
+    });
+    const rows = lines(game.budget, game.split, game.day, START_DAY);
+    el.querySelectorAll('.mg-lines label').forEach((lab, i) => {
+      lab.querySelector('b').textContent = `${rows[i].share}%`;
+      lab.querySelector('span').textContent = `${money(rows[i].amount)}, ${spentText(rows[i].spent)}`;
+    });
+  });
+  ensureBudget();
   // A game saved before reports came in catches up its flights now.
   const caught = flyDue(game, sched, game.day);
   if (caught.length) {

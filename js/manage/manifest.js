@@ -51,7 +51,14 @@ export const CAPE_1958 = {
       planned: dayOf(1959, 8, 7),
       tutorial: true,
     },
-    { id: 'big-joe', name: 'Big Joe', vehicle: 'atlas', pad: 'lc-14', planned: dayOf(1959, 9, 9) },
+    {
+      id: 'big-joe',
+      name: 'Big Joe',
+      vehicle: 'atlas',
+      pad: 'lc-14',
+      planned: dayOf(1959, 9, 9),
+      programme: 'mercury', // the first Mercury flight: a boilerplate capsule's heat shield test
+    },
     { id: 'vanguard-3', name: 'Vanguard 3', vehicle: 'vanguard', pad: 'lc-18a', planned: dayOf(1959, 9, 18) },
     { id: 'explorer-7', name: 'Explorer 7', vehicle: 'juno', pad: 'lc-5', planned: dayOf(1959, 10, 13) },
     { id: 'pioneer-p3', name: 'Pioneer P-3', vehicle: 'atlas-able', pad: 'lc-14', planned: dayOf(1959, 11, 26) },
