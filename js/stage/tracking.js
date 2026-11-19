@@ -12,6 +12,19 @@ import { SITES } from '../data/campaign.js';
 import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
 import { label, setText, speech, puffTexture } from './kit.js';
+import { paintPlot, paintTrack } from './tracking-art.js';
+import { artLayer } from './control-art.js';
+import { pixelSize } from './pixelate.js';
+import { mix } from './pixel.js';
+
+// Hand-painted in pixel art (tracking-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
+const pixelOn = () => {
+  try {
+    return localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    return true;
+  }
+};
 
 const GREEN = 0x8fd6a8,
   BRIGHT = 0x9ff0b8,
@@ -101,7 +114,9 @@ export function trackingScene() {
 
   let key = '',
     drawnUpto = -1,
-    P = null;
+    P = null,
+    still = null,
+    live = null;
 
   function rebuild(w, h, f) {
     const deep = !!f.result.deep;
@@ -123,6 +138,37 @@ export function trackingScene() {
     const px = x => left + (x / maxX) * (right - left),
       py = km => bottom - (km / maxH) * (bottom - topY);
     P = { px, py, left, right, bottom, topY, w, h, side, deep, before, maxH };
+    // The painted plot: the still screen once, and a live layer over it for the track.
+    still?.sprite.destroy(true);
+    live?.sprite.destroy(true);
+    still = live = null;
+    P.painted = pixelOn();
+    if (P.painted) {
+      const s = pixelSize(h);
+      P.s = s;
+      still = paintPlot({
+        w,
+        h,
+        s,
+        left,
+        right,
+        bottom,
+        topY,
+        side,
+        px,
+        py,
+        maxH,
+        hStep,
+        maxX,
+        xStep,
+        estimate: deep ? null : g.round.estimate,
+        before,
+      });
+      live = artLayer(w, h, s);
+      root.addChildAt(still.sprite, 0);
+      root.addChildAt(live.sprite, root.getChildIndex(pen));
+    }
+    for (const n of [screenBg, bezel, scan, estimate, past, track, peakMark, penDot]) n.visible = !P.painted;
 
     screenBg.texture?.destroy(true);
     screenBg.texture = phosphorTexture(w, h);
@@ -147,7 +193,7 @@ export function trackingScene() {
 
     for (const ch of grid.removeChildren()) ch.destroy();
     const lines = new Graphics();
-    grid.addChild(lines);
+    if (!P.painted) grid.addChild(lines);
     for (let k = 0; k <= maxH; k += hStep) {
       lines.rect(left, py(k), right - left, 1).fill(GRID);
       const t = label(k >= 10000 ? `${k / 1000}k km` : `${k} km`, 12, DIM, { ax: 1 });
@@ -298,6 +344,8 @@ export function trackingScene() {
         }
       }
     }
+    if (P.painted) paintLive(path, upto, bad);
+    trouble.visible = !P.painted;
     // The tracking camera, top left of the plot, while there is anything to see of her (not on the deep shots).
     camera.visible = !P.deep;
     if (camera.visible) {
@@ -328,6 +376,43 @@ export function trackingScene() {
       b.position.set(P.w - P.side / 2 - 15, y);
       y -= b.height + 8;
     }
+  }
+
+  // The painted plot's live layer: her track, the peak tick, the trouble ring and the pieces' returns, the pen's dot.
+  function paintLive(path, upto, bad) {
+    const { px, py, s } = P,
+      A = v => Math.round(v / s),
+      f = g.flight;
+    live.clear();
+    const pts = [];
+    let peak = path[0];
+    for (let i = 0; i <= upto; i++) {
+      pts.push([A(px(path[i].x)), A(py(path[i].h))]);
+      if (path[i].h > peak.h) peak = path[i];
+    }
+    if (pts.length >= 2) paintTrack(live, pts);
+    if (peak.h > 0) live.rect(A(px(peak.x)) - 2, A(py(peak.h)), 5, 1, AMBER);
+    if (bad && f.t >= bad.at) {
+      const q = path[Math.min(path.length - 1, Math.round(bad.at))];
+      live.ring(A(px(q.x)), A(py(q.h)), 2, AMBER);
+      if (bad.kind === 'break') {
+        const since = f.t - bad.at,
+          vx0 = path[Math.min(path.length - 1, Math.round(bad.at) + 1)].x - q.x || 0.3;
+        const ret = mix(0x08120e, GREEN, 0.6);
+        for (let i = 0; i < 5; i++) {
+          const vx = vx0 * (0.4 + i * 0.25),
+            vh = 0.25 - i * 0.12;
+          for (let t = 0; t < Math.min(since, 90); t += 3) {
+            const hh = q.h + vh * t - 0.0049 * t * t;
+            if (hh < 0) break;
+            live.px(A(px(q.x + vx * t)), A(py(hh)), ret);
+          }
+        }
+      }
+    }
+    const head = pts.at(-1);
+    if (head) live.rect(head[0], head[1], 1, 1, 0xffffff);
+    live.commit();
   }
 
   const stale = () => false;
