@@ -22,6 +22,16 @@ import {
   DEFAULT_PROGRAMME,
 } from './truth/round.js';
 import { TRAITS } from './world/people.js';
+import {
+  FAMILY,
+  afterFlight,
+  withLedger,
+  signOffUnclaimed,
+  onLedgerFor,
+  accept as ledgerAccept,
+  work as ledgerWork,
+  SLIP_DAYS,
+} from './world/ledger.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
 import { KITS, SHORT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './data/campaign.js';
@@ -507,7 +517,11 @@ function startRound(i) {
   g.clock = g.day * 1440 + START_MINUTE;
   // Fixes made between flights whatever the reviews said (Marshall's after MR-1 and Ham's flight).
   for (const cause of SEASON[i].adopt || []) adopt(g.programme, cause);
-  const round = newRound(g.seed + i * 7919, withSeasonRisk(g.programme, SEASON[i].risk, DEFAULT_PROGRAMME), g.vehicle);
+  // Items on the anomaly ledger nobody called are signed off by default, and the ledger moves the round's risks
+  // (world/ledger.js): only the thresholds, never the draws.
+  signOffUnclaimed(g.programme);
+  const risks = withLedger(withSeasonRisk(g.programme, SEASON[i].risk, DEFAULT_PROGRAMME), g.programme, g.vehicle);
+  const round = newRound(g.seed + i * 7919, risks, g.vehicle);
   if (SEASON[i].risk?.seg51Risk != null) round.seg51Risk = SEASON[i].risk.seg51Risk;
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
@@ -1789,6 +1803,26 @@ export function finishReview(entry) {
     failAt: f.failAt,
     name: SEASON[g.roundIndex].name,
   });
+  // The anomaly ledger (world/ledger.js): a loss that was on it, then what this flight left on it.
+  if (FAMILY[g.vehicle]) {
+    const was = f.failure ? onLedgerFor(g.programme, g.vehicle, f.failure) : [];
+    if (was.length) {
+      entry.ledgerLoss = was[0].seen[0];
+      note(
+        `It was on the anomaly ledger. It was first seen after ${was[0].seen[0]}, and signed off as in family${was[0].seen.length > 1 ? ` ${was[0].seen.length} times` : ''}.`,
+      );
+    }
+    const lines = afterFlight(g.programme, {
+      vehicle: g.vehicle,
+      seed: g.seed,
+      index: g.roundIndex,
+      name: SEASON[g.roundIndex].name,
+    });
+    if (lines.length) {
+      entry.anomalies = lines;
+      for (const l of lines) note(`On the post-flight report: ${l}`);
+    }
+  }
   // After Sputnik every day lost is reported to Washington, and it goes on your record.
   if (SEASON[g.roundIndex].pressure && g.slipDays) {
     shiftTrust(g.record, -1);
@@ -1860,6 +1894,27 @@ function briefLine() {
 }
 
 // Carry on to the next round of the season: the calendar jumps to its first day and tells you what happened meanwhile.
+// A call on an item on the anomaly ledger before the next flight: sign it off as in family, or hold it open and work it.
+// Working it is a bet on your judgement: a real fault found earns your boss's trust, nothing found costs some of it, and
+// on Apollo the week it takes comes off the schedule.
+export function ledgerCall(id, how) {
+  if (g.beat !== 'roundEnd') return;
+  if (how === 'accept') {
+    if (ledgerAccept(g.programme, id)) note('Anomaly ledger: you signed an item off as in family.');
+    return;
+  }
+  const r = ledgerWork(g.programme, id);
+  if (!r) return;
+  shiftTrust(g.record, r.found ? 1 : -1);
+  const i = nextIndex();
+  const apollo = i != null && SEASON[i].crewed === 'apollo';
+  if (apollo) g.programme.apolloSlip = (g.programme.apolloSlip || 0) + SLIP_DAYS;
+  note(
+    `Anomaly ledger: you held an item open and had it worked. ${r.text}${apollo ? ` It cost the schedule ${SLIP_DAYS} days.` : ''}${r.found ? '' : ' Your boss wanted to know what the time bought.'}`,
+  );
+  (g.record.ledgerCalls = g.record.ledgerCalls || []).push({ day: g.day, id, found: r.found });
+}
+
 export function nextRound() {
   const i = nextIndex();
   if (g.beat !== 'roundEnd' || i == null || pendingOffer(g.record)) return;

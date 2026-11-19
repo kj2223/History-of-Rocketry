@@ -100,6 +100,7 @@ import { GEMINI_TAPES, GEMINI_SIMS, GEMINI_SPOTS, GEMINI_QUALS } from './data/ge
 import { FAULT_AT_SPOT } from './data/kits.js';
 import { APOLLO_TAPES, APOLLO_SIMS, APOLLO_SPOTS, APOLLO_QUALS } from './data/apollo.js';
 import { earnCard } from './data/sim-cards.js';
+import { FAMILY as LEDGER_FAMILY, textOf as ledgerText } from './world/ledger.js';
 
 export {
   ABORT_LIMIT,
@@ -1552,6 +1553,54 @@ function orbitCause() {
 }
 
 // What the review has to go on: the tapes, and what came back.
+// ---- The failure board ----
+// The review's evidence comes in from three places: the tapes, the hardware that came back, and the people who were
+// there. The first look at the tapes is on the board from the start; the review board has time to follow up two of the
+// three, so you choose where to look. Earlier reports on the anomaly ledger for this hardware are pinned up too.
+export const INQUIRIES = {
+  tapes: 'Go through the tapes again, frame by frame',
+  hardware: 'Tear down what came back, and bench-test it',
+  crew: 'Sit down with the crew and the pad crew',
+};
+export const INQUIRY_LIMIT = 2;
+const sourceOf = line =>
+  /\b(bench|Hangar|found|on the ground|recovered|came back|sea floor|teardown|wreck\w*|capsule is|finds?|vacuum chamber|tests?)\b/i.test(
+    line,
+  )
+    ? 'hardware'
+    : /\b(crew|pilot|astronauts?|reported|said|told)\b/i.test(line)
+      ? 'crew'
+      : 'tapes';
+// The board as you can see it: { cards: [{ source, text }], asked, left, earlier }.
+export function failureBoard() {
+  const lines = evidence(),
+    asked = g.mission.inquiries || [];
+  const cards = [];
+  let first = true;
+  for (const text of lines) {
+    const source = sourceOf(text);
+    if ((source === 'tapes' && first) || asked.includes(source)) cards.push({ source, text });
+    if (source === 'tapes') first = false;
+  }
+  const earlier = (g.programme.ledger || [])
+    .filter(e => e.family === LEDGER_FAMILY[g.vehicle] && e.seen.length && e.status !== 'closed')
+    .map(e => `${ledgerText(e)} (seen after ${e.seen.join(', ')})`);
+  return { cards, asked, left: INQUIRY_LIMIT - asked.length, earlier };
+}
+// Follow up one line of inquiry. Returns what it turned up (lines), or null if the board has no time left for it.
+export function inquire(source) {
+  if (g.beat !== 'mReview' || !INQUIRIES[source]) return null;
+  const asked = (g.mission.inquiries = g.mission.inquiries || []);
+  if (asked.includes(source) || asked.length >= INQUIRY_LIMIT) return null;
+  asked.push(source);
+  const found = evidence().filter(
+    l => sourceOf(l) === source && !(source === 'tapes' && l === evidence().find(x => sourceOf(x) === 'tapes')),
+  );
+  note(`Review: ${INQUIRIES[source].toLowerCase()}. ${found.length ? found.join(' ') : 'It turned up nothing new.'}`);
+  roomChanged();
+  return found;
+}
+
 export function evidence() {
   const a = g.round.ascent || {},
     end = g.round.end || {};
