@@ -17,12 +17,13 @@ import { paintedRange, paintedSand, paintedSea, paintedScrub, U } from './site-b
 import { launchFx, warmTint, tailOf, might } from './fx/launch.js';
 import { hdLayer, hdWanted } from './fx/hd.js';
 import { PLACES } from '../data/white-sands.js';
-import { lightAt, daylightDressing } from './fx/daylight.js';
+import { lightAt, daylightDressing, moonPhase } from './fx/daylight.js';
 import { blastFx } from './fx/blast.js';
 import { siteLife } from './fx/life.js';
 import { siteTraffic } from './fx/traffic.js';
 import { weatherLayers, mulTint, weatherNow } from './fx/weather.js';
 import { flameLight, flameX, wetness } from './fx/flame-light.js';
+import { twilightPlume, twilightOf } from './fx/twilight.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
 const SKY_ABOVE = 240;
@@ -146,7 +147,9 @@ export function siteScene() {
   const lightLayer = new Container();
   root.addChild(lightLayer);
   const nightLayer = new Container();
-  nightLayer.addChild(day.beamLayer);
+  // At dusk and dawn, the exhaust high up in the sunlight the ground has lost (fx/twilight.js).
+  const twilight = twilightPlume();
+  nightLayer.addChild(twilight.root, day.beamLayer);
   root.addChild(nightLayer, weather.rain);
   const overlay = new Sprite();
   root.addChild(overlay);
@@ -279,7 +282,7 @@ export function siteScene() {
       cape = g.site === 'cape';
     const W = weatherNow(g, minute); // the same weather the periscopes, TV and tracking camera show
     // The launch's shake and the camera's tilt up after her.
-    const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s),
+    const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s, W.wind),
       tiltPx = lf.tilt * s;
     const bl = blast.state(g, Math.min(0.1, dt), screen, s);
     root.position.set(lf.shakeX + bl.shakeX, lf.shakeY + bl.shakeY);
@@ -291,7 +294,7 @@ export function siteScene() {
     world.position.set(-camX * s, tiltPx);
 
     // The sky, the sun, the haze and the sand: redrawn when the light or the screen changes.
-    const key = `${L.key}|${Math.ceil(vw)}|${cape}`;
+    const key = `${L.key}|${Math.ceil(vw)}|${cape}|${g.day}`;
     if (key !== skyKey) {
       skyKey = key;
       const setGrad = (sp, stops, x, y, w, h) => {
@@ -381,7 +384,8 @@ export function siteScene() {
       sunGlow.scale.set(3.8 + 1.4 * L.sun.low);
       sunGlow.tint = L.sunColor;
       sunGlow.alpha = 0.4;
-      day.sky(L, vw);
+      const today = dateOf(g.day ?? 0);
+      day.sky(L, vw, moonPhase(today.year, today.month, today.date, L.hour));
       for (const [r] of ranges) r.visible = !cape;
       for (const k of [sea, glints, scrub, palms]) k.visible = cape;
       if (cape && painted) {
@@ -535,6 +539,14 @@ export function siteScene() {
         camX,
         vw,
         sky: parseInt(L.sky[2].slice(1), 16),
+      });
+      twilight.update(Math.min(0.1, dt), {
+        flying: g.rocket.where === 'flying',
+        rise,
+        x: fx0,
+        tw: twilightOf(L.hour),
+        m: might(g.vehicle),
+        wind: W.wind,
       });
     }
     weather.update(W, L, { vw, camX, screen, s, t, dt: Math.min(0.1, dt) });
