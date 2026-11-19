@@ -10,7 +10,9 @@ import {
   consoleAim,
   padChoose,
   missionPresent,
-  evidence,
+  failureBoard,
+  inquire,
+  INQUIRIES,
   simStart,
   simClose,
   simOpen,
@@ -196,13 +198,26 @@ export const CONTROL_ROOMS = {
       <p class="muted">Flag the capsule's parts in Hangar S if a trace worries you.</p>`;
   },
   mreview() {
-    const k = KITS[g.vehicle] || KITS.redstone;
+    const k = KITS[g.vehicle] || KITS.redstone,
+      b = failureBoard();
+    const label = { tapes: 'THE TAPES', hardware: 'THE HARDWARE', crew: 'THE PEOPLE' };
+    const cards = b.cards
+      .map(c => `<li class="board-card ${c.source}"><b>${label[c.source]}</b> ${esc(c.text)}</li>`)
+      .join('');
+    const asks = Object.entries(INQUIRIES)
+      .filter(([s]) => !b.asked.includes(s))
+      .map(([s, t]) => `<button data-act="m-inquire" data-id="${s}">${esc(t)}</button>`)
+      .join('');
     return `<h2>The review, in ${esc(placeName('office'))}</h2>
       <p>${who('hollis')} has the tapes spread on the console.${huntsville() ? ` ${who('albrecht')} is on the line from Huntsville.` : ''} "Well${flightDirector() ? ', Flight' : engineer() ? '' : ', Retro'}. What happened to her?"</p>
-      <ul>${evidence()
-        .map(l => `<li>${esc(l)}</li>`)
-        .join('')}</ul>
-      <p class="muted">Your notebook has everything you saw on the plot.</p>
+      <ul class="failure-board">${cards}</ul>
+      ${b.earlier.length ? `<p><strong>Pinned up from the anomaly ledger:</strong></p><ul class="failure-board">${b.earlier.map(t => `<li class="board-card ledger"><b>EARLIER REPORTS</b> ${esc(t)}</li>`).join('')}</ul>` : ''}
+      ${
+        b.left > 0
+          ? `<p class="muted">The board has time to follow up ${b.left === 2 ? 'two lines' : 'one more line'} before it has to conclude. Where do you look?</p><div class="choices">${asks}</div>`
+          : '<p class="muted">The board has no more time: conclude from what is on it.</p>'
+      }
+      <p class="muted">Your notebook has everything you saw on the plot. When you are ready, say what happened:</p>
       <div class="choices">${Object.entries(k.explanations)
         .map(([key, t]) => `<button data-act="m-present" data-id="${key}">${esc(t)}</button>`)
         .join('')}</div>`;
@@ -498,6 +513,7 @@ export const CONTROL_ACTS = {
   'm-retro': id => consoleRetro(id),
   pad: id => padChoose(id),
   'm-present': id => missionPresent(id),
+  'm-inquire': id => inquire(id),
   'sim-start': id => simStart(id),
   'eng-look': id => lookSpot(id),
   'eng-flag': id => flagSpot(id),

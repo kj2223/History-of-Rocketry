@@ -423,3 +423,14 @@ header button.muted {
 #manage .mg-post { margin: 0 0 .7rem; padding-bottom: .5rem; border-bottom: 1px solid #1c201e; }
 #manage .mg-post p { margin: .2rem 0; }
 #manage .mg-post button { margin-left: .3rem; padding: .2em .5em; }
+
+/* The failure board in a review (scenes/control.js mreview): evidence cards by where they came from. */
+.failure-board { list-style: none; padding: 0; display: grid; gap: .4em; }
+.board-card { padding: .4em .6em; background: #efe6cc; color: #2a2620; border-left: 4px solid #7a6a4a; border-radius: 2px; }
+.board-card b { display: block; font: bold .75em/1.4 var(--mono); letter-spacing: .14em; color: #5a4a2a; }
+.board-card.hardware { border-left-color: #8a4a2a; } .board-card.crew { border-left-color: #2a5a7a; } .board-card.ledger { border-left-color: #a03020; }
+
+/* Your history against the real one (career/chronicle.js), on the season's end card. */
+.chronicle table { width: 100%; border-collapse: collapse; font-size: .92em; }
+.chronicle th, .chronicle td { text-align: left; vertical-align: top; padding: .25em .4em; border-bottom: 1px solid rgba(255,255,255,.12); }
+.history-line { border-left: 3px solid var(--accent); padding-left: .6em; }

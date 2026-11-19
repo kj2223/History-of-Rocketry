@@ -48,6 +48,7 @@ import {
   placeName,
   who,
   awaySpan,
+  ledgerCall,
 } from '../game.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
@@ -55,6 +56,8 @@ import { COSTS, planCost, dollars } from '../world/budget.js';
 import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
 import { fixesForCard } from '../world/programme.js';
+import { openItems, signedOff, textOf } from '../world/ledger.js';
+import { chronicle, milestoneRow, MILESTONES } from '../career/chronicle.js';
 import { SEATS, SEAT_PHRASE, pendingOffer } from '../career/record.js';
 import { PLACES, atPlace, staysNear } from '../data/white-sands.js';
 import { roundPrint } from '../site/album.js';
@@ -303,7 +306,7 @@ export function openGameRoom() {
   g.roomVersion++;
 }
 
-const ROOMS = {
+export const ROOMS = {
   probeHandover() {
     const { name, probe } = SEASON[g.roundIndex];
     return `<h2>${esc(name)}</h2><p>${esc(probe.tracking)}</p>
@@ -546,7 +549,7 @@ const ROOMS = {
       next = i != null ? SEASON[i] : null;
     const o = g.record.offers[g.record.offers.length - 1],
       here = o && o.day >= r.day;
-    return `<h2>Written up: ${esc(r.name)}</h2>${paperHTML(g, r, !!SEASON.find(s => s.id === r.id)?.crewed) || roundPrint(g, r, dateText)}${recordLine(r)}${carriesForward()}
+    return `<h2>Written up: ${esc(r.name)}</h2>${paperHTML(g, r, !!SEASON.find(s => s.id === r.id)?.crewed) || roundPrint(g, r, dateText)}${recordLine(r)}${historyLine(r)}${carriesForward()}${ledgerBlock()}
       ${here ? offerCard(o) : ''}
       ${next && !pendingOffer(g.record) ? `<p>Next: ${esc(next.name)}, from ${esc(dateText(roundStartOf(i)))}.</p><button class="primary" data-act="next-round">Carry on to the next round</button>` : ''}`;
   },
@@ -567,6 +570,7 @@ const ROOMS = {
       <p>${rs.length} rounds, ${good} of them good flights. ${backed(rs.filter(r => r.agreed && r.yourCall !== 'unknown').length + rs.filter(r => r.wentWithYou).length)}</p>
       <ol>${rs.map(r => `<li><strong>${esc(cap(r.name))}</strong> (${esc(dateText(r.day))}): ${recordLine(r, true)}</li>`).join('')}</ol>
       ${rec.capabilities?.length ? `<p><strong>What your flights showed, as evidence Apollo can cite:</strong></p><ul>${rec.capabilities.map(c => `<li>${esc(c.text)} (${esc(c.flight)})</li>`).join('')}</ul>` : ''}
+      ${chronicleBlock()}
       ${offer}
       <p class="muted">${esc(LAST_WORD[rs[rs.length - 1].id] || '')}</p>
       <button data-act="game-new">Start again from 1945</button>`;
@@ -615,6 +619,43 @@ function carriesForward() {
         ? `<details><summary>Fixes already standing in the build (${standing.length})</summary>${list(standing)}</details>`
         : ''
     }</div>`;
+}
+// Your history against the real one (career/chronicle.js): on a milestone's write-up, how it went in history.
+function historyLine(r) {
+  const m = MILESTONES.find(x => x.id === r.id),
+    row = m && milestoneRow(g.record, m, dateText);
+  return row ? `<p class="history-line"><strong>${esc(row.what)}.</strong> ${esc(row.real)}${esc(row.turned)}</p>` : '';
+}
+// The whole chronicle, at the end of your years.
+function chronicleBlock() {
+  const c = chronicle(g.record, dateText);
+  if (!c.rows.length) return '';
+  return `<div class="chronicle"><h3>Your history against the real one</h3>
+    <table><tr><th>Milestone</th><th>Yours</th><th>History</th></tr>${c.rows
+      .map(
+        row =>
+          `<tr><td>${esc(row.what)}</td><td>${esc(row.yours)}${row.turned ? `<br><strong>${esc(row.turned.trim())}</strong>` : ''}</td><td>${esc(row.real)}</td></tr>`,
+      )
+      .join('')}</table>
+    <p>Crews lost: <strong>${c.yours}</strong> in your years${c.yourText ? ` (${esc(c.yourText)})` : ''}; ${c.real} in history to the same day${c.realText ? ` (${esc(c.realText)})` : ''}.</p></div>`;
+}
+// The anomaly ledger before the next flight (world/ledger.js): each item waiting on a call, with the flights it was seen
+// on and how it looked this time, and the items already signed off. Never whether an item is real.
+function ledgerBlock() {
+  const open = openItems(g.programme),
+    off = signedOff(g.programme);
+  if (!open.length && !off.length) return '';
+  const seen = e => `seen after ${e.seen.map(esc).join(', ')}`;
+  const rows = open
+    .map(
+      e => `<li><p>${esc(textOf(e))} <span class="muted">(${seen(e)})</span>${e.trend === 'worse' ? ' <strong class="danger-text">Worse than last time.</strong>' : ''}</p>
+      <button data-act="ledger-accept" data-id="${esc(e.id)}">Sign it off as in family</button>
+      <button data-act="ledger-work" data-id="${esc(e.id)}">Hold it open and work it</button></li>`,
+    )
+    .join('');
+  return `<div class="ledger"><p><strong>The anomaly ledger</strong></p>
+    ${open.length ? `<p class="muted">Before the next flight each item needs a call. Most are nothing. Working one takes the team's time${SEASON[nextIndex()]?.crewed === 'apollo' ? ' (a week off the Apollo schedule)' : ''}, and your boss will ask what it bought. Anything left without a call is signed off.</p><ul>${rows}</ul>` : ''}
+    ${off.length ? `<details><summary>Signed off as in family (${off.length})</summary><ul>${off.map(e => `<li>${esc(textOf(e))} <span class="muted">(${seen(e)})</span></li>`).join('')}</ul></details>` : ''}</div>`;
 }
 function recordLine(r, inline = false) {
   if (r.yourCall == null) return inline ? esc(r.flight) : `<p>${esc(r.flight)}</p>`;
@@ -678,6 +719,8 @@ export function bindRoom(handlers) {
         if (['roundEnd', 'seasonEnd'].includes(g.beat)) g.room = g.beat;
       },
       'next-round': () => nextRound(),
+      'ledger-accept': () => ledgerCall(id, 'accept'),
+      'ledger-work': () => ledgerCall(id, 'work'),
       'probe-command': () => advanceProbe(true),
       'probe-wait': () => advanceProbe(false),
       'probe-choice': () => advanceProbe(Number(id)),
