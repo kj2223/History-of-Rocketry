@@ -45,6 +45,8 @@ import {
   MANAGEMENT,
 } from '../core/save.js';
 import { showTitle, hideTitle } from './title.js';
+import { portraitURL } from './portraits.js';
+import { dateOf } from '../core/calendar.js';
 import { newManagement, checkManagement, managementWhere } from '../manage/state.js';
 import { showManagement, hideManagement } from '../manage/screen.js';
 import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
@@ -414,9 +416,22 @@ function hud() {
   // In launch control and in flight the loop runs on through the night.
   const today = g.room === 'console' || g.flight ? g.loop : g.loop.filter(l => l.day == null || l.day === g.day);
   const loop = today.slice(-4);
-  $('loop').innerHTML = loop
+  // The loop's lines, and beside them the face of whoever spoke last (portraits.js). The picture is kept and only
+  // changed when the speaker does, so it never blinks as the lines redraw.
+  const box = $('loop');
+  if (!box.querySelector('.lines')) box.innerHTML = '<img class="speaker" alt=""><section class="lines"></section>';
+  box.querySelector('.lines').innerHTML = loop
     .map(l => `<div class="${l.tone}"><span>${l.at}</span> <b>${l.who}:</b> ${l.text.replace(/[&<>]/g, '')}</div>`)
     .join('');
+  const last = loop.at(-1),
+    face = box.querySelector('.speaker');
+  const want = last ? portraitURL(last.who, dateOf(g.day ?? 0).year) : '';
+  if (face.dataset.src !== want) {
+    face.dataset.src = want;
+    if (want) face.src = want;
+    face.title = last ? last.who : '';
+  }
+  face.hidden = !want;
 }
 
 // Seeded replays keep their checkpoints and backups separate from the active campaign.
