@@ -335,6 +335,7 @@ const ROOMS = {
     return `<h2>Game</h2>
       <p>Playing now: ${esc(here)}. The game saves itself every working morning.</p>
       <p><button data-act="game-new">Start a new game from 1945</button></p>
+      <p><button data-act="game-title">Back to the title screen</button> <span class="muted">Your game is saved; Continue there picks it up.</span></p>
       ${backup ? `<p>Your backup: ${esc(backup)}.</p><p><button data-act="game-restore">Go back to the backup</button> <span class="muted">The game you are playing now becomes the backup.</span></p>` : '<p class="muted">No backup yet. Starting a new game keeps this one as the backup.</p>'}`;
   },
   inspect() {
@@ -702,6 +703,7 @@ export function bindRoom(handlers) {
         handlers.again();
       },
       'game-restore': () => handlers.restore(),
+      'game-title': () => handlers.title?.(),
     })[act]?.() ?? (CONTROL_ACTS[act] || LUNAR_ACTS[act])?.(id);
   });
   el.addEventListener('change', e => {

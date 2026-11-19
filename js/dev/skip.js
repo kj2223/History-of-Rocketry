@@ -29,6 +29,7 @@ export function skipTo(id, { seed, route = 'nasa', stop = 'morning' } = {}) {
   if (!SEASON.some(r => r.id === id)) throw new Error(`no round called ${id}`);
   const take = route === 'nasa';
   newGame(seed);
+  globalThis.document?.dispatchEvent(new Event('aa-flight')); // a jump plays the Flight Director's game, off the title screen
   for (let guard = 140; guard && SEASON[g.roundIndex].id !== id; guard--) {
     // The two scenes that are not flights: the 1962 route meeting and the Apollo 8 decision.
     if (g.beat === 'sRoute') {
