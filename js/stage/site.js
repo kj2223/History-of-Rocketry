@@ -13,6 +13,7 @@ import { drawSiteMachinery, siteLabelsShown, flyingRise, VIEW_H, GROUND } from '
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
 import { buildSite, dropSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
+import { paintedRange, paintedSand, paintedSea, paintedScrub, U } from './site-backdrop.js';
 import { launchFx, warmTint, tailOf, might } from './fx/launch.js';
 import { hdLayer, hdWanted } from './fx/hd.js';
 import { PLACES } from '../data/white-sands.js';
@@ -46,8 +47,20 @@ function range(color, base, peaks, width) {
 
 // Pixel art (pixelate.js): lines thinner than this many site units are drawn one art pixel wide.
 siteScene.hairline = 3.5;
+// Slides a painted strip by a whole art pixel at a time, so its pixels stay on the pixel pass's grid.
+const snapU = x => Math.round(x / U) * U;
 export function siteScene() {
   const g = game;
+  // With pixel art on, the mountains, the sand and the Cape's sea and scrub are hand-painted (site-backdrop.js); the
+  // dev menu's No pixel art keeps the smooth shapes.
+  let painted = true;
+  try {
+    painted = localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    /* no storage: pixel art on */
+  }
+  let paintedGround = null,
+    paintedStrip = null;
   const root = new Container();
 
   // ---- the backdrop, in site units (VIEW_H tall), scaled to the screen ----
@@ -78,10 +91,12 @@ export function siteScene() {
   const life = siteLife();
   backFar.addChild(sky, day.stars, day.moon, sunGlow, sun, clouds, life.birds, weather.far);
   const WIDE = 4000; // wider than any screen in site units
+  const makeRange = (color, base, peaks, far) =>
+    painted ? paintedRange(color, base, peaks, WIDE, SPAN, far) : range(color, base, peaks, WIDE);
   const ranges = [
-    [range(0x8d86a0, 380, [0, 60, 30, 120, 70, 150, 40, 90, 20], WIDE), 0.15],
-    [range(0xa99a8c, 440, [10, 40, 25, 60, 15, 50, 35, 20, 45], WIDE), 0.3],
-    [range(0xc6aa87, 490, [8, 28, 12, 35, 15, 32, 11, 23, 5], WIDE), 0.42],
+    [makeRange(0x8d86a0, 380, [0, 60, 30, 120, 70, 150, 40, 90, 20], 0), 0.15],
+    [makeRange(0xa99a8c, 440, [10, 40, 25, 60, 15, 50, 35, 20, 45], 0.5), 0.3],
+    [makeRange(0xc6aa87, 490, [8, 28, 12, 35, 15, 32, 11, 23, 5], 1), 0.42],
   ];
   for (const [r] of ranges) backMid.addChild(r);
   // The Cape's horizon: the Atlantic, flat as a table, with glints that drift, and a green band with palmettos.
@@ -333,6 +348,12 @@ export function siteScene() {
         .clear()
         .rect(0, GROUND, vw + 2, 5)
         .fill(cape ? 0xd3c597 : 0xcdb489);
+      if (painted) {
+        paintedGround?.destroy(true);
+        paintedGround = paintedSand(vw, cape);
+        backNear.addChildAt(paintedGround, backNear.getChildIndex(sand) + 1);
+        sand.visible = sandEdge.visible = false;
+      }
       setGrad(
         fore,
         [
@@ -360,7 +381,22 @@ export function siteScene() {
       day.sky(L, vw);
       for (const [r] of ranges) r.visible = !cape;
       for (const k of [sea, glints, scrub, palms]) k.visible = cape;
-      if (cape) {
+      if (cape && painted) {
+        sea.texture?.destroy(true);
+        const pSea = paintedSea(vw);
+        sea.texture = pSea.texture;
+        sea.scale.copyFrom(pSea.scale);
+        sea.position.copyFrom(pSea.position);
+        pSea.destroy();
+        paintedStrip?.destroy(true);
+        paintedStrip = paintedScrub(vw);
+        backMid.addChildAt(paintedStrip, backMid.getChildIndex(scrub));
+        scrub.visible = palms.visible = false;
+      } else if (paintedStrip) {
+        paintedStrip.destroy(true);
+        paintedStrip = null;
+      }
+      if (cape && !painted) {
         setGrad(
           sea,
           [
@@ -398,6 +434,8 @@ export function siteScene() {
         }
       }
     }
+    if (paintedGround) paintedGround.x = -snapU(camX % (paintedGround.tilePx * U));
+    if (paintedStrip) paintedStrip.x = -snapU((camX * 0.4) % PALM_SPAN);
     if (cape) {
       palms.x = -((camX * 0.4) % PALM_SPAN);
       glints.clear();
@@ -432,7 +470,7 @@ export function siteScene() {
       clouds.ellipse(x + w * 0.35, y - w * 0.1, w * 0.22, w * 0.14).fill(col);
       clouds.ellipse(x + w * 0.62, y - w * 0.12, w * 0.26, w * 0.17).fill(col);
     }
-    for (const [r, k] of ranges) r.x = -((camX * k) % r.period);
+    for (const [r, k] of ranges) r.x = painted ? -snapU((camX * k) % r.period) : -((camX * k) % r.period);
 
     // The buildings and dressing, rebuilt only when the site changes (a new blockhouse, the move, the crewed years, an era).
     const sk = siteKey(g);
