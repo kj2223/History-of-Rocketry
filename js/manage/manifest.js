@@ -14,6 +14,16 @@ export const PAD_KINDS = {
   atlas: { vehicles: ['atlas', 'atlas-able'], before: 35, after: 14 },
 };
 
+// What players call each vehicle.
+export const VEHICLE_NAMES = {
+  'thor-able': 'Thor-Able',
+  juno: 'Juno II',
+  vanguard: 'Vanguard',
+  atlas: 'Atlas',
+  'atlas-able': 'Atlas-Able',
+  redstone: 'Redstone',
+};
+
 export const CAPE_1958 = {
   pads: [
     { id: 'lc-5', name: 'Launch Complex 5', kind: 'redstone' },

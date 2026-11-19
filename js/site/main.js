@@ -617,6 +617,7 @@ function toTitle() {
     },
     management: {
       saved: managed ? managementWhere(managed) : null,
+      replaces: 'The one you have now is replaced.', // kept in the save as a backup, but nothing restores it yet
       onContinue: () => manage(managed),
       onNew: () => {
         startOver(storage, checkManagement, MANAGEMENT);

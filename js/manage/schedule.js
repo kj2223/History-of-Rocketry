@@ -1,48 +1,87 @@
 // MANAGEMENT MODE: the round scheduler. In the Flight Director's game the rounds are a fixed script
 // (js/data/campaign.js). In management the player's plan decides them: this turns a list of planned flights and the
-// pads that exist into dated launches. A flight goes on its own pad if it names one, otherwise on the first pad of the
-// right kind; it flies on its planned date, or later if the pad is still busy with the flight before it or the
-// vehicle is not ready. The answer has the same shape as a campaign round (id, name, vehicle, site, start), so the
-// truth layer can make rounds from it as it does for the script. Pure: same plan, same schedule.
-import { PAD_KINDS } from './manifest.js';
+// pads that exist into dated launches. A flight goes on its own pad if it names one, otherwise on whichever pad of the
+// right kind can take it soonest; it flies on its planned date, or later if the pad is busy or the vehicle is late.
+// Each launch books its pad for the days before it (stacking and checkout) and after it (clearing), and a flight fits
+// into any free gap, so a late vehicle never holds a pad that another flight could use first.
+// The answer has the same shape as a campaign round (id, name, vehicle, site, start), so the truth layer can make
+// rounds from it as it does for the script. Pure: same plan, same schedule.
+import { PAD_KINDS, VEHICLE_NAMES } from './manifest.js';
 
 const PREP = 2; // a round opens two days before its launch, as in the campaign (js/data/campaign.js)
 
 export const padFits = (pad, vehicle) => PAD_KINDS[pad.kind]?.vehicles.includes(vehicle) ?? false;
+const vehicleName = v => VEHICLE_NAMES[v] ?? v;
+
+// The first launch day on or after `day` whose booking fits around the pad's other bookings.
+function firstFit(bookings, day, kind) {
+  let launch = day;
+  for (let moved = true; moved;) {
+    moved = false;
+    for (const b of bookings)
+      if (launch - kind.before <= b.to && launch + kind.after - 1 >= b.from) {
+        launch = b.to + kind.before + 1;
+        moved = true;
+      }
+  }
+  return launch;
+}
 
 // plan: { pads: [{ id, kind }], flights: [{ id, name, vehicle, planned, pad?, ready? }] }, where ready is the first day
 // the vehicle can be on the pad (a late delivery). from: the first day anything can fly.
 // Returns { flights: [{ ...flight, pad, launch, start, slip }], unplaced: [{ ...flight, why }] } in launch order.
 export function schedule(plan, { from = -Infinity, site = 'cape' } = {}) {
-  const free = Object.fromEntries(plan.pads.map(p => [p.id, -Infinity])), // first day each pad can take a vehicle
+  const bookings = Object.fromEntries(plan.pads.map(p => [p.id, []])),
     flights = [],
     unplaced = [];
-  const order = [...plan.flights].sort((a, b) => a.planned - b.planned || a.id.localeCompare(b.id));
+  const earliest = f => p => Math.max(f.planned, from, (f.ready ?? -Infinity) + PAD_KINDS[p.kind].before);
+  // Flights that can go soonest are booked first.
+  const soonest = f => Math.max(f.planned, from, f.ready ?? -Infinity);
+  const order = [...plan.flights].sort(
+    (a, b) => soonest(a) - soonest(b) || a.planned - b.planned || a.id.localeCompare(b.id),
+  );
   for (const f of order) {
-    const pads = f.pad ? plan.pads.filter(p => p.id === f.pad) : plan.pads.filter(p => padFits(p, f.vehicle));
-    if (!pads.length || !pads.every(p => padFits(p, f.vehicle))) {
-      unplaced.push({ ...f, why: f.pad ? `${f.pad} cannot fly a ${f.vehicle}` : `no pad for a ${f.vehicle}` });
+    const named = f.pad ? plan.pads.find(p => p.id === f.pad) : null;
+    if (f.pad && !named) {
+      unplaced.push({ ...f, why: `its pad, ${f.pad}, is not on the base` });
       continue;
     }
-    // The pad that can fly it soonest.
-    const when = p =>
-      Math.max(
-        f.planned,
-        from,
-        free[p.id] + PAD_KINDS[p.kind].before,
-        (f.ready ?? -Infinity) + PAD_KINDS[p.kind].before,
-      );
+    if (named && !padFits(named, f.vehicle)) {
+      unplaced.push({ ...f, why: `${named.name ?? named.id} cannot fly a ${vehicleName(f.vehicle)}` });
+      continue;
+    }
+    const pads = named ? [named] : plan.pads.filter(p => padFits(p, f.vehicle));
+    if (!pads.length) {
+      unplaced.push({ ...f, why: `there is no pad for a ${vehicleName(f.vehicle)}` });
+      continue;
+    }
+    const when = p => firstFit(bookings[p.id], earliest(f)(p), PAD_KINDS[p.kind]);
     const pad = pads.reduce((best, p) => (when(p) < when(best) ? p : best));
-    const launch = when(pad);
-    free[pad.id] = launch + PAD_KINDS[pad.kind].after;
+    const launch = when(pad),
+      kind = PAD_KINDS[pad.kind];
+    bookings[pad.id].push({ from: launch - kind.before, to: launch + kind.after - 1 }); // busy days, inclusive
     flights.push({ ...f, site, pad: pad.id, launch, start: launch - PREP, slip: launch - f.planned });
   }
   flights.sort((a, b) => a.launch - b.launch || a.id.localeCompare(b.id));
   return { flights, unplaced };
 }
 
-// The flights whose rounds open on this day.
-export const opening = (scheduled, day) => scheduled.flights.filter(f => f.start === day);
+// The flights whose rounds are open on this day: opened on or before it, not yet flown. A game loaded mid-round finds
+// its round open.
+export const opening = (scheduled, day) => scheduled.flights.filter(f => f.start <= day && day <= f.launch);
 
 // The next flight to open on or after this day, or null.
 export const nextFlight = (scheduled, day) => scheduled.flights.find(f => f.start >= day) ?? null;
+
+// A management game's schedule. It is always worked out from the start of the game, so the dates never move when a
+// game is saved and loaded, and a flight already on the record is never flown again: it stays in `flown`, out of the
+// flights to come.
+export function gameSchedule(game, plan, start) {
+  const s = schedule(plan, { from: start, site: game.site }),
+    done = new Set((game.flown ?? []).map(f => f.id));
+  return {
+    ...s,
+    flown: s.flights.filter(f => done.has(f.id)),
+    flights: s.flights.filter(f => !done.has(f.id)),
+  };
+}

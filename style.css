@@ -382,27 +382,33 @@ header button.muted {
 }
 
 
-/* The title screen and the management screen (js/site/title.js, js/manage/screen.js): whole-window sheets over the game. */
-#title, #manage { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 30%, #18202b, var(--bg) 70%); overflow: auto; }
+/* The title screen and the management screen (js/site/title.js, js/manage/*.js): whole-window sheets over the game.
+   The title is plain; management wears the console steel of its years (1958 on), whatever era the other game was in. */
+#title, #manage { position: fixed; inset: 0; z-index: 20; overflow: auto; }
+#title { display: flex; align-items: center; justify-content: center; background: #0b0f14; }
 #title[hidden], #manage[hidden] { display: none; }
-.title-sheet { width: min(64em, 92vw); text-align: center; }
-.title-sheet h1 { font-size: calc(var(--ui) * 3.2); letter-spacing: .12em; font-weight: normal; margin: 0 0 1.4em; color: var(--cream); }
-.title-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(20em, 1fr)); gap: 1.2rem; text-align: left; }
-.title-mode { padding: 1.1rem 1.3rem 1.3rem; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; }
-.title-mode h2 { margin: 0 0 .5rem; color: var(--accent); font-weight: normal; }
+.title-sheet { width: min(60em, 92vw); }
+.title-sheet h1 { font-size: calc(var(--ui) * 2.4); font-weight: normal; margin: 0 0 1em; color: var(--cream); }
+.title-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(19em, 1fr)); gap: 1rem; }
+.title-mode { padding: 1rem 1.2rem 1.2rem; background: #14181e; border: 1px solid #2c3440; }
+.title-mode h2 { margin: 0 0 .5rem; color: #e8c66a; font-weight: normal; }
 .title-mode .saved { color: var(--cream); }
-.manage-sheet { width: min(40em, 92vw); padding: 1.4rem 1.6rem; background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; }
-.manage-sheet .kicker { margin: 0; color: var(--accent); text-transform: uppercase; letter-spacing: .1em; font-size: .85em; }
-.manage-sheet h1 { margin: .2rem 0 .8rem; font-weight: normal; color: var(--cream); }
-#manage { display: block; background: #1f5577; }
-#manage[hidden] { display: none; }
-#manage .mg-view { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; cursor: grab; }
-#manage .mg-bar { position: absolute; inset: 0 0 auto 0; height: var(--bar); display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: rgba(11,15,20,.88); border-bottom: 1px solid var(--rule); z-index: 1; }
-#manage .mg-bar .mg-next { flex: 1; color: var(--cream); }
-#manage .mg-bar button.on { background: var(--accent); border-color: var(--accent); color: #14181e; }
-#manage .mg-panel { position: absolute; top: calc(var(--bar) + 12px); right: 12px; width: 20em; padding: .8rem 1rem; background: rgba(20,24,30,.94); border: 1px solid var(--line); border-radius: 6px; z-index: 1; }
-#manage .mg-panel h3 { margin: 0 0 .4rem; color: var(--accent); font-weight: normal; }
-#manage .mg-panel ol { margin: 0; padding-left: 1.3em; }
-#manage .mg-tip { position: fixed; padding: .15rem .5rem; background: rgba(11,15,20,.9); border: 1px solid var(--line); pointer-events: none; z-index: 2; font-size: .85em; }
-#manage .mg-log { position: absolute; left: 12px; bottom: 12px; width: 40em; z-index: 1; pointer-events: none; }
-#manage .mg-log div { background: rgba(11,15,20,.85); padding: .25rem .6rem; margin-top: 2px; border-left: 3px solid var(--accent); }
+
+#manage { --nixie: #ff9a3c; background: #1f5577; color: #e9ece4; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+#manage .mg-view, #manage .mg-type { position: absolute; inset: 0; width: 100%; height: 100%; }
+#manage .mg-view { image-rendering: pixelated; cursor: grab; filter: saturate(1.1) sepia(.08) contrast(1.04); } /* Kodachrome, 1958–75 */
+#manage .mg-type { pointer-events: none; }
+#manage .mg-bar { position: absolute; inset: 0 0 auto 0; height: var(--bar); display: flex; align-items: center; gap: .8rem; padding: 0 1rem; background: linear-gradient(#4a524e, #353c39); border-bottom: 3px solid #191c1b; z-index: 1; }
+#manage .mg-date { background: #111412; padding: .15em .6em; border-radius: 2px; letter-spacing: .1em; text-transform: uppercase; box-shadow: inset 0 0 0 1px #5d6661; color: var(--nixie); font-family: Consolas, var(--mono); font-weight: normal; font-size: .9em; }
+#manage .mg-next { flex: 1; color: #e9ece4; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#manage button { color: #e9ece4; background: linear-gradient(#5b635e, #3e4541); border: 1px solid #1a1d1b; border-radius: 2px; font: bold .8em "Segoe UI", system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; box-shadow: 0 2px 0 #151816; padding: .35em .7em; cursor: pointer; }
+#manage button.on { background: radial-gradient(circle at 50% 40%, #fff1c9, #ffb648 60%, #a86a10); color: #2b1a00; }
+#manage .mg-panel { position: absolute; top: calc(var(--bar) + 10px); right: 10px; width: min(19em, 34vw); max-height: calc(100% - var(--bar) - 20px); overflow: auto; padding: .7rem .9rem; background: linear-gradient(#39423e, #2c3431); border: 1px solid #141716; border-radius: 3px; box-shadow: 0 6px 20px rgba(0,0,0,.45); z-index: 1; font-size: .92em; }
+#manage .mg-panel h3 { display: inline-block; margin: 0 0 .5rem; background: #111412; padding: .2em .7em; font-size: .9em; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; border-radius: 2px; box-shadow: inset 0 0 0 1px #5d6661; color: #ffb648; }
+#manage .mg-panel ol, #manage .mg-panel ul { margin: 0 0 .5rem; padding-left: 1.3em; }
+#manage .mg-panel .muted { color: #a9b2ab; }
+#manage .mg-panel .mg-warn { color: #ffb648; margin-bottom: .2rem; }
+#manage .mg-reports { list-style: none; padding: 0; } #manage .mg-reports li { margin: 0 0 .5rem; }
+#manage .mg-tip { position: fixed; padding: .15rem .5rem; background: rgba(17,20,18,.92); border: 1px solid #5d6661; pointer-events: none; z-index: 2; font-size: .85em; }
+#manage .mg-log { position: absolute; left: 10px; bottom: 10px; width: min(34em, calc(100% - min(19em, 34vw) - 40px)); z-index: 1; pointer-events: none; font-size: .9em; }
+#manage .mg-log div { background: rgba(11,20,14,.88); color: #8fd69b; font-family: Consolas, var(--mono); padding: .25rem .6rem; margin-top: 2px; border-left: 3px solid #5fae6c; }

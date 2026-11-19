@@ -29,6 +29,14 @@ const C = {
   rocket: 0xf1efe8,
   band: 0x2b2b2b,
 };
+// The Banana River behind the Cape to the west, and ragged water at the map's north and south ends, so the land never
+// ends in a straight edge.
+const river = ty => 2 + Math.round(1.5 * Math.sin(ty / 5 + 1) + 1.2 * Math.sin(ty / 2.3));
+const wet = (tx, ty) =>
+  tx < river(ty) ||
+  ty < 1 + Math.round(1.5 + 1.5 * Math.sin(tx / 3.1)) ||
+  ty > SIZE - 3 + Math.round(Math.sin(tx / 2.7) * 1.5);
+
 export const ART = { w: SIZE * TW + 32, h: SIZE * TH + 80, ox: (SIZE * TW) / 2 + 16, oy: 60 };
 
 const noise = (x, y) => {
@@ -43,10 +51,16 @@ function ground(P, roads) {
   for (let ty = 0; ty < SIZE; ty++)
     for (let tx = 0; tx < SIZE; tx++) {
       const edge = coast(ty);
-      if (tx > edge + 1) {
+      if (tx <= edge + 1 && wet(tx, ty)) {
+        const shore = !wet(tx + 1, ty) || !wet(tx, ty + 1) || !wet(tx - 1, ty) || !wet(tx, ty - 1);
+        // Shallows along the shore; open water beyond is the same deep blue as the sea past the map's edge.
+        P.flat(tx, ty, 1, 1, shore ? 0x3b7790 : C.seaDeep, 0, (x, y) =>
+          shore && bayer(x, y) < 0.1 && noise(x >> 2, y) > 0.6 ? 0x5d97a0 : null,
+        );
+      } else if (tx > edge + 1) {
         const deep = tx > edge + 5;
         P.flat(tx, ty, 1, 1, deep ? C.seaDeep : C.sea, 0, (x, y) =>
-          bayer(x, y) < (deep ? 0.06 : 0.12) && noise(x >> 2, y) > 0.6 ? shade(C.sea, 1.25) : null,
+          !deep && bayer(x, y) < 0.12 && noise(x >> 2, y) > 0.6 ? shade(C.sea, 1.25) : null,
         );
       } else if (tx === edge + 1) P.flat(tx, ty, 1, 1, C.surf, 0, (x, y) => (noise(x, y) > 0.55 ? C.sea : null));
       else if (tx >= edge - 1) P.flat(tx, ty, 1, 1, C.beach);
@@ -152,14 +166,15 @@ export function paintBase(ctx, base, roads) {
 }
 
 // Rockets standing on their pads today. stands: [{ pad building, vehicle }].
-const HEIGHT = { 'thor-able': 18, juno: 15, vanguard: 16, atlas: 22, 'atlas-able': 24, redstone: 14 };
+// Art pixels tall, a little over true scale beside the towers so a rocket on its pad reads at a glance.
+const HEIGHT = { 'thor-able': 28, juno: 24, vanguard: 26, atlas: 34, 'atlas-able': 37, redstone: 22 };
 export function paintRockets(ctx, stands) {
   const P = isoPainter(ctx, ART.ox, ART.oy);
   ctx.clearRect(0, 0, ART.w, ART.h);
   for (const { pad, vehicle, rise = 0 } of stands) {
     const p = P.at(pad.tx + 2.5, pad.ty + 2.5, 2 + Math.round(rise)),
       h = HEIGHT[vehicle] ?? 16,
-      w = vehicle.startsWith('atlas') ? 3 : 2;
+      w = vehicle.startsWith('atlas') ? 4 : 3;
     P.rect(p.x - 1, p.y - h, w, h, C.rocket);
     P.rect(p.x - 1 + w - 1, p.y - h, 1, h, shade(C.rocket, 0.8)); // shaded side
     P.rect(p.x - 1, p.y - Math.round(h * 0.55), w, 1, C.band);
