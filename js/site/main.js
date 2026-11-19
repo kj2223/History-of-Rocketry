@@ -554,6 +554,12 @@ if (savedText !== null)
     parseSave(savedText, checkCheckpoint);
   } catch (e) {
     traceError('save-rejected', e);
+    // The new game's first autosave writes over pa-game: keep the refused save so a later build can carry it on.
+    try {
+      storage.setItem(KEYS.unreadable, savedText);
+    } catch {
+      /* storage full: play on */
+    }
   }
 const saved = readSave(storage, checkCheckpoint);
 trace('load', { found: !!saved, beat: saved?.beat ?? null, day: saved?.day ?? null, round: saved?.roundId ?? null });
