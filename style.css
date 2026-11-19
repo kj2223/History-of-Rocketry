@@ -93,6 +93,13 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 #loop.in-room { left: 8.5vw; width: 77vw; top: calc(var(--bar) + (100vh - var(--bar)) * 0.4536); height: calc((100vh - var(--bar)) * 0.0952); overflow: hidden;
   font-size: clamp(9px, calc((100vh - var(--bar)) * 0.0952 / 4 / 1.75), 30px); }
 #loop.in-room div { margin-top: 1px; padding: 0 .5rem; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The face of whoever spoke last on the loop (js/site/portraits.js): pixel art, scaled up with hard edges, beside the
+   lines. The lines take the rest of the width. */
+#loop .speaker { float: left; width: 3.6em; height: 3.6em; margin: 2px .4em 0 0; image-rendering: pixelated;
+  border: 2px solid var(--line); background: #0b0f14; }
+#loop .speaker[hidden] { display: none; }
+#loop .lines { overflow: hidden; }
+#loop.in-room .speaker { height: calc(100% - 4px); width: auto; aspect-ratio: 1; margin-top: 0; }
 
 /* Inside a walk-in room (blockhouse, hangar, dugout, simulator) the loop log drops to the bottom left, clear of the
    periscopes and the slit, above the way out. */

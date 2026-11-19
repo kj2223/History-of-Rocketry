@@ -25,6 +25,7 @@ const pixelOn = () => {
 };
 import { roomMood } from './fx/moods.js';
 import { roomDepth } from './fx/room-depth.js';
+import { drawPerson, drawRunner, idleAt } from './people.js';
 
 // The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
 // amber terminals, the flat grey monitors of 1996–2015, and the dark glass room of 2028 with its blue light.
@@ -113,71 +114,6 @@ const LIMIT = 6; // the abort rule: six degrees off the planned line
 // One controller, by the room's mood: at work in the chair; leaning in on their feet when the room is tense; up and
 // cheering, with a few small flags and, in the cigar years, a cigar's slow smoke, when a crew is home safe or down on
 // the Moon; slumped, heads down, when a crew is lost. The arms move slowly; nothing changes brightness.
-export function drawController(p, px, who, mood, t, i, year) {
-  const body = colorOf(who.color || '#4a5568'),
-    skin = 0xe2b993;
-  p.clear();
-  const up = mood === 'cheer' || (mood === 'tense' && i % 3 === 1) ? 12 : 0,
-    slump = mood === 'grief' ? 6 : 0;
-  const top = -25 - up + slump;
-  if (up)
-    p.rect(px - 10, top + 26, 8, up + 2)
-      .fill(0x2b2e33)
-      .rect(px + 2, top + 26, 8, up + 2)
-      .fill(0x2b2e33);
-  p.rect(px - 14, top, 28, 27 + up - slump).fill(body);
-  const hx = px + (mood === 'tense' && up ? 0 : 0),
-    hy = top - 6 + slump * 1.2;
-  if (mood === 'cheer') {
-    // Arms up, each swaying slowly on its own beat; every third waves a small flag.
-    const sway = Math.sin(t * 2.2 + i * 1.7) * 3;
-    p.moveTo(px - 12, top + 3)
-      .lineTo(px - 18 + sway, top - 18)
-      .moveTo(px + 12, top + 3)
-      .lineTo(px + 18 + sway, top - 18)
-      .stroke({ width: 5, color: body });
-    p.circle(px - 18 + sway, top - 19, 3)
-      .fill(skin)
-      .circle(px + 18 + sway, top - 19, 3)
-      .fill(skin);
-    if (i % 3 === 0) {
-      const fx = px + 18 + sway,
-        fy = top - 34;
-      p.rect(fx - 0.5, fy, 1.5, 16).fill(0x8a7a5a);
-      p.rect(fx + 1, fy, 12, 8).fill(0xb22234);
-      for (let k = 1; k < 4; k++) p.rect(fx + 1, fy + k * 2, 12, 1).fill(0xf3efe4);
-      p.rect(fx + 1, fy, 5, 4).fill(0x3c3b6e);
-    }
-    if (year < 1980 && i % 4 === 2) {
-      // A cigar's smoke, rising and thinning slowly.
-      for (let k = 0; k < 4; k++) {
-        const rise = ((t * 6 + k * 9) % 36) + 2;
-        p.circle(hx + 9 + Math.sin(t + k) * 2, hy - rise, 2 + rise * 0.08).fill({
-          color: 0xd8d4cc,
-          alpha: 0.35 * (1 - rise / 40),
-        });
-      }
-    }
-  } else if (mood === 'grief') {
-    // Elbows on the desk, a hand to the head for some.
-    if (i % 2)
-      p.moveTo(px + 12, top + 4)
-        .lineTo(px + 7, hy)
-        .stroke({ width: 5, color: body });
-  } else if (mood === 'tense' && up) {
-    p.moveTo(px - 12, top + 4)
-      .lineTo(px - 14, top + 22 + up)
-      .moveTo(px + 12, top + 4)
-      .lineTo(px + 14, top + 22 + up)
-      .stroke({ width: 5, color: body });
-  }
-  p.circle(hx, hy, 8).fill(skin);
-  p.moveTo(hx - 7, hy)
-    .arc(hx, hy, 7, Math.PI, 2 * Math.PI)
-    .stroke({ width: 2, color: 0x373b3e });
-  if (who.hat) p.rect(hx - 10, hy - 7, 20, 4).fill(colorOf(who.hat));
-}
-
 // art: { k, s, era } to paint the desk in pixels (control-art.js) at scale k in a room of s screen pixels to an art pixel;
 // without it the desk is drawn in smooth shapes for the pixel pass, as before.
 export function desk(d, look = LOOKS.steel, art = null) {
@@ -190,17 +126,21 @@ export function desk(d, look = LOOKS.steel, art = null) {
   // frame while the room is on its feet.
   const fig = new Graphics();
   if (d.who) {
-    const chair = new Graphics().rect(dw / 2 - 18, -19, 36, 21).fill(0x272d32);
+    const chair = new Graphics().roundRect(dw / 2 - 23, -25, 46, 27, 5).fill(0x272d32);
     c.addChild(chair, fig);
   }
   let poseKey = 'calm';
-  if (d.who) drawController(fig, dw / 2, d.who, 'calm', 0, 0, 1960);
+  if (d.who) drawPerson(fig, dw / 2, d.who, 'calm', 0, 0, 1960);
+  // Redrawn only when what they are doing changes: the mood, their own small actions while calm (people.js), or
+  // every frame while the room is cheering.
   c.pose = (mood, t, i, year) => {
     if (!d.who) return;
-    const key = mood === 'cheer' ? `${mood}|${Math.round(t * 8)}` : mood;
+    const idle = mood === 'calm' ? idleAt(d.who.name || `seat${i}`, i, t) : null;
+    const key =
+      mood === 'cheer' ? `${mood}|${Math.round(t * 8)}` : idle ? `calm|${idle.kind}|${idle.side}|${year}` : mood;
     if (key === poseKey) return;
     poseKey = key;
-    drawController(fig, dw / 2, d.who, mood, t, i, year);
+    drawPerson(fig, dw / 2, d.who, mood, t, i, year);
   };
   const offs = d.yours ? [10, 125, 240, 355] : [12, 100],
     sw = d.yours ? 105 : 74,
@@ -459,7 +399,9 @@ export function controlScene() {
   const racks = new Graphics(); // the rack lamps and the MOCR's event lights, every frame
   const deskLayer = new Container();
   const monitor = new Container();
-  root.addChild(shell, racks, deskLayer, monitor);
+  // Now and then someone carries paper along the aisle between the rows (people.js).
+  const runner = new Graphics();
+  root.addChild(shell, racks, deskLayer, runner, monitor);
   // Depth: the near, out-of-focus shapes along the bottom and the haze in the air (fx/room-depth.js), over the rest.
   const depth = roomDepth();
   root.addChild(depth.root);
@@ -853,6 +795,31 @@ export function controlScene() {
       buildDesks();
     }
     const mood = roomMood(g, c);
+    // The runner: one crossing every forty seconds or so, taking about fourteen, each way in turn; not in the 2028
+    // room, whose papers are on screens.
+    {
+      const t = g.time || 0,
+        cycle = Math.floor(t / 41),
+        f = (t % 41) / 14;
+      runner.clear();
+      if (f < 1 && era !== 'glass' && L) {
+        const dir = cycle % 2 ? -1 : 1,
+          k = Math.max(1, L.h / 900);
+        const x0 = L.leftW + 30,
+          x1 = L.galleryX - 30,
+          x = dir > 0 ? x0 + (x1 - x0) * f : x1 - (x1 - x0) * f;
+        drawRunner(
+          runner,
+          x / (k * 1.12),
+          (L.wallH + (L.h - L.wallH) * 0.53) / (k * 1.12),
+          t,
+          dir,
+          `runner${cycle % 3}`,
+          yearOf(g),
+        );
+        runner.scale.set(k * 1.12);
+      }
+    }
     desks.forEach((d, i) => {
       d.update(c, g.time);
       d.pose?.(mood, g.time, i, yearOf(g));
