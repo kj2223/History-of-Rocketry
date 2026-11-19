@@ -13,6 +13,16 @@ import { dayOf } from '../core/calendar.js';
 import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture } from './kit.js';
 import { moonWall } from './moon-wall.js';
 import { sceneLight } from './fx/hd.js';
+import { paintControlRoom, paintDesk } from './control-art.js';
+import { pixelSize } from './pixelate.js';
+// The pixel art switch (stage/index.js's pixelWanted, read here so the scene modules do not import the layer).
+const pixelOn = () => {
+  try {
+    return localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    return true;
+  }
+};
 import { roomMood } from './fx/moods.js';
 
 // The room's look by era, as the interface's: console steel with green screens through Apollo, the Shuttle years'
@@ -167,7 +177,9 @@ export function drawController(p, px, who, mood, t, i, year) {
   if (who.hat) p.rect(hx - 10, hy - 7, 20, 4).fill(colorOf(who.hat));
 }
 
-export function desk(d, look = LOOKS.steel) {
+// art: { k, s, era } to paint the desk in pixels (control-art.js) at scale k in a room of s screen pixels to an art pixel;
+// without it the desk is drawn in smooth shapes for the pixel pass, as before.
+export function desk(d, look = LOOKS.steel, art = null) {
   const dw = d.yours ? 460 : 190,
     dh = 60;
   const c = new Container();
@@ -189,31 +201,34 @@ export function desk(d, look = LOOKS.steel) {
     poseKey = key;
     drawController(fig, dw / 2, d.who, mood, t, i, year);
   };
-  if (!enamelTex.has(look))
-    enamelTex.set(
-      look,
-      gradientTexture([
-        [0, look.enamel[0]],
-        [0.75, look.enamel[1]],
-        [1, look.enamel[2]],
-      ]),
-    );
-  const enamel = new Sprite(enamelTex.get(look));
-  enamel.width = dw;
-  enamel.height = dh;
-  const trim = new Graphics()
-    .rect(0, 0, dw, 10)
-    .fill(look.trim)
-    .rect(dw * 0.92, 0, dw * 0.08, dh)
-    .fill({ color: 0x000000, alpha: 0.08 })
-    .rect(1, 1, dw - 2, 1)
-    .fill({ color: 0xdce4d7, alpha: 0.24 })
-    .rect(0, dh - 3, dw, 3)
-    .fill(0x262b30);
-  c.addChild(enamel, trim);
   const offs = d.yours ? [10, 125, 240, 355] : [12, 100],
     sw = d.yours ? 105 : 74,
     sh = 30;
+  if (art) c.addChild(paintDesk({ dw, dh, ...art, look, offs, sw, sh }));
+  else {
+    if (!enamelTex.has(look))
+      enamelTex.set(
+        look,
+        gradientTexture([
+          [0, look.enamel[0]],
+          [0.75, look.enamel[1]],
+          [1, look.enamel[2]],
+        ]),
+      );
+    const enamel = new Sprite(enamelTex.get(look));
+    enamel.width = dw;
+    enamel.height = dh;
+    const trim = new Graphics()
+      .rect(0, 0, dw, 10)
+      .fill(look.trim)
+      .rect(dw * 0.92, 0, dw * 0.08, dh)
+      .fill({ color: 0x000000, alpha: 0.08 })
+      .rect(1, 1, dw - 2, 1)
+      .fill({ color: 0xdce4d7, alpha: 0.24 })
+      .rect(0, dh - 3, dw, 3)
+      .fill(0x262b30);
+    c.addChild(enamel, trim);
+  }
   const texts = [];
   for (const off of offs) {
     const glass = new Graphics()
@@ -228,8 +243,16 @@ export function desk(d, look = LOOKS.steel) {
     const t = label('', 9, look.ink, { ax: 0, ay: 0.5 });
     t.position.set(off + 5, 31);
     const mask = new Graphics().rect(off, 16, sw, sh).fill(0xffffff);
-    t.mask = mask;
-    c.addChild(glass, mask, t);
+    // The pixel pass leaves a masked word out altogether (its mask is pixelated with the picture), so on the painted
+    // desks the screens' lines go unmasked: they are short enough to sit inside the glass.
+    if (art) {
+      glass.destroy();
+      mask.destroy();
+      c.addChild(t);
+    } else {
+      t.mask = mask;
+      c.addChild(glass, mask, t);
+    }
     texts.push(t);
   }
   const name = label(d.label, 8, 0xc9d2da, { family: 'Arial, sans-serif', ax: 0, ay: 1 });
@@ -502,104 +525,112 @@ export function controlScene() {
       shell.addChild(s);
       return s;
     };
-    shell.addChild(new Graphics().rect(0, 0, w, h).fill(0x14171c));
-    grad(
-      [
-        [0, look.wall[0]],
-        [0.53, look.wall[1]],
-        [1, look.wall[2]],
-      ],
-      leftW,
-      0,
-      galleryX - leftW,
-      wallH,
-    );
-    const lines = new Graphics();
-    for (let x = leftW; x < galleryX; x += (galleryX - leftW) / 12)
-      lines.rect(x, 0, 2, wallH).fill({ color: 0x050d12, alpha: 0.3 });
-    shell.addChild(lines);
-    grad(
-      [
-        [0, look.carpet[0]],
-        [0.4, look.carpet[1]],
-        [1, look.carpet[2]],
-      ],
-      leftW,
-      wallH,
-      galleryX - leftW,
-      h - wallH,
-    );
-    const floor = new Graphics();
-    for (const depth of [0.12, 0.29, 0.52, 0.82])
-      floor.rect(leftW, wallH + depth * (h - wallH), galleryX - leftW, 1).fill({ color: 0xe8ddbd, alpha: 0.08 });
-    floor.rect(leftW, wallH, galleryX - leftW, 6).fill({ color: 0x000000, alpha: 0.3 });
-    // The front wall's mountings: behind the map and screens, the clocks strip and the loop's board.
-    floor.rect(wallL - 12, wallH * 0.05 - 6, wallR - wallL + 24, wallH * 0.63).fill({ color: 0x070c11, alpha: 0.45 });
-    floor.rect(L.tv[0] - 6, L.tv[1] - 6, L.tv[2] + 12, L.tv[3] + 12).fill(0x181b1f);
-    floor.rect(wallL - 4, wallH * 0.69 - 4, wallR - wallL + 8, wallH * 0.09 + 8).fill(0x22272e);
-    floor.rect(wallL - 4, wallH * 0.81 - 4, wallR - wallL + 8, wallH * 0.17 + 8).fill(0x1b1f25);
-    shell.addChild(floor);
-    // A pool of warm light on the carpet in front of the consoles.
-    const pool = new Sprite(puffTexture());
-    pool.anchor.set(0.5);
-    pool.position.set(w * 0.46, h * 0.8);
-    pool.width = w * 0.75;
-    pool.height = (h - wallH) * 0.9;
-    pool.tint = look.pool;
-    pool.alpha = 0.16;
-    shell.addChild(pool);
-    // The racks along the left wall (their lamps are drawn every frame), and the gallery along the right.
-    const bank = new Graphics().rect(0, 0, leftW, h).fill(0x1d2126);
     const units = Math.max(4, Math.floor(h / 90));
     L.units = [];
-    for (let i = 0; i < units; i++) {
-      const uy = 10 + (i * (h - 20)) / units,
-        uh = (h - 20) / units - 8;
-      bank.rect(5, uy, leftW - 10, uh).fill(look.rack);
-      bank.rect(10, uy + 5, leftW - 20, uh - 10).fill(0x0d1117);
-      bank.rect(leftW / 2 - 8, uy + uh - 16, 16, 8).fill(0x454c55);
-      for (let v = 0; v < 3; v++)
-        bank.rect(14, uy + 21 + v * 3, Math.max(0, leftW - 28), 1).fill({ color: 0xadbdbf, alpha: 0.14 });
-      L.units.push(uy);
-    }
-    shell.addChild(bank);
-    const gw = w - galleryX;
-    grad(
-      [
-        [0, '#292b2a'],
-        [0.4, '#47433a'],
-        [1, '#332f2b'],
-      ],
-      galleryX,
-      0,
-      gw,
-      h,
-    );
-    const gal = new Graphics();
-    const winW = Math.min(gw * 0.36, 130),
-      winH = h * 0.12,
-      gap = gw * 0.08,
-      gx = galleryX + (gw - 2 * winW - gap) / 2,
-      gy = h * 0.05;
-    for (const wx of [gx, gx + winW + gap]) {
-      gal.rect(wx - 3, gy - 3, winW + 6, winH + 6).fill(0x181f22);
-      gal.rect(wx, gy, winW, winH).fill(0x426270);
-      gal.rect(wx, gy, winW, winH * 0.5).fill({ color: 0x547889, alpha: 0.6 });
-      gal.rect(wx + winW * 0.12, gy + winH * 0.1, winW * 0.07, winH * 0.8).fill({ color: 0xffffff, alpha: 0.12 });
-      for (let i = 0; i < 3; i++) {
-        const hx = wx + winW * (0.22 + i * 0.28),
-          hy = gy + winH * (0.6 + ((i * 13) % 3) * 0.08),
-          head = Math.min(winH * 0.15, Math.max(3, gw * 0.036));
-        gal
-          .rect(hx - head * 1.2, hy + head * 0.4, head * 2.4, gy + winH - hy - head * 0.4)
-          .fill(i % 2 ? 0x35414b : 0x2a3438);
-        gal.circle(hx, hy, head).fill(i % 2 ? 0xbc9c7d : 0x9b7f68);
+    for (let i = 0; i < units; i++) L.units.push(10 + (i * (h - 20)) / units);
+    // Hand-painted (control-art.js) with pixel art on; the smooth shapes below are for the dev menu's No pixel art.
+    L.painted = pixelOn();
+    if (L.painted) {
+      const art = paintControlRoom({ w, h, s: pixelSize(h), look, place, era, L });
+      art.sprite.ownTex = true;
+      shell.addChild(art.sprite);
+    } else {
+      shell.addChild(new Graphics().rect(0, 0, w, h).fill(0x14171c));
+      grad(
+        [
+          [0, look.wall[0]],
+          [0.53, look.wall[1]],
+          [1, look.wall[2]],
+        ],
+        leftW,
+        0,
+        galleryX - leftW,
+        wallH,
+      );
+      const lines = new Graphics();
+      for (let x = leftW; x < galleryX; x += (galleryX - leftW) / 12)
+        lines.rect(x, 0, 2, wallH).fill({ color: 0x050d12, alpha: 0.3 });
+      shell.addChild(lines);
+      grad(
+        [
+          [0, look.carpet[0]],
+          [0.4, look.carpet[1]],
+          [1, look.carpet[2]],
+        ],
+        leftW,
+        wallH,
+        galleryX - leftW,
+        h - wallH,
+      );
+      const floor = new Graphics();
+      for (const depth of [0.12, 0.29, 0.52, 0.82])
+        floor.rect(leftW, wallH + depth * (h - wallH), galleryX - leftW, 1).fill({ color: 0xe8ddbd, alpha: 0.08 });
+      floor.rect(leftW, wallH, galleryX - leftW, 6).fill({ color: 0x000000, alpha: 0.3 });
+      // The front wall's mountings: behind the map and screens, the clocks strip and the loop's board.
+      floor.rect(wallL - 12, wallH * 0.05 - 6, wallR - wallL + 24, wallH * 0.63).fill({ color: 0x070c11, alpha: 0.45 });
+      floor.rect(L.tv[0] - 6, L.tv[1] - 6, L.tv[2] + 12, L.tv[3] + 12).fill(0x181b1f);
+      floor.rect(wallL - 4, wallH * 0.69 - 4, wallR - wallL + 8, wallH * 0.09 + 8).fill(0x22272e);
+      floor.rect(wallL - 4, wallH * 0.81 - 4, wallR - wallL + 8, wallH * 0.17 + 8).fill(0x1b1f25);
+      shell.addChild(floor);
+      // A pool of warm light on the carpet in front of the consoles.
+      const pool = new Sprite(puffTexture());
+      pool.anchor.set(0.5);
+      pool.position.set(w * 0.46, h * 0.8);
+      pool.width = w * 0.75;
+      pool.height = (h - wallH) * 0.9;
+      pool.tint = look.pool;
+      pool.alpha = 0.16;
+      shell.addChild(pool);
+      // The racks along the left wall (their lamps are drawn every frame), and the gallery along the right.
+      const bank = new Graphics().rect(0, 0, leftW, h).fill(0x1d2126);
+      for (let i = 0; i < units; i++) {
+        const uy = 10 + (i * (h - 20)) / units,
+          uh = (h - 20) / units - 8;
+        bank.rect(5, uy, leftW - 10, uh).fill(look.rack);
+        bank.rect(10, uy + 5, leftW - 20, uh - 10).fill(0x0d1117);
+        bank.rect(leftW / 2 - 8, uy + uh - 16, 16, 8).fill(0x454c55);
+        for (let v = 0; v < 3; v++)
+          bank.rect(14, uy + 21 + v * 3, Math.max(0, leftW - 28), 1).fill({ color: 0xadbdbf, alpha: 0.14 });
       }
-      gal.rect(wx - 2, gy + winH, winW + 4, Math.max(3, h * 0.008)).fill(0x33302b);
+      shell.addChild(bank);
+      const gw = w - galleryX;
+      grad(
+        [
+          [0, '#292b2a'],
+          [0.4, '#47433a'],
+          [1, '#332f2b'],
+        ],
+        galleryX,
+        0,
+        gw,
+        h,
+      );
+      const gal = new Graphics();
+      const winW = Math.min(gw * 0.36, 130),
+        winH = h * 0.12,
+        gap = gw * 0.08,
+        gx = galleryX + (gw - 2 * winW - gap) / 2,
+        gy = h * 0.05;
+      for (const wx of [gx, gx + winW + gap]) {
+        gal.rect(wx - 3, gy - 3, winW + 6, winH + 6).fill(0x181f22);
+        gal.rect(wx, gy, winW, winH).fill(0x426270);
+        gal.rect(wx, gy, winW, winH * 0.5).fill({ color: 0x547889, alpha: 0.6 });
+        gal.rect(wx + winW * 0.12, gy + winH * 0.1, winW * 0.07, winH * 0.8).fill({ color: 0xffffff, alpha: 0.12 });
+        for (let i = 0; i < 3; i++) {
+          const hx = wx + winW * (0.22 + i * 0.28),
+            hy = gy + winH * (0.6 + ((i * 13) % 3) * 0.08),
+            head = Math.min(winH * 0.15, Math.max(3, gw * 0.036));
+          gal
+            .rect(hx - head * 1.2, hy + head * 0.4, head * 2.4, gy + winH - hy - head * 0.4)
+            .fill(i % 2 ? 0x35414b : 0x2a3438);
+          gal.circle(hx, hy, head).fill(i % 2 ? 0xbc9c7d : 0x9b7f68);
+        }
+        gal.rect(wx - 2, gy + winH, winW + 4, Math.max(3, h * 0.008)).fill(0x33302b);
+      }
+      const floorY = gy + winH + Math.max(6, h * 0.015);
+      gal.rect(galleryX + 2, floorY, gw - 4, h - floorY - 2).fill(0x2a2723);
+      shell.addChild(gal);
     }
-    const floorY = gy + winH + Math.max(6, h * 0.015);
-    gal.rect(galleryX + 2, floorY, gw - 4, h - floorY - 2).fill(0x2a2723);
-    shell.addChild(gal);
 
     // The wall map and the pad television: the old drawing, as pictures, at the screen's own pixels.
     const dpr = window.devicePixelRatio || 1;
@@ -648,7 +679,9 @@ export function controlScene() {
     const deco = new Graphics();
     const [lx, ly, lw, lh] = L.lights,
       [bx, by, bw, bh] = L.board;
-    if (place === 'fcr') {
+    if (place === 'fcr' && L.painted) {
+      // The video wall, its light strip and data windows are painted with the room (control-art.js).
+    } else if (place === 'fcr') {
       // The video wall: one dark surface of tiles behind the panes, with fine seams.
       const top = L.map[1] - 8,
         bottom = L.map[1] + L.map[3] + 8;
@@ -707,7 +740,8 @@ export function controlScene() {
         .fill(0x181b1f)
         .rect(bx, by, bw, bh)
         .fill(0x0c0f12);
-      shell.addChild(deco);
+      if (!L.painted) shell.addChild(deco);
+      else deco.destroy();
       const names = stationsFor(yearOf(g)),
         rows = names.length / 2,
         size = Math.max(9, Math.min(14, (bh / (rows + 1.5)) * 0.6));
@@ -734,7 +768,8 @@ export function controlScene() {
         steps.rect(leftW, y, galleryX - leftW, floor * 0.035).fill({ color: 0x000000, alpha: 0.28 });
         steps.rect(leftW, y, galleryX - leftW, 2).fill({ color: 0xe8ddbd, alpha: 0.18 });
       }
-      shell.addChild(steps);
+      if (!L.painted) shell.addChild(steps);
+      else steps.destroy();
     }
   }
 
@@ -754,20 +789,24 @@ export function controlScene() {
         Math.min(1.25 * roomK, frontK * 0.9, (availW - (back.length - 1) * backGap) / (back.length * 190)),
       );
     const bSpan = back.length * 190 * backK + (back.length - 1) * backGap;
+    // Painted desks sit on whole art pixels, so their pixels land on the pixel pass's grid.
+    const ps = pixelSize(h),
+      snap = v => (L.painted ? Math.round(v / ps) * ps : v),
+      art = k => (L.painted ? { k, s: ps, era } : null);
     desks = [];
     back.forEach((d, i) => {
-      const c = desk(d, look);
+      const c = desk(d, look, art(backK));
       c.scale.set(backK);
-      c.position.set(rowMid - bSpan / 2 + i * (190 * backK + backGap), wallH + floor * 0.16);
+      c.position.set(snap(rowMid - bSpan / 2 + i * (190 * backK + backGap)), snap(wallH + floor * 0.16));
       deskLayer.addChild(c);
       desks.push(c);
     });
     const frontGap = 24;
     let fx = rowMid - ((4 * 190 + 460) * frontK + 4 * frontGap) / 2;
     for (const d of front) {
-      const c = desk(d, look);
+      const c = desk(d, look, art(frontK));
       c.scale.set(frontK);
-      c.position.set(fx, wallH + floor * 0.6);
+      c.position.set(snap(fx), snap(wallH + floor * 0.6));
       deskLayer.addChild(c);
       desks.push(c);
       fx += (d.yours ? 460 : 190) * frontK + frontGap;

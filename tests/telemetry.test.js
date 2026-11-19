@@ -112,6 +112,15 @@ test('lunar cruise clocks are recorded side by side', () => {
   assert.deepEqual(clocks(fake).lunar, { phase: 'cruise', h: 2, sinceInjectionH: 5 });
 });
 
+test('an issue link full of dashes and quotes still fits the desktop’s 8192 limit', () => {
+  newGame(9);
+  const log = createLog();
+  startSession(log, { build: { version: '0.7.0' } });
+  for (let i = 0; i < 5; i++) recordError(log, g, 'error', `${i} ${'—’'.repeat(150)}`, 'Error\n    at x (x.js:1:1)');
+  const m = recordMark(log, g, { scene: 'site', objective: '—'.repeat(300), clocks: { a: '’'.repeat(230) } });
+  assert.ok(issueReport(log, m).url.length <= 8192);
+});
+
 test('a mark files as a GitHub issue link that fits, carrying the build, place, errors and steps', () => {
   newGame(9);
   const log = createLog();

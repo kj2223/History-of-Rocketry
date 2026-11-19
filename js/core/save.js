@@ -6,7 +6,12 @@
 
 export const FORMAT = 'per-aspera';
 export const CONTENT_VERSION = 3; // 3: V-2 and Bumper rounds, seats and offers; 2: a season of rounds; 1: one round
-export const KEYS = { current: 'pa-game', lastGood: 'pa-game-last-good', backup: 'pa-game-backup' };
+export const KEYS = {
+  current: 'pa-game',
+  lastGood: 'pa-game-last-good',
+  backup: 'pa-game-backup',
+  unreadable: 'pa-game-unreadable', // a save this build refused at start-up, kept for a later migration
+};
 
 export const FLIGHT = { mode: 'flight', keys: KEYS, contentVersion: CONTENT_VERSION };
 export const MANAGEMENT = {
@@ -46,8 +51,10 @@ export const parseSave = (text, check, slot = FLIGHT) => {
 
 export const writeSave = (storage, checkpoint, slot = FLIGHT) => {
   const text = exportSave(checkpoint, slot);
+  // The checkpoint before this one becomes the fallback, so a bad checkpoint never takes its own fallback with it.
+  const previous = storage.getItem(slot.keys.current);
+  if (previous !== text) storage.setItem(slot.keys.lastGood, previous ?? text);
   storage.setItem(slot.keys.current, text);
-  storage.setItem(slot.keys.lastGood, text);
 };
 
 // The saved checkpoint, falling back to the last good one. Returns null when nothing usable is saved.
