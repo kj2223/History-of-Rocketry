@@ -830,3 +830,19 @@ export function ellisReading(round) {
 }
 
 export const explanationIsRight = (round, key) => key === (round.flight.failure || 'nominal');
+
+// One round flown start to finish with no one at the console: newRound() and fly() in one call, for callers that only
+// want the result (management mode's staff flights). It keeps the round's internals (stages, traces, the lunar cruise)
+// out of their way. Null for a vehicle this layer does not fly. failure: the cause that ended the flight, or null for a
+// good one; short: the failure left the job partly done (a probe stranded short of the Moon).
+export function flyStaffRound(vehicle, seed, programme = DEFAULT_PROGRAMME) {
+  if (!PROFILE[vehicle]) return null;
+  const round = newRound(seed, programme, vehicle),
+    flown = fly(round);
+  return {
+    failure: flown.failure ?? null,
+    hidden: !!round.hiddenFailure,
+    apogee: flown.apogee,
+    short: !!(flown.failure && PROFILE[vehicle].deep?.includes(flown.failure)),
+  };
+}

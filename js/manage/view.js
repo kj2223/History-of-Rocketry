@@ -6,7 +6,19 @@
 import { paintBase, paintRockets, tileAt, ART } from './paint.js';
 import { CAPE_1958_BASE, CAPE_1958_ROADS, PREFABS, buildingAt } from './base.js';
 import { CAPE_1958, PAD_KINDS, VEHICLE_NAMES } from './manifest.js';
-import { gameSchedule } from './schedule.js';
+import {
+  PROGRAMMES,
+  programmesOf,
+  programmeSchedule,
+  allFlights,
+  advanceProgrammes,
+  commitOpen,
+  setProgramme,
+  canStop,
+  needed,
+  funding,
+  SQUEEZE_CAP,
+} from './programmes.js';
 import { flightOutcome, report } from './outcome.js';
 import { SECONDS_PER_DAY, SPEEDS, START_DAY, managementWhere } from './state.js';
 import { TW, TH } from './iso.js';
@@ -74,7 +86,7 @@ export function flyDue(game, sched, day) {
   const out = [];
   for (const f of sched.flights.filter(f => f.launch < day)) {
     const o = flightOutcome(game.seed, f);
-    game.flown = [...(game.flown ?? []), { id: f.id, day: f.launch, result: o.result, cause: o.cause }];
+    game.flown = [...(game.flown ?? []), { id: f.id, day: f.launch, pad: f.pad, result: o.result, cause: o.cause }];
     out.push(report(f, o));
     const promise = settle(game, f, o.result); // pressure.js: a public date kept, slipped or lost
     if (promise) out.push(promise);
@@ -95,7 +107,7 @@ export function startBaseView(el, game, { save, back }) {
   const base = CAPE_1958_BASE,
     still = art(),
     live = art();
-  let sched = gameSchedule(game, CAPE_1958, START_DAY);
+  let sched = programmeSchedule(game, START_DAY);
   paintBase(still.ctx, base, CAPE_1958_ROADS);
   const life = baseLife(base, CAPE_1958_ROADS); // the day turning, people and trucks, smoke (life.js)
   el.innerHTML = `<div class="mg-bar">
@@ -105,6 +117,7 @@ export function startBaseView(el, game, { save, back }) {
         ${SPEEDS.map((s, i) => `<button data-speed="${s}" title="Speed (${i + 1})">${s}×</button>`).join('')}
       </span>
       <span data-live="next" class="mg-next"></span>
+      <button data-act="programmes" title="Start, slow or stop programmes (G)">Programmes</button>
       <button data-act="budget" title="The year's money (B)">Budget</button>
       <button data-act="people" title="Your heads (P)">People</button>
       <button data-act="reports" title="Every flight's report (R)">Reports</button>
@@ -127,7 +140,7 @@ export function startBaseView(el, game, { save, back }) {
     zoom = 0,
     cam = null,
     selected = null,
-    showing = null, // the panel: null (the manifest), 'reports', 'budget' or 'people'
+    showing = null, // the panel: null (the manifest), 'reports', 'budget', 'people' or 'programmes'
     drag = null,
     running = true,
     log = [],
@@ -178,16 +191,63 @@ export function startBaseView(el, game, { save, back }) {
           <input type="range" min="0" max="100" step="5" value="${l.share}" data-line="${l.id}" aria-label="${esc(l.name)}: share of the budget"></label>`,
         )
         .join('')}</div>
+      ${programmesNeed()}
       <p class="muted">Move money between the lines at any time. Your record and your standing with Congress set next year’s figure.</p>
       <p><b>Standing:</b> ${esc(standingText(game.pressure?.standing))}${watched(game.day) ? ' <span class="mg-warn">Moscow is in the news: every promised date is watched.</span>' : ''}</p>`;
   }
 
+  // What the programmes need from the Programmes line this year, and whether it covers them.
+  function programmesNeed() {
+    const need = needed(game, game.budget, START_DAY),
+      cover = funding(game, game.budget, START_DAY);
+    return `<p>The programmes need ${esc(money(need))} this year.${
+      cover < 1
+        ? ` <span class="mg-warn">The Programmes line covers ${Math.floor(cover * 100)}% of it: dates are slipping (at most ${SQUEEZE_CAP} days a year).</span>`
+        : ' The Programmes line covers it.'
+    }</p>`;
+  }
+
+  const behind = s => {
+    const n = Math.floor(s?.lag ?? 0);
+    return n <= 0 ? '' : n === 1 ? ' A day behind its plan.' : ` ${n} days behind its plan.`;
+  };
+
+  function programmesPanel() {
+    const ps = programmesOf(game),
+      upcoming = id => sched.flights.filter(f => f.programme === id);
+    const row = (id, p) => {
+      const s = ps[id],
+        next = s ? upcoming(id)[0] : null,
+        status = s ? { running: 'running', slowed: 'slowed', stopped: 'stopped' }[s.status] : 'not started',
+        cost = s ? money(p.cost * { running: 1, slowed: 0.5, stopped: 0 }[s.status]) : money(p.cost);
+      const btn = (to, label, title, off = false) =>
+        `<button data-act="programme" data-id="${id}" data-to="${to}" title="${esc(title)}"${off ? ' disabled' : ''}>${label}</button>`;
+      const buttons = !s
+        ? btn('running', 'Start', `Start ${p.name}: ${money(p.cost)} a year`)
+        : [
+            s.status !== 'running' &&
+              btn('running', s.status === 'stopped' ? 'Start again' : 'Full pace', 'Full money, dates hold'),
+            s.status === 'running' && btn('slowed', 'Slow', 'Half the money; its dates fall back half a day each day'),
+            s.status !== 'stopped' &&
+              btn(
+                'stopped',
+                'Stop',
+                canStop(game, id) ? 'No money; its flights leave the manifest' : 'Not before Explorer 6 has flown',
+                !canStop(game, id),
+              ),
+          ]
+            .filter(Boolean)
+            .join(' ');
+      return `<div class="mg-post"><b>${esc(p.name)}</b> <span class="${s?.status === 'running' ? 'muted' : 'mg-warn'}">${esc(status)}</span>, ${esc(cost)} a year
+        <p class="muted">${esc(p.text)}${next ? ` Next: ${esc(next.name)}, ${esc(dateLabel(next.launch))}.` : ''}${behind(s)}</p>${buttons}</div>`;
+    };
+    return `<h3>Programmes</h3>${programmesNeed()}${Object.entries(PROGRAMMES)
+      .map(([id, p]) => row(id, p))
+      .join('')}<p><button data-act="programmes">Close</button></p>`;
+  }
+
   function peoplePanel() {
-    return `<h3>People</h3>${staffing(
-      game.heads,
-      game.day,
-      gameSchedule({ ...game, flown: [] }, CAPE_1958, START_DAY).flights,
-    )
+    return `<h3>People</h3>${staffing(game.heads, game.day, [...sched.flown, ...sched.flights])
       .map(p => {
         if (!p.open)
           return `<div class="mg-post"><b>${esc(p.name)}</b><p class="muted">Opens when Mercury flights begin.</p></div>`;
@@ -204,9 +264,10 @@ export function startBaseView(el, game, { save, back }) {
     const b = selected;
     if (showing === 'budget') return budgetPanel();
     if (showing === 'people') return peoplePanel();
+    if (showing === 'programmes') return programmesPanel();
     if (showing === 'reports') {
       const flown = [...(game.flown ?? [])].reverse(),
-        all = gameSchedule({ ...game, flown: [] }, CAPE_1958, START_DAY).flights;
+        all = allFlights(game);
       return `<h3>Reports</h3>${
         flown.length
           ? `<p>${esc(recordLine(game.flown))}</p><ul class="mg-reports">${flown
@@ -262,8 +323,11 @@ export function startBaseView(el, game, { save, back }) {
     $('[data-act=pause]').classList.toggle('on', paused);
     const n = game.flown?.length ?? 0;
     $('.mg-bar [data-act=reports]').textContent = n ? `Reports (${n})` : 'Reports';
-    for (const k of ['reports', 'budget', 'people']) $(`.mg-bar [data-act=${k}]`).classList.toggle('on', showing === k);
-    const empty = staffing(game.heads, game.day, sched.flights).filter(p => p.open && !p.head).length;
+    for (const k of ['reports', 'budget', 'people', 'programmes'])
+      $(`.mg-bar [data-act=${k}]`).classList.toggle('on', showing === k);
+    const empty = staffing(game.heads, game.day, [...sched.flown, ...sched.flights]).filter(
+      p => p.open && !p.head,
+    ).length;
     $('.mg-bar [data-act=people]').textContent = empty ? `People (${empty} to choose)` : 'People';
     // Not while a slider in the panel is held, so moving money is never cut off by the clock.
     if (!$('[data-live=panel]').contains(document.activeElement) || document.activeElement.type !== 'range')
@@ -277,18 +341,19 @@ export function startBaseView(el, game, { save, back }) {
   function newDay() {
     game.day += 1;
     log.push(...news(game)); // pressure.js: Soviet firsts as they break
-    const reports = flyDue(game, sched, game.day);
-    if (reports.length) {
-      log.push(...reports);
-      sched = gameSchedule(game, CAPE_1958, START_DAY);
-    }
+    log.push(...flyDue(game, sched, game.day));
+    const year = ensureBudget();
+    // The programmes' day: slowed, stopped or short of money, their dates fall back. Then the dates are worked out again.
+    log.push(...advanceProgrammes(game, game.budget, START_DAY));
+    sched = programmeSchedule(game, START_DAY);
+    commitOpen(game, sched);
     // A launch day plays at normal speed, so the liftoff is never skipped past.
     const launch = sched.flights.find(f => f.launch === game.day);
     if (launch && speed > 1) {
       speed = 1;
       log.push(`Slowed to 1× for ${launch.name}’s launch today.`);
     }
-    if (ensureBudget())
+    if (year)
       log.push(
         `${fyName(game.budget.fy)[0].toUpperCase()}${fyName(game.budget.fy).slice(1)} begins: Congress gives the centre ${money(game.budget.total)}.`,
       );
@@ -448,12 +513,20 @@ export function startBaseView(el, game, { save, back }) {
     if (!b) return;
     if (b.dataset.act === 'title') return back();
     if (b.dataset.act === 'pause') paused = !paused;
-    for (const k of ['reports', 'budget', 'people'])
+    for (const k of ['reports', 'budget', 'people', 'programmes'])
       if (b.dataset.act === k) {
         showing = showing === k ? null : k;
         selected = null;
       }
     if (b.dataset.act === 'deselect') selected = null;
+    if (b.dataset.act === 'programme') {
+      const line = setProgramme(game, b.dataset.id, b.dataset.to);
+      if (line) {
+        log.push(line);
+        sched = programmeSchedule(game, START_DAY);
+        save(game);
+      }
+    }
     if (b.dataset.act === 'appoint') {
       game.heads = { ...game.heads, [b.dataset.post]: b.dataset.who };
       log.push(`${candidate(b.dataset.post, b.dataset.who).name} takes up the post.`);
@@ -531,8 +604,8 @@ export function startBaseView(el, game, { save, back }) {
     } else if (['1', '2', '3'].includes(e.key)) {
       speed = SPEEDS[Number(e.key) - 1];
       paused = false;
-    } else if ('rbp'.includes(e.key.toLowerCase()) && e.key.length === 1) {
-      const k = { r: 'reports', b: 'budget', p: 'people' }[e.key.toLowerCase()];
+    } else if ('rbpg'.includes(e.key.toLowerCase()) && e.key.length === 1) {
+      const k = { r: 'reports', b: 'budget', p: 'people', g: 'programmes' }[e.key.toLowerCase()];
       showing = showing === k ? null : k;
     } else if (e.key === 'ArrowLeft' || e.key === 'a') cam.x -= step;
     else if (e.key === 'ArrowRight' || e.key === 'd') cam.x += step;
@@ -566,9 +639,10 @@ export function startBaseView(el, game, { save, back }) {
   const caught = flyDue(game, sched, game.day);
   if (caught.length) {
     log.push(...caught);
-    sched = gameSchedule(game, CAPE_1958, START_DAY);
+    sched = programmeSchedule(game, START_DAY);
     save(game);
   }
+  commitOpen(game, sched);
   info();
   requestAnimationFrame(frame);
   return {
