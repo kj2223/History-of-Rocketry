@@ -112,3 +112,20 @@ test('a liftoff with no engine to hear is flagged; a loud one is not', () => {
   );
   assert.deepEqual(at(-18), []);
 });
+
+test("a crewed liftoff, muffled on Mission Control's TV, is quiet on purpose", () => {
+  const look = (loudest, crewed) =>
+    judgeLook(
+      { ...calm, where: { ...where, crewed }, audio: { ...calm.audio, loudestDb: loudest } },
+      { liftoff: true },
+    );
+  assert.deepEqual(look(-43, true), []);
+  assert.deepEqual(
+    look(-43, false).map(f => f.kind),
+    ['quiet-liftoff'],
+  );
+  assert.deepEqual(
+    look(-58, true).map(f => f.kind),
+    ['quiet-liftoff'],
+  );
+});
