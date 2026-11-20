@@ -9,11 +9,14 @@
 import { BlurFilter, Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { dateOf } from '../core/calendar.js';
-import { drawSiteMachinery, siteLabelsShown, flyingRise, VIEW_H, GROUND } from '../site/draw.js';
+import { drawSiteMachinery, siteLabelsShown, flyingRise, yearOf, VIEW_H, GROUND } from '../site/draw.js';
 import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
 import { buildSite, dropSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
 import { paintedRange, paintedSand, paintedSea, paintedScrub, U } from './site-backdrop.js';
+import { paintedFar, paintedPlane, nearFringe, HORIZON } from './site-plane.js';
+import { siteShadows } from './fx/site-shadows.js';
+
 import { launchFx, warmTint, tailOf, might } from './fx/launch.js';
 import { hdLayer, hdWanted } from './fx/hd.js';
 import { PLACES } from '../data/white-sands.js';
@@ -64,6 +67,13 @@ export function siteScene() {
   }
   let paintedGround = null,
     paintedStrip = null;
+  // The site seen from above at three-quarters (site-plane.js): the ground plane, the far distance, the near fringe.
+  // Part of the hand-painted look, so it comes and goes with pixel art.
+  const plane = painted;
+  let planeFar = null,
+    planeGround = null,
+    planeKey = '',
+    fringe = null;
   const root = new Container();
 
   // ---- the backdrop, in site units (VIEW_H tall), scaled to the screen ----
@@ -167,6 +177,11 @@ export function siteScene() {
   root.addChild(frontWorld, fx.flash, blast.flash);
   // 2D-HD light over the pixels, at full resolution: the haze along the horizon, the sun's bloom and its rays when it
   // is low, the bloom of the flame and of the ground cloud it lights. Built to the width of the screen.
+  // Cast shadows and the dark under everything standing on the ground (fx/site-shadows.js), soft, over the pixels.
+  const shade3 = plane ? siteShadows() : null;
+  if (shade3) root.addChild(shade3.root);
+  const fringeBox = new Container();
+  root.addChild(fringeBox);
   const hdBox = new Container();
   hdBox.crisp = true;
   root.addChild(hdBox);
@@ -209,7 +224,7 @@ export function siteScene() {
       sky = L.sky;
     hd.begin(0xffffff);
     const low = L.sun.up ? L.sun.low : 0;
-    horizonHaze.position.set(vw / 2, 470);
+    horizonHaze.position.set(vw / 2, plane ? HORIZON + 4 : 470);
     horizonHaze.width = vw * 1.8;
     horizonHaze.height = 150;
     horizonHaze.tint = sky[2];
@@ -375,7 +390,7 @@ export function siteScene() {
       // The sun crosses the sky from the east (right) in the morning to the west (left) at sunset, low and orange
       // at either end; after sunset it is gone.
       const sx = vw * (0.88 - 0.76 * L.sun.along),
-        sy = 470 - 390 * L.sun.elevation;
+        sy = plane ? HORIZON - 6 - (HORIZON - 34) * L.sun.elevation : 470 - 390 * L.sun.elevation;
       sunX = sx;
       sunY = sy;
       sun.clear();
@@ -442,6 +457,28 @@ export function siteScene() {
         }
       }
     }
+    // Three-quarters: the far distance and the ground plane replace the ranges, the sea, the scrub and the sand.
+    if (plane) {
+      const pk = `${cape}|${yearOf(g)}`;
+      if (pk !== planeKey) {
+        planeKey = pk;
+        planeFar?.destroy(true);
+        planeGround?.destroy(true);
+        fringe?.destroy({ children: true, texture: true, textureSource: true });
+        planeFar = paintedFar(cape);
+        planeGround = paintedPlane(cape, yearOf(g));
+        backNear.addChild(planeFar, planeGround);
+        fringe = nearFringe(cape);
+        fringeBox.addChild(fringe);
+      }
+      for (const [r] of ranges) r.visible = false;
+      for (const k of [sea, glints, scrub, palms, haze, sand, sandEdge, fore]) k.visible = false;
+      if (paintedStrip) paintedStrip.visible = false;
+      if (paintedGround) paintedGround.visible = false;
+      const px0 = snapU(-camX);
+      planeFar.x = planeGround.x = px0 - 700;
+      planeFar.filters = hdWanted() ? [farBlur] : null;
+    }
     if (paintedGround) paintedGround.x = -snapU(camX % (paintedGround.tilePx * U));
     if (paintedStrip) paintedStrip.x = -snapU((camX * 0.4) % PALM_SPAN);
     if (cape) {
@@ -471,9 +508,10 @@ export function siteScene() {
     ].slice(0, 3 + Math.round(5 * W.cloud));
     const cloudCol = mulTint(L.cloud, W.overcast > 0.3 ? 0xc4c8d0 : 0xffffff);
     const cloudSpots = [];
-    for (const [x0, y, w0] of cloudSet) {
+    for (let [x0, y, w0] of cloudSet) {
       const w = w0 * (0.8 + 0.6 * W.cloud);
       const x = ((((x0 - drift) % spanC) + spanC) % spanC) - 300;
+      if (plane) y = 18 + y * 0.3;
       cloudSpots.push([x, y, w]);
       const col = { color: cloudCol, alpha: 0.55 - 0.3 * L.night + 0.2 * W.overcast };
       clouds.ellipse(x + w * 0.5, y, w * 0.5, w * 0.16).fill(col);
@@ -487,7 +525,7 @@ export function siteScene() {
     if (sk !== siteAt) {
       siteAt = sk;
       if (site) dropSite(site);
-      site = buildSite(g);
+      site = buildSite(g, { above: plane });
       world.addChildAt(site, 0);
       for (const l of lightLayer.removeChildren()) l.destroy();
       for (const [x, y, w, h, tint, alpha] of site.lights) {
@@ -615,6 +653,33 @@ export function siteScene() {
       labelTex.source.update();
     }
     labelsWere = labelsNow;
+
+    // Three-quarters: the shadows cast across the ground, and the near fringe out of focus at the bottom.
+    if (shade3) {
+      shade3.root.visible = hdWanted();
+      day.shadows.visible = !hdWanted();
+      if (hdWanted())
+        shade3.update(g, {
+          s,
+          camX,
+          tiltPx,
+          L,
+          key: siteAt,
+          build: () => buildSite(g, { above: true }),
+          overlay,
+          dpr,
+          peopleContext: people.context,
+          flying: g.rocket.where === 'flying',
+        });
+    }
+    if (planeGround) planeGround.tint = planeFar.tint = dim;
+    if (fringe) {
+      fringe.visible = hdWanted();
+      fringe.scale.set(s);
+      fringe.position.set(-camX * s, tiltPx);
+      fringe.filters[0].strength = 3 * s;
+      fringe.tint = world.tint;
+    }
 
     // Behind the title (js/site/title-scene.js) the site is a picture: no names, no words.
     labels.visible = bubbleLayer.visible = !titleShowing();

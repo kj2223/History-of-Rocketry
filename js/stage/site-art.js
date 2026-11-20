@@ -1077,8 +1077,83 @@ function shadows(gr, g) {
     .stroke({ width: 2, color: 0x46341e, alpha: 0.16 });
 }
 
+// ROOFS SEEN FROM ABOVE (2D-HD rework, 20 November 2026): with the camera looking down at three-quarters, the top of
+// each building shows above its front, lit full by the sky: tar and gravel on the flat roofs, the corrugated back of the
+// quonset, the two slopes of Hangar S. Drawn behind the buildings, so the front walls and whatever stands on the roof
+// (periscopes, vents, the pipe) stay in front. Only with the three-quarter view (site-plane.js).
+export const ROOF_DEEP = 40;
+function gravel(gr, x, y, w, h, base, seed) {
+  gr.rect(x, y, w, h).fill(base);
+  let s = seed;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < (w * h) / 60; i++) {
+    const k = rnd();
+    gr.rect(x + rnd() * (w - 3), y + rnd() * (h - 3), 3.4, 3.4).fill({
+      color: k < 0.5 ? 0x000000 : 0xffffff,
+      alpha: 0.07 + 0.05 * k,
+    });
+  }
+  gr.rect(x, y, w, 3.4).fill({ color: 0xffffff, alpha: 0.22 }); // the far edge, catching the sky
+  gr.rect(x, y + h - 3.4, w, 3.4).fill({ color: 0x000000, alpha: 0.12 }); // the parapet's lip toward us
+}
+function roofs(gr, g) {
+  const D = ROOF_DEEP;
+  const flat = (id, base, seed, over = 0) => {
+    const f = footprint(id, g);
+    gravel(gr, f.x - over, GROUND - f.h - D, f.w + 2 * over, D + 2, base, seed);
+    return f;
+  };
+  // The office or Mercury Control: eaves 8 beyond the walls.
+  {
+    const p = PLACES.office,
+      top = GROUND - p.h - 8;
+    gravel(gr, p.x - 8, top - D, p.w + 16, D + 2, g.crewed ? 0xc4beb0 : 0x8d7c66, 11);
+    if (g.crewed)
+      gr.rect(p.x + p.w - 60, top - D + 10, 30, 16)
+        .fill(0x9a9a92)
+        .rect(p.x + p.w - 60, top - D + 10, 30, 3)
+        .fill(0xc9c9c0);
+    else gr.rect(p.x + 40, top - D + 14, 10, 10).fill(0x6b5a46);
+  }
+  // The hangar: the quonset's curved back, ribbed, or Hangar S's two slopes.
+  {
+    const p = PLACES.hangar;
+    if (g.crewed) {
+      const top = GROUND - p.h + 20;
+      const l = p.x - 10,
+        r = p.x + p.w + 10,
+        m = p.x + p.w / 2;
+      gr.poly([l, top, m, top - 26, m, top - 26 - D, l, top - D]).fill(0xd6d2c6);
+      gr.poly([m, top - 26, r, top, r, top - D, m, top - 26 - D]).fill(0xb8b3a6);
+      gr.moveTo(m, top - 26)
+        .lineTo(m, top - 26 - D)
+        .stroke({ width: 2, color: 0xeeeae0 });
+    } else {
+      const top = GROUND - p.h,
+        y = t => (1 - t) ** 2 * (top + 40) + 2 * (1 - t) * t * (top - 40) + t * t * (top + 40),
+        x = t => p.x + p.w * t;
+      const pts = [];
+      for (let i = 0; i <= 24; i++) pts.push(x(i / 24), y(i / 24));
+      for (let i = 24; i >= 0; i--) pts.push(x(i / 24), y(i / 24) - D);
+      gr.poly(pts).fill(0x9da0a4);
+      // The crown catches the sky, the flanks turn away from it.
+      const crown = [];
+      for (let i = 6; i <= 18; i++) crown.push(x(i / 24), y(i / 24));
+      for (let i = 18; i >= 6; i--) crown.push(x(i / 24), y(i / 24) - D);
+      gr.poly(crown).fill({ color: 0xffffff, alpha: 0.16 });
+      for (let i = 1; i < 24; i++) gr.moveTo(x(i / 24), y(i / 24)).lineTo(x(i / 24), y(i / 24) - D);
+      gr.stroke({ width: 1, color: 0x6f7276, alpha: 0.5 });
+    }
+  }
+  // The blockhouse: a thick concrete slab.
+  const b = flat('blockhouse', 0xa29c90, 23, newBlockhouseStands(g) ? 14 : 10);
+  void b;
+  // The Mercury trainer building on the old stand.
+  if (g.crewed) flat('stand', 0xb2ab9a, 31, 8);
+}
+
 // The whole static site, in world units: dressing behind, then the buildings, then the shadows in front of them.
-export function buildSite(g) {
+export function buildSite(g, { above = false } = {}) {
   const root = new Container();
   const back = new Graphics();
   const texts = new Container();
@@ -1087,6 +1162,11 @@ export function buildSite(g) {
   dressing(back, texts, g);
   const bld = new Container();
   root.addChild(bld);
+  if (above) {
+    const top = new Graphics();
+    roofs(top, g);
+    bld.addChild(top);
+  }
   const piece = () => {
     const c = new Container(),
       gr = new Graphics();

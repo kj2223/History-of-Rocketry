@@ -18,7 +18,7 @@ import { g } from '../game.js';
 import { yearOf } from '../site/draw.js';
 import { filmLayer } from './fx/film.js';
 import { transitionLayer, transitionKind } from './fx/transition.js';
-import { pixelPass, setHairline } from './pixelate.js';
+import { pixelPass, setHairline, artFrame } from './pixelate.js';
 
 // A scene may decline a room it does not draw yet (accepts(g) false): the old canvas draws that one.
 const SCENES = {
@@ -43,6 +43,7 @@ export const pixelWanted = () => {
   }
 };
 
+let frameBox = null;
 let app = null,
   host = null,
   current = null,
@@ -89,7 +90,11 @@ export async function startStage(el, hooks) {
     film = filmLayer(app);
     // The pixel pass's picture sits under every scene; the scene itself then draws only its type over it.
     pixels = pixelPass(app.renderer);
-    app.stage.addChildAt(pixels.sprite, 0);
+    // The scene and its pixels sit in the whole-pixel frame (pixelate.js artFrame), centred in the window.
+    frameBox = new PIXI.Container();
+    frameBox.label = 'art-frame';
+    app.stage.addChildAt(frameBox, 0);
+    frameBox.addChild(pixels.sprite);
     cut = transitionLayer();
   } catch (e) {
     failed = true;
@@ -129,7 +134,7 @@ export function stageFrame(id, dt, reserve) {
     current = SCENES[id](app.hooks);
     currentId = id;
     builtFor = g;
-    app.stage.addChild(current.root);
+    frameBox.addChild(current.root);
     // The site lets clicks through to the canvas underneath, which still does the walking and talking.
     host.classList.toggle('pass', !!current.passThrough);
     film?.place();
@@ -144,10 +149,12 @@ export function stageFrame(id, dt, reserve) {
     app.resize();
   }
   setHairline(hairlineFor(id));
-  current.update(dt, app.screen, reserve);
+  const frame = artFrame(app.screen.width, app.screen.height);
+  frameBox.y = frame.y;
+  current.update(dt, frame, reserve);
   setHairline(0);
   // A scene still drawn with ordinary shapes is turned into pixel art here; the blockhouse paints its own pixels.
-  if (SCENES[id].hairline && pixelWanted()) pixels.draw(current.root, app.screen);
+  if (SCENES[id].hairline && pixelWanted()) pixels.draw(current.root, frame);
   else pixels?.release();
   film?.update(id, yearOf(g), dt, app.screen);
   cut?.update(dt, app.screen);
@@ -158,7 +165,7 @@ export function stageFrame(id, dt, reserve) {
 function drop() {
   if (!current) return;
   pixels?.release();
-  app.stage.removeChild(current.root);
+  frameBox.removeChild(current.root);
   current.root.destroy({ children: true });
   current = null;
   currentId = null;
