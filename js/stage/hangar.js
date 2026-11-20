@@ -15,6 +15,18 @@ import { atPlace } from '../data/white-sands.js';
 import { sceneLight } from './fx/hd.js';
 import { KITS } from '../data/kits.js';
 import { label, speech, canvasPicture, outButton, standingFigure } from './kit.js';
+import { PX, pixelLayer } from './pixel.js';
+import { paintHangar } from './hangar-art.js';
+import { pixelSize } from './pixelate.js';
+
+// Hand-painted in pixel art (hangar-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
+const pixelOn = () => {
+  try {
+    return localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    return true;
+  }
+};
 
 export const W = 1600,
   H = 900;
@@ -53,6 +65,7 @@ export function hangarScene({ leave, look, engLook }) {
   const root = new Container();
   const world = new Container();
   root.addChild(world);
+  const painted = pixelOn();
 
   // ---- Hangar S: white walls, a clean floor, the fluorescent fittings and the maker's banner ----
   const roomS = new Graphics();
@@ -84,6 +97,13 @@ export function hangarScene({ leave, look, engLook }) {
   const bannerW = Math.min(950, Math.max(550, banner.width + 60));
   roomS.rect(MID - bannerW / 2, 120, bannerW, 56).fill(0x2b3f6b);
   banner.position.set(MID, 148);
+  if (painted) {
+    const art = pixelLayer(320, 180, { mx: 160, my: 60 });
+    paintHangar(art, { crewed, floor: FLOOR, mid: MID, bannerW });
+    art.commit();
+    world.addChild(art.sprite);
+    roomS.visible = false;
+  }
   if (crewed) world.addChild(roomS, banner);
   else {
     roomS.destroy();
@@ -109,6 +129,7 @@ export function hangarScene({ leave, look, engLook }) {
       room.rect(x - 6, top, 2, FLOOR - top).fill(0x83868b);
     }
     world.addChild(room);
+    room.visible = !painted;
     const lights = new Graphics();
     for (const lx of [400, 800, 1200]) {
       lights.moveTo(lx, 0).lineTo(lx, 100).stroke({ width: 2, color: 0x222222 });
@@ -118,6 +139,7 @@ export function hangarScene({ leave, look, engLook }) {
         .fill({ color: 0xf3dd8a, alpha: 0.06 });
     }
     world.addChild(lights);
+    lights.visible = !painted;
     // The bench at the left wall, the tool board over it, and the chalkboard with the round's name.
     const shop = new Graphics();
     shop.rect(30, FLOOR - 150, 220, 14).fill(0x6a5a44);
@@ -136,6 +158,7 @@ export function hangarScene({ leave, look, engLook }) {
       .fill(0x2d3b33)
       .stroke({ width: 4, color: 0x6a5a44 });
     world.addChild(shop);
+    shop.visible = !painted;
     const board = label(kit().name, 22, 0xe8e4d6, { family: 'Georgia, serif' });
     board.position.set(150, FLOOR - 374);
     const boardDate = label(dateText(), 15, 0xe8e4d6, { family: 'Georgia, serif' });
@@ -465,9 +488,16 @@ export function hangarScene({ leave, look, engLook }) {
 
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    const s = Math.min(roomW / W, screen.height / H);
+    let s = Math.min(roomW / W, screen.height / H);
+    // Painted, each art pixel is a whole number of screen pixels, the pixel pass's own size where it fits, and the
+    // room sits on the pass's grid.
+    const ps = pixelSize(screen.height);
+    if (painted) s = Math.max(1, Math.min(ps, Math.floor(s * PX))) / PX;
     world.scale.set(s);
-    world.position.set((roomW - W * s) / 2, (screen.height - H * s) / 2);
+    let bx = (roomW - W * s) / 2,
+      by = (screen.height - H * s) / 2;
+    if (painted) ((bx = Math.round(bx / ps) * ps), (by = Math.round(by / ps) * ps));
+    world.position.set(bx, by);
     out.position.set(10, screen.height - 40 - 46);
     const t = g.time;
     layout();

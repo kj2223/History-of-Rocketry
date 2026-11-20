@@ -27,8 +27,27 @@ function firstFit(bookings, day, kind) {
   return launch;
 }
 
-// plan: { pads: [{ id, kind }], flights: [{ id, name, vehicle, planned, pad?, ready? }] }, where ready is the first day
-// the vehicle can be on the pad (a late delivery). from: the first day anything can fly.
+// The first day on or after `day` inside a launch window: `days` days long, opening every `period` days from `epoch`
+// (a Moon probe's monthly window).
+export function inWindow(day, { epoch, period, days }) {
+  for (let k = Math.max(0, Math.floor((day - epoch) / period) - 1); ; k++) {
+    const open = epoch + Math.round(k * period);
+    if (day <= open + days - 1) return Math.max(day, open);
+  }
+}
+
+// The first launch day that fits the pad and, for a flight with a window, falls inside it.
+function fit(bookings, day, kind, window) {
+  for (let launch = day; ;) {
+    launch = firstFit(bookings, launch, kind);
+    const w = window ? inWindow(launch, window) : launch;
+    if (w === launch) return launch;
+    launch = w;
+  }
+}
+
+// plan: { pads: [{ id, kind }], flights: [{ id, name, vehicle, planned, pad?, ready?, window? }] }, where ready is the
+// first day the vehicle can be on the pad (a late delivery) and window limits the launch to a monthly window. from: the first day anything can fly.
 // Returns { flights: [{ ...flight, pad, launch, start, slip }], unplaced: [{ ...flight, why }] } in launch order.
 export function schedule(plan, { from = -Infinity, site = 'cape' } = {}) {
   const bookings = Object.fromEntries(plan.pads.map(p => [p.id, []])),
@@ -55,7 +74,7 @@ export function schedule(plan, { from = -Infinity, site = 'cape' } = {}) {
       unplaced.push({ ...f, why: `there is no pad for a ${vehicleName(f.vehicle)}` });
       continue;
     }
-    const when = p => firstFit(bookings[p.id], earliest(f)(p), PAD_KINDS[p.kind]);
+    const when = p => fit(bookings[p.id], earliest(f)(p), PAD_KINDS[p.kind], f.window);
     const pad = pads.reduce((best, p) => (when(p) < when(best) ? p : best));
     const launch = when(pad),
       kind = PAD_KINDS[pad.kind];
@@ -73,9 +92,9 @@ export const opening = (scheduled, day) => scheduled.flights.filter(f => f.start
 // The next flight to open on or after this day, or null.
 export const nextFlight = (scheduled, day) => scheduled.flights.find(f => f.start >= day) ?? null;
 
-// A management game's schedule. It is always worked out from the start of the game, so the dates never move when a
-// game is saved and loaded, and a flight already on the record is never flown again: it stays in `flown`, out of the
-// flights to come.
+// A management game's schedule, worked out from the start of the game and the saved plan (programmes.js planFor), so the
+// dates never move when a game is saved and loaded, and a flight already on the record is never flown again: it stays in
+// `flown`, out of the flights to come.
 export function gameSchedule(game, plan, start) {
   const s = schedule(plan, { from: start, site: game.site }),
     done = new Set((game.flown ?? []).map(f => f.id));

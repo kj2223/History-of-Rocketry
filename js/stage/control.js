@@ -185,11 +185,15 @@ export function desk(d, look = LOOKS.steel, art = null) {
     t.position.set(off + 5, 31);
     const mask = new Graphics().rect(off, 16, sw, sh).fill(0xffffff);
     // The pixel pass leaves a masked word out altogether (its mask is pixelated with the picture), so on the painted
-    // desks the screens' lines go unmasked: they are short enough to sit inside the glass.
+    // desks the screens' lines go unmasked: they are short enough to sit inside the glass. A desk the pass draws
+    // (the simulator's) keeps its glass and loses only the mask.
     if (art) {
       glass.destroy();
       mask.destroy();
       c.addChild(t);
+    } else if (pixelOn()) {
+      mask.destroy();
+      c.addChild(glass, t);
     } else {
       t.mask = mask;
       c.addChild(glass, mask, t);

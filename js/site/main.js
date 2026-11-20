@@ -4,6 +4,8 @@
 import { drawSite, drawTracking, drawControlRoom, uiEra, PLACES, VIEW_H, GROUND } from './draw.js';
 import { consoleHud, bindConsoleHud, consoleKey } from './console-hud.js';
 import { startStage, stageFrame } from '../stage/index.js';
+import { closeupFrame, hideCloseup } from './closeups.js';
+import { titleSceneFrame, leaveTitleScene } from './title-scene.js';
 import { deepMode } from '../stage/deep.js';
 import { soundFrame, cycleSound, soundSetting } from '../stage/fx/sound.js';
 
@@ -508,6 +510,17 @@ let last = performance.now(),
 function frame(now) {
   // Off the Flight Director's game (the title screen, a management game) its clock stands still.
   if (screen !== 'flight') {
+    hideCloseup();
+    // The title shows the game you were playing behind it, standing still (js/site/title-scene.js).
+    if (screen === 'title') {
+      const dt = Math.min(MAX_STEP, (now - last) / 1000);
+      try {
+        titleSceneFrame(g, dt, view.w / scale(), () => stageFrame('site', dt, 0));
+      } catch (e) {
+        leaveTitleScene(g);
+        console.error('Title scene skipped:', e);
+      }
+    } else leaveTitleScene(g);
     last = now;
     requestAnimationFrame(frame);
     return;
@@ -551,6 +564,7 @@ function frame(now) {
     liveRoom();
     hud();
     soundFrame(g, sceneOf());
+    closeupFrame(g, dt);
     autosave();
   } catch (e) {
     console.error('Frame skipped:', e);
@@ -607,6 +621,7 @@ function hideDesk() {
 }
 function play() {
   screen = 'flight';
+  leaveTitleScene(g);
   hideTitle($('title'));
   hideManagement($('manage'));
   hideDesk();

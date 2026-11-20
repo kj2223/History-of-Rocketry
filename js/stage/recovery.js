@@ -10,6 +10,18 @@ import { g as game } from '../game.js';
 import { yearOf } from '../site/draw.js';
 import { sceneLight } from './fx/hd.js';
 import { label, setText, outButton, puffTexture, gradientTexture } from './kit.js';
+import { PX, pixelLayer } from './pixel.js';
+import { paintRecovery } from './recovery-art.js';
+import { pixelSize } from './pixelate.js';
+
+// Hand-painted in pixel art (recovery-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
+const pixelOn = () => {
+  try {
+    return localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    return true;
+  }
+};
 
 const W = 1600,
   H = 900,
@@ -315,6 +327,14 @@ export function recoveryScene({ leave }) {
   world.addChild(sky, sun, sunDisc, clouds);
   if (sea) world.addChild(sea);
   world.addChild(ground);
+  const painted = pixelOn();
+  if (painted) {
+    const art = pixelLayer(320, 180, { mx: 160, my: 60 });
+    paintRecovery(art, { sea: SEA, runway });
+    art.commit();
+    world.addChildAt(art.sprite, 0);
+    for (const o of [sky, sun, sunDisc, clouds, sea, ground]) if (o) o.visible = false;
+  }
 
   // The swell: long slow bands of lighter crest and darker trough, closer and bigger toward you; and under the sun, a
   // path of glints that drift with the swell at a steady brightness.
@@ -451,9 +471,16 @@ export function recoveryScene({ leave }) {
 
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    const s = Math.max(roomW / W, screen.height / H);
+    let s = Math.max(roomW / W, screen.height / H);
+    // Painted, each art pixel is a whole number of screen pixels (rounded up, so the view stays covered), and the
+    // world sits on the pixel pass's grid.
+    const ps = pixelSize(screen.height);
+    if (painted) s = Math.max(1, Math.ceil(s * PX - 0.01)) / PX;
     world.scale.set(s);
-    world.position.set((roomW - W * s) / 2, (screen.height - H * s) / 2);
+    let bx = (roomW - W * s) / 2,
+      by = (screen.height - H * s) / 2;
+    if (painted) ((bx = Math.round(bx / ps) * ps), (by = Math.round(by / ps) * ps));
+    world.position.set(bx, by);
     out.position.set(10, screen.height - 86);
     // Centred under the room, but never under the way-out card (180 wide, at x 10) on a narrow window.
     const cx = Math.max(roomW / 2, 10 + 180 + 12 + where.width / 2 + 16);
