@@ -22,11 +22,15 @@ import {
   pressValve,
   pressByHand,
   countTank,
+  meterSpot,
 } from '../js/game.js';
+import { newRound, meterReading, METERS } from '../js/truth/round.js';
+import { initProgramme } from '../js/world/programme.js';
+import { KITS } from '../js/data/kits.js';
 import { estimate } from '../js/world/programme.js';
 import { tickConsole, INSERT_WINDOW } from '../js/mercury.js';
 import { redlineRows } from '../js/scenes/redlines.js';
-import { playRound, until } from './play.js';
+import { playRound, until, passFlow } from './play.js';
 
 const toRead = () => {
   newGame(7);
@@ -226,4 +230,43 @@ test('away from the blockhouse, the regulator keeps the tank and nothing changes
   assert.equal(pressByHand(), false);
   pressValve(true);
   assert.ok(!g.count.valve);
+});
+
+// ---- Idea 5: the test kit in the hangar ----
+test('the test kit reads real defects out of limits far more often than sound parts', () => {
+  let faultOut = 0,
+    faults = 0,
+    soundOut = 0,
+    sound = 0;
+  for (let seed = 1; seed < 400; seed++) {
+    const r = newRound(seed, initProgramme(), 'wac');
+    for (const id of Object.keys(KITS.wac.spots)) {
+      const read = meterReading(r, id);
+      if (!read) continue;
+      if (r.faults[id]) (faults++, (faultOut += read.out));
+      else (sound++, (soundOut += read.out));
+    }
+  }
+  assert.ok(faults > 20 && faultOut / faults > 0.75, `faults ${faultOut}/${faults}`);
+  assert.ok(soundOut / sound < 0.15, `sound ${soundOut}/${sound}`);
+});
+
+test('putting the meter on a part costs its time, goes in the notebook, and changes nothing else', () => {
+  newGame(7);
+  passFlow();
+  const before = g.clock;
+  meterSpot('fitting');
+  assert.equal(g.clock - before, METERS.leak.minutes);
+  assert.ok(g.decided.meter.fitting);
+  meterSpot('fitting');
+  assert.equal(g.clock - before, METERS.leak.minutes, 'once only');
+  assert.ok(g.notes.some(n => /Pressure-decay test/i.test(n.text)));
+  const flightWith = (() => {
+    playRound();
+    return g.programme.flights.at(-1);
+  })();
+  newGame(7);
+  passFlow();
+  playRound();
+  assert.deepEqual(g.programme.flights.at(-1), flightWith, 'the meter draws on nothing the flight uses');
 });

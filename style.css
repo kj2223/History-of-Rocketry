@@ -539,3 +539,4 @@ body.title-scene .title-sheet h1 { text-shadow: 0 2px 12px rgba(0,0,0,.8); }
 #room .key[disabled] { opacity: .45; cursor: not-allowed; }
 #room .valve { font-family: var(--mono); background: #2c3a30; border: 2px solid #6fc88a; color: #d9f0de; user-select: none; touch-action: none; }
 #room .valve:active { background: #4a7a58; }
+#room .meter-read { font-family: var(--mono); font-size: .9em; }
