@@ -161,11 +161,15 @@ export function alongRoute(route, k) {
   }
   return null;
 }
-// Which flights roll out on a day: the day before each stands on its pad.
+// Which flights roll out on a day: the day before each stands on its pad (its onPad day where the schedule gives one).
 export function rolloutsOn(flights, base, day) {
   return (flights ?? [])
     .map(f => ({ f, pad: base.find(b => b.id === f.pad) }))
-    .filter(({ f, pad }) => pad && PAD_KINDS[pad.padKind] && day === f.launch - PAD_KINDS[pad.padKind].before - 1);
+    .filter(({ f, pad }) => {
+      // A flight that knows its own first day on the pad (an upgraded pad turns round faster) goes by that.
+      const onPad = f.onPad ?? (PAD_KINDS[pad?.padKind] ? f.launch - PAD_KINDS[pad.padKind].before : null);
+      return pad && onPad !== null && day === onPad - 1;
+    });
 }
 
 export function baseLife(base, roads) {
