@@ -6,7 +6,11 @@ import { LOOPS, PEOPLE, PROCEDURES, TASKS, MAX_UP } from './data.js';
 import { deskSound } from '../stage/fx/sound.js';
 import { tickDesk, act, callOptions, toggleLoop, readings, eventLights, count, wall } from './model.js';
 
-export const SPEEDS = [1, 10, 60];
+// 240x crosses the count's long quiet stretches in seconds (the automated playtest found a minute of nothing at 60x).
+export const SPEEDS = [1, 10, 60, 240];
+// The terminal count is held to 10x at most, and the last minute plays at normal speed, so liftoff is never skipped.
+export const TERMINAL = -200,
+  LAST_MINUTE = -60;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const LOOP_ORDER = ['flight', 'ssr', 'launch', 'ag'];
 
@@ -170,7 +174,9 @@ export function startDeskView(el, d, { back, save }) {
     if (!paused && !papers && !d.done) {
       tickDesk(d, dt * speed);
       const nowOpen = openAsks(d);
-      if (nowOpen > open || (d.t > -200 && speed > 1)) speed = 1; // Flight asked you something; the terminal count
+      if (nowOpen > open || (d.t > LAST_MINUTE && speed > 1))
+        speed = 1; // Flight asked you something; the last minute
+      else if (d.t > TERMINAL && speed > 10) speed = 10; // the terminal count
       open = nowOpen;
       if (d.done) doSave();
     }

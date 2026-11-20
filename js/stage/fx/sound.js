@@ -34,6 +34,8 @@ const ROOM = {
   'interior:dugout': { hum: 0.12, wind: 0.15 },
   'interior:hangar': { hum: 0.15 },
   'interior:sim': { hum: 0.35 },
+  // The "While you were away" card over the site: the site's wind, softer, while the weeks pass (it was silent).
+  away: { wind: 0.25 },
   // Desk mode: the Houston MOCR in July 1969, a full room.
   desk: { hum: 0.45 },
   // The management map: the Cape, on the sea, with the wind off it.

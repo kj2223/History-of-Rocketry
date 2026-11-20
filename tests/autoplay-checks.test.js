@@ -103,3 +103,12 @@ test('watching the climb with the abort call live is not counted as waiting', ()
     ['console-pack'],
   );
 });
+
+test('a liftoff with no engine to hear is flagged; a loud one is not', () => {
+  const at = loudest => judgeLook({ ...calm, audio: { ...calm.audio, loudestDb: loudest } }, { liftoff: true });
+  assert.deepEqual(
+    at(-55).map(f => f.kind),
+    ['quiet-liftoff'],
+  );
+  assert.deepEqual(at(-18), []);
+});
