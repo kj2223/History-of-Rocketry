@@ -5,6 +5,7 @@ import { drawSite, drawTracking, drawControlRoom, uiEra, PLACES, VIEW_H, GROUND 
 import { consoleHud, bindConsoleHud, consoleKey } from './console-hud.js';
 import { startStage, stageFrame } from '../stage/index.js';
 import { closeupFrame, hideCloseup } from './closeups.js';
+import { titleSceneFrame, leaveTitleScene } from './title-scene.js';
 import { deepMode } from '../stage/deep.js';
 import { soundFrame, cycleSound, soundSetting } from '../stage/fx/sound.js';
 
@@ -507,6 +508,16 @@ function frame(now) {
   // Off the Flight Director's game (the title screen, a management game) its clock stands still.
   if (screen !== 'flight') {
     hideCloseup();
+    // The title shows the game you were playing behind it, standing still (js/site/title-scene.js).
+    if (screen === 'title') {
+      const dt = Math.min(MAX_STEP, (now - last) / 1000);
+      try {
+        titleSceneFrame(g, dt, view.w / scale(), () => stageFrame('site', dt, 0));
+      } catch (e) {
+        leaveTitleScene(g);
+        console.error('Title scene skipped:', e);
+      }
+    } else leaveTitleScene(g);
     last = now;
     requestAnimationFrame(frame);
     return;
@@ -602,6 +613,7 @@ startDevMenu({ storage, check: checkCheckpoint, fresh });
 let screen = 'flight';
 function play() {
   screen = 'flight';
+  leaveTitleScene(g);
   hideTitle($('title'));
   hideManagement($('manage'));
   trace('mode', { mode: 'flight' });

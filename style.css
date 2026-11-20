@@ -453,3 +453,10 @@ header button.muted {
 #closeup canvas { display: block; width: 100%; height: auto; aspect-ratio: 128 / 72; image-rendering: pixelated; }
 #closeup .caption { position: absolute; left: 6px; bottom: 4px; font: 600 .78rem/1 monospace; letter-spacing: .08em; text-transform: uppercase;
   color: #f0ead6; background: rgba(0,0,0,.55); padding: 2px 5px; }
+/* A living title screen (js/site/title-scene.js): the game you were playing, standing still behind the title. The
+   scene fills the window, the rest of the game's furniture is put away, and a soft shade keeps the cards readable. */
+body.title-scene #stage { inset: 0; height: 100%; }
+body.title-scene > :not(#stage):not(#title):not(#dev):not(#bug-note) { visibility: hidden; }
+body.title-scene #title { background: radial-gradient(ellipse at 50% 55%, rgba(11,15,20,.28) 0%, rgba(11,15,20,.45) 55%, rgba(11,15,20,.7) 100%); }
+body.title-scene .title-mode { background: rgba(20,24,30,.9); box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+body.title-scene .title-sheet h1 { text-shadow: 0 2px 12px rgba(0,0,0,.8); }

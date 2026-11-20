@@ -10,6 +10,7 @@ import { RENDERER_KEY, pixiWanted, PIXEL_KEY, pixelWanted } from '../stage/index
 import { HD_KEY, hdWanted } from '../stage/fx/hd.js';
 import { FILM_KEY, filmWanted } from '../stage/fx/film.js';
 import { CLOSEUPS_KEY, closeupsWanted } from './closeups.js';
+import { TITLE_SCENE_KEY, titleSceneWanted } from './title-scene.js';
 import { CALM_KEY, calm } from '../stage/fx/calm.js';
 import { WEATHER_KEY, WEATHER_KINDS, forcedWeather } from '../stage/fx/weather.js';
 
@@ -117,6 +118,7 @@ function render() {
     <label><input type="checkbox" id="dev-hd" ${hdWanted() ? '' : 'checked'}> No 2D-HD light: switch off the soft light, glow and beams over the pixel art, to compare</label>
     <label><input type="checkbox" id="dev-film" ${filmWanted() ? '' : 'checked'}> No film look: switch off the era's film grade (grain, colour, vignette) over the scenes</label>
     <label><input type="checkbox" id="dev-closeups" ${closeupsWanted() ? '' : 'checked'}> No close-ups: switch off the small shots that cut in at the firing, staging, contact light and splashdown</label>
+    <label><input type="checkbox" id="dev-title-scene" ${titleSceneWanted() ? '' : 'checked'}> Plain title: no picture of your game behind the title screen</label>
     <label>Seed <input id="dev-seed" type="text" inputmode="numeric" size="9" value="${esc(state.seed)}" placeholder="random"> <span class="muted">Blank for a new one each time. A seed gives the same game again.</span></label>
     <p class="dev-status ${state.message.startsWith('Could not') ? 'bad' : ''}" role="status">${esc(state.message)}</p>
     ${groups
@@ -167,6 +169,10 @@ function onChange(e) {
     if (e.target.checked) localStorage.setItem(CLOSEUPS_KEY, 'off');
     else localStorage.removeItem(CLOSEUPS_KEY);
     trace('dev-closeups', { off: e.target.checked });
+  } else if (e.target.id === 'dev-title-scene') {
+    if (e.target.checked) localStorage.setItem(TITLE_SCENE_KEY, 'off');
+    else localStorage.removeItem(TITLE_SCENE_KEY);
+    trace('dev-title-scene', { off: e.target.checked });
   } else return;
   render();
 }
