@@ -6,7 +6,7 @@
 // place once she is in the flight proper. The wall map and the pad television still come from the old drawing as
 // pictures until they are rebuilt. The clocks, the loop, the flight-plan rack and your panel stay HTML, over the
 // same places on the wall as before. Reads only what the room could see, through game.js and the site drawing.
-import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
+import { BlurFilter, Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra, yearOf } from '../site/draw.js';
 import { dayOf } from '../core/calendar.js';
@@ -405,7 +405,11 @@ export function controlScene() {
   const monitor = new Container();
   // Now and then someone carries paper along the aisle between the rows (people.js).
   const runner = new Graphics();
-  root.addChild(shell, racks, deskLayer, runner, monitor);
+  // The desks' shadows on the floor (2D-HD rework, Aaron 20 November 2026): each desk throws a soft shadow down the
+  // floor toward us and a little away from the middle of the room, under the lights hung over the rows.
+  const floorShade = new Graphics();
+  floorShade.filters = [new BlurFilter({ strength: 6, quality: 2 })];
+  root.addChild(shell, racks, floorShade, deskLayer, runner, monitor);
   // Depth: the near, out-of-focus shapes along the bottom and the haze in the air (fx/room-depth.js), over the rest.
   const depth = roomDepth();
   root.addChild(depth.root);
@@ -744,10 +748,29 @@ export function controlScene() {
       snap = v => (L.painted ? Math.round(v / ps) * ps : v),
       art = k => (L.painted ? { k, s: ps, era } : null);
     desks = [];
+    floorShade.clear();
+    floorShade.filters[0].strength = 6 * roomK;
+    const shade = (x, y, k, dw) => {
+      const len = 60 * k * 0.9,
+        lean = ((x + (dw * k) / 2 - rowMid) / Math.max(1, availW)) * len * 0.9;
+      floorShade
+        .poly([
+          x + 4 * k,
+          y + 60 * k,
+          x + (dw + 4) * k,
+          y + 60 * k,
+          x + (dw + 10) * k + lean,
+          y + 60 * k + len,
+          x + 10 * k + lean,
+          y + 60 * k + len,
+        ])
+        .fill({ color: 0x07080b, alpha: 0.45 });
+    };
     back.forEach((d, i) => {
       const c = desk(d, look, art(backK));
       c.scale.set(backK);
       c.position.set(snap(rowMid - bSpan / 2 + i * (190 * backK + backGap)), snap(wallH + floor * 0.16));
+      shade(c.x, c.y, backK, 190);
       deskLayer.addChild(c);
       desks.push(c);
     });
@@ -757,6 +780,7 @@ export function controlScene() {
       const c = desk(d, look, art(frontK));
       c.scale.set(frontK);
       c.position.set(snap(fx), snap(wallH + floor * 0.6));
+      shade(c.x, c.y, frontK, d.yours ? 460 : 190);
       deskLayer.addChild(c);
       desks.push(c);
       fx += (d.yours ? 460 : 190) * frontK + frontGap;
