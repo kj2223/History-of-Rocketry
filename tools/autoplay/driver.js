@@ -257,7 +257,26 @@ function watchBeats() {
 
 const BOT_PLAN = { inspector: 'you', burn: 'short', leak: false };
 // What the run has done with the hands-on controls (HANDS-ON-GAMEPLAY.md), for the report.
-export const handsOn = {};
+// Kept in localStorage (the run's own temporary profile), so the counts survive the restart checks' page reloads.
+const HANDS_KEY = 'aa-autoplay-hands-on';
+const loadHands = () => {
+  try {
+    return JSON.parse(localStorage.getItem(HANDS_KEY) ?? '{}') ?? {};
+  } catch {
+    return {};
+  }
+};
+export const handsOn = new Proxy(loadHands(), {
+  set(target, key, value) {
+    target[key] = value;
+    try {
+      localStorage.setItem(HANDS_KEY, JSON.stringify(target));
+    } catch {
+      // no storage: the counts last as long as the page
+    }
+    return true;
+  },
+});
 // The rounds that are scenes, not flights, decided the way the room really decided them.
 function* scene() {
   const x = g();
