@@ -2,7 +2,21 @@
 // The view calls tickDesk with the seconds that pass (already multiplied by the speed) and act() for each thing the
 // player does. Attention is the resource: lines on a loop that is not turned up are lost (only the key lights), while
 // the teletype prints for everyone. The state is plain JSON, so it is also the save.
-import { START_T, LOOPS, MAX_UP, START_UP, ASKS, TASKS, SCRIPT, RESEAL, LIFTOFF_UTC, EDT } from './data.js';
+import {
+  START_T,
+  LOOPS,
+  MAX_UP,
+  START_UP,
+  ASKS,
+  TASKS,
+  SCRIPT,
+  RESEAL,
+  LIFTOFF_UTC,
+  EDT,
+  LOG_ROWS,
+  LOG_OPEN,
+  LOG_FIELDS,
+} from './data.js';
 
 export const WHAT_IFS = ['leak', 'o2'];
 const REPEAT = 60; // Flight asks again after a minute with no answer
@@ -236,12 +250,62 @@ export function toggleLoop(d, loop) {
   }
 }
 
+// THE LOG SHEET. The row open to write now (the latest log time passed, if it has not been written), or -1. A row
+// whose time has been overtaken by the next one can no longer be written: it stays blank on the sheet.
+export function logDue(d) {
+  for (let i = LOG_ROWS.length - 1; i >= 0; i--) if (d.t >= LOG_ROWS[i]) return d.logbook?.[i] ? -1 : i;
+  return -1;
+}
+
+// One entry as the player wrote it, against the screen now. "OFF HI" (or "HI") is right for a probe off scale.
+function entryOk(field, text, r) {
+  const v = String(text ?? '')
+    .trim()
+    .toUpperCase();
+  const truth = field.read(r);
+  if (/HI/.test(v)) return truth > 102;
+  const x = Number(v.replace(',', '.'));
+  return v !== '' && Number.isFinite(x) && Math.abs(x - truth) <= field.tol + 1e-9;
+}
+
+// Write the open row in, from what the player typed ({ cabin: '15.58', o2q1: '99.4', ... }). Returns the row, or null
+// if nothing is open. The sheet does not mark it: Flight finds out at the read-up, and the debrief says.
+export function writeLog(d, values) {
+  const i = logDue(d);
+  if (i < 0 || d.done) return null;
+  const r = readings(d);
+  const wrong = LOG_FIELDS.filter(f => !entryOk(f, values?.[f.id], r)).map(f => f.id);
+  const kept = Object.fromEntries(LOG_FIELDS.map(f => [f.id, String(values?.[f.id] ?? '').trim()]));
+  const result = wrong.length ? 'wrong' : d.t - LOG_ROWS[i] > LOG_OPEN ? 'late' : 'good';
+  return ((d.logbook ??= {})[i] = { at: d.t, values: kept, wrong, result });
+}
+
+// The newest row written, for the read-up.
+const lastLogged = d => {
+  for (let i = LOG_ROWS.length - 1; i >= 0; i--) if (d.logbook?.[i]) return { i, row: d.logbook[i] };
+  return null;
+};
+const QUANTS = ['o2q1', 'o2q2', 'h2q1', 'h2q2'];
+function readupText(d) {
+  const got = lastLogged(d);
+  if (!got) return 'Flight, EECOM. I don’t have them on the log.';
+  const v = got.row.values,
+    q = id => v[id] || 'blank';
+  return `From my log at ${count(LOG_ROWS[got.i])}: O2 ${q('o2q1')} and ${q('o2q2')}, H2 ${q('h2q1')} and ${q('h2q2')} percent.`;
+}
+
 // What the player can say now: answers to Flight's open questions, calls up to the crew, and calls to Flight.
 export function callOptions(d) {
   const out = [];
   for (const [id, a] of Object.entries(d.asks))
     if (id === 'poll' ? !a.answer : !a.result)
-      for (const o of ASKS[id].options) out.push({ to: 'flight', id: `${id}:${o.id}`, text: o.text, answer: true });
+      for (const o of ASKS[id].options)
+        out.push({
+          to: 'flight',
+          id: `${id}:${o.id}`,
+          text: id === 'readup' && o.id === 'log' ? readupText(d) : o.text,
+          answer: true,
+        });
   for (const [id, task] of Object.entries(TASKS))
     if (!d.tasks[id]) out.push({ to: 'capcom', id: `task:${id}`, text: task.call });
   // Offered all through the count, fault or not, so the comms stack never gives a fault away.
@@ -259,6 +323,10 @@ const right = (d, ask, answer) => {
   if (ask === 'leak') return answer === (leaking(d) ? 'hold' : 'good');
   if (ask === 'poll') return answer === (leaking(d) ? 'nogo' : 'go');
   if (ask === 'o2') return answer === 'probe';
+  if (ask === 'readup') {
+    const got = lastLogged(d);
+    return answer === 'log' && !!got && !got.row.wrong.some(id => QUANTS.includes(id));
+  }
   return answer === 'good';
 };
 
@@ -324,6 +392,15 @@ export function act(d, id) {
   log('flight', a.result);
   if (kind === 'o2') d.sys.o2Called = true;
   if (kind === 'poll' && d.hold?.why === 'poll') d.hold.answeredAt = d.clock;
+  if (kind === 'readup') {
+    say(
+      d,
+      'flight',
+      'flight',
+      ok ? 'Copy, EECOM. Got them.' : 'That’s not what I have on my data, EECOM. Check your log.',
+    );
+    return true;
+  }
   if (which === 'hold' || which === 'nogo') {
     if (leaking(d)) {
       say(d, 'flight', 'flight', 'Copy. Launch, Houston: we need to hold for the spacecraft hatch.');
@@ -410,6 +487,20 @@ export function verdict(d) {
     else if (r === 'late') notes.push(`the ${task.short} went up late`);
     else notes.push(`the ${task.short} never went up to the crew`);
   }
+  const sheet = LOG_ROWS.map((at, i) => ({ at: count(at).replace(/:00$/, ''), row: d.logbook?.[i] }));
+  const list = rows => rows.map(x => x.at).join(rows.length > 2 ? ', ' : ' and ');
+  const blank = sheet.filter(x => !x.row),
+    off = sheet.filter(x => x.row?.result === 'wrong'),
+    slow = sheet.filter(x => x.row?.result === 'late');
+  if (!blank.length && !off.length && !slow.length) good.push('your log sheet went in on time and matched the data');
+  if (blank.length) notes.push(`the ${list(blank)} line${blank.length > 1 ? 's' : ''} on the log sheet never went in`);
+  if (off.length)
+    notes.push(`the ${list(off)} log line${off.length > 1 ? 's' : ''} had numbers that weren’t on the screen`);
+  if (slow.length) notes.push(`the ${list(slow)} log line${slow.length > 1 ? 's' : ''} went in late`);
+  if (asks.readup?.result === 'good' || asks.readup?.result === 'slow')
+    good.push('you read the cryo quantities up off your log when I asked');
+  else if (asks.readup?.result === 'wrong') notes.push('the quantities you read up off the log didn’t match my data');
+  else if (asks.readup?.result === 'missed') notes.push('I asked for the cryo quantities and never got them');
   const poll = asks.poll;
   if (poll?.result === 'missed') notes.push('I held the count at T-3:50 because I couldn’t get a GO out of EECOM');
   else if (poll?.result === 'wrong')

@@ -74,6 +74,14 @@ export const ASKS = {
       { id: 'standby', text: 'Stand by, Flight.' },
     ],
   },
+  readup: {
+    q: 'EECOM, Flight. Read me your cryo quantities off your log for the launch record.',
+    lasts: 240,
+    options: [
+      { id: 'log', text: 'Reading up from my log.' }, // model.js puts the numbers from the log into the line
+      { id: 'standby', text: 'Stand by, Flight.' },
+    ],
+  },
   poll: {
     q: 'All flight controllers, go/no-go for launch. EECOM?',
     lasts: 130, // unanswered by T-3:50, Flight holds the count
@@ -108,6 +116,19 @@ export const TASKS = {
   },
 };
 
+// THE LOG SHEET (hands-on idea 6). EECOM kept a written log: at set times in the count the desk copies its readings
+// by hand onto a pre-printed sheet, and reads them back when Flight asks. The game does not copy them for you, and it
+// judges what you wrote against the screen at the moment you wrote it. Times and fields are plausible, not archival.
+export const LOG_ROWS = [-7200, -3600, -1200]; // T-2:00, T-1:00, T-0:20
+export const LOG_OPEN = 600; // a line written more than ten minutes after its time is late
+export const LOG_FIELDS = [
+  { id: 'cabin', label: 'CABIN P', unit: 'PSIA', tol: 0.05, read: r => r.cabin },
+  { id: 'o2q1', label: 'O2 QTY 1', unit: '%', tol: 0.6, read: r => r.o2q[0] },
+  { id: 'o2q2', label: 'O2 QTY 2', unit: '%', tol: 0.6, read: r => r.o2q[1] },
+  { id: 'h2q1', label: 'H2 QTY 1', unit: '%', tol: 0.6, read: r => r.h2q[0] },
+  { id: 'h2q2', label: 'H2 QTY 2', unit: '%', tol: 0.6, read: r => r.h2q[1] },
+];
+
 // The procedures stack: what the papers say for this phase, in the desk's own words.
 export const PROCEDURES = [
   'LAUNCH DAY, PRE-LAUNCH COUNT. EECOM watches the command and service module’s power, cryogenics and cabin. Not the lunar module (TELMU), not the booster (BOOSTER).',
@@ -115,6 +136,7 @@ export const PROCEDURES = [
   'Hatch closure and cabin purge, about T-1:45. Then the cabin leak check: the cabin must hold its pressure. Decay above 0.02 psi a minute is out of limits: the hatch must be reseated before launch.',
   'Keep an eye on the cryo tanks: a quantity that moves on its own while its pressure does not is the probe, not the oxygen.',
   'T-15:00. The spacecraft goes to full internal power: the fuel cells take the load from the ground supply. Report to Flight when asked.',
+  'The log sheet. At T-2:00, T-1:00 and T-0:20 copy cabin pressure and the four cryo quantities off the screen onto the sheet, in your own hand. Flight will ask for the quantities off the log before the poll. A probe off scale is logged as OFF HI.',
   'The go/no-go poll, about T-6. Answer GO or NO-GO for EECOM. A cabin that will not hold pressure is NO-GO.',
   'A hold can be recommended to Flight at any time. It costs the launch window minutes; ask for one only with a reason on the data.',
 ];
@@ -253,6 +275,7 @@ export const SCRIPT = [
     set: { power: 'internal' },
   },
   { t: -840, loop: 'flight', who: 'flight', ask: 'internal', src: 'plausible' },
+  { t: -660, loop: 'flight', who: 'flight', ask: 'readup', src: 'plausible' },
   { t: -600, loop: 'launch', who: 'pao', text: 'T minus ten minutes and counting.', src: 'record' },
   { t: -360, loop: 'flight', who: 'flight', ask: 'poll', src: 'plausible' },
   { t: -300, loop: 'launch', who: 'pao', text: 'The crew access arm is retracting.', src: 'record' },

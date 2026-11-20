@@ -31,8 +31,8 @@ import {
   toReview,
 } from '../../js/mercury.js';
 import { SEASON } from '../../js/data/campaign.js';
-import { callOptions } from '../../js/desk/model.js';
-import { TASKS } from '../../js/desk/data.js';
+import { callOptions, logDue, readings } from '../../js/desk/model.js';
+import { TASKS, LOG_FIELDS } from '../../js/desk/data.js';
 
 const g = () => game.g;
 
@@ -478,6 +478,11 @@ export function deskStep(seconds) {
   let firstAsk = null;
   for (let s = 0; s < seconds && !d.done; s++) {
     v.run(1);
+    if (logDue(d) >= 0) {
+      // copy the screen onto the log sheet, as a careful EECOM would
+      v.write(Object.fromEntries(LOG_FIELDS.map(f => [f.id, String(f.read(readings(d)))])));
+      said.push('log');
+    }
     for (const o of callOptions(d)) {
       const [k, w] = o.id.split(':');
       if (k === 'task' && d.t >= TASKS[w].from) said.push(o.id) && v.say(o.id);
@@ -486,7 +491,17 @@ export function deskStep(seconds) {
       firstAsk ??= d.t;
       const [k, w] = o.id.split(':');
       const want =
-        k === 'leak' ? (d.fault === 'leak' ? 'hold' : 'good') : k === 'poll' ? 'go' : k === 'o2' ? 'probe' : 'good';
+        k === 'leak'
+          ? d.fault === 'leak'
+            ? 'hold'
+            : 'good'
+          : k === 'poll'
+            ? 'go'
+            : k === 'o2'
+              ? 'probe'
+              : k === 'readup'
+                ? 'log'
+                : 'good';
       if (w === want) said.push(o.id) && v.say(o.id);
     }
   }

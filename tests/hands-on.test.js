@@ -270,3 +270,76 @@ test('putting the meter on a part costs its time, goes in the notebook, and chan
   playRound();
   assert.deepEqual(g.programme.flights.at(-1), flightWith, 'the meter draws on nothing the flight uses');
 });
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 6. Fill in the log (Desk mode): EECOM copies the screen onto the log sheet by hand, and reads it up to Flight.
+import { newDesk, tickDesk, act as deskAct, readings as deskReadings, logDue, writeLog } from '../js/desk/model.js';
+import { LOG_ROWS, LOG_FIELDS } from '../js/desk/data.js';
+
+const deskTo = (d, t) => {
+  while (!d.done && d.t < t) {
+    tickDesk(d, 1);
+    if (d.hold?.why === 'poll') deskAct(d, 'poll:go');
+  }
+  return d;
+};
+const screen = d => Object.fromEntries(LOG_FIELDS.map(f => [f.id, String(f.read(deskReadings(d)))]));
+
+test('desk log: a row opens at its time, is judged against the screen, and is not marked on the sheet', () => {
+  const d = newDesk(5);
+  assert.equal(logDue(d), -1);
+  deskTo(d, LOG_ROWS[0]);
+  assert.equal(logDue(d), 0);
+  const row = writeLog(d, screen(d));
+  assert.equal(row.result, 'good');
+  assert.equal(logDue(d), -1);
+  assert.equal(writeLog(d, screen(d)), null, 'a written row cannot be written again');
+  deskTo(d, LOG_ROWS[1]);
+  const bad = writeLog(d, { ...screen(d), o2q1: '87.0', cabin: '' });
+  assert.equal(bad.result, 'wrong');
+  assert.deepEqual(bad.wrong.sort(), ['cabin', 'o2q1']);
+});
+
+test('desk log: a row left too long goes in late, and an overtaken row stays blank', () => {
+  const d = newDesk(6);
+  deskTo(d, LOG_ROWS[0] + 700);
+  assert.equal(writeLog(d, screen(d)).result, 'late');
+  deskTo(d, LOG_ROWS[2] + 5);
+  assert.equal(logDue(d), 2, 'the T-1:00 row was overtaken');
+  assert.equal(d.logbook[1], undefined);
+});
+
+test('desk log: an off-scale probe is logged as OFF HI', () => {
+  const d = newDesk(8, { whatIf: 'o2' });
+  deskTo(d, LOG_ROWS[1]);
+  assert.ok(deskReadings(d).o2q[1] > 102);
+  assert.equal(writeLog(d, { ...screen(d), o2q2: 'OFF HI' }).result, 'good');
+});
+
+test('desk read-up: Flight hears the numbers off the log and checks them', () => {
+  const good = newDesk(9);
+  deskTo(good, LOG_ROWS[2]);
+  writeLog(good, screen(good));
+  deskTo(good, -650);
+  assert.ok(good.asks.readup, 'Flight asks for the read-up');
+  assert.ok(deskAct(good, 'readup:log'));
+  assert.equal(good.asks.readup.result, 'good');
+  assert.match(
+    good.calls.length ? good.log.filter(l => l.who === 'eecom').at(-1).text : '',
+    /From my log at T-0:20:00/,
+  );
+
+  const wrong = newDesk(9);
+  deskTo(wrong, LOG_ROWS[2]);
+  writeLog(wrong, { ...screen(wrong), h2q2: '50' });
+  deskTo(wrong, -650);
+  deskAct(wrong, 'readup:log');
+  assert.equal(wrong.asks.readup.result, 'wrong');
+
+  const none = deskTo(newDesk(9), -650);
+  deskAct(none, 'readup:log');
+  assert.equal(none.asks.readup.result, 'wrong');
+  deskTo(none, 1);
+  assert.ok(!none.verdict.clean);
+  assert.match(none.verdict.lines.join(' '), /log sheet never went in/);
+});
