@@ -59,7 +59,13 @@ import {
   flowRehearsalMark,
   flowRehearse,
   flowRehearsalCall,
+  flowReviewToday,
+  flowRerunnable,
+  flowRerun,
+  flowLedgerItems,
+  flowLedgerWork,
 } from '../game.js';
+import { textOf as ledgerTextOf } from '../world/ledger.js';
 import { dayOf as flowDayOf, rehearsalSteps } from '../world/flow.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
@@ -340,9 +346,36 @@ function flowRows() {
 function flowResult() {
   return g.flowResult ? `<p class="result">${esc(g.flowResult.line)}</p>` : '';
 }
+// The Flight Readiness Review: the flow's record read out, the ledger's signed-off items, and the go.
+function reviewChoices() {
+  const record = g.flow.tests
+    .filter(t => !flowDef(t).review)
+    .map(
+      t =>
+        `${flowDef(t).name}: ${FLOW_STATUS[t.status].toLowerCase()}${t.found?.length ? `, found ${t.found.map(f => f.toLowerCase()).join(', ')}` : ', nothing found'}${t.rerun ? ' (run again)' : ''}`,
+    );
+  const again = flowRerunnable()
+    .map(
+      t =>
+        `<button data-act="flow-rerun" data-id="${esc(t.id)}">Send the ${esc(flowDef(t).name.toLowerCase())} back for one more run (a day)</button>`,
+    )
+    .join('');
+  const ledger = flowLedgerItems()
+    .map(
+      e =>
+        `<li>${esc(ledgerTextOf(e))} <button data-act="flow-ledger" data-id="${esc(e.id)}">Reopen it and work it now (two days)</button></li>`,
+    )
+    .join('');
+  return `<h3>Read out at the table</h3><ul>${record.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+    ${ledger ? `<p><strong>Signed off on the anomaly ledger as in family</strong></p><ul>${ledger}</ul>` : '<p class="muted">Nothing on the anomaly ledger for this vehicle.</p>'}
+    ${g.reviewNote ? `<p class="result">${esc(g.reviewNote)}</p>` : ''}
+    ${again ? `<div class="choices">${again}</div>` : ''}
+    <div class="actions"><button class="primary" data-act="flow-you">Give the go</button><button data-act="flow-team">Leave the review to ${esc(g.people.hollis.name)}</button></div>`;
+}
 function flowChoices(here) {
   const t = flowTest();
   if (!t || g.dayDone) return '<p class="muted">Nothing more today. End the day when you are ready.</p>';
+  if (flowReviewToday()) return reviewChoices();
   const d = flowDef(t);
   const attend =
     d.where === 'office' || here
@@ -813,6 +846,8 @@ export function bindRoom(handlers) {
       'flow-rehearse': () => flowRehearse(),
       'reh-go': () => flowRehearsalCall(false),
       'reh-hold': () => flowRehearsalCall(true),
+      'flow-rerun': () => flowRerun(id),
+      'flow-ledger': () => flowLedgerWork(id),
       'ledger-accept': () => ledgerCall(id, 'accept'),
       'ledger-work': () => ledgerCall(id, 'work'),
       'probe-command': () => advanceProbe(true),

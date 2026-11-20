@@ -259,7 +259,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
       flow: from.flow ?? null,
     }),
   );
-  g.roundStart = roundStartOf(at) + (g.flow?.slip || 0);
+  g.roundStart = roundStartOf(at) + (g.flow?.slip || 0) + (g.flow?.late || 0);
   setVehicle();
   if (from.crewSwaps == null) {
     const losses = [];
@@ -425,6 +425,7 @@ function resetRound() {
     readings: null,
     flow: null,
     rehearsal: null,
+    reviewNote: null,
   });
   for (const [id, p] of Object.entries(PEOPLE))
     Object.assign(g.people[id], { x: p.x, target: p.x, bubble: null, working: false, hidden: false });
@@ -599,7 +600,10 @@ export function flowRun(by = 'team') {
   const what = r.found.length
     ? `found ${r.found.map(f => `a fault at the ${f.spot.toLowerCase()}`).join(' and ')}. Fixed${r.days ? `: the flow slips ${r.days === 1 ? 'a day' : `${r.days} days`}` : ', the crews working nights to hold the date'}.`
     : 'found nothing out of the ordinary.';
-  const line = `${who} ${def.name.toLowerCase()}: it ${what}${reh ? ` ${rehearsalWords(t, reh)}` : ''}`;
+  const line = def.review
+    ? `${by === 'you' ? 'You sat at the table for the' : `${g.people.hollis.name} chaired the`} flight readiness review${by === 'you' ? '' : ' without you'}. ${g.reviewNote || ''}The go was given.`
+    : `${who} ${def.name.toLowerCase()}: it ${what}${reh ? ` ${rehearsalWords(t, reh)}` : ''}`;
+  g.reviewNote = null;
   note(line);
   g.flowResult = { id: t.id, name: def.name, line, found: r.found.length, days: r.days };
   g.objective = `The ${def.name.toLowerCase()} is done. End the day when you are ready.`;
@@ -607,6 +611,58 @@ export function flowRun(by = 'team') {
   roomChanged();
   return r;
 }
+// ---- The Flight Readiness Review, the last day of a crewed flow ----
+export const flowReviewToday = () => !!(todays() && flowDef(todays()).review && !g.dayDone);
+// The tests the review can send back for one more run before launch: those the team ran or that were cut, once each.
+export const flowRerunnable = () =>
+  flowReviewToday()
+    ? g.flow.tests.filter(t => ['team', 'cut', 'early'].includes(t.status) && !t.rerun && !flowDef(t).review)
+    : [];
+// Send a test back for one more run, with you there, before the go. A day on the schedule, and the repairs it finds.
+export function flowRerun(id) {
+  const t = flowRerunnable().find(x => x.id === id);
+  if (!t) return null;
+  const def = flowDef(t);
+  t.rerun = true;
+  const r = runTest(g.flow, g.round, { ...t, status: 'due' }, 'you');
+  // The review sits again the same day: the days go on the launch, not on the flow (flow.late, kept in the save).
+  const days = 1 + r.days;
+  g.flow.slip -= r.days;
+  g.flow.late = (g.flow.late || 0) + days;
+  g.roundStart += days;
+  g.slipDays += days;
+  if (r.found.length) t.found = [...(t.found || []), ...r.found.map(f => f.spot)];
+  const line = `You sent the ${def.name.toLowerCase()} back for one more run before the go: it ${
+    r.found.length
+      ? `found ${r.found.map(f => `a fault at the ${f.spot.toLowerCase()}`).join(' and ')}, fixed.`
+      : 'found nothing.'
+  } The launch slips ${days === 1 ? 'a day' : `${days} days`}. `;
+  g.reviewNote = (g.reviewNote || '') + line;
+  roomChanged();
+  return r;
+}
+// The items on the anomaly ledger for this vehicle's family, signed off before: the review can reopen one and work it
+// now, before this flight, at two days on the schedule.
+export const flowLedgerItems = () =>
+  flowReviewToday()
+    ? (g.programme.ledger || []).filter(e => e.family === FAMILY[g.vehicle] && e.status === 'accepted')
+    : [];
+export function flowLedgerWork(id) {
+  const e = flowLedgerItems().find(x => x.id === id);
+  if (!e) return null;
+  const r = ledgerWork(g.programme, id);
+  // Worked now, it is worked on this vehicle too: the fault it bears on comes out of the round if it is there.
+  if (r.found)
+    for (const [spot, kind] of Object.entries(g.round.faults)) if (kind === e.fault) delete g.round.faults[spot];
+  shiftTrust(g.record, r.found ? 1 : -1);
+  g.flow.late = (g.flow.late || 0) + 2;
+  g.roundStart += 2;
+  g.slipDays += 2;
+  g.reviewNote = `${g.reviewNote || ''}You reopened a ledger item at the table and had it worked: ${r.text} The launch slips two days. `;
+  roomChanged();
+  return r;
+}
+
 // The rehearsal of today's count test, sat through mark by mark (world/flow.js). Starting it is sitting in.
 export const flowRehearsal = () => g.rehearsal || null;
 export const flowHasRehearsal = () => !!(todays() && REHEARSALS[todays().id]);
@@ -649,7 +705,7 @@ function rehearsalWords(t, reh) {
 // Cut today's test to win back a slipped day.
 export function flowCut() {
   const t = todays();
-  if (!t || g.dayDone || !cutTest(g.flow, t)) return false;
+  if (!t || g.dayDone || flowDef(t).review || !cutTest(g.flow, t)) return false;
   const def = flowDef(t);
   g.roundStart -= 1;
   g.slipDays = Math.max(0, g.slipDays - 1);

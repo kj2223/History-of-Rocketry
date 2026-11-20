@@ -15,7 +15,15 @@ import {
   rehearsalMark,
 } from '../js/world/flow.js';
 import { REHEARSALS } from '../js/data/flow.js';
-import { flowRehearse, flowRehearsalCall, flowRehearsalMark } from '../js/game.js';
+import {
+  flowRehearse,
+  flowRehearsalCall,
+  flowRehearsalMark,
+  flowRerunnable,
+  flowRerun,
+  flowLedgerItems,
+  flowLedgerWork,
+} from '../js/game.js';
 import { FLOWS } from '../js/data/flow.js';
 import { KITS } from '../js/data/kits.js';
 import { newRound, DEFAULT_PROGRAMME } from '../js/truth/round.js';
@@ -197,4 +205,64 @@ test('a clean dry run of the count on the site drills the crew, and a clean crew
     nextDay();
   }
   assert.equal(g.beat, 'mBrief');
+});
+
+// From MR-1's flow, every test before the review handed to the team: the morning of the Flight Readiness Review.
+function toMr1Review(seed) {
+  toMr1Flow(seed);
+  for (let n = 0; n < 10 && flowTest().id !== 'frr'; n++) {
+    flowRun('team');
+    nextDay();
+  }
+  assert.equal(flowTest().id, 'frr');
+}
+
+test('every crewed flow ends at the Flight Readiness Review, which cannot be cut', () => {
+  for (const v of ['redstone', 'atlas', 'titan', 'saturnib', 'saturn5', 'shuttle', 'dragon', 'sls'])
+    assert.equal(FLOWS[v].at(-1).id, 'frr', v);
+  assert.ok(!FLOWS.wac.some(t => t.id === 'frr'));
+  toMr1Review(8);
+  g.flow.slip = 1;
+  assert.equal(flowCut(), false);
+});
+
+test('the review can send a test back for one more run, a day on the schedule, once', () => {
+  toMr1Review(8);
+  const start = g.roundStart,
+    slip = g.slipDays;
+  const id = flowRerunnable()[0].id;
+  g.round.faults = { 'tail-plug': 'plug' };
+  flowRerun(id);
+  assert.ok(g.roundStart >= start + 1);
+  assert.ok(g.slipDays >= slip + 1);
+  assert.ok(!flowRerunnable().some(t => t.id === id), 'once each');
+  flowRun('you');
+  assert.ok(g.notes.some(n => /sent the .* back for one more run/.test(n.text)));
+  assert.ok(g.notes.some(n => /The go was given/.test(n.text)));
+  nextDay();
+  assert.equal(g.beat, 'mBrief');
+});
+
+test('a signed-off ledger item reopened at the review is worked on this vehicle too', () => {
+  toMr1Review(8);
+  g.programme.ledger = [
+    {
+      id: 'x1',
+      family: 'mercury',
+      fault: 'control',
+      real: true,
+      status: 'accepted',
+      seen: ['MR-0'],
+      grade: 1,
+      text: 'gyro',
+    },
+  ];
+  g.round.faults = { autopilot: 'control' };
+  assert.equal(flowLedgerItems().length, 1);
+  const start = g.roundStart;
+  const r = flowLedgerWork('x1');
+  assert.ok(r.found);
+  assert.equal(g.round.faults.autopilot, undefined);
+  assert.equal(g.roundStart, start + 2);
+  assert.equal(flowLedgerItems().length, 0);
 });
