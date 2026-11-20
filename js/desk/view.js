@@ -3,6 +3,7 @@
 // on the desk below are the teletype's paper, the headset (what you heard), the procedures stack and the comms stack.
 // The count runs on its own clock; pause stops it. Flight asking EECOM something drops the speed to 1x.
 import { LOOPS, PEOPLE, PROCEDURES, TASKS, MAX_UP } from './data.js';
+import { deskSound } from '../stage/fx/sound.js';
 import { tickDesk, act, callOptions, toggleLoop, readings, eventLights, count, wall } from './model.js';
 
 export const SPEEDS = [1, 10, 60];
@@ -175,6 +176,7 @@ export function startDeskView(el, d, { back, save }) {
     }
     if (now - lastSave > 5000) doSave();
     render();
+    deskSound(d);
     requestAnimationFrame(frame);
   }
 

@@ -7,7 +7,7 @@ import { startStage, stageFrame } from '../stage/index.js';
 import { closeupFrame, hideCloseup } from './closeups.js';
 import { titleSceneFrame, leaveTitleScene } from './title-scene.js';
 import { deepMode } from '../stage/deep.js';
-import { soundFrame, cycleSound, soundSetting } from '../stage/fx/sound.js';
+import { soundFrame, cycleSound, soundSetting, titleSound } from '../stage/fx/sound.js';
 
 // A flight followed from a room of its own on the scene layer, or null.
 const flightViewOf = g => (deepMode(g) ? 'deep' : g.room === 'splash' ? 'recovery' : null);
@@ -520,6 +520,7 @@ function frame(now) {
         leaveTitleScene(g);
         console.error('Title scene skipped:', e);
       }
+      titleSound();
     } else leaveTitleScene(g);
     last = now;
     requestAnimationFrame(frame);

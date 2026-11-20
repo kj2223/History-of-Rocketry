@@ -39,6 +39,7 @@ import {
   buildCover,
 } from './build.js';
 import { drawWorks } from './construction.js';
+import { manageSound } from '../stage/fx/sound.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const art = () => {
@@ -587,6 +588,13 @@ export function startBaseView(el, game, { save, back }) {
       day: game.day,
     });
     draw();
+    manageSound({
+      part,
+      speed: paused ? 0 : speed,
+      night: life.night(),
+      works: (game.works ?? []).length,
+      stands: standsOn(sched, base, game.day, part),
+    });
     requestAnimationFrame(frame);
   }
 

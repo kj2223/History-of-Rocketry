@@ -131,6 +131,31 @@ test('each vehicle has its own voice, which changes as she stages, and the cryog
   assert.ok(pad('juno', 40).spin > 0);
 });
 
+test('the management map, Desk mode and the title have their own sound', async () => {
+  const { managePlan, deskPlan, soundPlan } = await import('../js/stage/fx/sound.js');
+  // The Cape: sea and wind, a pile driver by day while something is going up, none at night or while paused.
+  const day = managePlan({ part: 0.5, works: 1 });
+  assert.ok(day.surf > 0 && day.wind > 0 && day.thuds > 0 && day.engine === 0);
+  assert.equal(managePlan({ part: 0.5, works: 0 }).thuds, 0);
+  assert.equal(managePlan({ part: 0.95, works: 1, night: 1 }).thuds, 0);
+  assert.equal(managePlan({ part: 0.5, works: 1, speed: 0 }).thuds, 0);
+  assert.ok(managePlan({ night: 1 }).wind < day.wind);
+  // A launch from a pad, in her own voice, from across the Cape.
+  const launch = managePlan({ stands: [{ vehicle: 'atlas', rise: 30 }] });
+  assert.ok(launch.engine > 0 && launch.muffle > 0.4);
+  assert.equal(launch.voice.name, 'kerosene');
+  assert.equal(managePlan({ stands: [{ vehicle: 'thor-able', rise: 30 }] }).voice.name, 'kerosene');
+  // The desk: the MOCR hums, the teletype is followed, the last ten seconds tick, the liftoff rumbles once.
+  const desk = deskPlan({ t: -600, done: false, tty: [1, 2], log: [] });
+  assert.ok(desk.hum > 0 && desk.netted && desk.clatter === 2 && desk.tick === null && desk.rumble === null);
+  assert.equal(deskPlan({ t: -3.5, done: false, tty: [], log: [] }).tick, 4);
+  const flown = { t: 0, done: true, tty: [], log: [] };
+  assert.equal(deskPlan(flown).rumble, flown);
+  // The title: the wind over the site, nothing else.
+  const title = soundPlan(null, 'site');
+  assert.ok(title.wind > 0 && title.engine === 0 && title.hum === 0);
+});
+
 test('each period runs its flights from its own room: Mercury Control, the MOCR, the new flight control room', async () => {
   const { roomOf, stationsFor } = await import('../js/stage/control.js');
   assert.equal(roomOf({ day: dayOf(1962, 2, 20) }), 'cape');

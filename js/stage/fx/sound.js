@@ -29,11 +29,15 @@ const ROOM = {
   'control-room': { hum: 0.5 },
   tracking: { hum: 0.35 },
   'flight:deep': { hum: 0.4 },
-  'flight:recovery': { wind: 0.6 },
+  'flight:recovery': { wind: 0.6, surf: 0.5 },
   'interior:blockhouse': { hum: 0.3 },
   'interior:dugout': { hum: 0.12, wind: 0.15 },
   'interior:hangar': { hum: 0.15 },
   'interior:sim': { hum: 0.35 },
+  // Desk mode: the Houston MOCR in July 1969, a full room.
+  desk: { hum: 0.45 },
+  // The management map: the Cape, on the sea, with the wind off it.
+  manage: { wind: 0.3, surf: 0.4 },
 };
 // THE VOICES. What an engine sounds like comes from what it burns and how hard:
 //   roar   where the low roar is cut off (Hz): lower is deeper
@@ -84,6 +88,10 @@ const VEHICLE_VOICES = {
   shuttle: ['solids', 'hydrogen'],
   sls: ['solids', 'hydrogen'],
   dragon: ['kerosene', 'kerosene'],
+  // The management game's 1958 Cape: Thor and Atlas with the Able upper stage.
+  thor: ['kerosene'],
+  'thor-able': ['kerosene', 'acid'],
+  'atlas-able': ['kerosene', 'sustainer', 'acid'],
 };
 // Vehicles that fuel with liquid oxygen on the pad, so they vent it as a white hiss through the count.
 const CRYOGENIC = new Set([
@@ -100,6 +108,9 @@ const CRYOGENIC = new Set([
   'shuttle',
   'sls',
   'dragon',
+  'thor',
+  'thor-able',
+  'atlas-able',
 ]);
 // Which stage is burning t seconds after liftoff.
 function stageAt(vehicle, t) {
@@ -134,6 +145,11 @@ export function soundPlan(g, where = 'site') {
     voice: voiceOf(null),
     vent: 0,
     spin: 0,
+    surf: room.surf || 0,
+    thuds: 0,
+    clatter: null,
+    rumble: null,
+    year: 1958,
   };
   if (!g) return plan;
   const v = g.vehicle,
@@ -198,6 +214,9 @@ let ac = null,
   lastLine, // undefined until the first frame, so the lines already on the loop make no sound
   lastTick = null,
   lastHiss = 0,
+  lastThud = 0,
+  lastRattle = 0,
+  lastClatter, // undefined until the first frame, so the page already printed makes no sound
   wasLit = false;
 const boomed = new WeakSet();
 
@@ -345,8 +364,24 @@ function start() {
   mains.frequency.value = 60;
   mains.connect(mainsGain).connect(hum);
   mains.start();
+  // Valve equipment buzzes at twice the mains; it fades from the rooms as transistors and then computers take over.
+  const buzz = ac.createOscillator(),
+    buzzGain = gain(0);
+  buzz.frequency.value = 120;
+  buzz.connect(buzzGain).connect(hum);
+  buzz.start();
   loop().connect(fans).connect(fansGain).connect(hum);
   hum.connect(out);
+  // The sea: a low wash that swells and draws back, slower than the wind.
+  const surf = gain(),
+    surfBand = filter('lowpass', 520),
+    swell = ac.createOscillator(),
+    swellDepth = gain(0.45),
+    surfLevel = gain(0.55);
+  swell.frequency.value = 0.085;
+  swell.connect(swellDepth).connect(surfLevel.gain);
+  swell.start();
+  loop().connect(surfBand).connect(surfLevel).connect(surf).connect(out);
   layers = {
     engine,
     roar,
@@ -359,6 +394,9 @@ function start() {
     flutterDepth,
     wind,
     hum,
+    buzzGain,
+    fans,
+    surf,
     vent,
     spin,
     whirr,
@@ -371,12 +409,14 @@ function start() {
 }
 
 // A one-off sound from the noise: filtered, eased in, dying away.
-function burst({ type, freq, q = 0.7, peak, attack, decay, sweep }) {
-  const t = ac.currentTime,
+function burst({ type, freq, q = 0.7, peak, attack, decay, sweep, after = 0, buf = noise }) {
+  const t = ac.currentTime + after,
     s = ac.createBufferSource(),
     f = ac.createBiquadFilter(),
     e = ac.createGain();
-  s.buffer = noise;
+  s.buffer = buf;
+  // Looped, so a long one (a boom, the liftoff rumble) is not cut off at the end of the two-second buffer.
+  s.loop = true;
   s.start(t, Math.random() * 1.5, attack + decay + 0.1);
   f.type = type;
   f.frequency.setValueAtTime(freq, t);
@@ -386,6 +426,22 @@ function burst({ type, freq, q = 0.7, peak, attack, decay, sweep }) {
   e.gain.exponentialRampToValueAtTime(peak, t + attack);
   e.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
   s.connect(f).connect(e).connect(out);
+}
+// The teletype printing a page: a quick run of soft, dull clacks, a line at a time.
+function rattle() {
+  for (let i = 0, at = 0; i < 18; i++) {
+    at += 0.06 + Math.random() * 0.04 + (i % 6 === 5 ? 0.22 : 0);
+    burst({
+      type: 'bandpass',
+      freq: 900 + Math.random() * 300,
+      q: 1.6,
+      peak: 1,
+      attack: 0.004,
+      decay: 0.05,
+      after: at,
+      buf: white,
+    });
+  }
 }
 // A soft wooden tick: a low triangle, very short.
 function tick() {
@@ -402,15 +458,25 @@ function tick() {
   o.stop(t + 0.12);
 }
 
+// Can sound play now? Browsers let it start only after the first click or key, so the graph waits for one.
+function ready() {
+  if (!ac && (globalThis.navigator?.userActivation?.hasBeenActive === false || !start())) return false;
+  return ac.state !== 'suspended' && soundSetting() !== 'off';
+}
+
+// The Flight Director's game: what the scene on screen should sound like.
 export function soundFrame(g, where) {
-  // Browsers let sound start only after the first click or key, so the graph waits for one.
-  if (!ac && (globalThis.navigator?.userActivation?.hasBeenActive === false || !start())) return;
-  if (ac.state === 'suspended' || soundSetting() === 'off') {
-    lastLine = g?.loop?.at(-1) ?? null;
+  const line = g?.loop?.at(-1) ?? null;
+  if (!ready()) {
+    lastLine = line;
     return;
   }
-  const p = soundPlan(g, where),
-    t = ac.currentTime;
+  play(soundPlan(g, where), line);
+}
+
+// Make a plan heard. line: the latest line on the loop (a new one, in a netted room, opens with a hiss).
+function play(p, line) {
+  const t = ac.currentTime;
   const L = layers;
   L.engine.gain.setTargetAtTime(p.engine * 0.55, t, p.engine > L.engine.gain.value ? 0.12 : 0.5);
   // The voice, muffled by distance or concrete: the muffle takes the top off first, then the colour, then the crackle.
@@ -429,7 +495,27 @@ export function soundFrame(g, where) {
   L.spin.gain.setTargetAtTime(p.spin * 0.05, t, 1.5);
   L.whirr.frequency.setTargetAtTime(p.spin ? 120 : 70, t, 8);
   L.wind.gain.setTargetAtTime(p.wind * 0.35, t, 0.8);
-  L.hum.gain.setTargetAtTime(p.hum * 0.18, t, 0.8);
+  L.hum.gain.setTargetAtTime(p.hum * 0.45, t, 0.8);
+  const valves = p.year < 1962 ? 1 : p.year < 1980 ? 0.4 : 0;
+  L.buzzGain.gain.setTargetAtTime(0.03 * valves, t, 2);
+  L.fans.frequency.setTargetAtTime(p.year < 1980 ? 700 : 950, t, 2);
+  L.surf.gain.setTargetAtTime(p.surf * 0.4, t, 1.2);
+  // A pile driver on the works, every second and a half or so: a low dull thud.
+  if (p.thuds > 0 && t - lastThud > 1.5 + Math.random() * 0.3) {
+    lastThud = t;
+    burst({ type: 'lowpass', freq: 140, sweep: 60, peak: 0.4 * p.thuds, attack: 0.01, decay: 0.45 });
+  }
+  // The teletype prints a page.
+  if (p.clatter != null && p.clatter !== lastClatter && lastClatter !== undefined && t - lastRattle > 1.5) {
+    lastRattle = t;
+    rattle();
+  }
+  lastClatter = p.clatter;
+  // Liftoff, heard far off or through the room's TV: a long low rumble swelling and dying away.
+  if (p.rumble && !boomed.has(p.rumble)) {
+    boomed.add(p.rumble);
+    burst({ type: 'lowpass', freq: 220, sweep: 70, peak: 0.3, attack: 1.8, decay: 9 });
+  }
   // She lights: one low thump as the roar comes up.
   const lit = p.engine > 0.2 && p.muffle < 0.5;
   if (lit && !wasLit) burst({ type: 'lowpass', freq: 160, sweep: 60, peak: 0.5, attack: 0.03, decay: 1.2 });
@@ -449,10 +535,73 @@ export function soundFrame(g, where) {
   if (p.tick != null && p.tick !== lastTick) tick();
   lastTick = p.tick;
   // A line on the loop: a short hiss as the net opens, at most a few a second.
-  const line = g?.loop?.at(-1) ?? null;
   if (line && lastLine !== undefined && line !== lastLine && p.netted && t - lastHiss > 0.35) {
     lastHiss = t;
-    burst({ type: 'bandpass', freq: p.year < 1958 ? 1100 : 1700, q: 1.1, peak: 0.07, attack: 0.015, decay: 0.16 });
+    burst({
+      type: 'bandpass',
+      freq: p.year < 1958 ? 1100 : 1700,
+      q: 1.1,
+      peak: 1,
+      attack: 0.015,
+      decay: 0.16,
+      buf: white,
+    });
   }
   lastLine = line;
+}
+
+// DESK MODE (js/desk): the MOCR's hum, a hiss as each line you are listening to comes in, the teletype printing its
+// pages, the last ten seconds ticking, and the liftoff as a long rumble through the room's TV.
+export function deskPlan(d) {
+  const plan = soundPlan(null, 'desk');
+  plan.year = 1969;
+  plan.netted = true;
+  if (!d) return plan;
+  plan.clatter = d.tty?.length ?? 0;
+  if (!d.done && d.t < 0 && d.t >= -10) plan.tick = Math.ceil(-d.t);
+  if (d.done || d.t >= 0) plan.rumble = d;
+  return plan;
+}
+const seenDesks = new WeakSet();
+export function deskSound(d) {
+  // A desk opened already flown keeps its liftoff to itself.
+  if (d && !seenDesks.has(d)) {
+    seenDesks.add(d);
+    if (d.done) boomed.add(d);
+  }
+  const heard = d?.log?.filter(l => l.heard).at(-1) ?? null;
+  if (!ready()) {
+    lastLine = heard;
+    lastClatter = d?.tty?.length ?? 0;
+    return;
+  }
+  play(deskPlan(d), heard);
+}
+
+// THE MANAGEMENT MAP (js/manage): the Cape's sea and wind, quieter at night; a pile driver while works go up by day;
+// and a launch from one of the pads, heard across the Cape in the vehicle's own voice.
+// at: { part (of the day), speed, night (0..1), works (how many buildings going up), stands (view.js standsOn) }
+export function managePlan({ part = 0.5, speed = 1, night = 0, works = 0, stands = [], year = 1958 } = {}) {
+  const plan = soundPlan(null, 'manage');
+  plan.year = year;
+  plan.wind *= 1 - 0.4 * night;
+  plan.thuds =
+    works > 0 && night < 0.3 && speed > 0 && speed <= 4 && part > 0.3 && part < 0.72
+      ? Math.min(1, 0.6 + 0.2 * works)
+      : 0;
+  const up = stands.find(s => s.rise > 0 && s.rise < 260);
+  if (up) {
+    plan.voice = voiceOf(up.vehicle, 0);
+    plan.engine = (0.35 + 0.25 * might(up.vehicle)) / (1 + up.rise / 120);
+    plan.muffle = 0.55;
+  }
+  return plan;
+}
+export function manageSound(at) {
+  if (ready()) play(managePlan(at), null);
+}
+
+// The title screen: only the wind over the site behind it.
+export function titleSound() {
+  if (ready()) play(soundPlan(null, 'site'), null);
 }
