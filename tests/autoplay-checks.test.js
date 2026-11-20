@@ -92,3 +92,14 @@ test("the engine's own chatter is not a bug, and a bug's issue link goes to the 
   assert.equal(url.pathname, '/kj2223/History-of-Rocketry/issues/new');
   assert.match(url.searchParams.get('body'), /wac-1/);
 });
+
+test('watching the climb with the abort call live is not counted as waiting', () => {
+  const { waits } = judgeWaits([
+    { name: 'console-ascent', after: 'console-ascent', wait: 50, where },
+    { name: 'console-pack', after: 'console-poll', wait: 48, where },
+  ]);
+  assert.deepEqual(
+    waits.map(w => w.name),
+    ['console-pack'],
+  );
+});

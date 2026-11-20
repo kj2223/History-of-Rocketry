@@ -286,7 +286,7 @@ async function playFlight() {
       continue;
     }
     stepName = s.name;
-    run.steps.push({ name: s.name, wait: s.wait, beats: s.beats, where: s.where });
+    run.steps.push({ name: s.name, after: run.steps.at(-1)?.name, wait: s.wait, beats: s.beats, where: s.where });
     if (s.done) break;
     if (s.name === 'round-start') {
       rounds++;
@@ -303,7 +303,12 @@ async function playFlight() {
         continue;
       }
     }
-    if (!quick || KEY_STEPS.test(s.name)) await look(s.name);
+    if (!quick || KEY_STEPS.test(s.name)) {
+      // The bot answers from wherever it stands; a player goes to the room their call is waiting in, so look from there.
+      const call = await page.$('#waiting.call:not([hidden])');
+      if (call) await call.click().catch(() => {});
+      await look(s.name);
+    }
   }
   log('Flight Director: back to the title screen');
   stepName = 'to-title';

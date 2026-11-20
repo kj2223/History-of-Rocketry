@@ -114,8 +114,9 @@ export function judgeLook(look, { soundOn = true, quietScene = false } = {}) {
 
 // The longest waits, worst first, and a finding for each over the limit.
 export function judgeWaits(steps) {
+  // Watching the climb with the abort call live is not waiting: the player is deciding all the way up.
   const waits = steps
-    .filter(s => s.wait != null)
+    .filter(s => s.wait != null && s.after !== 'console-ascent')
     .map(s => ({ ...s, wait: Math.round(s.wait * 10) / 10 }))
     .sort((a, b) => b.wait - a.wait);
   const findings = waits
