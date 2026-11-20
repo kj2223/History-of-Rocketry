@@ -266,3 +266,49 @@ test('a signed-off ledger item reopened at the review is worked on this vehicle 
   assert.equal(g.roundStart, start + 2);
   assert.equal(flowLedgerItems().length, 0);
 });
+
+test("the history's moments: Apollo 13's tank is seen and left to the review, Artemis I's wet dress takes four tries, STS-1 fires on the pad", () => {
+  const base = { ...DEFAULT_PROGRAMME, tankRisk: 0.5 };
+  assert.equal(
+    flowRisk(base, 'saturn5', false, 'apollo-13').tankRisk,
+    0.5,
+    'nothing priced in for a fault never fixed',
+  );
+  assert.ok(flowRisk(base, 'saturn5', false, 'apollo-12').tankRisk > 0.5);
+  const round = newRound(5, base, 'saturn5');
+  round.faults = { 'o2-tanks': 'tank' };
+  const f = newFlow('saturn5', 1000, -Infinity, false, 'apollo-13');
+  const r = runTest(
+    f,
+    round,
+    f.tests.find(t => t.id === 'cddt'),
+    'you',
+  );
+  assert.equal(round.faults['o2-tanks'], 'tank', 'the CDDT cannot fix it');
+  assert.equal(f.moment, 'seen');
+  assert.match(r.history, /would not drain/);
+  const reh = newRehearsal(
+    f,
+    round,
+    f.tests.find(t => t.id === 'cddt'),
+  );
+  assert.match(REHEARSALS.cddt.glitches[reh.glitch], /oxygen tanks will not drain/);
+
+  const a = newFlow('sls', 1000, -Infinity, false, 'artemis-1');
+  const sls = newRound(5, DEFAULT_PROGRAMME, 'sls');
+  sls.faults = {};
+  assert.equal(
+    runTest(
+      a,
+      sls,
+      a.tests.find(t => t.id === 'wdr'),
+      'team',
+    ).days,
+    4,
+  );
+
+  const s = newFlow('shuttle', 1000, -Infinity, false, 'sts-1');
+  assert.equal(s.tests[0].id, 'frf');
+  assert.equal(s.tests[0].day, 1000 - 51);
+  assert.ok(!newFlow('shuttle', 1000, -Infinity, false, 'sts-26').tests.some(t => t.id === 'frf'));
+});

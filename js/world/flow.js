@@ -10,7 +10,7 @@
 // depend on what else was played, and sitting in always catches at least what the team alone would have.
 
 import { newStreams, draw } from '../core/rng.js';
-import { FLOWS, flowFor, REHEARSALS } from '../data/flow.js';
+import { flowFor, REHEARSALS, MOMENTS } from '../data/flow.js';
 import { KITS } from '../data/kits.js';
 
 // How much more you catch by sitting in: this share of what the team alone would miss.
@@ -20,8 +20,8 @@ export const MAX_SLIP = 4;
 
 // The flow for a round starting on `start` (its first morning), when the calendar stands at `today`. A test whose day has
 // already passed was run before you got there (status 'early').
-export function newFlow(vehicle, start, today, probe = false) {
-  const defs = flowFor(vehicle, probe);
+export function newFlow(vehicle, start, today, probe = false, season = null) {
+  const defs = flowFor(vehicle, probe, season);
   if (!defs) return null;
   const tests = defs
     .map(t => ({ id: t.id, day: start - t.lead, status: 'due', found: [] }))
@@ -29,10 +29,12 @@ export function newFlow(vehicle, start, today, probe = false) {
   // One test a day: two on the same day are spread back to the days before.
   for (let i = tests.length - 2; i >= 0; i--) tests[i].day = Math.min(tests[i].day, tests[i + 1].day - 1);
   for (const t of tests) if (t.day <= today) t.status = 'early';
-  return { vehicle, tests, slip: 0 };
+  return { vehicle, season, tests, slip: 0 };
 }
 
-export const defOf = (flow, test) => FLOWS[flow.vehicle].find(d => d.id === test.id);
+export const defOf = (flow, test) => flowFor(flow.vehicle, false, flow.season).find(d => d.id === test.id);
+// The history's moment in this flow, if this test is where it happens.
+const momentAt = (flow, test) => (MOMENTS[flow.season]?.test === test.id ? MOMENTS[flow.season] : null);
 // The next test still to come, or null.
 export const dueTest = flow => flow?.tests.find(t => t.status === 'due') || null;
 // The day a test falls on, after the slips.
@@ -40,14 +42,16 @@ export const dayOf = (flow, test) => test.day + flow.slip;
 
 // The risk the flow can catch, added back on to the round's thresholds, so a round whose flow the team runs flies about
 // as often as the real ones did. Only thresholds move, never the draws (truth/round.js).
-export function flowRisk(risks, vehicle, probe = false) {
-  const defs = flowFor(vehicle, probe);
+export function flowRisk(risks, vehicle, probe = false, season = null) {
+  const defs = flowFor(vehicle, probe, season);
+  const seen = MOMENTS[season]?.seen;
   if (!defs) return risks;
   const out = { ...risks };
   const miss = {};
   for (const d of defs) for (const [kind, q] of Object.entries(d.finds)) miss[kind] = (miss[kind] ?? 1) * (1 - q);
   for (const [kind, m] of Object.entries(miss)) {
     const k = `${kind}Risk`;
+    if (kind === seen) continue; // seen but never fixed by the test: nothing to price in
     if (out[k] != null) out[k] = Math.min(0.9, out[k] / m);
   }
   return out;
@@ -60,9 +64,15 @@ export function runTest(flow, round, test, by = 'team') {
   const rng = newStreams((round.seed + 7907 * (flow.tests.indexOf(test) + 1)) >>> 0).observation;
   const spots = KITS[round.vehicle].spots;
   const found = [];
+  const moment = momentAt(flow, test);
   for (const id of Object.keys(spots).sort()) {
     const kind = round.faults[id];
     const u = draw(rng); // one draw per spot whatever is there, so the stream never shifts
+    if (kind && kind === moment?.seen) {
+      // Seen, and noted; the test cannot fix it. The review decides.
+      flow.moment = 'seen';
+      continue;
+    }
     const q = kind ? def.finds[kind] : null;
     if (!q) continue;
     const chance = by === 'you' ? q + (1 - q) * YOU_EXTRA : q;
@@ -74,11 +84,13 @@ export function runTest(flow, round, test, by = 'team') {
       );
     }
   }
-  const days = found.length ? Math.min(def.fix ?? 1, MAX_SLIP - flow.slip) : 0;
+  let days = found.length ? Math.max(0, Math.min(def.fix ?? 1, MAX_SLIP - flow.slip)) : 0;
+  days += moment?.days || 0;
   flow.slip += days;
   test.status = by;
   test.found = found.map(f => f.spot);
-  return { found, days };
+  const history = moment && (moment.days || flow.moment === 'seen') ? moment.text : null;
+  return { found, days, history };
 }
 
 // Cut a test still to come to win back a slipped day. Only while the flow is behind.
@@ -100,7 +112,7 @@ export function newRehearsal(flow, round, test) {
     id: test.id,
     at: 0,
     glitchAt: Math.floor(draw(rng) * r.steps.length),
-    glitch: Math.floor(draw(rng) * r.glitches.length),
+    glitch: momentAt(flow, test)?.glitch ?? Math.floor(draw(rng) * r.glitches.length),
     calls: [],
   };
 }
