@@ -10,7 +10,7 @@
 // depend on what else was played, and sitting in always catches at least what the team alone would have.
 
 import { newStreams, draw } from '../core/rng.js';
-import { FLOWS, flowFor } from '../data/flow.js';
+import { FLOWS, flowFor, REHEARSALS } from '../data/flow.js';
 import { KITS } from '../data/kits.js';
 
 // How much more you catch by sitting in: this share of what the team alone would miss.
@@ -90,11 +90,47 @@ export function cutTest(flow, test) {
   return 1;
 }
 
-// What sitting in rehearsed, for the launch day: how many tests of each kind you attended.
+// A rehearsal you sit through (data/flow.js REHEARSALS), or null if the test has none. Plain JSON on the game:
+// { id, at, glitchAt, glitch, calls } where calls[i] is true for a HOLD at mark i. Its own seeded stream.
+export function newRehearsal(flow, round, test) {
+  const r = REHEARSALS[test.id];
+  if (!r) return null;
+  const rng = newStreams((round.seed + 104729 * (flow.tests.indexOf(test) + 1)) >>> 0).forecast;
+  return {
+    id: test.id,
+    at: 0,
+    glitchAt: Math.floor(draw(rng) * r.steps.length),
+    glitch: Math.floor(draw(rng) * r.glitches.length),
+    calls: [],
+  };
+}
+export const rehearsalSteps = reh => REHEARSALS[reh.id].steps;
+// What the mark in front of you shows: the step, and the glitch if this is the mark it comes at.
+export const rehearsalMark = reh => ({
+  step: REHEARSALS[reh.id].steps[reh.at],
+  glitch: reh.at === reh.glitchAt ? REHEARSALS[reh.id].glitches[reh.glitch] : null,
+});
+// Your call at the mark in front of you: hold or carry on. Returns true when the rehearsal is over.
+export function rehearsalCall(reh, hold) {
+  if (reh.at >= REHEARSALS[reh.id].steps.length) return true;
+  reh.calls.push(!!hold);
+  reh.at++;
+  return reh.at >= REHEARSALS[reh.id].steps.length;
+}
+// How the rehearsal went: 'clean' if you held on the glitch and nowhere else. missed: you let the glitch go by;
+// needless: holds on clean marks.
+export function rehearsalGrade(reh) {
+  const missed = !reh.calls[reh.glitchAt];
+  const needless = reh.calls.filter((h, i) => h && i !== reh.glitchAt).length;
+  return { grade: !missed && !needless ? 'clean' : 'rough', missed, needless };
+}
+
+// What sitting in rehearsed, for the launch day: how many tests of each kind you attended. A test with a rehearsal
+// counts only if you ran it clean.
 export function practiced(flow) {
   const out = {};
   for (const t of flow?.tests || []) {
-    if (t.status !== 'you') continue;
+    if (t.status !== 'you' || (REHEARSALS[t.id] && t.grade !== 'clean')) continue;
     const p = defOf(flow, t).practice;
     if (p) out[p] = (out[p] || 0) + 1;
   }

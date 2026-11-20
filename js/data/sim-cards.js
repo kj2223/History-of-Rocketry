@@ -38,6 +38,15 @@ export const SIM_CARDS = {
     phase: 'pack',
     text: 'Segment 51 lit: you cannot tell a loose shield from a bad switch. Keep the pack on: it costs little, a shield costs everything.',
   },
+  // Earned by a clean rehearsal of the count in the launch flow (game.js): what the pad does when she shuts down on it.
+  plug: {
+    phase: 'pad',
+    text: 'Shut down on the pad with the escape tower gone: nobody goes near her until the batteries are flat and the oxygen has boiled off.',
+  },
+  shutdown: {
+    phase: 'shutdown',
+    text: 'Lit and shut down on the pad: no fire, no motion, the crew sits tight. Ejection seats are for a vehicle that is coming apart.',
+  },
   scanner: {
     phase: 'retro',
     text: 'Attitude wandering and fuel burning on automatic: have him fire by hand, lined up on the horizon.',

@@ -54,8 +54,13 @@ import {
   flowRun,
   flowCut,
   flowCanCut,
+  flowRehearsal,
+  flowHasRehearsal,
+  flowRehearsalMark,
+  flowRehearse,
+  flowRehearsalCall,
 } from '../game.js';
-import { dayOf as flowDayOf } from '../world/flow.js';
+import { dayOf as flowDayOf, rehearsalSteps } from '../world/flow.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
@@ -341,10 +346,26 @@ function flowChoices(here) {
   const d = flowDef(t);
   const attend =
     d.where === 'office' || here
-      ? `<button class="primary" data-act="flow-you">Sit in on it</button>`
+      ? flowHasRehearsal()
+        ? `<button class="primary" data-act="flow-rehearse">Sit in on the rehearsal</button>`
+        : `<button class="primary" data-act="flow-you">Sit in on it</button>`
       : `<p class="muted">To sit in on it, go to the ${esc(placeName(d.where))}.</p>`;
   const cut = flowCanCut() ? `<button data-act="flow-cut">Cut it to win back a day</button>` : '';
   return `${attend} <button data-act="flow-team">Hand it to the team</button> ${cut}`;
+}
+// A rehearsal of the count, mark by mark: what has gone by with your calls, and the mark in front of you.
+function rehearsalRoom(d) {
+  const reh = flowRehearsal(),
+    steps = rehearsalSteps(reh),
+    m = flowRehearsalMark();
+  const past = steps
+    .slice(0, reh.at)
+    .map((t, i) => `<li><span class="muted">${esc(t)}</span> · ${reh.calls[i] ? 'You held' : 'Go'}</li>`)
+    .join('');
+  return `<h2>${esc(d.name)}</h2><p class="muted">A rehearsal: nothing flies. Call GO to carry on, HOLD to stop the count and look. Where a real count would hold, hold here; where it would not, do not.</p>
+    <ul class="flow">${past}</ul>
+    <h3>${esc(m.step)}</h3>${m.glitch ? `<p class="result">${esc(m.glitch)}</p>` : '<p>Every station reports normal.</p>'}
+    <div class="actions"><button class="primary" data-act="reh-go">GO</button><button data-act="reh-hold">HOLD</button></div>`;
 }
 const FLOW_ROOMS = {
   flow() {
@@ -365,6 +386,7 @@ const FLOW_ROOMS = {
     const t = flowTest();
     if (!t) return '';
     const d = flowDef(t);
+    if (flowRehearsal()) return rehearsalRoom(d);
     return `<h2>${esc(d.name)}</h2><p>${esc(placeName(d.where))}, ${esc(dateText())}.</p><p>${esc(d.text)}</p>
       ${flowResult()}${flowChoices(true)}`;
   },
@@ -788,6 +810,9 @@ export function bindRoom(handlers) {
       'flow-you': () => flowRun('you'),
       'flow-team': () => flowRun('team'),
       'flow-cut': () => flowCut(),
+      'flow-rehearse': () => flowRehearse(),
+      'reh-go': () => flowRehearsalCall(false),
+      'reh-hold': () => flowRehearsalCall(true),
       'ledger-accept': () => ledgerCall(id, 'accept'),
       'ledger-work': () => ledgerCall(id, 'work'),
       'probe-command': () => advanceProbe(true),

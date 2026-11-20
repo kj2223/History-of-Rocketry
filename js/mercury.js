@@ -57,7 +57,8 @@ import {
 import { CREW_TRAITS, consents, ownAbortAt, impatient } from './world/crew.js';
 import { ASTRONAUTS } from './data/crew.js';
 import { newRound, ellisReading } from './truth/round.js';
-import { draw } from './core/rng.js';
+import { draw, newStreams } from './core/rng.js';
+import { practiced } from './world/flow.js';
 import { KITS, shortFor, fixerOf } from './data/kits.js';
 import { SEASON } from './data/campaign.js';
 import {
@@ -234,6 +235,17 @@ export const MERCURY_BEATS = {
     g.rocket.mated = true;
     if (engineer()) rework();
     g.mission.cond = conditions(g.round);
+    // A network simulation you sat in on shook out the recovery net's radio: a ship running late is likelier on station.
+    // Its own stream, so nothing else in the round moves.
+    if (g.mission.cond.late && practiced(g.flow).range) {
+      const d = draw(newStreams((g.round.seed + 31337 + g.day) >>> 0).forecast);
+      if (d < 0.5) {
+        note(
+          'The recovery ship that was running late made station overnight: the network sim had shaken out her radio watch.',
+        );
+        g.mission.cond.late = null;
+      }
+    }
     g.objective = engineer()
       ? `Launch day. Go to the back room in ${placeName('office')}: ${nameOf('hollis')} will want the hardware answered for.`
       : `Launch day. Go to your console in ${placeName('office')} for the count.`;
