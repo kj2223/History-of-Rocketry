@@ -74,6 +74,13 @@ export function writeReport(run, file) {
   const timings = Object.entries(run.timings ?? {}).map(([k, v]) => [esc(k), `${n(v)} ms`]);
   const manage = (run.manageWeeks ?? []).map(w => [w.week, w.day, esc(w.flown), w.quietDays]);
   const desk = (run.desk ?? []).filter(d => d.verdict).map(d => [esc(d.name), d.verdict.map(esc).join('<br>')]);
+  const hands = [
+    ...Object.entries(run.handsOn ?? {}).map(([k, v]) => [esc(k), esc(v)]),
+    ...(run.emergencies ?? []).map(e => [
+      'pad emergency',
+      esc(`${e.kind} at ${e.pad}, ${e.minutes} min, ${e.lost ? 'rocket lost' : `slip ${e.slip} d`}, ${e.hurt} hurt`),
+    ]),
+  ];
 
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Ad Astra playtest ${esc(run.id)}</title>
 <style>
@@ -97,6 +104,7 @@ ${section('Loading', table(['what', 'took'], timings))}
 ${liftoffs.length ? section('Liftoffs, heard live (loudest moment, peak)', table(['flight', 'loudest', 'peak', ''], liftoffs)) : ''}
 ${manage.length ? section('Management: flights and the quiet days before each', table(['week', 'day', 'flight', 'quiet days'], manage)) : ''}
 ${desk.length ? section('Desk mode: the verdicts', table(['count', 'verdict'], desk)) : ''}
+${hands.length ? section('Hands-on controls worked', table(['what', 'how many'], hands)) : ''}
 ${section('Every stop: frames (median / 95% / worst), sound, look', table(['screen', 'stop', 'frames', 'sound', 'against the approved look', 'memory'], lookRows))}
 <p class="muted">Sound levels are what the game sends to the speakers, measured in the window. A sound being the right one still needs your ear; this finds silence, clipping, sounds that pile up and sound that carries over.</p>
 </body></html>`;

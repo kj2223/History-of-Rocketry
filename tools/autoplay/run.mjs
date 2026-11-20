@@ -314,6 +314,10 @@ async function playFlight() {
       } else await look(s.name);
     }
   }
+  // The hands-on controls (HANDS-ON-GAMEPLAY.md): the firing panel, the grease pencil and the test kit were worked.
+  run.handsOn = await page.evaluate(() => ({ ...globalThis.__autoplay.handsOn }));
+  if (!run.handsOn.switches)
+    note(finding('hands-on-unused', 'warn', where, 'No round offered the firing panel’s switches to throw.'));
   log('Flight Director: back to the title screen');
   stepName = 'to-title';
   await toTitleFromFlight();
