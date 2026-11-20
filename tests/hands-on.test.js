@@ -16,6 +16,12 @@ import {
   trackStick,
   trackShare,
   TRACK,
+  standPanelOpen,
+  standSwitch,
+  standArmed,
+  pressValve,
+  pressByHand,
+  countTank,
 } from '../js/game.js';
 import { estimate } from '../js/world/programme.js';
 import { tickConsole, INSERT_WINDOW } from '../js/mercury.js';
@@ -155,4 +161,69 @@ test('left alone, the tracking camera loses her; kept on her, the film counts do
     assert.equal(estimate(g.programme, 'wac').flights, before + 2, 'a tracked flight counts twice');
   }
   assert.ok(g.notes.some(n => /Your tracking film/.test(n.text)));
+});
+
+// ---- Idea 4: throw the switches ----
+test('the firing panel takes its switches in order; out of order it is safed', () => {
+  newGame(7);
+  playRound(undefined, undefined, 'staticPrep');
+  until(() => g.beat === 'static');
+  standPanelOpen();
+  assert.deepEqual(g.stand.switches, { power: false, press: false, arm: false });
+  standStart();
+  assert.equal(g.stand.phase, 'ready', 'the key does nothing on an unarmed panel');
+  standSwitch('power');
+  const clock = g.clock;
+  standSwitch('arm');
+  assert.deepEqual(g.stand.switches, { power: false, press: false, arm: false }, 'safed');
+  assert.ok(g.clock >= clock + 10);
+  for (const k of ['power', 'press', 'arm']) standSwitch(k);
+  assert.ok(standArmed());
+  standSwitch('power');
+  assert.equal(g.stand.switches.power, true, 'no dropping power under an armed stage');
+  standStart();
+  assert.equal(g.stand.phase, 'count');
+});
+
+test('without the panel opened, a count starts as before (the bot, the tapes)', () => {
+  newGame(7);
+  playRound(undefined, undefined, 'staticPrep');
+  until(() => g.beat === 'static');
+  standStart();
+  assert.equal(g.stand.phase, 'count');
+  assert.equal(g.stand.switches, undefined);
+});
+
+const toTerminal = () => {
+  newGame(7);
+  playRound(undefined, undefined, 'poll');
+  countAnswer(true);
+  until(() => g.count?.poll);
+  g.room = 'count';
+  countAnswer(true);
+};
+test('in the terminal count at PRESS, the tank bleeds away unless you hold the valve; out of limits holds the count', () => {
+  toTerminal();
+  assert.ok(pressByHand());
+  for (let i = 0; i < 30 * 25 && !g.count.held; i++) tick(1 / 30);
+  assert.equal(g.count.held, true, 'left alone, the tank drops out of limits and the count holds');
+  assert.ok(g.notes.some(n => /out of limits; the count was held/.test(n.text)));
+  toTerminal();
+  for (let i = 0; i < 30 * 60 && g.count; i++) {
+    pressValve(countTank() < 22.6);
+    assert.ok(!g.count.held, 'a careful hand on the valve keeps the count going');
+    tick(1 / 30);
+  }
+  assert.ok(g.flight, 'she flew');
+});
+
+test('away from the blockhouse, the regulator keeps the tank and nothing changes', () => {
+  newGame(7);
+  playRound(undefined, undefined, 'poll');
+  countAnswer(true);
+  until(() => g.count?.poll);
+  countAnswer(true);
+  assert.equal(pressByHand(), false);
+  pressValve(true);
+  assert.ok(!g.count.valve);
 });
