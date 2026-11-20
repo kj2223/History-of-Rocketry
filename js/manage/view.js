@@ -14,6 +14,7 @@ import { dateLabel } from '../core/calendar.js';
 import { appropriation, lines, resplit, money, DEFAULT_SPLIT } from './budget.js';
 import { announce, settle, news, standingText, watched } from './pressure.js';
 import { staffing, candidate } from './people.js';
+import { baseLife } from './life.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const art = () => {
@@ -95,6 +96,7 @@ export function startBaseView(el, game, { save, back }) {
     live = art();
   let sched = gameSchedule(game, CAPE_1958, START_DAY);
   paintBase(still.ctx, base, CAPE_1958_ROADS);
+  const life = baseLife(base, CAPE_1958_ROADS); // the day turning, people and trucks, smoke (life.js)
   el.innerHTML = `<div class="mg-bar">
       <strong class="mg-date" data-live="date"></strong>
       <span class="mg-speed">
@@ -304,7 +306,7 @@ export function startBaseView(el, game, { save, back }) {
     ctx.fillRect(0, 0, w, h);
     ctx.globalCompositeOperation = 'screen';
     const sun = ctx.createRadialGradient(w * 0.15, h * 0.1, 0, w * 0.15, h * 0.1, h * 0.9);
-    sun.addColorStop(0, 'rgba(255,214,150,0.22)');
+    sun.addColorStop(0, `rgba(255,214,150,${(0.22 * (1 - life.night())).toFixed(3)})`);
     sun.addColorStop(1, 'rgba(255,214,150,0)');
     ctx.fillStyle = sun;
     ctx.fillRect(0, 0, w, h);
@@ -400,7 +402,16 @@ export function startBaseView(el, game, { save, back }) {
       lastDrawnDay = game.day;
     }
     ctx.drawImage(live.cv, 0, 0);
+    life.art(ctx);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    life.light(ctx, w, h, () => [
+      s,
+      0,
+      0,
+      s,
+      Math.round(v.cx * dpr() - cam.x * s),
+      Math.round(v.cy * dpr() - cam.y * s),
+    ]);
     drawLight(w, h);
     drawType();
   }
@@ -417,6 +428,7 @@ export function startBaseView(el, game, { save, back }) {
         newDay();
       }
     }
+    life.update(dt, { part, speed, paused, stands: standsOn(sched, base, game.day, part), still: calm() });
     draw();
     requestAnimationFrame(frame);
   }
