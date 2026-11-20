@@ -27,7 +27,7 @@ const ST = { x: 238, base: 108, top: 46 };
 const NOZZLE = { x: ST.x, y: ST.base - 6 };
 const SHADOW = 0x0a0c14;
 
-export function dugoutRoom({ cape, sky }) {
+export function dugoutRoom({ cape, sky, pass = true }) {
   const root = new Container();
   root.label = 'dugout-room';
   const M = { mx: 80, my: 40 };
@@ -39,6 +39,9 @@ export function dugoutRoom({ cape, sky }) {
   root.addChild(far.sprite, ground.sprite, shadows.sprite, live.sprite, near.sprite);
   const hd = hdLayer(320, 180, M);
   root.addChild(hd.root);
+  // On the pixel pass (pixelate.js) the light and the blurred near edge are drawn over the pixels at full resolution,
+  // so they stay smooth; the pass itself softens the far wall and the shadows enough.
+  if (pass) hd.root.crisp = near.sprite.crisp = true;
   const farBlur = new BlurFilter({ strength: 3, quality: 2 }),
     nearBlur = new BlurFilter({ strength: 8, quality: 3 }),
     shadowBlur = new BlurFilter({ strength: 3, quality: 2 });
@@ -207,12 +210,12 @@ export function dugoutRoom({ cape, sky }) {
   // Each frame. L: the light of the moment (fx/daylight.js); power: how hard she burns (0 to about 1.3); people: up to
   // three at the panel, the player first; k: the scale the room is shown at (for the blur).
   function update({ L, power, firing, people, hdOn, t, k, dt, stage }) {
-    far.sprite.filters = hdOn ? [farBlur] : null;
+    far.sprite.filters = hdOn && !pass ? [farBlur] : null;
     near.sprite.filters = hdOn ? [nearBlur] : null;
     shadows.sprite.filters = hdOn ? [shadowBlur] : null;
     farBlur.strength = 0.4 * PX * k;
     nearBlur.strength = 1.6 * PX * k;
-    shadowBlur.strength = 0.5 * PX * k;
+    shadowBlur.strength = pass ? 1.5 : 0.5 * PX * k; // on the pass, in art pixels
     const P = live,
       S = shadows;
     P.clear();

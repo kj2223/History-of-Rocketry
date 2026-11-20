@@ -12,11 +12,13 @@ import { roundShape, uiEra, PLACES } from '../site/draw.js';
 import { SHAPE, spotAt, spread } from '../site/interiors.js';
 import { inspectFlags } from '../scenes/rooms.js';
 import { atPlace } from '../data/white-sands.js';
-import { sceneLight } from './fx/hd.js';
+import { sceneLight, hdWanted } from './fx/hd.js';
 import { KITS } from '../data/kits.js';
 import { label, speech, canvasPicture, outButton, standingFigure } from './kit.js';
 import { PX, pixelLayer } from './pixel.js';
 import { paintHangar } from './hangar-art.js';
+import { hangarRoom } from './hangar-room.js';
+import { roomAndDesk } from './fx/zoom-view.js';
 import { pixelSize } from './pixelate.js';
 
 // Hand-painted in pixel art (hangar-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
@@ -286,7 +288,33 @@ export function hangarScene({ leave, look, engLook }) {
   for (const c of crew) talk.addChild(c.b);
 
   const out = outButton(leave);
-  root.addChild(out);
+
+  // ---- the hangar from above, and the zoom in to the round (2D-HD rework, Aaron 20 November 2026) ----
+  // The scene opens on the hangar in three-quarters (hangar-room.js); with an inspection or a checkout on, it moves in
+  // to the hardware (this close-up, every spot) after a moment. The button and a click on her move between the two.
+  const roomView = hangarRoom({
+    g,
+    crewed,
+    capsule,
+    here,
+    len,
+    half,
+    mated,
+    banner: placeName('hangar'),
+    pass: painted,
+  });
+  root.addChildAt(roomView.root, 0);
+  const zoom = roomAndDesk({
+    room: roomView.root,
+    desk: world,
+    focus: roomView.focus,
+    W,
+    H,
+    auto: () => !!g.room && /^(inspect|checkout)/.test(g.room),
+    words: ['▾ Look closer', '▴ The hangar'],
+  });
+  roomView.deskHit.on('pointertap', zoom.goIn);
+  root.addChild(out, zoom.toggle);
 
   // The state of each spot, as the canvas hangar had it.
   // The state of each spot: on the inspection list (uncrewed), or in the spacecraft checkout (crewed).
@@ -488,16 +516,9 @@ export function hangarScene({ leave, look, engLook }) {
 
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    let s = Math.min(roomW / W, screen.height / H);
-    // Painted, each art pixel is a whole number of screen pixels, the pixel pass's own size where it fits, and the
-    // room sits on the pass's grid.
-    const ps = pixelSize(screen.height);
-    if (painted) s = Math.max(1, Math.min(ps, Math.floor(s * PX))) / PX;
-    world.scale.set(s);
-    let bx = (roomW - W * s) / 2,
-      by = (screen.height - H * s) / 2;
-    if (painted) ((bx = Math.round(bx / ps) * ps), (by = Math.round(by / ps) * ps));
-    world.position.set(bx, by);
+    // The hangar and the close-up fit the screen left of the room panel (fx/zoom-view.js); painted, on the pass's grid.
+    const zv = zoom.update(dt, 0, 0, roomW, screen.height, painted ? pixelSize(screen.height) : 0);
+    zoom.toggle.position.set(10, screen.height - 40 - 46 - 48);
     out.position.set(10, screen.height - 40 - 46);
     const t = g.time;
     layout();
@@ -517,9 +538,16 @@ export function hangarScene({ leave, look, engLook }) {
       c.f.position.set(x, FLOOR + 110);
       c.f.update(p || null);
       c.b.position.set(x, FLOOR - 70);
-      c.b.update(p ? p.bubble : null);
+      c.b.update(p && zv.e >= 0.5 ? p.bubble : null);
     });
     light.update(t);
+    if (zv.e < 1)
+      roomView.update({
+        people: inside(g).map(p => ({ ...p, bubble: zv.e < 0.5 ? p.bubble : null })),
+        hdOn: hdWanted(),
+        t,
+        k: zv.rs,
+      });
   }
 
   const keyNow = () =>

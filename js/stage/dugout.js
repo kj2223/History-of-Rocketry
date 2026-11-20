@@ -414,7 +414,7 @@ export function dugoutScene({ leave }) {
   // ---- the stand and the dugout from above, and the zoom in to the panel (2D-HD rework, Aaron 20 November 2026) ----
   // The scene opens on the test site in three-quarters (dugout-room.js); with a firing on, it moves in to the panel
   // (this cutaway, every reading full size) after a moment. The button and a click on the dugout move between the two.
-  const room = dugoutRoom({ cape, sky });
+  const room = dugoutRoom({ cape, sky, pass: painted });
   root.addChildAt(room.root, 0);
   const zoom = roomAndDesk({
     room: room.root,
