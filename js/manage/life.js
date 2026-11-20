@@ -11,6 +11,7 @@
 import { PREFABS } from './base.js';
 import { TW, TH, bayer } from './iso.js';
 import { ART } from './paint.js';
+import { PAD_KINDS } from './manifest.js';
 
 // How dark the night is at an hour of the day (0..1). Full night from 9 pm to 5 am, with dusk and dawn over 2 hours.
 export function nightOf(hour) {
@@ -118,6 +119,55 @@ export function windowPixels(base) {
 
 const hex = c => `#${c.toString(16).padStart(6, '0')}`;
 
+// ROLLOUT: the day before a rocket goes up on its pad it rides out from the hangar on its transporter, lying down,
+// along the roads: out of Hangar S, down to the range road, along it and up the pad's spur. Its route, as tile points.
+export function rolloutRoute(base, roads, pad) {
+  const hangar = base.find(b => b.kind === 'hangar');
+  if (!hangar || !pad) return [];
+  const door = { tx: hangar.tx + PREFABS.hangar.w + 0.5, ty: hangar.ty + 1.5 };
+  const range = roads.find(r => r[3] === 'y' && r[2] > 20),
+    cross = roads.find(r => r[3] === 'x' && r[0] <= hangar.tx + PREFABS.hangar.w && r[0] + r[2] >= (range?.[0] ?? 0)),
+    spur = roads.find(r => r[3] === 'x' && range && r[0] === range[0] + 1 && r[1] >= pad.ty && r[1] < pad.ty + 5);
+  if (!range || !cross || !spur) return [door, { tx: pad.tx + 2.5, ty: pad.ty + 2.5 }];
+  const rx = range[0] + 0.5;
+  return [
+    door,
+    { tx: door.tx, ty: cross[1] + 0.5 },
+    { tx: rx, ty: cross[1] + 0.5 },
+    { tx: rx, ty: spur[1] + 0.5 },
+    { tx: pad.tx + 2.5, ty: spur[1] + 0.5 },
+    { tx: pad.tx + 2.5, ty: pad.ty + 2.5 },
+  ];
+}
+// Where along a route a rollout is at a progress (0..1), and which way it faces: { tx, ty, dx, dy }.
+export function alongRoute(route, k) {
+  if (route.length < 2) return null;
+  const legs = route.slice(1).map((p, i) => Math.hypot(p.tx - route[i].tx, p.ty - route[i].ty)),
+    total = legs.reduce((a, b) => a + b, 0);
+  let left = Math.max(0, Math.min(1, k)) * total;
+  for (let i = 0; i < legs.length; i++) {
+    const a = route[i],
+      b = route[i + 1];
+    if (left <= legs[i] || i === legs.length - 1) {
+      const f = legs[i] ? Math.min(1, left / legs[i]) : 1;
+      return {
+        tx: a.tx + (b.tx - a.tx) * f,
+        ty: a.ty + (b.ty - a.ty) * f,
+        dx: Math.sign(b.tx - a.tx),
+        dy: Math.sign(b.ty - a.ty),
+      };
+    }
+    left -= legs[i];
+  }
+  return null;
+}
+// Which flights roll out on a day: the day before each stands on its pad.
+export function rolloutsOn(flights, base, day) {
+  return (flights ?? [])
+    .map(f => ({ f, pad: base.find(b => b.id === f.pad) }))
+    .filter(({ f, pad }) => pad && PAD_KINDS[pad.padKind] && day === f.launch - PAD_KINDS[pad.padKind].before - 1);
+}
+
 export function baseLife(base, roads) {
   let t = 0,
     night = null,
@@ -127,7 +177,14 @@ export function baseLife(base, roads) {
   const pads = base.filter(b => b.kind === 'pad');
 
   // Once a frame. stands: what is on the pads (view.js standsOn), with rise > 0 for a rocket in flight.
-  function update(dt, { part, speed, paused, stands = [], still = false }) {
+  let rolling = [];
+  function update(dt, { part, speed, paused, stands = [], still = false, flights = [], day = 0 }) {
+    // The rollouts: through the working day, from about 8 am to 4 pm.
+    rolling = rolloutsOn(flights, base, day).map(({ f, pad }) => ({
+      at: alongRoute(rolloutRoute(base, roads, pad), (part - 0.33) / 0.34),
+      long: f.vehicle?.startsWith('atlas') ? 12 : 9,
+      out: part > 0.33 && part < 0.67,
+    }));
     if (!paused) t += dt;
     // The first frame starts at the clock's own light; after that it eases.
     night =
@@ -172,6 +229,27 @@ export function baseLife(base, roads) {
       for (let y = -r; y <= r; y++)
         for (let x = -r; x <= r; x++)
           if (x * x + y * y * 1.6 <= r * r && bayer(cx + x, cy + y) < keep) ctx.fillRect(cx + x, cy + y, 1, 1);
+    }
+    // A rocket riding out to its pad, lying on its transporter, with a car leading.
+    for (const r of rolling) {
+      if (!r.out || !r.at) continue;
+      const p = at(r.at.tx, r.at.ty),
+        // On screen, along x a tile goes (8, 4); along y it goes (-8, 4).
+        sx = r.at.dx ? r.at.dx : -r.at.dy,
+        sy = r.at.dx ? r.at.dx * 0.5 : r.at.dy * 0.5,
+        x0 = Math.round(p.x),
+        y0 = Math.round(p.y);
+      for (let k = -Math.floor(r.long / 2); k < Math.ceil(r.long / 2); k++) {
+        const x = Math.round(x0 - k * sx),
+          y = Math.round(y0 - k * sy);
+        ctx.fillStyle = '#2b2b2b';
+        ctx.fillRect(x, y - 1, 1, 1);
+        ctx.fillStyle = k === Math.ceil(r.long / 2) - 1 ? '#d8d6cc' : '#f1efe8';
+        ctx.fillRect(x, y - 3, 1, 2);
+      }
+      const lead = { x: Math.round(x0 + (r.long / 2 + 3) * sx), y: Math.round(y0 + (r.long / 2 + 3) * sy) };
+      ctx.fillStyle = '#e0a020'; // the escort, lights on top
+      ctx.fillRect(lead.x - 1, lead.y - 2, 3, 2);
     }
     // People and vehicles.
     for (const m of movers(roads, t, night)) {
