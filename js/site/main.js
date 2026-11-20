@@ -45,12 +45,15 @@ import {
   memoryStorage,
   KEYS,
   MANAGEMENT,
+  DESK,
 } from '../core/save.js';
 import { showTitle, hideTitle } from './title.js';
 import { portraitURL } from './portraits.js';
 import { dateOf } from '../core/calendar.js';
 import { newManagement, checkManagement, managementWhere } from '../manage/state.js';
 import { showManagement, hideManagement } from '../manage/screen.js';
+import { newDesk, checkDesk, deskWhere } from '../desk/model.js';
+import { startDeskView, stopDeskView } from '../desk/view.js';
 import { startPlaytest, playtestFrame, trace, traceError } from './playtest.js';
 import { startDevMenu, clearDevFlag } from './dev-menu.js';
 import { drawInterior, interiorOf, interiorButtonAt, doorRight } from './interiors.js';
@@ -611,11 +614,17 @@ startDevMenu({ storage, check: checkCheckpoint, fresh });
 // The title screen: Flight Director or Management, each with its own saves. A seeded replay (?seed=) or ?mode=flight
 // goes straight into the Flight Director's game, as before; so does any jump from the dev menu.
 let screen = 'flight';
+let deskView = null;
+function hideDesk() {
+  stopDeskView($('desk'), deskView);
+  deskView = globalThis.__desk = null;
+}
 function play() {
   screen = 'flight';
   leaveTitleScene(g);
   hideTitle($('title'));
   hideManagement($('manage'));
+  hideDesk();
   trace('mode', { mode: 'flight' });
 }
 function manage(game) {
@@ -633,12 +642,31 @@ function manage(game) {
   });
   trace('mode', { mode: 'management', day: game.day });
 }
+// Desk mode: Apollo 11 at the EECOM console (js/desk), with its own saves.
+function desk(d) {
+  screen = 'desk';
+  hideTitle($('title'));
+  hideDesk();
+  deskView = globalThis.__desk = startDeskView($('desk'), d, {
+    back: toTitle,
+    save: x => {
+      try {
+        writeSave(storage, x, DESK);
+      } catch (e) {
+        traceError('save-failed', e);
+      }
+    },
+  });
+  trace('mode', { mode: 'desk', t: d.t, fault: d.fault });
+}
 function toTitle() {
   screen = 'title';
   if (g.room === 'game') g.room = g.beat === 'seasonEnd' ? 'seasonEnd' : null; // from the Game menu
   hideManagement($('manage'));
+  hideDesk();
   const flight = readSave(storage, checkCheckpoint),
-    managed = readSave(storage, checkManagement, MANAGEMENT);
+    managed = readSave(storage, checkManagement, MANAGEMENT),
+    desked = readSave(storage, checkDesk, DESK);
   showTitle($('title'), {
     flight: {
       saved: flight ? where(flight) : null,
@@ -664,6 +692,16 @@ function toTitle() {
           traceError('save-failed', e);
         }
         manage(game);
+      },
+    },
+    desk: {
+      saved: desked ? deskWhere(desked) : null,
+      replaces: 'The count you have now is replaced.',
+      whatIf: true,
+      onContinue: () => desk(desked),
+      onNew: ({ whatIf } = {}) => {
+        startOver(storage, checkDesk, DESK);
+        desk(newDesk(undefined, { whatIf }));
       },
     },
   });

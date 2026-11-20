@@ -20,6 +20,12 @@ export const MANAGEMENT = {
   contentVersion: 1,
 };
 
+export const DESK = {
+  mode: 'desk',
+  keys: { current: 'aa-desk', lastGood: 'aa-desk-last-good', backup: 'aa-desk-backup' },
+  contentVersion: 1,
+};
+
 export class SaveError extends Error {}
 
 export const exportSave = (checkpoint, slot = FLIGHT) =>
