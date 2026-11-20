@@ -12,6 +12,7 @@ import { hdLayer, hdWanted } from './fx/hd.js';
 import { blockhouseState } from '../data/campaign.js';
 import { inside as insideOf } from '../site/interiors.js';
 import { paletteFor, label, setText, speech, outButton } from './kit.js';
+import { blockhouseRoom } from './blockhouse-room.js';
 import {
   PX,
   pixelLayer,
@@ -326,16 +327,78 @@ export function blockhouseScene({ leave }) {
   const out = outButton(leave);
   root.addChild(out);
 
+  // ---- the room, and the zoom into the player's own desk (2D-HD rework, Aaron 20 November 2026) ----
+  // The scene opens on the room seen from above and behind the desk; when the player is running the count it moves in
+  // to their own desk (the panel above, the readings full size) after a moment. The button and a click on the desk
+  // move between the two.
+  const seat0 = seats();
+  const room = blockhouseRoom({
+    g,
+    built,
+    cape,
+    pal,
+    game,
+    stations: STATIONS.map(st => ({ id: st.id, label: st.label, mine: seat0[st.id] === 'you' })),
+  });
+  root.addChildAt(room.root, 0);
+  let z = 0,
+    zt = 0,
+    since = 0,
+    chosen = false;
+  const toggle = outButton(() => {
+    zt = zt > 0.5 ? 0 : 1;
+    chosen = true;
+  }, '▾ Your desk');
+  root.addChild(toggle);
+  room.deskHit.on('pointertap', () => {
+    zt = 1;
+    chosen = true;
+  });
+  const smooth = (a, b, x) => {
+    const u = Math.max(0, Math.min(1, (x - a) / (b - a)));
+    return u * u * (3 - 2 * u);
+  };
+
   // ---- each frame ----
   let lastPush = -1,
     viewAt = -1;
   function update(dt, screen, reserve) {
-    // Fit the room into the screen left of the room panel, as the canvas interiors did.
+    // Fit the room into the screen left of the room panel, as the canvas interiors did, at a whole number of device
+    // pixels to each art pixel (pixelate.js artFrame) so the pixels stay even; the painted margin fills the rest.
+    const dpr = globalThis.devicePixelRatio || 1;
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    const k = Math.min(roomW / W, screen.height / H);
-    world.scale.set(k);
-    world.position.set(Math.round((roomW - W * k) / 2), Math.round((screen.height - H * k) / 2));
+    const fit = Math.min(roomW / W, screen.height / H);
+    const k = fit * PX * dpr >= 1 ? Math.floor(fit * PX * dpr + 1e-6) / (PX * dpr) : fit;
+    const ox = (roomW - W * k) / 2,
+      oy = (screen.height - H * k) / 2;
+    const snap = v => Math.round(v * dpr) / dpr;
     out.position.set(10, screen.height - 40 - 46);
+    toggle.position.set(10, screen.height - 40 - 46 - 48);
+
+    // Where the view is: z 0 the room, 1 the desk. Running the count, it moves in to the desk after a moment.
+    since += dt;
+    if (!chosen && g.count && g.room?.startsWith('count') && since > 1.4) zt = 1;
+    z += Math.sign(zt - z) * Math.min(Math.abs(zt - z), dt * 1.7);
+    const e = smooth(0, 1, z);
+    setText(toggle.children[1], zt > 0.5 ? '▴ The room' : '▾ Your desk');
+    // The zoom: the room grows about the player's desk until that desk fills the screen, and the panel comes up out of it.
+    const D = room.deskAt;
+    const Zr = W / (D.w * PX);
+    const FP = { x: (D.x + D.w / 2) * PX, y: (D.y + D.h / 2) * PX };
+    const rs = k * (1 + (Zr - 1) * e);
+    const S = {
+      x: ox + FP.x * k + (ox + (W * k) / 2 - (ox + FP.x * k)) * e,
+      y: oy + FP.y * k + (oy + (H * k) / 2 - (oy + FP.y * k)) * e,
+    };
+    room.root.scale.set(rs);
+    room.root.position.set(snap(S.x - FP.x * rs), snap(S.y - FP.y * rs));
+    room.root.alpha = 1 - smooth(0.6, 1, e);
+    room.root.visible = e < 1;
+    const ds = rs / Zr;
+    world.scale.set(ds);
+    world.position.set(snap(S.x - (W / 2) * ds), snap(S.y - (H / 2) * ds));
+    world.alpha = smooth(0.3, 0.75, e);
+    world.visible = e > 0;
 
     const c = g.count,
       t = g.time;
@@ -453,11 +516,14 @@ export function blockhouseScene({ leave }) {
     const here = new Set(inside(g).map(p => p.id));
     if (c) here.add('you');
     const away = id => g.jobs.some(j => (j.who || []).includes(id));
-    STATIONS.forEach((st, i) => {
+    const seated = STATIONS.map(st => {
       const who = g.people[seat[st.id]];
-      const present = who && !who.hidden && (c ? !away(who.id) : here.has(who.id));
+      return who && !who.hidden && (c ? !away(who.id) : here.has(who.id)) ? who : null;
+    });
+    STATIONS.forEach((st, i) => {
+      const who = seated[i];
       const x = stX(i) + ST_W / 2;
-      if (present) {
+      if (who) {
         pixelBack(P, x, SEAT_TOP, who);
         if (who.id === 'you')
           P.poly(
@@ -470,7 +536,7 @@ export function blockhouseScene({ leave }) {
           );
       }
       talk[i].position.set(x * PX, DESK * PX - 4);
-      talk[i].update(present ? who.bubble : null);
+      talk[i].update(who && e >= 0.5 ? who.bubble : null);
     });
     const extra = [...here].map(id => g.people[id]).filter(p => p && !Object.values(seat).includes(p.id));
     extra.slice(0, 2).forEach((p, i) => {
@@ -478,11 +544,25 @@ export function blockhouseScene({ leave }) {
         feet = 160;
       pixelStanding(P, x, feet, p);
       extraTalk[i].position.set(x * PX, (feet - 47) * PX);
-      extraTalk[i].update(p.bubble);
+      extraTalk[i].update(e >= 0.5 ? p.bubble : null);
     });
     for (let i = extra.length; i < 2; i++) extraTalk[i].update(null);
+    const hdOn = hdWanted();
+    if (e < 1) {
+      const quiet = b => (e < 0.5 ? b : null);
+      room.update({
+        c,
+        lit,
+        read,
+        seated: seated.map(w => (w ? { ...w, bubble: quiet(w.bubble) } : null)),
+        standing: extra.slice(0, 2).map(p => ({ ...p, bubble: quiet(p.bubble) })),
+        hdOn,
+        t,
+        k: rs,
+      });
+    }
     P.commit();
-    hd.root.visible = hdWanted();
+    hd.root.visible = hdOn;
     if (hd.root.visible) light(c, read, lit);
   }
 
