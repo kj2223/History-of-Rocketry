@@ -8,6 +8,18 @@ import { g as game } from '../game.js';
 import { label, setText, speech, outButton, puffTexture } from './kit.js';
 import { desk, telemetryScreen, lookOf } from './control.js';
 import { sceneLight } from './fx/hd.js';
+import { PX, pixelLayer } from './pixel.js';
+import { paintSim } from './sim-art.js';
+import { pixelSize } from './pixelate.js';
+
+// Hand-painted in pixel art (sim-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
+const pixelOn = () => {
+  try {
+    return localStorage.getItem('pa-pixel') !== 'off';
+  } catch {
+    return true;
+  }
+};
 
 const W = 1600,
   H = 900,
@@ -41,7 +53,17 @@ export function simScene({ leave }) {
   room.rect(-800, 520, W + 1600, 3).fill(0x4b5156);
   room.rect(-800, FLOOR, W + 1600, 8).fill({ color: 0x000000, alpha: 0.25 });
   world.addChild(room);
-  world.addChild(pool(470, 340, 1100, 760, 0x649da7, 0.22), pool(1390, 300, 600, 600, 0x9eaec0, 0.16));
+  const pools = [pool(470, 340, 1100, 760, 0x649da7, 0.22), pool(1390, 300, 600, 600, 0x9eaec0, 0.16)];
+  world.addChild(...pools);
+  const painted = pixelOn();
+  if (painted) {
+    const art = pixelLayer(320, 180, { mx: 160, my: 60 });
+    paintSim(art, { floor: FLOOR });
+    art.commit();
+    world.addChildAt(art.sprite, 0);
+    room.visible = false;
+    for (const p of pools) p.visible = false;
+  }
 
   // ---- the sign over the door ----
   const signGlow = pool(800, 70, 620, 220, 0xe0543c, 0);
@@ -71,22 +93,27 @@ export function simScene({ leave }) {
   clockWord.position.set(1020, 245);
   const clockGlow = pool(1020, 205, 300, 120, 0xff7a2a, 0.12);
   clockGlow.blendMode = 'add';
+  clock.visible = !painted;
   world.addChild(clock, clockGlow, clockDigits, clockWord, clockTitle);
 
   // ---- the sim supervisor behind his glass, and his failures board ----
   const sup = new Graphics();
-  sup.rect(1230, 120, 330, 290).fill(0x181b1f);
-  sup.rect(1244, 134, 302, 262).fill(0x3a4a5a);
+  if (!painted) {
+    sup.rect(1230, 120, 330, 290).fill(0x181b1f);
+    sup.rect(1244, 134, 302, 262).fill(0x3a4a5a);
+  }
   sup.rect(1340, 254, 96, 70).fill(0x5d6a78); // his shoulders
   sup.circle(1388, 232, 22).fill(0xe2b993);
   sup
     .moveTo(1366, 230)
     .arc(1388, 232, 21, Math.PI, 2 * Math.PI)
     .stroke({ width: 4, color: 0x373b3e });
-  sup.rect(1254, 324, 282, 62).fill(0x4b5258); // his desk
-  sup.rect(1262, 140, 20, 250).fill({ color: 0xffffff, alpha: 0.08 });
-  sup.poly([1480, 134, 1514, 134, 1396, 396, 1362, 396]).fill({ color: 0xb6d8e9, alpha: 0.1 });
-  sup.rect(1230, 408, 330, 4).fill(0x6b7278);
+  if (!painted) {
+    sup.rect(1254, 324, 282, 62).fill(0x4b5258); // his desk
+    sup.rect(1262, 140, 20, 250).fill({ color: 0xffffff, alpha: 0.08 });
+    sup.poly([1480, 134, 1514, 134, 1396, 396, 1362, 396]).fill({ color: 0xb6d8e9, alpha: 0.1 });
+    sup.rect(1230, 408, 330, 4).fill(0x6b7278);
+  }
   const supName = label('SIM SUPERVISOR', 15, 0xd8d2c0, { family: 'Georgia, serif', spacing: 1 });
   supName.position.set(1395, 432);
   const failures = new Graphics();
@@ -121,9 +148,16 @@ export function simScene({ leave }) {
 
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    const s = Math.min(roomW / W, screen.height / H);
+    let s = Math.min(roomW / W, screen.height / H);
+    // Painted, each art pixel is a whole number of screen pixels, the pixel pass's own size where it fits, and the
+    // room sits on the pass's grid.
+    const ps = pixelSize(screen.height);
+    if (painted) s = Math.max(1, Math.min(ps, Math.floor(s * PX))) / PX;
     world.scale.set(s);
-    world.position.set((roomW - W * s) / 2, (screen.height - H * s) / 2);
+    let bx = (roomW - W * s) / 2,
+      by = (screen.height - H * s) / 2;
+    if (painted) ((bx = Math.round(bx / ps) * ps), (by = Math.round(by / ps) * ps));
+    world.position.set(bx, by);
     out.position.set(10, screen.height - 40 - 46);
     const c = g.console && g.console.kind === 'sim' ? g.console : null,
       t = g.time;
