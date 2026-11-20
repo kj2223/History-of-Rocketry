@@ -10,6 +10,8 @@ import {
   flyLoose,
   newRound,
   flagSpots,
+  meterFor,
+  meterReading,
   staticFire,
   standRework,
   leakCheck,
@@ -1340,6 +1342,20 @@ export function lookAt(id) {
   note(`${spot.name}: ${g.round.cues[id] ? spot.cue : spot.sound}`);
   roomChanged();
 }
+// The test kit on one part (hands-on idea 5): costs the test's time, and the reading goes in the notebook and on the
+// list, against its limit. Kept with the round's other calls (g.decided.meter), so it survives a save.
+export function meterSpot(id) {
+  const spot = kit().spots[id],
+    m = spot && meterFor(spot);
+  if (!m || g.decided.meter?.[id]) return;
+  const r = meterReading(g.round, id);
+  g.decided = { ...g.decided, meter: { ...g.decided.meter, [id]: r } };
+  g.clock += m.minutes;
+  note(`${spot.name}, ${m.name.toLowerCase()}: ${r.value} ${m.unit} (limit ${m.low ? 'all ' : ''}${m.limit}).`);
+  roomChanged();
+}
+export { meterFor };
+
 export function finishInspection(flags) {
   const ids = Object.keys(flags).filter(k => flags[k]);
   g.flagged = { ...flags };

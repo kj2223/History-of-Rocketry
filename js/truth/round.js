@@ -341,6 +341,70 @@ export function newRound(seed, programme = DEFAULT_PROGRAMME, vehicle = 'wac') {
 const spotsOf = round => KITS[round.vehicle || 'wac'].spots;
 export const spotLooksBad = (round, id) => round.cues[id];
 export const faultAt = (round, id) => round.faults[id] || null;
+
+// THE TEST KIT (hands-on idea 5, Aaron 20 November 2026): a measurement on one part, read against its limit. Which test
+// suits a part follows from what kind of defect it can have (data/kits.js); the reading follows from whether the defect
+// is really there. It is better evidence than a look, but not proof: a real defect reads out of limits most of the time,
+// and a sound part now and then. Drawn from a hash of the seed and the part, never from the round's random streams, so
+// using the meter changes nothing else that happens.
+export const METER_IF_FAULT = 0.85,
+  METER_IF_SOUND = 0.08;
+export const METERS = {
+  leak: {
+    name: 'Pressure-decay test',
+    minutes: 30,
+    unit: 'bar lost in 10 min',
+    limit: 0.2,
+    sound: [0.02, 0.15],
+    bad: [0.3, 1.2],
+  },
+  weld: {
+    name: 'X-ray the seam',
+    minutes: 45,
+    unit: 'pores per inch',
+    limit: 2,
+    sound: [0, 2],
+    bad: [4, 9],
+    whole: true,
+  },
+  tank: {
+    name: 'X-ray the seam',
+    minutes: 45,
+    unit: 'pores per inch',
+    limit: 2,
+    sound: [0, 2],
+    bad: [4, 9],
+    whole: true,
+  },
+  default: {
+    name: 'Bench check',
+    minutes: 30,
+    unit: 'of 10 cycles clean',
+    limit: 10,
+    sound: [10, 10],
+    bad: [6, 9],
+    whole: true,
+    low: true,
+  },
+};
+export const meterFor = spot => (spot.fault ? METERS[spot.fault] || METERS.default : null);
+function hash01(seed, id, salt) {
+  let h = (seed | 0) ^ Math.imul(salt + 11, 0x9e3779b1);
+  for (const ch of id) h = Math.imul(h ^ ch.charCodeAt(0), 2654435761);
+  h = Math.imul(h ^ (h >>> 15), 2246822507);
+  h ^= h >>> 13;
+  return (h >>> 0) / 4294967296;
+}
+// { value, out }: the reading, and whether it is past the limit (low readings fail for a bench check).
+export function meterReading(round, id) {
+  const m = meterFor(spotsOf(round)[id]);
+  if (!m) return null;
+  const out = hash01(round.seed ?? 1, id, 1) < (round.faults[id] ? METER_IF_FAULT : METER_IF_SOUND);
+  const [a, b] = out ? m.bad : m.sound;
+  let value = a + (b - a) * hash01(round.seed ?? 1, id, 2);
+  value = m.whole ? Math.round(value) : Math.round(value * 100) / 100;
+  return { value, out: m.low ? value < m.limit : value > m.limit };
+}
 export const hasLeak = round => Object.values(round.faults).includes('leak');
 export const hasWeldFault = round => Object.values(round.faults).includes('weld');
 export const hasIgniterFault = round =>

@@ -13,6 +13,8 @@ import {
   standChannels,
   standDecide,
   standWipe,
+  meterSpot,
+  meterFor,
   pressValve,
   pressByHand,
   standSwitch,
@@ -487,14 +489,22 @@ export const ROOMS = {
     const k = kit();
     const rows = Object.entries(k.spots)
       .map(([id, s]) => {
-        const seen = g.looked[id];
-        return `<li><div><strong>${esc(s.name)}</strong><br><span class="${seen == null ? 'muted' : ''}">${seen == null ? 'Not looked at yet.' : esc(seen ? s.cue : s.sound)}</span></div>
-        <div class="row">${seen == null ? `<button data-act="look" data-id="${id}">Look closely (15 min)</button>` : ''}
+        const seen = g.looked[id],
+          m = meterFor(s),
+          read = g.decided.meter?.[id];
+        // The test kit (hands-on idea 5): a reading against its limit, yours to judge.
+        const meter = !m
+          ? ''
+          : read
+            ? `<br><span class="meter-read">${esc(m.name)}: <strong>${read.value} ${esc(m.unit)}</strong> (limit ${m.low ? 'all ' : ''}${m.limit})</span>`
+            : '';
+        return `<li><div><strong>${esc(s.name)}</strong><br><span class="${seen == null ? 'muted' : ''}">${seen == null ? 'Not looked at yet.' : esc(seen ? s.cue : s.sound)}</span>${meter}</div>
+        <div class="row">${seen == null ? `<button data-act="look" data-id="${id}">Look closely (15 min)</button>` : ''}${m && !read ? `<button data-act="meter" data-id="${id}">${esc(m.name)} (${m.minutes} min)</button>` : ''}
         <label><input type="checkbox" data-flag="${id}" ${flags[id] ? 'checked' : ''}> Flag it</label></div></li>`;
       })
       .join('');
     return `<h2>${esc(k.inspect.title)}</h2>
-      <p>${esc(k.inspect.intro)} Look over whatever you think matters,
+      <p>${esc(k.inspect.intro)} Look over whatever you think matters, put the test kit on anything you want measured,
       and flag anything you want the crew to open up. A real fault costs the crew ${2} hours to fix; a false alarm costs ${3} hours
       of taking things apart for nothing. Anything you miss is still there.</p>
       <ul class="spots">${rows}</ul>
@@ -849,6 +859,7 @@ export function bindRoom(handlers) {
     ({
       close: () => closeRoom(),
       look: () => lookAt(id),
+      meter: () => meterSpot(id),
       'inspect-done': () => {
         finishInspection(flags);
         flags = {};
