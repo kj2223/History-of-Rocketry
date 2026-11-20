@@ -36,7 +36,8 @@ test('a season runs through every round on its own dates and ends with your reco
     .sort(([a], [b]) => a.start - b.start);
   path.forEach(([r, i], n) => {
     assert.equal(g.roundIndex, i);
-    assert.equal(dateText(g.roundStart), dateText(r.start));
+    // On its own date, later by any days the flow's repairs cost.
+    assert.equal(dateText(g.roundStart), dateText(r.start + (g.flow?.slip || 0)));
     playRound();
     if (n + 1 < path.length) {
       assert.equal(g.beat, 'roundEnd');

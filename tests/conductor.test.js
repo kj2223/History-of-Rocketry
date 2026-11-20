@@ -8,7 +8,7 @@ import { initProgramme, adopt } from '../js/world/programme.js';
 import { TRAITS } from '../js/world/people.js';
 import { SEASON } from '../js/data/campaign.js';
 import { g, newGame, conducting, finishPlan, countAnswer, checkpoint, checkCheckpoint } from '../js/game.js';
-import { playRound, advance, until } from './play.js';
+import { playRound, advance, until, passFlow } from './play.js';
 
 const seedWhere = ok => {
   for (let s = 1; s < 800; s++) if (ok(newRound(s, initProgramme(), 'aerobee'))) return s;
@@ -82,6 +82,7 @@ function toAerobee(seed) {
     }
     advance(true);
   }
+  passFlow();
   assert.equal(g.vehicle, 'aerobee');
   assert.equal(g.record.seat, 'test-conductor');
 }

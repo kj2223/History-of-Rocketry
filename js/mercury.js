@@ -2769,4 +2769,4 @@ function engineerJudgement(calls) {
 }
 
 // Registered with game.js at load, so game.js need not import this file (see registerCrewed there).
-registerCrewed(MERCURY_BEATS, { startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview });
+registerCrewed(MERCURY_BEATS, { startMission, missionRoomFor, tickConsole, consoleLive, sceneAfterReview, seatPeople });

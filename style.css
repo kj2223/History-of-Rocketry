@@ -61,6 +61,11 @@ h2 { margin: 0 0 .6rem; font-size: 1.25rem; color: var(--cream); }
 .spots { list-style: none; padding: 0; }
 .spots li { display: flex; justify-content: space-between; gap: .8rem; padding: .5rem 0; border-bottom: 1px solid var(--rule); }
 .spots .row { display: flex; flex-direction: column; gap: .3rem; align-items: flex-end; white-space: nowrap; }
+/* The launch flow board: one test a line, today's marked. */
+.flow { list-style: none; padding: 0; }
+.flow li { padding: .35rem 0; border-bottom: 1px solid var(--rule); }
+.flow li.today { font-weight: 600; }
+#room .result { border-left: 3px solid var(--rule); padding-left: .6rem; }
 .actions, .choices, .poll { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
 .choices { flex-direction: column; } .choices button { text-align: left; }
 .poll { padding: .6rem; border: 1px solid var(--accent); border-radius: 4px; background: #2a2618; }

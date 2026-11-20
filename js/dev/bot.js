@@ -30,6 +30,7 @@ import {
   nextRound,
   advanceProbe,
   answerFirstOffer,
+  flowRun,
 } from '../game.js';
 import { pendingOffer } from '../career/record.js';
 import { routeArgue, routeDone, apollo8Decide, apollo8Done, workshopDecide, workshopDone } from '../mercury.js';
@@ -56,6 +57,23 @@ export const nextDay = () => {
   }
 };
 
+// The launch flow, handed to the team test by test, up to the round's first morning proper. by: 'team' or 'you'.
+// The calendar jump's card that brought you to the flow is left open, as it was before there was a flow.
+export function passFlow(by = 'team') {
+  if (g.beat !== 'flow') return;
+  const jump = g.away;
+  closeAway();
+  for (let n = 0; n < 20 && g.beat === 'flow'; n++) {
+    flowRun(by);
+    nextDay();
+  }
+  closeAway();
+  if (jump) {
+    g.away = jump;
+    g.room = 'away';
+  }
+}
+
 // Play the current round end to end the way a careful but quiet player would, and give `call` at the review.
 // call(g) returns the explanation key, so a test can answer from what the player saw.
 // plan: the test conductor's plan, on rounds you conduct.
@@ -67,6 +85,7 @@ export function playRound(
   stopAt = null,
   lunar = { midcourse: 'wait', lead: 20 },
 ) {
+  passFlow();
   closeAway();
   // A probe round is worked from the technical office only: take the first call each day until it is written up.
   if (g.beat.startsWith('probe')) {
@@ -124,10 +143,11 @@ export function followProbe({ midcourse = 'wait', lead = 20 } = {}) {
   until(() => g.beat === 'recovery');
 }
 
-// On to the next round, answering any offer first (take: whether to take it).
+// On to the next round, answering any offer first (take: whether to take it), its flow handed to the team.
 export function advance(take = false) {
   if (pendingOffer(g.record)) answerFirstOffer(take);
   nextRound();
+  passFlow();
 }
 
 // ---- Mercury rounds, worked from the Retrofire officer's console ----
@@ -150,7 +170,7 @@ import {
 import { SEASON } from '../data/campaign.js';
 import { resolve } from '../truth/flights.js';
 
-// Play rounds, taking every offer and making sure it is made, until the round with this id.
+// Play rounds, taking every offer and making sure it is made, until the round with this id, its flow handed to the team.
 export function toRoundId(id, call = () => 'nominal') {
   while (SEASON[g.roundIndex].id !== id) {
     playRound(call);
@@ -161,6 +181,7 @@ export function toRoundId(id, call = () => 'nominal') {
     }
     advance(true);
   }
+  passFlow();
   closeAway();
 }
 
@@ -207,6 +228,7 @@ export function campaignTo(seed, id, opts = {}) {
     advance(true);
     g.room = null;
   }
+  passFlow();
   closeAway();
   assert.equal(SEASON[g.roundIndex].id, id, `did not reach ${id}`);
   return g;
@@ -282,6 +304,7 @@ export const MERCURY_DEFAULTS = {
 // A training sim, played with the same calls.
 export function runSim(opts = {}) {
   const o = { ...MERCURY_DEFAULTS, ...opts };
+  passFlow();
   simStart(o.pick ?? null);
   for (let n = 0; n < 50 && g.console && g.console.kind === 'sim' && g.console.phase !== 'debrief'; n++) {
     const c = g.console;
@@ -308,6 +331,7 @@ export function runSim(opts = {}) {
 // A Mercury round end to end: sims on the first day, then the launch day's count, the flight, recovery and the review.
 export function playMission(opts = {}) {
   const o = { ...MERCURY_DEFAULTS, ...opts };
+  passFlow();
   closeAway();
   for (let n = 0; n < o.sims; n++) runSim(o);
   nextDay();

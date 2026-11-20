@@ -76,7 +76,7 @@ test('taking it joins Houston and jumps the calendar to Gemini 4', () => {
   assert.equal(g.record.path, 'nasa');
   assert.equal(SEASON[g.roundIndex].id, 'gem-4');
   assert.ok(g.away, 'the while-you-were-away note covers 1964 to 1965');
-  assert.equal(g.away.to, 'Wednesday 2 June 1965'); // Gemini 4's first morning; the launch itself is two days in
+  assert.equal(g.away.to, 'Thursday 13 May 1965'); // the first test of Gemini 4's flow, the spacecraft checkout
 });
 
 test('turning it down opens Mariner 4 and the offer is not remade', () => {
