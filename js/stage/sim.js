@@ -7,9 +7,11 @@ import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { label, setText, speech, outButton, puffTexture } from './kit.js';
 import { desk, telemetryScreen, lookOf } from './control.js';
-import { sceneLight } from './fx/hd.js';
+import { sceneLight, hdWanted } from './fx/hd.js';
 import { PX, pixelLayer } from './pixel.js';
 import { paintSim } from './sim-art.js';
+import { simRoom } from './sim-room.js';
+import { roomAndDesk } from './fx/zoom-view.js';
 import { pixelSize } from './pixelate.js';
 
 // Hand-painted in pixel art (sim-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
@@ -132,7 +134,23 @@ export function simScene({ leave }) {
   world.addChild(talk);
 
   const out = outButton(leave);
-  root.addChild(out);
+
+  // ---- the room from above, and the zoom in to your console (2D-HD rework, Aaron 20 November 2026) ----
+  // The scene opens on the training room in three-quarters (sim-room.js); with a run on it moves in to your console
+  // (this view, the screen, the clock and the supervisor) after a moment.
+  const roomView = simRoom({ you: g.people.you, pass: painted });
+  root.addChildAt(roomView.root, 0);
+  const zoom = roomAndDesk({
+    room: roomView.root,
+    desk: world,
+    focus: roomView.focus,
+    W,
+    H,
+    auto: () => g.console?.kind === 'sim',
+    words: ['▾ Your console', '▴ The room'],
+  });
+  roomView.deskHit.on('pointertap', zoom.goIn);
+  root.addChild(out, zoom.toggle);
 
   // 2D-HD light (fx/hd.js): a dim room lit by its screens, the clock's glow, the sign when a run is on.
   const light = sceneLight(world, () => {
@@ -148,16 +166,9 @@ export function simScene({ leave }) {
 
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    let s = Math.min(roomW / W, screen.height / H);
-    // Painted, each art pixel is a whole number of screen pixels, the pixel pass's own size where it fits, and the
-    // room sits on the pass's grid.
-    const ps = pixelSize(screen.height);
-    if (painted) s = Math.max(1, Math.min(ps, Math.floor(s * PX))) / PX;
-    world.scale.set(s);
-    let bx = (roomW - W * s) / 2,
-      by = (screen.height - H * s) / 2;
-    if (painted) ((bx = Math.round(bx / ps) * ps), (by = Math.round(by / ps) * ps));
-    world.position.set(bx, by);
+    // The room and your console fit the screen left of the room panel (fx/zoom-view.js); painted, on the pass's grid.
+    const zv = zoom.update(dt, 0, 0, roomW, screen.height, painted ? pixelSize(screen.height) : 0);
+    zoom.toggle.position.set(10, screen.height - 40 - 46 - 48);
     out.position.set(10, screen.height - 40 - 46);
     const c = g.console && g.console.kind === 'sim' ? g.console : null,
       t = g.time;
@@ -196,8 +207,9 @@ export function simScene({ leave }) {
 
     yours.update(c, t);
     const last = c && c.chatter.length ? c.chatter[c.chatter.length - 1] : null;
-    talk.update(last ? { text: `${last.who}: ${last.text}`, tone: last.tone } : null);
+    talk.update(last && zv.e >= 0.5 ? { text: `${last.who}: ${last.text}`, tone: last.tone } : null);
     light.update(g.time || 0);
+    if (zv.e < 1) roomView.update({ c, lit, hdOn: hdWanted(), t, k: zv.rs });
   }
 
   const stale = () => false;
