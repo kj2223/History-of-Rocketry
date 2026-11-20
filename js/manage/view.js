@@ -15,6 +15,7 @@ import { appropriation, lines, resplit, money, DEFAULT_SPLIT } from './budget.js
 import { announce, settle, news, standingText, watched } from './pressure.js';
 import { staffing, candidate } from './people.js';
 import { baseLife } from './life.js';
+import { drawWorks } from './construction.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const art = () => {
@@ -396,6 +397,7 @@ export function startBaseView(el, game, { save, back }) {
     ctx.fillRect(0, 0, w, h);
     ctx.setTransform(s, 0, 0, s, Math.round(v.cx * dpr() - cam.x * s), Math.round(v.cy * dpr() - cam.y * s));
     ctx.drawImage(still.cv, 0, 0);
+    drawWorks(ctx, game.works ?? [], performance.now() / 1000); // buildings going up (construction.js)
     const launching = sched.flights.some(f => f.launch === game.day);
     if (launching || lastDrawnDay !== game.day) {
       paintRockets(live.ctx, standsOn(sched, base, game.day, part));
@@ -428,7 +430,15 @@ export function startBaseView(el, game, { save, back }) {
         newDay();
       }
     }
-    life.update(dt, { part, speed, paused, stands: standsOn(sched, base, game.day, part), still: calm() });
+    life.update(dt, {
+      part,
+      speed,
+      paused,
+      stands: standsOn(sched, base, game.day, part),
+      still: calm(),
+      flights: sched.flights,
+      day: game.day,
+    });
     draw();
     requestAnimationFrame(frame);
   }
