@@ -64,6 +64,8 @@ import {
   flowRerun,
   flowLedgerItems,
   flowLedgerWork,
+  flowMomentItem,
+  flowMomentFix,
 } from '../game.js';
 import { textOf as ledgerTextOf } from '../world/ledger.js';
 import { dayOf as flowDayOf, rehearsalSteps } from '../world/flow.js';
@@ -366,7 +368,12 @@ function reviewChoices() {
         `<li>${esc(ledgerTextOf(e))} <button data-act="flow-ledger" data-id="${esc(e.id)}">Reopen it and work it now (two days)</button></li>`,
     )
     .join('');
-  return `<h3>Read out at the table</h3><ul>${record.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+  const m = flowMomentItem();
+  const moment = m
+    ? `<p><strong>Raised at the table</strong></p><p>${esc(m.item)}</p><button data-act="flow-moment">${esc(m.fix)}</button>
+      <p class="muted">Giving the go signs it off.</p>`
+    : '';
+  return `<h3>Read out at the table</h3><ul>${record.map(l => `<li>${esc(l)}</li>`).join('')}</ul>${moment}
     ${ledger ? `<p><strong>Signed off on the anomaly ledger as in family</strong></p><ul>${ledger}</ul>` : '<p class="muted">Nothing on the anomaly ledger for this vehicle.</p>'}
     ${g.reviewNote ? `<p class="result">${esc(g.reviewNote)}</p>` : ''}
     ${again ? `<div class="choices">${again}</div>` : ''}
@@ -848,6 +855,7 @@ export function bindRoom(handlers) {
       'reh-hold': () => flowRehearsalCall(true),
       'flow-rerun': () => flowRerun(id),
       'flow-ledger': () => flowLedgerWork(id),
+      'flow-moment': () => flowMomentFix(),
       'ledger-accept': () => ledgerCall(id, 'accept'),
       'ledger-work': () => ledgerCall(id, 'work'),
       'probe-command': () => advanceProbe(true),

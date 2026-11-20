@@ -50,7 +50,7 @@ import {
   rehearsalGrade,
   rehearsalMark,
 } from './world/flow.js';
-import { REHEARSALS } from './data/flow.js';
+import { REHEARSALS, MOMENTS } from './data/flow.js';
 import { earnCard } from './data/sim-cards.js';
 import { KITS, SHORT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './data/campaign.js';
@@ -548,13 +548,14 @@ function startRound(i, from = -Infinity) {
     withLedger(withSeasonRisk(g.programme, SEASON[i].risk, DEFAULT_PROGRAMME), g.programme, g.vehicle),
     g.vehicle,
     !!SEASON[i].probe,
+    SEASON[i].id,
   );
   const round = newRound(g.seed + i * 7919, risks, g.vehicle);
   if (SEASON[i].risk?.seg51Risk != null) round.seg51Risk = SEASON[i].risk.seg51Risk;
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
   // The flow starts before the round's first morning: the tests already past when you arrive were run by the team.
-  g.flow = newFlow(g.vehicle, g.roundStart, from, !!SEASON[i].probe);
+  g.flow = newFlow(g.vehicle, g.roundStart, from, !!SEASON[i].probe, SEASON[i].id);
   for (const t of g.flow?.tests || []) if (t.status === 'early') runTest(g.flow, g.round, t, 'team');
   if (g.flow) {
     g.roundStart += g.flow.slip;
@@ -600,9 +601,13 @@ export function flowRun(by = 'team') {
   const what = r.found.length
     ? `found ${r.found.map(f => `a fault at the ${f.spot.toLowerCase()}`).join(' and ')}. Fixed${r.days ? `: the flow slips ${r.days === 1 ? 'a day' : `${r.days} days`}` : ', the crews working nights to hold the date'}.`
     : 'found nothing out of the ordinary.';
+  if (def.review && g.flow.moment === 'seen') {
+    g.flow.moment = 'signed';
+    g.reviewNote = `${g.reviewNote || ''}${MOMENTS[g.flow.season].item} Signed off. `;
+  }
   const line = def.review
     ? `${by === 'you' ? 'You sat at the table for the' : `${g.people.hollis.name} chaired the`} flight readiness review${by === 'you' ? '' : ' without you'}. ${g.reviewNote || ''}The go was given.`
-    : `${who} ${def.name.toLowerCase()}: it ${what}${reh ? ` ${rehearsalWords(t, reh)}` : ''}`;
+    : `${who} ${def.name.toLowerCase()}: ${r.history ? `${r.history} Otherwise it` : 'it'} ${what}${reh ? ` ${rehearsalWords(t, reh)}` : ''}`;
   g.reviewNote = null;
   note(line);
   g.flowResult = { id: t.id, name: def.name, line, found: r.found.length, days: r.days };
@@ -613,6 +618,21 @@ export function flowRun(by = 'team') {
 }
 // ---- The Flight Readiness Review, the last day of a crewed flow ----
 export const flowReviewToday = () => !!(todays() && flowDef(todays()).review && !g.dayDone);
+// The history's item for the review (data/flow.js MOMENTS: Apollo 13's oxygen tank), while it waits on a call.
+export const flowMomentItem = () => (flowReviewToday() && g.flow.moment === 'seen' ? MOMENTS[g.flow.season] : null);
+// Act on it: the fault it bears on comes out of the vehicle, and the launch slips by the real cost.
+export function flowMomentFix() {
+  const m = flowMomentItem();
+  if (!m) return false;
+  for (const [spot, kind] of Object.entries(g.round.faults)) if (kind === m.seen) delete g.round.faults[spot];
+  g.flow.moment = 'fixed';
+  g.flow.late = (g.flow.late || 0) + m.fixDays;
+  g.roundStart += m.fixDays;
+  g.slipDays += m.fixDays;
+  g.reviewNote = `${g.reviewNote || ''}You would not sign it off: ${m.fix} `;
+  roomChanged();
+  return true;
+}
 // The tests the review can send back for one more run before launch: those the team ran or that were cut, once each.
 export const flowRerunnable = () =>
   flowReviewToday()

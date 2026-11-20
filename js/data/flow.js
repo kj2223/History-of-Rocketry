@@ -236,9 +236,56 @@ export const FLOWS = {
   ],
 };
 
+// Tests a single flight had that the rest of its vehicle's flights did not.
+export const EXTRA = {
+  // 20 February 1981: Columbia's three main engines fired for twenty seconds on Pad 39A, the only time before STS-1
+  // that the orbiter, the tank and the engines had run together.
+  'sts-1': [
+    {
+      id: 'frf',
+      name: 'Flight readiness firing',
+      where: 'blockhouse',
+      lead: 51,
+      finds: { ssme: 0.35 },
+      practice: 'count',
+      fix: 3,
+      text: "Columbia on the pad with the external tank fuelled and her three main engines fired for twenty seconds, held down, the solid boosters unlit. The first time the orbiter's engines, the tank and the pad have run together.",
+    },
+  ],
+};
+
+// What happened in a flight's flow that the history remembers, played as it was.
+//   test     the test it happens in
+//   seen     a fault kind the test sees but cannot fix: it shows, it is noted, and the review decides (not priced in)
+//   glitch   the rehearsal's glitch, fixed to the real one (an index into REHEARSALS[test].glitches)
+//   days     days it costs whoever runs the test, with the history in `text`
+export const MOMENTS = {
+  // March 1970: after the CDDT, oxygen tank 2 in the service module would not drain. It had been dropped two inches at
+  // the factory in 1968. The team boiled the oxygen off with the tank's heaters for hours, and the tank was signed off:
+  // changing it meant a month. The heaters' thermostat switches had been welded shut that night.
+  'apollo-13': {
+    test: 'cddt',
+    seen: 'tank',
+    glitch: 2,
+    text: "After the test, oxygen tank 2 would not drain the way it filled. The team boiled it off with the tank's own heaters for eight hours. The tank is full again now and reads normally.",
+    item: 'Oxygen tank 2 in the service module would not detank normally after the CDDT. Boiled off with its heaters, refilled, reading normally since.',
+    fix: 'Change the tank. The service module shelf comes out, and the launch slips to the next window, a month on.',
+    fixDays: 29,
+  },
+  // April to June 2022: four wet dress attempts, called off one after another by a stuck helium check valve, a vent
+  // valve and a hydrogen leak at the tail service mast umbilical, before the count got close enough.
+  'artemis-1': {
+    test: 'wdr',
+    glitch: 0,
+    days: 4,
+    text: 'It took four attempts. The first three were called off: a stuck vent valve, a helium check valve on the upper stage, and hydrogen leaking at the tail service mast umbilical. The fourth reached T minus 29 seconds before the leak called it.',
+  },
+};
+
 // The flow a round goes through, or none: probes are handed over from the launch team, and a round with no flow here
-// keeps the old start.
-export const flowFor = (vehicle, probe = false) => (probe ? null : FLOWS[vehicle] || null);
+// keeps the old start. season: the round's SEASON id, for the tests a single flight had.
+export const flowFor = (vehicle, probe = false, season = null) =>
+  probe || !FLOWS[vehicle] ? null : [...(EXTRA[season] || []), ...FLOWS[vehicle]];
 
 // REHEARSALS: the counts a 'count' test runs, as you sit through them in the blockhouse or the control centre. Each is
 // a few marks of the count with a call at each: GO to carry on, HOLD to stop and look. One mark in each rehearsal
