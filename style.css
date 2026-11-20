@@ -446,3 +446,10 @@ header button.muted {
 .power-board { list-style: none; padding: 0; } .power-board li { margin: .45em 0; } .power-board small { opacity: .8; }
 .power-meter { height: .8em; background: #1a1f1c; border: 1px solid #4a554e; border-radius: 2px; overflow: hidden; }
 .power-meter span { display: block; height: 100%; background: #6fbf73; } .power-meter.over span { background: #d0533a; }
+/* Close-ups at key moments (js/site/closeups.js): a small pixel shot top centre, clear of the loop and the call strip. */
+#closeup { position: fixed; left: 50%; top: calc(var(--bar) + 12px); transform: translateX(-50%); width: min(25vw, 28em); z-index: 3; pointer-events: none;
+  border: 2px solid rgba(232,226,200,.55); background: #000; box-shadow: 0 4px 18px rgba(0,0,0,.55); }
+#closeup[hidden] { display: none; }
+#closeup canvas { display: block; width: 100%; height: auto; aspect-ratio: 128 / 72; image-rendering: pixelated; }
+#closeup .caption { position: absolute; left: 6px; bottom: 4px; font: 600 .78rem/1 monospace; letter-spacing: .08em; text-transform: uppercase;
+  color: #f0ead6; background: rgba(0,0,0,.55); padding: 2px 5px; }
