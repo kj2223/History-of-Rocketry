@@ -126,10 +126,10 @@ const ap = (fn, ...a) => page.evaluate(([fn, a]) => globalThis.__autoplay[fn](..
 
 // ---- Looking: hold the game still, watch and listen, take the screenshot, read the layout ----
 let shots = 0;
-async function look(name, { quietScene = false, hold = true } = {}) {
+async function look(name, { quietScene = false, hold = true, liftoff = false, ms = opts.lookMs } = {}) {
   if (hold) await ap('hold');
   await ap('beginWindow');
-  await sleep(opts.lookMs);
+  await sleep(ms);
   const watched = await ap('endWindow');
   const file = `${String(++shots).padStart(4, '0')}-${slug(name)}.png`;
   const png = await page.screenshot({ path: path.join(shotDir, file) });
@@ -162,7 +162,7 @@ async function look(name, { quietScene = false, hold = true } = {}) {
       );
     }
   } else l.newLook = true;
-  for (const f of judgeLook(l, { quietScene })) note({ ...f, shot: file });
+  for (const f of judgeLook(l, { quietScene, liftoff })) note({ ...f, shot: file });
   run.looks.push(l);
   if (hold) await ap('release');
   return l;
@@ -245,7 +245,7 @@ async function restartCheck(mode, expected, actual) {
 const sameish = (a, b) => (typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= 30 : a === b);
 
 // ---- The Flight Director's game ----
-const KEY_STEPS = /round-start|static-fire|count|console-|flight|recovery|review|scene|probe|lunar|season-end/;
+const KEY_STEPS = /liftoff|round-start|static-fire|count|console-|flight|recovery|review|scene|probe|lunar|season-end/;
 async function playFlight() {
   log('Flight Director: a new game');
   where = { mode: 'flight' };
@@ -307,7 +307,11 @@ async function playFlight() {
       // The bot answers from wherever it stands; a player goes to the room their call is waiting in, so look from there.
       const call = await page.$('#waiting.call:not([hidden])');
       if (call) await call.click().catch(() => {});
-      await look(s.name);
+      if (s.name === 'liftoff') {
+        // Live: the game runs at normal speed while the runner watches and listens to the first seconds of the flight.
+        await ap('live');
+        await look('liftoff', { hold: false, liftoff: true, ms: Math.max(4000, opts.lookMs) });
+      } else await look(s.name);
     }
   }
   log('Flight Director: back to the title screen');
@@ -354,7 +358,7 @@ async function playManagement() {
       where = { mode: 'management', day: s.day, where: s.where };
       quietDays++;
       // Launch day: watch the rocket go up from its pad at noon, as the base view shows it.
-      if (/\(today\)/.test((await page.textContent('#manage .mg-next').catch(() => '')) ?? '')) {
+      if (/^Today:/.test((await page.textContent('#manage .mg-next').catch(() => '')) ?? '')) {
         await page.evaluate(() => (globalThis.__manage.part = 0.62));
         await look('launch-day', { hold: false });
       }
@@ -423,6 +427,10 @@ async function playDesk({ whatIf = false } = {}) {
   run.timings[`new-${name}-ms`] = await titleNew('desk', { whatIf });
   await page.waitForFunction(() => globalThis.__desk?.desk);
   await look(`${name}-start`, { hold: false });
+  const pace = await page.evaluate(async () => {
+    const v = await import('/js/desk/view.js');
+    return { top: Math.max(...v.SPEEDS), TERMINAL: v.TERMINAL ?? -200, LAST_MINUTE: v.LAST_MINUTE ?? -200 };
+  });
   let idle = 0,
     restarted = false;
   for (let n = 0; n < 400; n++) {
@@ -433,8 +441,9 @@ async function playDesk({ whatIf = false } = {}) {
       break;
     }
     where = { mode: 'desk', t: Math.round(s.t), done: s.done };
-    // At the fastest speed a minute of the count is a second; the last 200 seconds always run at normal speed.
-    idle += s.t > -200 ? s.ran : s.ran / 60;
+    // Real seconds at the fastest speed the desk allows there: its top speed, 10x in the terminal count, and the last
+    // minute is the liftoff, watched rather than waited through.
+    idle += s.t > pace.LAST_MINUTE ? 0 : s.t > pace.TERMINAL ? s.ran / 10 : s.ran / pace.top;
     run.desk.push({ name, t: s.t, said: s.said, idle });
     if (s.said.length || s.firstAsk != null) {
       if (idle > LIMITS.longWait)
@@ -472,7 +481,7 @@ async function playDesk({ whatIf = false } = {}) {
             'long-wait',
             'warn',
             where,
-            `${Math.round(idle)} s with nothing to do before liftoff (the last 200 s of the count always run at normal speed).`,
+            `${Math.round(idle)} s with nothing to do in the terminal count before liftoff.`,
             { value: idle },
           ),
         );

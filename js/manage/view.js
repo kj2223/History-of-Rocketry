@@ -387,9 +387,11 @@ export function startBaseView(el, game, { save, back }) {
   function info() {
     $('[data-live=date]').textContent = dateLabel(game.day);
     const next = sched.flights[0];
-    $('[data-live=next]').textContent = next
+    const nextLine = $('[data-live=next]');
+    nextLine.textContent = next
       ? `${next.launch === game.day ? 'Today' : 'Next'}: ${next.name} from ${padName(next.pad)}, ${next.launch === game.day ? 'lifting off at noon' : `${dateLabel(next.launch)} (${days(next.launch - game.day)})`}`
       : 'No flights on the manifest';
+    nextLine.title = nextLine.textContent; // the whole line on hover, should a narrow window still shorten it
     el.querySelectorAll('[data-speed]').forEach(b =>
       b.classList.toggle('on', !paused && Number(b.dataset.speed) === speed),
     );

@@ -307,11 +307,24 @@ function* round() {
   yield 'launch-morning';
   game.countStart();
   const flown = () => g().beat === 'recovery' || g().beat === 'lCruise' || (g().count && g().count.poll);
-  until(flown);
+  // The count runs to the next poll or the end of the flight, stopping once at the moment she lifts off, so the runner
+  // can watch and listen to the liftoff as it happens.
+  let lifted = false;
+  function* toNext() {
+    if (!lifted) {
+      until(() => flown() || !!g().flight);
+      if (g().flight && !flown()) {
+        lifted = true;
+        yield 'liftoff';
+      }
+    }
+    until(flown);
+  }
+  yield* toNext();
   yield 'count';
   while (g().count && g().count.poll) {
     game.countAnswer(true);
-    until(flown);
+    yield* toNext();
     yield 'count-poll';
   }
   if (g().beat === 'lCruise') {
@@ -331,6 +344,7 @@ function* round() {
 // A crewed round, worked from the console: the launch day's count, each call the flight asks for, recovery, the review.
 function* mission() {
   const o = { ...MERCURY_DEFAULTS, decide: carefulDecide };
+  let climbed = false;
   nextDay();
   yield 'launch-day';
   for (let tries = 0; tries < 12 && ['mLaunch', 'mScrub'].includes(g().beat); tries++) {
@@ -342,10 +356,16 @@ function* mission() {
     consoleStart();
     yield 'console';
     for (let n = 0; n < 60 && g().beat === 'mFlight'; n++) {
-      until(waiting);
+      // Stop at the start of the climb too, even on a console with no call to make on the way up.
+      until(() => waiting() || (!climbed && g().console?.phase === 'ascent'));
       if (g().console && g().beat === 'mFlight') {
         const phase = g().console.flight?.decision?.mine ? 'decision' : (g().console.poll ?? g().console.phase);
-        yield `console-${phase}`;
+        // The first moment of the climb is the liftoff, watched live by the runner.
+        if (phase === 'ascent' && !climbed) {
+          climbed = true;
+          yield 'liftoff';
+          if (!waiting()) continue; // nothing for the player to call on the climb: on up to the next call
+        } else yield `console-${phase}`;
         work(g().console, o);
       }
     }
@@ -424,6 +444,12 @@ export function hold() {
 export function release() {
   if (g()) g().paused = false;
 }
+// A liftoff is watched as a player sees it: running, at normal speed.
+export function live() {
+  if (!g()) return;
+  g().paused = false;
+  g().speed = 1;
+}
 
 // The save the game holds for the Flight Director, as the runner checks it survives a restart.
 export function savedFlight() {
@@ -486,6 +512,7 @@ globalThis.__autoplay = {
   step,
   hold,
   release,
+  live,
   savedFlight,
   reseed,
   deskStep,

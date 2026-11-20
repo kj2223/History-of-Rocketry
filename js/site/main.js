@@ -425,8 +425,13 @@ function hud() {
   // changed when the speaker does, so it never blinks as the lines redraw.
   const box = $('loop');
   if (!box.querySelector('.lines')) box.innerHTML = '<img class="speaker" alt=""><section class="lines"></section>';
+  // On the console room's loop board a long line is cut to one line; the whole of it shows on hover.
+  const clean = t => t.replace(/[&<>]/g, '');
   box.querySelector('.lines').innerHTML = loop
-    .map(l => `<div class="${l.tone}"><span>${l.at}</span> <b>${l.who}:</b> ${l.text.replace(/[&<>]/g, '')}</div>`)
+    .map(
+      l =>
+        `<div class="${l.tone}" title="${clean(`${l.who}: ${l.text}`).replace(/"/g, '&quot;')}"><span>${l.at}</span> <b>${l.who}:</b> ${clean(l.text)}</div>`,
+    )
     .join('');
   const last = loop.at(-1),
     face = box.querySelector('.speaker');

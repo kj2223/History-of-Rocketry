@@ -16,6 +16,8 @@ export const LIMITS = {
   jumpDb: 24,
   pileUp: 400,
   carriedOverDb: 12,
+  // A liftoff quieter than this, at its loudest, has lost its engine.
+  quietLiftoffDb: -40,
   // A screenshot this much changed from the approved one is worth a look.
   changed: 0.08,
   // Memory: growth over the run past this is a leak worth chasing.
@@ -37,7 +39,7 @@ export function placeText(where = {}, step = '') {
 }
 
 // What a look (a window of watching, a screenshot and a layout scan) shows.
-export function judgeLook(look, { soundOn = true, quietScene = false } = {}) {
+export function judgeLook(look, { soundOn = true, quietScene = false, liftoff = false } = {}) {
   const out = [];
   const at = look.where;
   const { frames, audio, image, layout } = look;
@@ -85,6 +87,16 @@ export function judgeLook(look, { soundOn = true, quietScene = false } = {}) {
             value: audio.loudestDb,
           }),
         );
+      if (liftoff && audio.loudestDb < LIMITS.quietLiftoffDb)
+        out.push(
+          finding(
+            'quiet-liftoff',
+            'warn',
+            at,
+            `A liftoff with almost no engine: its loudest moment was ${audio.loudestDb.toFixed(0)} dB.`,
+            { value: audio.loudestDb },
+          ),
+        );
       if (audio.clipped > 0)
         out.push(
           finding('clipping', 'bug', at, `The sound clipped ${audio.clipped} times (peak ${audio.peak.toFixed(3)}).`),
@@ -114,9 +126,9 @@ export function judgeLook(look, { soundOn = true, quietScene = false } = {}) {
 
 // The longest waits, worst first, and a finding for each over the limit.
 export function judgeWaits(steps) {
-  // Watching the climb with the abort call live is not waiting: the player is deciding all the way up.
+  // Watching a liftoff and the climb (with the abort call live) is not waiting: the player is watching or deciding.
   const waits = steps
-    .filter(s => s.wait != null && s.after !== 'console-ascent')
+    .filter(s => s.wait != null && !['console-ascent', 'liftoff'].includes(s.after))
     .map(s => ({ ...s, wait: Math.round(s.wait * 10) / 10 }))
     .sort((a, b) => b.wait - a.wait);
   const findings = waits

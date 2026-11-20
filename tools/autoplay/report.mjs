@@ -63,6 +63,14 @@ export function writeReport(run, file) {
     l.memoryMb != null ? `${l.memoryMb} MB` : '',
   ]);
 
+  const liftoffs = looks
+    .filter(l => l.name === 'liftoff')
+    .map(l => [
+      esc(where(l.where)),
+      l.audio?.loudestDb != null ? `${n(l.audio.loudestDb)} dB` : '–',
+      n(l.audio?.peak, 2),
+      `<a href="shots/${esc(l.file)}">screen</a>`,
+    ]);
   const timings = Object.entries(run.timings ?? {}).map(([k, v]) => [esc(k), `${n(v)} ms`]);
   const manage = (run.manageWeeks ?? []).map(w => [w.week, w.day, esc(w.flown), w.quietDays]);
   const desk = (run.desk ?? []).filter(d => d.verdict).map(d => [esc(d.name), d.verdict.map(esc).join('<br>')]);
@@ -86,6 +94,7 @@ a{color:#8cc4ff}
 ${section('What it found', table(['', 'kind', 'what', 'seen', 'screenshot', ''], problemRows))}
 ${section('The longest waits (real seconds at the fastest speed, with nothing to decide)', table(['seconds', 'before', 'where', 'longest beats'], waitRows))}
 ${section('Loading', table(['what', 'took'], timings))}
+${liftoffs.length ? section('Liftoffs, heard live (loudest moment, peak)', table(['flight', 'loudest', 'peak', ''], liftoffs)) : ''}
 ${manage.length ? section('Management: flights and the quiet days before each', table(['week', 'day', 'flight', 'quiet days'], manage)) : ''}
 ${desk.length ? section('Desk mode: the verdicts', table(['count', 'verdict'], desk)) : ''}
 ${section('Every stop: frames (median / 95% / worst), sound, look', table(['screen', 'stop', 'frames', 'sound', 'against the approved look', 'memory'], lookRows))}
