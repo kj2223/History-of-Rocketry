@@ -224,6 +224,7 @@ export function whereNow() {
     beat: x.beat,
     room: x.room ?? null,
     day: x.day,
+    crewed: !!x.crewed,
     paused: !!x.paused,
   };
 }

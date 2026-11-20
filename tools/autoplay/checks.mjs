@@ -18,6 +18,9 @@ export const LIMITS = {
   carriedOverDb: 12,
   // A liftoff quieter than this, at its loudest, has lost its engine.
   quietLiftoffDb: -40,
+  // A crewed liftoff is heard from Mission Control, muffled on the room's TV: quiet on purpose (Aaron, 20 Nov 2026: "they
+  // seem fine to me"), so only one with no engine at all is flagged.
+  quietCrewedLiftoffDb: -55,
   // A screenshot this much changed from the approved one is worth a look.
   changed: 0.08,
   // Memory: growth over the run past this is a leak worth chasing.
@@ -87,7 +90,7 @@ export function judgeLook(look, { soundOn = true, quietScene = false, liftoff = 
             value: audio.loudestDb,
           }),
         );
-      if (liftoff && audio.loudestDb < LIMITS.quietLiftoffDb)
+      if (liftoff && audio.loudestDb < (at?.crewed ? LIMITS.quietCrewedLiftoffDb : LIMITS.quietLiftoffDb))
         out.push(
           finding(
             'quiet-liftoff',
