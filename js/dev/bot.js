@@ -235,8 +235,8 @@ export function campaignTo(seed, id, opts = {}) {
 }
 
 // One console decision point at a time: a poll, the climb (abort or not), the impact points, the pad.
-const asked = c => c && c.phase === 'mission' && c.flight?.decision?.mine;
-const waiting = () =>
+export const asked = c => c && c.phase === 'mission' && c.flight?.decision?.mine;
+export const waiting = () =>
   g.beat !== 'mFlight' ||
   asked(g.console) ||
   (g.console && g.console.auto
@@ -246,7 +246,7 @@ const waiting = () =>
         g.console.phase === 'poll' ||
         g.console.phase === 'ip' ||
         ['pad', 'shutdown', 'ascent', 'insertion', 'pack', 'retro'].includes(g.console.phase)));
-function work(c, opts) {
+export function work(c, opts) {
   if (asked(c)) return consoleDecide(opts.decide(c.flight.decision, c));
   if (c.poll === 'joint') return consolePoll(opts.joint !== 'hold');
   if (c.poll || c.phase === 'poll') return consolePoll(opts.poll(c));
