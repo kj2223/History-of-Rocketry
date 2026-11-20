@@ -4,6 +4,7 @@
 import { drawSite, drawTracking, drawControlRoom, uiEra, PLACES, VIEW_H, GROUND } from './draw.js';
 import { consoleHud, bindConsoleHud, consoleKey } from './console-hud.js';
 import { startStage, stageFrame } from '../stage/index.js';
+import { artFrame } from '../stage/pixelate.js';
 import { closeupFrame, hideCloseup } from './closeups.js';
 import { titleSceneFrame, leaveTitleScene } from './title-scene.js';
 import { deepMode } from '../stage/deep.js';
@@ -84,11 +85,16 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
-const scale = () => view.h / VIEW_H;
+// The scene is drawn in the whole-pixel frame (stage/pixelate.js artFrame): a little shorter than the window, centred.
+const frameNow = () => artFrame(canvas.clientWidth, canvas.clientHeight);
+const scale = () => (frameNow().height * (window.devicePixelRatio || 1)) / VIEW_H;
 const toWorld = e => {
   const ratio = window.devicePixelRatio || 1,
     r = canvas.getBoundingClientRect();
-  return { x: ((e.clientX - r.left) * ratio) / scale() + g.cam.x, y: ((e.clientY - r.top) * ratio) / scale() };
+  return {
+    x: ((e.clientX - r.left) * ratio) / scale() + g.cam.x,
+    y: ((e.clientY - r.top - frameNow().y) * ratio) / scale(),
+  };
 };
 const personAt = ({ x, y }) =>
   Object.values(g.people).find(

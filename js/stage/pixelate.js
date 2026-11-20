@@ -70,8 +70,24 @@ GraphicsContext.prototype.stroke = function (style) {
   return plainStroke.call(this, style);
 };
 
-// How many screen pixels to one art pixel for a scene this tall.
-export const pixelSize = h => Math.max(2, Math.round(h / ART_H));
+// THE WHOLE-PIXEL FRAME (Aaron, 20 November 2026, playing at 4K): an art pixel must be a whole number of the screen's
+// own (device) pixels, or some art pixels come out a pixel wider than others and the picture shimmers and breaks up
+// as it scrolls; and the scene must be exactly ART_H art pixels tall, or the hand-painted art is squeezed onto a grid
+// a few rows shorter than it was painted for and rows are dropped. So the scene is drawn in a frame exactly
+// ART_H x (a whole number) device pixels tall, centred in the window, and the few rows left over above and below
+// show more of the scene (never black bars). This works at any size and any Windows display scaling.
+// w, h: the window's drawing area in CSS pixels. Returns the frame (CSS pixels) and ps, device pixels per art pixel.
+export function artFrame(w, h, dpr = globalThis.devicePixelRatio || 1) {
+  const ps = Math.max(1, Math.floor((h * dpr) / ART_H + 1e-6));
+  const height = (ART_H * ps) / dpr;
+  const y = Math.round(((h - height) / 2) * dpr) / dpr;
+  return { width: w, height, y, ps, full: h };
+}
+// How many CSS pixels to one art pixel for a frame this tall (a whole number of device pixels).
+export const pixelSize = h => {
+  const dpr = globalThis.devicePixelRatio || 1;
+  return Math.max(1, Math.floor((h * dpr) / ART_H + 1e-6)) / dpr;
+};
 
 // Sorts the drawn things under root into the picture (pixelated) and the type (crisp). A container marked crisp counts
 // as type with everything in it. A container marked smooth (2D-HD, fx/hd.js: the far backdrop, soft and out of focus)
@@ -107,8 +123,10 @@ export function pixelPass(renderer) {
   // Draws root small into the texture and leaves only its type showing for the ordinary full-size pass that follows.
   function draw(root, screen, background = 0x0d0c0a) {
     const s = pixelSize(screen.height);
+    // The rows of the window above and below the frame (artFrame) are drawn too, on the same grid.
+    const pad = Math.max(0, Math.ceil((screen.y || 0) / s - 1e-6));
     const w = Math.max(1, Math.ceil(screen.width / s)),
-      h = Math.max(1, Math.ceil(screen.height / s));
+      h = Math.max(1, Math.round(screen.height / s) + 2 * pad);
     if (!rt || rt.width !== w || rt.height !== h) {
       rt?.destroy(true);
       rt = RenderTexture.create({ width: w, height: h, resolution: 1, antialias: false, scaleMode: 'nearest' });
@@ -125,7 +143,9 @@ export function pixelPass(renderer) {
     for (const n of under) n.visible = false;
     for (const n of type) n.renderable = false;
     for (const n of pic) n.renderable = true;
-    m.identity().scale(1 / s, 1 / s);
+    m.identity()
+      .scale(1 / s, 1 / s)
+      .translate(0, pad);
     renderer.render({
       container: root,
       target: rt,
@@ -138,8 +158,8 @@ export function pixelPass(renderer) {
     for (const n of under) n.visible = true;
     sprite.scale.set(s);
     // In the slot the picture moves with the scene (its shake), which the drawing already has in it.
-    if (slot) sprite.position.set(-root.x, -root.y);
-    else sprite.position.set(0, 0);
+    if (slot) sprite.position.set(-root.x, -root.y - pad * s);
+    else sprite.position.set(0, -pad * s);
     if (dither) dither.resources.ditherUniforms.uniforms.uPix = s * (globalThis.devicePixelRatio || 1);
     sprite.visible = true;
   }
