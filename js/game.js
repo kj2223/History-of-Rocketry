@@ -1968,9 +1968,58 @@ export function flightTrouble(g) {
   };
 }
 
+// ---- The tracking camera, on your hands (hands-on idea 3, Aaron 20 November 2026) ----
+// The ranges filmed every round on long-lens mounts that two operators cranked by handwheel to keep her in the
+// crosshairs (the Askania cinetheodolites at White Sands, the tracking telescopes at the Cape). The camera in the range
+// plot's corner is yours now: the pointer in its frame is the handwheels' speed and direction. She climbs away fastest
+// low down and wanders on the wind; a film that kept her centred gives the drawing office a second, independent
+// measure of the flight, and a well-tracked flight counts double in its estimate (world/programme.js estimate).
+// f.track: { x, y } where she is in the frame (-1 to 1 each way, 0 the crosshairs), the stick, and seconds on her.
+export const TRACK = { speed: 1.1, hit: 0.28, good: 0.6 };
+export function trackStick(x, y) {
+  const tr = g.flight?.track;
+  if (!tr) return;
+  const k = Math.hypot(x, y) < 0.08 ? 0 : 1; // a dead band in the middle: the wheels rest
+  tr.sx = Math.max(-1, Math.min(1, x)) * k;
+  tr.sy = Math.max(-1, Math.min(1, y)) * k;
+}
+// How fast she moves across the frame of a mount fixed in place, at plot second t: her climb seen from a mount 10 km
+// off the line, in frame widths a real second (the plot runs five flight seconds to one), with the wind's wander.
+function trackDrift(f, t) {
+  const path = f.result.path,
+    at = i => path[Math.max(0, Math.min(path.length - 1, i))];
+  const p0 = at(Math.floor(t)),
+    p1 = at(Math.floor(t) + 1);
+  const el = p => Math.atan2(p.h, 10 + p.x),
+    az = p => Math.atan2(p.x, 10);
+  const seed = (g.round.seed ?? 1) % 97;
+  const rate = 5 * 9; // radians a flight second, to frame widths a real second
+  return {
+    x: (az(p1) - az(p0)) * rate * 0.6 + 0.12 * Math.sin(t * 0.21 + seed) + 0.07 * Math.sin(t * 0.53 + seed * 2),
+    y: -(el(p1) - el(p0)) * rate + 0.1 * Math.sin(t * 0.17 + seed * 3) + 0.06 * Math.sin(t * 0.61 + seed),
+  };
+}
+function tickTrack(f, dt) {
+  const tr = (f.track ??= { x: 0, y: 0, sx: 0, sy: 0, on: 0, seen: 0 });
+  const p = f.result.path[Math.min(f.result.path.length - 1, Math.floor(f.t))];
+  const lost = f.result.failure && f.t >= (f.result.failAt ?? Infinity) + 15;
+  if (p.h > 90 || lost || f.t >= f.result.path[f.result.path.length - 1].t) return; // out of sight: the film ends
+  const d = trackDrift(f, f.t),
+    k = Math.min(1, g.speed); // at 4x and 16x the wheels cannot keep up: the film is the camera crew's
+  tr.x += (d.x - tr.sx * TRACK.speed) * dt * k;
+  tr.y += (d.y - tr.sy * TRACK.speed) * dt * k;
+  tr.x = Math.max(-1.4, Math.min(1.4, tr.x));
+  tr.y = Math.max(-1.4, Math.min(1.4, tr.y));
+  tr.seen += dt;
+  if (Math.hypot(tr.x, tr.y) < TRACK.hit) tr.on += dt;
+}
+// The share of the flight the film has her in the crosshairs (0 to 1), or null before any of it is filmed.
+export const trackShare = f => (f?.track?.seen > 1 ? f.track.on / f.track.seen : null);
+
 function tickFlight(dt) {
   const f = g.flight;
   f.real += dt;
+  if (f.view === 'board' && !f.result.deep) tickTrack(f, dt);
   if (f.view === 'site') {
     // The site watches her go: the small sounding rockets leap off the rail; the big ones climb slowly off the pad, and
     // the camera tilts up after them (js/stage/fx/launch.js) until they are out of sight, then the range plot takes over.
@@ -2001,6 +2050,7 @@ function tickFlight(dt) {
     f.endWait = (f.endWait || 0) + dt;
     if (f.endWait > 3) {
       f.view = 'done';
+      g.decided = { ...g.decided, trackShare: trackShare(f) };
       g.clock += 10;
       setBeat(f.result.deep?.phase === 'cruise' ? 'lLaunched' : 'recovery');
     }
@@ -2126,10 +2176,16 @@ export function finishReview(entry) {
       `Your budget line, fiscal ${b.fy}: ${dollars(b.spent)} spent of ${dollars(b.line)}.${b.spent > b.line ? ' Over the line.' : ''}`,
     );
   }
+  const share = g.decided?.trackShare ?? null;
+  if (share != null)
+    note(
+      `Your tracking film: you kept her in the crosshairs ${Math.round(share * 100)}% of the time she was in sight.${share >= TRACK.good ? ' The drawing office takes it beside the radar: a second measure of the flight.' : ''}`,
+    );
   recordFlight(g.programme, {
     vehicle: g.vehicle,
     load: g.round.propellantLoad,
     apogee: seen,
+    tracked: share != null && share >= TRACK.good,
     failure: f.failure,
     hidden: !!g.round.hiddenFailure,
     path: f.deep || f.orbit ? null : f.path,

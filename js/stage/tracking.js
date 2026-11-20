@@ -4,8 +4,8 @@
 // own readings: the time, her height, her range, and what the radar's last two fixes make of her speed and her
 // climb, the highest she has reached so far. The loop's last calls float along the bottom. Reads only what the
 // range could see, through game.js and the world record (the scenes never import js/truth).
-import { Container, Graphics, Sprite, Texture } from '../vendor/pixi.min.mjs';
-import { g as game, flightTrouble } from '../game.js';
+import { Container, Graphics, Rectangle, Sprite, Texture } from '../vendor/pixi.min.mjs';
+import { g as game, flightTrouble, trackStick } from '../game.js';
 import { weatherNow } from './fx/weather-day.js';
 import { rangeCamera } from './fx/range-camera.js';
 import { SITES } from '../data/campaign.js';
@@ -77,6 +77,18 @@ export function trackingScene() {
   const trouble = new Graphics();
   const troubleWords = label('', 13, AMBER, { ax: 0, ay: 1, bold: true });
   const camera = rangeCamera();
+  // The handwheels (hands-on idea 3): the pointer's place in the camera's frame is the speed and direction you crank.
+  // An empty hit box, since a drawn shape is not hit-tested while the pixel pass has it (pixelate.js).
+  const wheels = new Container();
+  wheels.eventMode = 'static';
+  wheels.cursor = 'crosshair';
+  wheels.hitArea = new Rectangle(0, 0, camera.W, camera.H);
+  camera.addChild(wheels);
+  wheels.on('pointermove', e => {
+    const p = e.getLocalPosition(camera);
+    trackStick((p.x - camera.W / 2) / (camera.W / 2), (p.y - camera.H / 2) / (camera.H / 2));
+  });
+  wheels.on('pointerleave', () => trackStick(0, 0));
   root.addChild(
     screenBg,
     grid,

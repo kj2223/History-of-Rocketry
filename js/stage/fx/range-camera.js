@@ -39,6 +39,9 @@ export function rangeCamera() {
   const pieces = new Graphics();
   const rain = new Graphics();
   view.addChild(sky, trail, cloud, pieces, rocket, glow, rain);
+  // The crosshairs (hands-on idea 3): the camera is yours to keep on her (game.js trackStick, f.track).
+  const reticle = new Graphics();
+  view.addChild(reticle);
   const caption = label('TRACKING CAMERA', 11, 0x9fdcb0, { ax: 0, ay: 0, spacing: 1 });
   caption.position.set(6, H + 4);
   root.addChild(view, mask, frame, caption);
@@ -122,7 +125,28 @@ export function rangeCamera() {
       else if (trouble.kind !== 'break') rot = Math.min(Math.PI * 0.9, Math.max(0, since - 3) * 0.12);
     }
     rocket.rotation = rot;
-    rocket.position.set(cx + (trouble?.kind === 'tumble' && since > 0 ? Math.sin(since * 0.7) * 30 : 0), cy);
+    // Where she is in your frame: the crosshairs are the frame's middle, and f.track her offset from it.
+    const tr = f.track,
+      offX = tr ? tr.x * (W / 2) : 0,
+      offY = tr ? tr.y * (H / 2) : 0;
+    rocket.position.set(
+      cx + offX + (trouble?.kind === 'tumble' && since > 0 ? Math.sin(since * 0.7) * 30 : 0),
+      H / 2 + offY + (cy - H / 2),
+    );
+    const onHer = tr && Math.hypot(tr.x, tr.y) < 0.28;
+    reticle
+      .clear()
+      .moveTo(W / 2 - 40, H / 2)
+      .lineTo(W / 2 - 8, H / 2)
+      .moveTo(W / 2 + 8, H / 2)
+      .lineTo(W / 2 + 40, H / 2)
+      .moveTo(W / 2, H / 2 - 30)
+      .lineTo(W / 2, H / 2 - 8)
+      .moveTo(W / 2, H / 2 + 8)
+      .lineTo(W / 2, H / 2 + 30)
+      .stroke({ width: 1.5, color: onHer ? 0x9fdcb0 : 0x1a2420, alpha: 0.8 })
+      .circle(W / 2, H / 2, 0.28 * (H / 2))
+      .stroke({ width: 1, color: onHer ? 0x9fdcb0 : 0x1a2420, alpha: 0.5 });
 
     // The trail: smoke left behind as she goes, streaming down the frame as the camera follows her up (fx/trail.js
     // keeps it joined to her flame; issue #246). Every puff moves together, so the column stays even.
@@ -224,7 +248,11 @@ export function rangeCamera() {
                 : 'TRACKING CAMERA · THRUST GONE'
           : p.h > 90
             ? 'TRACKING CAMERA · OUT OF SIGHT'
-            : 'TRACKING CAMERA',
+            : tr && Math.max(Math.abs(tr.x), Math.abs(tr.y)) > 1
+              ? 'TRACKING CAMERA · LOST HER · STEER WITH THE POINTER'
+              : tr?.seen > 1
+                ? `TRACKING CAMERA · ON HER ${Math.round((tr.on / tr.seen) * 100)}%`
+                : 'TRACKING CAMERA · STEER WITH THE POINTER',
     );
     rocket.alpha = p.h > 90 ? Math.max(0, 1 - (p.h - 90) / 20) : 1;
     trail.alpha = rocket.alpha; // out of sight means her smoke too
