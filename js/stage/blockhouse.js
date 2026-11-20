@@ -13,6 +13,7 @@ import { blockhouseState } from '../data/campaign.js';
 import { inside as insideOf } from '../site/interiors.js';
 import { paletteFor, label, setText, speech, outButton } from './kit.js';
 import { blockhouseRoom } from './blockhouse-room.js';
+import { roomAndDesk } from './fx/zoom-view.js';
 import {
   PX,
   pixelLayer,
@@ -341,64 +342,26 @@ export function blockhouseScene({ leave }) {
     stations: STATIONS.map(st => ({ id: st.id, label: st.label, mine: seat0[st.id] === 'you' })),
   });
   root.addChildAt(room.root, 0);
-  let z = 0,
-    zt = 0,
-    since = 0,
-    chosen = false;
-  const toggle = outButton(() => {
-    zt = zt > 0.5 ? 0 : 1;
-    chosen = true;
-  }, '▾ Your desk');
-  root.addChild(toggle);
-  room.deskHit.on('pointertap', () => {
-    zt = 1;
-    chosen = true;
+  const zoom = roomAndDesk({
+    room: room.root,
+    desk: world,
+    focus: room.deskAt,
+    W,
+    H,
+    auto: () => !!g.count && !!g.room?.startsWith('count'),
   });
-  const smooth = (a, b, x) => {
-    const u = Math.max(0, Math.min(1, (x - a) / (b - a)));
-    return u * u * (3 - 2 * u);
-  };
+  root.addChild(zoom.toggle);
+  room.deskHit.on('pointertap', zoom.goIn);
 
   // ---- each frame ----
   let lastPush = -1,
     viewAt = -1;
   function update(dt, screen, reserve) {
-    // Fit the room into the screen left of the room panel, as the canvas interiors did, at a whole number of device
-    // pixels to each art pixel (pixelate.js artFrame) so the pixels stay even; the painted margin fills the rest.
-    const dpr = globalThis.devicePixelRatio || 1;
+    // Fit the room and the desk into the screen left of the room panel, as the canvas interiors did (fx/zoom-view.js).
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    const fit = Math.min(roomW / W, screen.height / H);
-    const k = fit * PX * dpr >= 1 ? Math.floor(fit * PX * dpr + 1e-6) / (PX * dpr) : fit;
-    const ox = (roomW - W * k) / 2,
-      oy = (screen.height - H * k) / 2;
-    const snap = v => Math.round(v * dpr) / dpr;
+    const { e, rs } = zoom.update(dt, 0, 0, roomW, screen.height);
     out.position.set(10, screen.height - 40 - 46);
-    toggle.position.set(10, screen.height - 40 - 46 - 48);
-
-    // Where the view is: z 0 the room, 1 the desk. Running the count, it moves in to the desk after a moment.
-    since += dt;
-    if (!chosen && g.count && g.room?.startsWith('count') && since > 1.4) zt = 1;
-    z += Math.sign(zt - z) * Math.min(Math.abs(zt - z), dt * 1.7);
-    const e = smooth(0, 1, z);
-    setText(toggle.children[1], zt > 0.5 ? '▴ The room' : '▾ Your desk');
-    // The zoom: the room grows about the player's desk until that desk fills the screen, and the panel comes up out of it.
-    const D = room.deskAt;
-    const Zr = W / (D.w * PX);
-    const FP = { x: (D.x + D.w / 2) * PX, y: (D.y + D.h / 2) * PX };
-    const rs = k * (1 + (Zr - 1) * e);
-    const S = {
-      x: ox + FP.x * k + (ox + (W * k) / 2 - (ox + FP.x * k)) * e,
-      y: oy + FP.y * k + (oy + (H * k) / 2 - (oy + FP.y * k)) * e,
-    };
-    room.root.scale.set(rs);
-    room.root.position.set(snap(S.x - FP.x * rs), snap(S.y - FP.y * rs));
-    room.root.alpha = 1 - smooth(0.6, 1, e);
-    room.root.visible = e < 1;
-    const ds = rs / Zr;
-    world.scale.set(ds);
-    world.position.set(snap(S.x - (W / 2) * ds), snap(S.y - (H / 2) * ds));
-    world.alpha = smooth(0.3, 0.75, e);
-    world.visible = e > 0;
+    zoom.toggle.position.set(10, screen.height - 40 - 46 - 48);
 
     const c = g.count,
       t = g.time;
