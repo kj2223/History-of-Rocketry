@@ -63,4 +63,8 @@ test('a rocket rolls out from the hangar to its own pad the day before it stands
     day = f.launch - PAD_KINDS[pad.padKind].before - 1;
   assert.equal(rolloutsOn([f], CAPE_1958_BASE, day).length, 1);
   assert.equal(rolloutsOn([f], CAPE_1958_BASE, day + 1).length, 0);
+  // A flight that carries its own day on the pad rolls out the day before that.
+  const fast = { ...f, onPad: 90 };
+  assert.equal(rolloutsOn([fast], CAPE_1958_BASE, 89).length, 1);
+  assert.equal(rolloutsOn([fast], CAPE_1958_BASE, day).length, 0);
 });
