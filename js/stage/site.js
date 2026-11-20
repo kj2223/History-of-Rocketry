@@ -24,6 +24,7 @@ import { siteTraffic } from './fx/traffic.js';
 import { weatherLayers, mulTint, weatherNow } from './fx/weather.js';
 import { flameLight, flameX, wetness } from './fx/flame-light.js';
 import { twilightPlume, twilightOf } from './fx/twilight.js';
+import { titleShowing } from '../site/title-scene.js';
 
 // How far the sky is drawn above the top of the frame (site units), for the camera's tilt after a launch.
 const SKY_ABOVE = 240;
@@ -615,6 +616,8 @@ export function siteScene() {
     }
     labelsWere = labelsNow;
 
+    // Behind the title (js/site/title-scene.js) the site is a picture: no names, no words.
+    labels.visible = bubbleLayer.visible = !titleShowing();
     // Bubbles: over each speaker, stacked upward when two would overlap.
     const talking = Object.values(g.people)
       .filter(p => !p.hidden && p.bubble)
