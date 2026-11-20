@@ -2,7 +2,19 @@
 // red-line card and the grease pencil on the dugout's recorder.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { g, newGame, standStart, standMark, standWipe, standMarked, standDecide } from '../js/game.js';
+import {
+  g,
+  newGame,
+  tick,
+  standStart,
+  standMark,
+  standWipe,
+  standMarked,
+  standDecide,
+  countAnswer,
+  POLL_WINDOW,
+} from '../js/game.js';
+import { tickConsole, INSERT_WINDOW } from '../js/mercury.js';
 import { redlineRows } from '../js/scenes/redlines.js';
 import { playRound, until } from './play.js';
 
@@ -43,4 +55,68 @@ test('the grease pencil ticks the boxes for what it rings, and wipes off', () =>
   );
   standMark({ t0: 0.2, t1: 2, lo: 10, hi: 20, tank: true, chamber: false });
   assert.equal(g.stand.marks.length, 1, 'no ringing once the call is made');
+});
+
+// ---- Idea 2: the clock keeps running ----
+const toPoll = () => {
+  newGame(7);
+  playRound(undefined, undefined, 'poll');
+  assert.ok(g.count?.poll, 'at the first poll');
+};
+const wait = seconds => {
+  for (let t = 0; t < seconds; t += 0.05) tick(0.05);
+};
+
+test('a poll waits on your call only for its window, then the lead reads your gauge and calls it', () => {
+  toPoll();
+  assert.equal(g.count.pollLeft, POLL_WINDOW);
+  wait(POLL_WINDOW - 1);
+  assert.ok(g.count.poll, 'still waiting just inside the window');
+  wait(1.5);
+  assert.equal(g.count.poll, null, 'the window closed');
+  assert.ok(g.count.readings.at(-1).missed);
+  assert.ok(g.notes.some(n => /you missed the poll/.test(n.text)));
+  assert.ok(
+    g.record.memory.some(m => /read your gauge for you/.test(m.text)),
+    'the lead remembers',
+  );
+});
+
+test('as test conductor, a missed poll holds the count', () => {
+  toPoll();
+  g.record.seat = 'test-conductor';
+  g.vehicle = 'aerobee';
+  wait(POLL_WINDOW + 0.5);
+  assert.equal(g.count.held, true);
+  assert.ok(g.notes.some(n => /Delgado called the hold/.test(n.text)));
+});
+
+test('answering in time clears the window', () => {
+  toPoll();
+  wait(3);
+  countAnswer(true);
+  assert.equal(g.count.pollLeft, null);
+  assert.ok(!g.count.readings.at(-1).missed);
+});
+
+test('the go / no-go for orbit has a window too: when it closes the team goes with Goddard', () => {
+  newGame(11);
+  g.record.seat = 'flight';
+  g.round.end = { outcome: 'orbit', margin: 0.02, v: 7.8, gammaOff: 0, capsule: 'safe' };
+  const c = (g.console = {
+    phase: 'insertion',
+    live: true,
+    kind: 'flight',
+    flightId: 'gem-6',
+    round: g.round,
+    goddard: { go: true },
+    calls: {},
+    log: [],
+  });
+  for (let i = 0; i < (INSERT_WINDOW - 1) * 2; i++) tickConsole(0.5);
+  assert.equal(c.phase, 'insertion', 'still open inside the window');
+  for (let i = 0; i < 4 && c.phase === 'insertion'; i++) tickConsole(0.5);
+  assert.equal(c.calls.insertion.expired, true);
+  assert.equal(c.calls.insertion.go, true);
+  assert.ok(g.notes.some(n => /window closed without a call from (Flight|Retro)/.test(n.text)));
 });

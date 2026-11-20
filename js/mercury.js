@@ -940,6 +940,13 @@ export function tickConsole(dt) {
     if (con.t >= a.burn) finishAscent(con);
     return;
   }
+  // The clock keeps running (hands-on idea 2, Aaron 20 November 2026): without a live shift's return window, the call
+  // at cutoff still has a window. When it closes the team goes with Goddard, as on the shift (consoleInsertion).
+  if (con.phase === 'insertion' && !con.shift) {
+    con.insertLeft = (con.insertLeft ?? INSERT_WINDOW) - dt;
+    if (con.insertLeft <= 0) consoleInsertion('expire');
+    return;
+  }
   if (con.phase === 'insertion' && con.shift) {
     const shift = con.shift;
     const elapsed = windowMinutes(shift.remaining, dt);
@@ -2064,6 +2071,8 @@ function finishShiftReport(c) {
 }
 
 // Flight's call at insertion: commit the working plan or return while the abort area is still reachable.
+// How long the go / no-go for orbit waits on your call, in real seconds, when there is no shift's window (idea 2).
+export const INSERT_WINDOW = 20;
 export function consoleInsertion(choice) {
   const con = g.console;
   if (!con || con.phase !== 'insertion') return;
@@ -2079,7 +2088,7 @@ export function consoleInsertion(choice) {
     note(report);
     return roomChanged();
   }
-  const expired = choice === 'expire' && con.shift?.remaining === 0;
+  const expired = choice === 'expire' && (con.shift ? con.shift.remaining === 0 : con.insertLeft <= 0);
   if (!expired && typeof choice !== 'boolean' && (!gemini || !['correct', 'reduced'].includes(choice))) return;
   // A window that closes without a call from Flight goes with Goddard's reading (Aaron, 11 November 2026): a good orbit
   // is kept, and a bad one comes home. Flight's chance to correct the orbit or change the plan has gone.
@@ -2103,7 +2112,7 @@ export function consoleInsertion(choice) {
   if (con.kind === 'flight')
     note(
       expired
-        ? `The insertion window closed without a call from Flight. The team went with Goddard: ${go ? 'GO for orbit' : 'NO-GO, and the early return'}.`
+        ? `The insertion window closed without a call from ${flightDirector() ? 'Flight' : 'Retro'}. The team went with Goddard: ${go ? 'GO for orbit' : 'NO-GO, and the early return'}.`
         : `Insertion: ${con.auto ? nameOf('tate') : 'you'} ${flightDirector() && !con.auto ? 'called' : 'advised'} ${go ? 'GO for orbit' : 'NO-GO'}${go === con.goddard.go ? ', with Goddard' : ', against Goddard'}.`,
     );
   if (!go) {
