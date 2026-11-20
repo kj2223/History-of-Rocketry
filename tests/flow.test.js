@@ -2,7 +2,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { g, newGame, flowRun, flowCut, flowTest, roomFor, checkpoint, checkCheckpoint, dateText } from '../js/game.js';
-import { newFlow, flowRisk, runTest, cutTest, practiced, YOU_EXTRA } from '../js/world/flow.js';
+import {
+  newFlow,
+  flowRisk,
+  runTest,
+  cutTest,
+  practiced,
+  YOU_EXTRA,
+  newRehearsal,
+  rehearsalCall,
+  rehearsalGrade,
+  rehearsalMark,
+} from '../js/world/flow.js';
+import { REHEARSALS } from '../js/data/flow.js';
+import { flowRehearse, flowRehearsalCall, flowRehearsalMark } from '../js/game.js';
 import { FLOWS } from '../js/data/flow.js';
 import { KITS } from '../js/data/kits.js';
 import { newRound, DEFAULT_PROGRAMME } from '../js/truth/round.js';
@@ -69,6 +82,8 @@ test('sitting in catches everything the team would, and more; a cut test catches
   assert.equal(cutTest(f, f.tests[0]), 1);
   assert.equal(f.slip, 1);
   f.tests[1].status = 'you';
+  assert.deepEqual(practiced(f), {}, 'a rehearsal counts only when run clean');
+  f.tests[1].grade = 'clean';
   assert.deepEqual(practiced(f), { count: 1 });
 });
 
@@ -139,4 +154,47 @@ test('a fault the flow finds is fixed and slips the launch, and the slip survive
   newGame(saved.seed, saved);
   assert.equal(g.roundStart, start + 1);
   assert.equal(g.flow.slip, 1);
+});
+
+test('every count test has a rehearsal, and a rehearsal is clean only with a hold on the glitch and nowhere else', () => {
+  for (const tests of Object.values(FLOWS))
+    for (const t of tests) if (t.practice === 'count') assert.ok(REHEARSALS[t.id], t.id);
+  const f = newFlow('saturn5', 1000, -Infinity),
+    round = newRound(3, DEFAULT_PROGRAMME, 'saturn5');
+  const test = f.tests.find(t => t.id === 'cddt');
+  const play = calls => {
+    const reh = newRehearsal(f, round, test);
+    let done = false;
+    for (let i = 0; !done; i++) {
+      assert.equal(!!rehearsalMark(reh).glitch, i === reh.glitchAt);
+      done = rehearsalCall(reh, calls(i, reh));
+    }
+    return rehearsalGrade(reh);
+  };
+  assert.equal(play((i, r) => i === r.glitchAt).grade, 'clean');
+  assert.ok(play(() => false).missed);
+  assert.equal(play(() => true).needless, REHEARSALS.cddt.steps.length - 1);
+  assert.deepEqual(newRehearsal(f, round, test), newRehearsal(f, round, test), 'the same glitch every time');
+});
+
+test('a clean dry run of the count on the site drills the crew, and a clean crewed rehearsal earns a console card', () => {
+  newGame(42);
+  flowRun('team');
+  nextDay();
+  flowRehearse();
+  for (let n = 0; n < 10 && g.rehearsal; n++) flowRehearsalCall(!!flowRehearsalMark().glitch);
+  assert.equal(g.flow.tests[1].grade, 'clean');
+  assert.equal(practiced(g.flow).count, 1);
+  assert.ok(g.notes.some(n => /a clean rehearsal/.test(n.text)));
+
+  toMr1Flow(8);
+  for (let n = 0; n < 10 && g.beat === 'flow'; n++) {
+    if (flowTest().id === 'simflight') {
+      flowRehearse();
+      for (let k = 0; k < 10 && g.rehearsal; k++) flowRehearsalCall(!!flowRehearsalMark().glitch);
+      assert.ok(g.record.cards?.plug, 'the pad card is on your console');
+    } else flowRun('team');
+    nextDay();
+  }
+  assert.equal(g.beat, 'mBrief');
 });

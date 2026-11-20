@@ -35,7 +35,23 @@ import {
   SLIP_DAYS,
 } from './world/ledger.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
-import { newFlow, flowRisk, dueTest, dayOf as flowDay, defOf, runTest, cutTest, canCut } from './world/flow.js';
+import {
+  newFlow,
+  flowRisk,
+  dueTest,
+  dayOf as flowDay,
+  defOf,
+  runTest,
+  cutTest,
+  canCut,
+  practiced,
+  newRehearsal,
+  rehearsalCall,
+  rehearsalGrade,
+  rehearsalMark,
+} from './world/flow.js';
+import { REHEARSALS } from './data/flow.js';
+import { earnCard } from './data/sim-cards.js';
 import { KITS, SHORT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
@@ -408,6 +424,7 @@ function resetRound() {
     plan: null,
     readings: null,
     flow: null,
+    rehearsal: null,
   });
   for (const [id, p] of Object.entries(PEOPLE))
     Object.assign(g.people[id], { x: p.x, target: p.x, bubble: null, working: false, hidden: false });
@@ -574,13 +591,15 @@ export function flowRun(by = 'team') {
   if (!t || g.dayDone) return null;
   const def = flowDef(t);
   const r = runTest(g.flow, g.round, t, by);
+  const reh = g.rehearsal?.id === t.id ? g.rehearsal : null;
+  g.rehearsal = null;
   g.roundStart += r.days;
   g.slipDays += r.days;
   const who = by === 'you' ? 'You sat in on the' : 'The team ran the';
   const what = r.found.length
     ? `found ${r.found.map(f => `a fault at the ${f.spot.toLowerCase()}`).join(' and ')}. Fixed${r.days ? `: the flow slips ${r.days === 1 ? 'a day' : `${r.days} days`}` : ', the crews working nights to hold the date'}.`
     : 'found nothing out of the ordinary.';
-  const line = `${who} ${def.name.toLowerCase()}: it ${what}`;
+  const line = `${who} ${def.name.toLowerCase()}: it ${what}${reh ? ` ${rehearsalWords(t, reh)}` : ''}`;
   note(line);
   g.flowResult = { id: t.id, name: def.name, line, found: r.found.length, days: r.days };
   g.objective = `The ${def.name.toLowerCase()} is done. End the day when you are ready.`;
@@ -588,6 +607,45 @@ export function flowRun(by = 'team') {
   roomChanged();
   return r;
 }
+// The rehearsal of today's count test, sat through mark by mark (world/flow.js). Starting it is sitting in.
+export const flowRehearsal = () => g.rehearsal || null;
+export const flowHasRehearsal = () => !!(todays() && REHEARSALS[todays().id]);
+export const flowRehearsalMark = () => (g.rehearsal ? rehearsalMark(g.rehearsal) : null);
+export function flowRehearse() {
+  const t = todays();
+  if (!t || g.dayDone || !REHEARSALS[t.id]) return null;
+  g.rehearsal = g.rehearsal?.id === t.id ? g.rehearsal : newRehearsal(g.flow, g.round, t);
+  roomChanged();
+  return g.rehearsal;
+}
+export function flowRehearsalCall(hold) {
+  const reh = g.rehearsal,
+    t = todays();
+  if (!reh || !t || reh.id !== t.id) return;
+  const m = rehearsalMark(reh);
+  say(
+    'you',
+    hold ? (m.glitch ? 'Hold. Let us work that before we go on.' : 'Hold the count.') : 'Go. Carry on.',
+    hold ? 'warn' : 'go',
+    4,
+  );
+  if (rehearsalCall(reh, hold)) return flowRun('you');
+  roomChanged();
+}
+// What the rehearsal showed of you, and what it buys on the day.
+function rehearsalWords(t, reh) {
+  const { grade, missed, needless } = rehearsalGrade(reh);
+  t.grade = grade;
+  if (grade !== 'clean')
+    return missed
+      ? 'You let the glitch go by without a hold. On the day that is how a count runs into trouble.'
+      : `You held ${needless === 1 ? 'once' : `${needless} times`} on nothing. The team noticed.`;
+  const card = g.crewed ? earnCard(g.record, { redstone: 'plug', titan: 'shutdown' }[g.vehicle], g.day) : null;
+  return g.crewed
+    ? `You held on the glitch and nowhere else: a clean rehearsal.${card ? ` On a card for your console: "${card}"` : ''}`
+    : `You held on the glitch and nowhere else: a clean rehearsal. The crew have drilled their calls: on the day they read their gauges before they answer.`;
+}
+
 // Cut today's test to win back a slipped day.
 export function flowCut() {
   const t = todays();
@@ -1456,7 +1514,8 @@ const launchTeam = () => (g.vehicle === 'juno' ? "ABMA's launch team under Debus
 function stationReports(count) {
   const reading = countTank(),
     inBand = reading >= NORMAL_TANK[0] && reading <= NORMAL_TANK[1];
-  const pressGo = stationCall(g.round, inBand, TRAITS.delgado.lazyGo);
+  // A clean rehearsal of the count drilled the crew: PRESS reads the gauge before it answers.
+  const pressGo = stationCall(g.round, inBand, TRAITS.delgado.lazyGo * (practiced(g.flow).count ? 0.3 : 1));
   if (spacecraftCount()) {
     // Your stations are the spacecraft and its tracking; the rocket's tanks come to you from the launch team's board.
     const probe = g.vehicle === 'juno' ? 'Probe' : 'Ranger';
