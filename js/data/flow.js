@@ -85,6 +85,18 @@ const NETWORK = {
   text: 'Mission Control and the tracking stations around the world run the flight together on the sim tapes, every station on the loop, the teletypes and the radar data running as if it were real.',
 };
 
+// The last test of a crewed flow is not a test: the Flight Readiness Review, where the managers and the flight team go
+// through every test result and every open question before they give the go. It cannot be cut.
+const FRR = {
+  id: 'frr',
+  name: 'Flight Readiness Review',
+  where: 'office',
+  lead: 2,
+  finds: {},
+  review: true,
+  text: 'Everyone who signs for the vehicle around one table: the contractors, the centre, the flight team. Every test on the flow, every item on the anomaly ledger, every waiver, read out. Then the go, or not.',
+};
+
 export const FLOWS = {
   wac: [RANGE, DRY_RUN()],
   v2: [RANGE, DRY_RUN({ vanes: 0.3 })],
@@ -98,12 +110,14 @@ export const FLOWS = {
     TANKING({ lox: 0.3 }, 'Booster tanking test'),
     SIM_FLIGHT({ plug: 0.35, control: 0.25 }),
     NETWORK,
+    FRR,
   ],
   atlas: [
     CHECKOUT({ scanner: 0.3 }),
     TANKING({ shortburn: 0.2 }, 'Booster tanking test'),
     SIM_FLIGHT({ guidance: 0.3 }),
     NETWORK,
+    FRR,
   ],
   titan: [
     {
@@ -123,6 +137,7 @@ export const FLOWS = {
     },
     { ...SIM_FLIGHT({ hatch: 0.3 }), lead: 3, name: 'Simulated flight, crew aboard' },
     NETWORK,
+    FRR,
   ],
   saturnib: [
     {
@@ -145,6 +160,7 @@ export const FLOWS = {
       text: 'The whole countdown, run twice: wet, with the Saturn fuelled and the count stopped short of ignition, then dry, with the crew in the spacecraft for the final hours.',
     },
     NETWORK,
+    FRR,
   ],
   saturn5: [
     {
@@ -167,6 +183,7 @@ export const FLOWS = {
       text: 'The whole countdown, run twice in the Launch Control Center: wet, with the Saturn V fuelled and the count stopped seconds short of ignition, then dry, with the crew in the spacecraft for the final hours. After it the tanks are drained.',
     },
     NETWORK,
+    FRR,
   ],
   shuttle: [
     {
@@ -179,6 +196,7 @@ export const FLOWS = {
       text: 'The crew fly in to the Cape, suit up and are strapped into the orbiter on the pad for the last hours of a simulated count, down to a main engine cutoff at T minus 6 seconds. Then the drill for leaving the pad in a hurry, down the slide-wire baskets to the bunker.',
     },
     NETWORK,
+    FRR,
   ],
   dragon: [
     {
@@ -200,6 +218,7 @@ export const FLOWS = {
       text: 'The crew suited and taken out to the pad, up the crew access arm and strapped into the capsule, the hatch closed, and the count run through as on launch day with no propellants loaded.',
     },
     NETWORK,
+    FRR,
   ],
   sls: [
     {
@@ -213,6 +232,7 @@ export const FLOWS = {
       text: 'The core stage and the upper stage loaded with liquid hydrogen and oxygen through the umbilicals, held, and run down the terminal count to a planned cutoff at T minus 10 seconds. Then drained, and every leak, valve and sensor read over.',
     },
     NETWORK,
+    FRR,
   ],
 };
 
