@@ -46,10 +46,11 @@ test('the tank gauge reads the same for the same moment, and takes nothing from 
 
 test("the notebook clears earlier rounds' notes, keeps this round's, and never grows past its limit", async () => {
   const { note, clearNotes, NOTEBOOK_MAX, checkpoint } = await import('../js/game.js');
-  const { playRound, advance } = await import('./play.js');
+  const { playRound, advance, passFlow } = await import('./play.js');
   newGame(5);
   playRound(() => 'unknown');
   advance();
+  passFlow();
   const now = g.notes.filter(n => n.round === g.roundIndex).length;
   assert.ok(g.notes.length > now && now > 0);
   assert.ok(clearNotes() > 0);

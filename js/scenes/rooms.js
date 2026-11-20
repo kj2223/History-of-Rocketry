@@ -49,7 +49,13 @@ import {
   who,
   awaySpan,
   ledgerCall,
+  flowTest,
+  flowDef,
+  flowRun,
+  flowCut,
+  flowCanCut,
 } from '../game.js';
+import { dayOf as flowDayOf } from '../world/flow.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
@@ -306,7 +312,66 @@ export function openGameRoom() {
   g.roomVersion++;
 }
 
+// The launch flow (world/flow.js): the board in the office with every test and its day, and the test itself where it
+// happens. Only what the team reports: never what was in the round.
+const FLOW_STATUS = {
+  due: 'To come',
+  team: 'Run by the team',
+  you: 'You sat in',
+  cut: 'Cut',
+  early: 'Run before you arrived',
+};
+function flowRows() {
+  const today = flowTest();
+  return g.flow.tests
+    .map(t => {
+      const d = flowDef(t);
+      const found = t.found?.length ? ` Found: ${t.found.map(f => f.toLowerCase()).join(', ')}.` : '';
+      const now = t === today && !g.dayDone;
+      return `<li${now ? ' class="today"' : ''}><strong>${esc(dateText(flowDayOf(g.flow, t)))}</strong>: ${esc(d.name)} <span class="muted">(${esc(placeName(d.where))})</span> · ${now ? '<strong>Today</strong>' : esc(FLOW_STATUS[t.status])}${esc(found)}</li>`;
+    })
+    .join('');
+}
+function flowResult() {
+  return g.flowResult ? `<p class="result">${esc(g.flowResult.line)}</p>` : '';
+}
+function flowChoices(here) {
+  const t = flowTest();
+  if (!t || g.dayDone) return '<p class="muted">Nothing more today. End the day when you are ready.</p>';
+  const d = flowDef(t);
+  const attend =
+    d.where === 'office' || here
+      ? `<button class="primary" data-act="flow-you">Sit in on it</button>`
+      : `<p class="muted">To sit in on it, go to the ${esc(placeName(d.where))}.</p>`;
+  const cut = flowCanCut() ? `<button data-act="flow-cut">Cut it to win back a day</button>` : '';
+  return `${attend} <button data-act="flow-team">Hand it to the team</button> ${cut}`;
+}
+const FLOW_ROOMS = {
+  flow() {
+    const t = flowTest(),
+      launch = g.crewed ? 'launch' : "round's first morning in the hangar";
+    return `<h2>The flow board</h2>
+      <p>${esc(SEASON[g.roundIndex].name[0].toUpperCase() + SEASON[g.roundIndex].name.slice(1))}. Every test between now and the ${launch}, ${esc(dateText(g.roundStart))}, chalked up with its day.
+      ${g.flow.slip ? ` Repairs have cost the flow ${g.flow.slip === 1 ? 'a day' : `${g.flow.slip} days`}.` : ''}</p>
+      <ul class="flow">${flowRows()}</ul>
+      ${t && !g.dayDone ? `<h3>Today: ${esc(flowDef(t).name)}</h3><p>${esc(flowDef(t).text)}</p>` : ''}
+      ${flowResult()}
+      <p class="muted">The team runs every test well enough; they find what they are looking for about as often as the real crews did. Sitting in, you catch more. A cut test finds nothing.</p>
+      ${flowChoices(false)}`;
+  },
+  flowTest() {
+    if (g.dayDone && g.flowResult)
+      return `<h2>${esc(g.flowResult.name)}</h2>${flowResult()}<p class="muted">Nothing more today. End the day when you are ready.</p>`;
+    const t = flowTest();
+    if (!t) return '';
+    const d = flowDef(t);
+    return `<h2>${esc(d.name)}</h2><p>${esc(placeName(d.where))}, ${esc(dateText())}.</p><p>${esc(d.text)}</p>
+      ${flowResult()}${flowChoices(true)}`;
+  },
+};
+
 export const ROOMS = {
+  ...FLOW_ROOMS,
   probeHandover() {
     const { name, probe } = SEASON[g.roundIndex];
     return `<h2>${esc(name)}</h2><p>${esc(probe.tracking)}</p>
@@ -720,6 +785,9 @@ export function bindRoom(handlers) {
         if (['roundEnd', 'seasonEnd'].includes(g.beat)) g.room = g.beat;
       },
       'next-round': () => nextRound(),
+      'flow-you': () => flowRun('you'),
+      'flow-team': () => flowRun('team'),
+      'flow-cut': () => flowCut(),
       'ledger-accept': () => ledgerCall(id, 'accept'),
       'ledger-work': () => ledgerCall(id, 'work'),
       'probe-command': () => advanceProbe(true),

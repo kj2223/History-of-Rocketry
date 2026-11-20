@@ -1,10 +1,11 @@
 // THE DEV MENU'S JUMP: a new game on a chosen seed, with the bot playing every round before the chosen one, so a
 // playtest can start at any stage with a believable record behind it (the fixes, the losses, the people, the offers).
 // For testing only. The bot takes every offer on the NASA route and turns every one down on the JPL route.
-import { g, newGame, nextRound, closeAway } from '../game.js';
+import { g, newGame, nextRound, closeAway, answerFirstOffer } from '../game.js';
+import { pendingOffer } from '../career/record.js';
 import { routeArgue, routeDone, apollo8Decide, apollo8Done, workshopDecide, workshopDone } from '../mercury.js';
 import { SEASON } from '../data/campaign.js';
-import { playRound, playMission, advance, nextDay, carefulDecide } from './bot.js';
+import { playRound, playMission, nextDay, carefulDecide, passFlow } from './bot.js';
 
 // Which route a round is on: the shared years before Pioneer 4 are on both.
 export const routeOf = round => round.path ?? 'both';
@@ -18,7 +19,7 @@ export function stagesFor(route) {
 
 // Where in the round to stop: its first morning, or launch morning with the preparation already done.
 export const STOPS = {
-  morning: 'The first morning of the round',
+  morning: 'The first morning of the round: its flow board',
   launch: 'Launch morning, the preparation done',
 };
 
@@ -65,7 +66,9 @@ export function skipTo(id, { seed, route = 'nasa', stop = 'morning' } = {}) {
       o.made = true;
       o.answer = null;
     }
-    advance(take);
+    // On to the next round without its flow: the jump stops on the flow board of the chosen round.
+    if (pendingOffer(g.record)) answerFirstOffer(take);
+    nextRound();
     g.room = null;
   }
   if (SEASON[g.roundIndex].id !== id)
@@ -81,6 +84,7 @@ export function skipTo(id, { seed, route = 'nasa', stop = 'morning' } = {}) {
 // From a round's first morning to launch morning: the inspection, the board and the static fire done the bot's way.
 // A crewed round goes straight to the launch day. A probe round is worked from the office, so it stays on its morning.
 function toLaunchMorning() {
+  passFlow();
   if (g.beat.startsWith('probe') || ['sRoute', 'sApollo8', 'sWorkshop', 'seasonEnd'].includes(g.beat)) return;
   if (g.crewed) {
     nextDay();

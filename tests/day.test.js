@@ -16,6 +16,7 @@ import {
   closeAway,
   dateText,
 } from '../js/game.js';
+import { passFlow } from './play.js';
 import { exportSave, parseSave, writeSave, readSave, clearSave, memoryStorage, KEYS } from '../js/core/save.js';
 
 // Run the site until `done()` is true, at top speed, as the frame loop would.
@@ -38,8 +39,12 @@ const toStaticChoice = rework => {
   standDecide({ rework, leak: false });
 };
 
-test('the round starts on Tuesday 9 October 1945 with a checkpoint for that morning', () => {
+test('the game opens on the flow board on Saturday 6 October 1945, and the round proper starts on Tuesday 9 October', () => {
   newGame(42);
+  assert.equal(dateText(), 'Saturday 6 October 1945');
+  assert.equal(checkpoint().beat, 'flow');
+  checkCheckpoint(JSON.parse(JSON.stringify(checkpoint())));
+  passFlow();
   assert.equal(dateText(), 'Tuesday 9 October 1945');
   const c = checkpoint();
   assert.equal(c.beat, 'brief');
@@ -48,6 +53,7 @@ test('the round starts on Tuesday 9 October 1945 with a checkpoint for that morn
 
 test('a day with nothing for you is skipped, and told as "while you were away"', () => {
   newGame(42);
+  passFlow();
   toStaticChoice(true);
   nextDay();
   assert.equal(dateText(), 'Friday 12 October 1945');
@@ -63,6 +69,7 @@ test('a day with nothing for you is skipped, and told as "while you were away"',
 
 test('without a slip the next morning follows directly, with no card unless the crew worked overnight', () => {
   newGame(42);
+  passFlow();
   toStaticChoice(false);
   nextDay();
   assert.equal(dateText(), 'Thursday 11 October 1945');
@@ -71,6 +78,7 @@ test('without a slip the next morning follows directly, with no card unless the 
 
 test('a saved morning resumes as the same round on the same day, and the hidden truth carries over', () => {
   newGame(7);
+  passFlow();
   finishInspection({ fins: true });
   finishBoard();
   nextDay();
@@ -116,7 +124,7 @@ test('a bad or foreign save is refused and never resumed', () => {
   storage.setItem(KEYS.current, JSON.stringify(bad));
   assert.equal(readSave(storage, checkCheckpoint), null);
   storage.setItem(KEYS.lastGood, good);
-  assert.equal(readSave(storage, checkCheckpoint).beat, 'brief');
+  assert.equal(readSave(storage, checkCheckpoint).beat, 'flow');
   clearSave(storage);
   assert.equal(readSave(storage, checkCheckpoint), null);
 });

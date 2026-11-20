@@ -2,6 +2,7 @@
 export function talk(id, beat) {
   const lines = {
     ellis: {
+      flow: "The flow board's in the office. Every test on it is a chance to find her faults before the range does.",
       brief: 'Welds first. Then give me a propellant figure for the range.',
       board: 'The drawing board is in here. I need that propellant figure.',
       evening1: 'Go home, get some sleep. Big day tomorrow.',
@@ -9,6 +10,7 @@ export function talk(id, beat) {
       review: "In here when you're ready.",
     },
     kowalski: {
+      flow: "Whatever's on the board today, sir, we run it by the book.",
       brief: "She's all yours, sir. Torch is on the bench.",
       staticPrep: "Mind your feet, this thing's heavier than it looks.",
       rollout: 'Booster first, then the truck, then the tower. Same as always.',
@@ -16,10 +18,12 @@ export function talk(id, beat) {
     },
     delgado: { brief: 'First time on a WAC? Look at the welds. Sarge says they always look at the welds.' },
     vega: {
+      flow: "Pad's ready for the test whenever the blockhouse is.",
       countReady: "She's up. Get in the blockhouse, we count from ten minutes.",
       rollout: "Waiting on the round. The tower's ready.",
     },
     morgan: {
+      flow: 'Range runs end to end before anything flies. Radar, cameras, the destruct line.',
       rollout: "Radar's warmed up. Balloon goes up at T minus ten.",
       recovery: 'Climb in. Bumpy ride.',
       board: "Get me that figure and I'll clear the range.",
@@ -45,6 +49,7 @@ export function talk(id, beat) {
     },
     // Mercury Control, from 1960.
     hollis: {
+      flow: "Every test on that board is one we'd rather fail here than in flight. Sit in on what you can.",
       mBrief: 'Get in the simulator, Retro. I want you to have seen every bad day before you see a real one.',
       mLaunch: 'On your console. We pick up at fifteen.',
       mScrub: 'Better a scrub than a capsule nobody can reach. Get some sleep.',
@@ -63,6 +68,7 @@ export function talk(id, beat) {
       mReview: 'Tell me straight what she did. I was riding it.',
     },
     albrecht: {
+      flow: "Huntsville wants the test data the minute it's in.",
       mBrief: 'Marshall has checked her out from nose to tail. She is a good rocket.',
       mLaunch: 'Booster is ready. Huntsville is listening.',
       mReview: 'Huntsville has the tapes. Tell me what you saw.',

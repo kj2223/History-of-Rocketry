@@ -35,6 +35,7 @@ import {
   SLIP_DAYS,
 } from './world/ledger.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
+import { newFlow, flowRisk, dueTest, dayOf as flowDay, defOf, runTest, cutTest, canCut } from './world/flow.js';
 import { KITS, SHORT } from './data/kits.js';
 import { SEASON, BETWEEN, FIRST_OFFER, offerFor, onPath, GEMINI_OFFER } from './data/campaign.js';
 import { MERCURY_PEOPLE, MERCURY_ROLES, MERCURY_PLACES } from './data/mercury.js';
@@ -239,9 +240,10 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
       plan: from.plan ?? null,
       mission: from.mission ?? null,
       crewSwaps: from.crewSwaps ?? {},
+      flow: from.flow ?? null,
     }),
   );
-  g.roundStart = roundStartOf(at);
+  g.roundStart = roundStartOf(at) + (g.flow?.slip || 0);
   setVehicle();
   if (from.crewSwaps == null) {
     const losses = [];
@@ -405,6 +407,7 @@ function resetRound() {
     standFlame: 0,
     plan: null,
     readings: null,
+    flow: null,
   });
   for (const [id, p] of Object.entries(PEOPLE))
     Object.assign(g.people[id], { x: p.x, target: p.x, bubble: null, working: false, hidden: false });
@@ -503,7 +506,7 @@ export function apolloFireLines() {
 }
 
 // Round i: a fresh round built the way the team now builds them.
-function startRound(i) {
+function startRound(i, from = -Infinity) {
   resetRound();
   g.roundIndex = i;
   const before = Object.keys(SUCCESSIONS).map(id => ({ id, ...g.people[id] }));
@@ -522,14 +525,103 @@ function startRound(i) {
   // Items on the anomaly ledger nobody called are signed off by default, and the ledger moves the round's risks
   // (world/ledger.js): only the thresholds, never the draws.
   signOffUnclaimed(g.programme);
-  const risks = withLedger(withSeasonRisk(g.programme, SEASON[i].risk, DEFAULT_PROGRAMME), g.programme, g.vehicle);
+  // The launch flow's tests are priced in: the risk they can catch is added back on (world/flow.js).
+  const risks = flowRisk(
+    withLedger(withSeasonRisk(g.programme, SEASON[i].risk, DEFAULT_PROGRAMME), g.programme, g.vehicle),
+    g.vehicle,
+    !!SEASON[i].probe,
+  );
   const round = newRound(g.seed + i * 7919, risks, g.vehicle);
   if (SEASON[i].risk?.seg51Risk != null) round.seg51Risk = SEASON[i].risk.seg51Risk;
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
+  // The flow starts before the round's first morning: the tests already past when you arrive were run by the team.
+  g.flow = newFlow(g.vehicle, g.roundStart, from, !!SEASON[i].probe);
+  for (const t of g.flow?.tests || []) if (t.status === 'early') runTest(g.flow, g.round, t, 'team');
+  if (g.flow) {
+    g.roundStart += g.flow.slip;
+    g.slipDays += g.flow.slip;
+  }
+  const first = dueTest(g.flow);
+  if (first) {
+    g.day = flowDay(g.flow, first);
+    g.clock = g.day * 1440 + START_MINUTE;
+    return morning('flow');
+  }
+  beginRound();
+}
+// The round's first morning proper, after its flow: the brief, the day before a crewed launch, or the probe's handover.
+function beginRound() {
+  g.day = g.roundStart;
+  g.clock = g.day * 1440 + START_MINUTE;
   if (g.crewed) return CREWED.startMission();
-  if (SEASON[i].probe) return morning('probeHandover');
+  if (SEASON[g.roundIndex].probe) return morning('probeHandover');
   morning('brief');
+}
+
+// ---- The launch flow: one test a day, on its day (world/flow.js) ----
+export const flowTest = () => dueTest(g.flow);
+export const flowDef = test => defOf(g.flow, test);
+export const flowCanCut = () => !!g.flow && canCut(g.flow);
+// The test today, if it is still to be run today.
+const todays = () => {
+  const t = flowTest();
+  return g.beat === 'flow' && t && flowDay(g.flow, t) === g.day ? t : null;
+};
+// Run today's test: by the team (handed off from the flow board) or with you sitting in.
+export function flowRun(by = 'team') {
+  const t = todays();
+  if (!t || g.dayDone) return null;
+  const def = flowDef(t);
+  const r = runTest(g.flow, g.round, t, by);
+  g.roundStart += r.days;
+  g.slipDays += r.days;
+  const who = by === 'you' ? 'You sat in on the' : 'The team ran the';
+  const what = r.found.length
+    ? `found ${r.found.map(f => `a fault at the ${f.spot.toLowerCase()}`).join(' and ')}. Fixed${r.days ? `: the flow slips ${r.days === 1 ? 'a day' : `${r.days} days`}` : ', the crews working nights to hold the date'}.`
+    : 'found nothing out of the ordinary.';
+  const line = `${who} ${def.name.toLowerCase()}: it ${what}`;
+  note(line);
+  g.flowResult = { id: t.id, name: def.name, line, found: r.found.length, days: r.days };
+  g.objective = `The ${def.name.toLowerCase()} is done. End the day when you are ready.`;
+  g.dayDone = true;
+  roomChanged();
+  return r;
+}
+// Cut today's test to win back a slipped day.
+export function flowCut() {
+  const t = todays();
+  if (!t || g.dayDone || !cutTest(g.flow, t)) return false;
+  const def = flowDef(t);
+  g.roundStart -= 1;
+  g.slipDays = Math.max(0, g.slipDays - 1);
+  const line = `You cut the ${def.name.toLowerCase()} to win back a day. Whatever it would have found is still there.`;
+  note(line);
+  g.flowResult = { id: t.id, name: def.name, line, found: 0, days: -1 };
+  g.objective = 'The flow is a day shorter. End the day when you are ready.';
+  g.dayDone = true;
+  roomChanged();
+  return true;
+}
+// After a flow day: on to the next test's day, or to the round's first morning. Days between are told on arrival.
+function afterFlowDay(lines, left) {
+  g.flowResult = null;
+  // A test whose day went by while you were away (it cannot happen in a flow laid out one test a day) is the team's.
+  for (let t = flowTest(); t && flowDay(g.flow, t) < g.day; t = flowTest()) runTest(g.flow, g.round, t, 'team');
+  const next = flowTest();
+  const day = next ? flowDay(g.flow, next) : g.roundStart;
+  if (day > g.day) {
+    lines.push(
+      `${day - g.day === 1 ? 'A day' : `${day - g.day} days`} of the flow went by: the crews at their work, nothing that needed you.`,
+    );
+    g.day = day;
+  }
+  g.clock = g.day * 1440 + START_MINUTE;
+  g.away = lines.length ? { from: dateText(left), to: dateText(g.day), skipped: 0, lines } : null;
+  g.room = g.away ? 'away' : null;
+  roomChanged();
+  if (next) return morning('flow');
+  beginRound();
 }
 
 // ---- Work days and checkpoints ----
@@ -537,6 +629,7 @@ function startRound(i) {
 // Days with nothing for the player's seat are skipped; what happened on them is told on arrival ("while you were away").
 // A finished round is saved too ('roundEnd'), so quitting there resumes at the review's outcome, not before the count.
 const MORNING_BEATS = [
+  'flow',
   'brief',
   'staticPrep',
   'rollout',
@@ -586,6 +679,7 @@ export function morning(beat) {
     plan: g.plan,
     mission: g.mission ?? null,
     crewSwaps: g.crewSwaps,
+    flow: g.flow ?? null,
   });
   g.savedVersion++;
   setBeat(beat);
@@ -702,6 +796,20 @@ export function setBeat(name, objective) {
 }
 
 const BEATS = {
+  // A day of the launch flow: today's test, attended or handed to the team from the flow board in the office.
+  flow() {
+    const t = flowTest(),
+      def = flowDef(t);
+    g.objective =
+      def.where === 'office'
+        ? `${def.name} today. Sit in on it, or hand it to the team, at the flow board (${placeName('office')}).`
+        : `${def.name} today (${placeName(def.where)}). Sit in on it there, or hand it to the team at the flow board (${placeName('office')}).`;
+    if (g.crewed) {
+      CREWED.seatPeople?.();
+      g.rocket.where = 'tower';
+      g.rocket.mated = true;
+    }
+  },
   probeHandover() {
     g.objective = 'The launch team has handed off the spacecraft. Go to the technical office for the tracking report.';
   },
@@ -905,6 +1013,11 @@ const BEATS = {
 
 // ---- Rooms: what each building offers right now ----
 export function roomFor(id) {
+  if (g.beat === 'flow') {
+    const def = flowDef(flowTest());
+    if (id === def.where && !g.dayDone && def.where !== 'office') return 'flowTest';
+    return id === 'office' ? 'flow' : 'watch';
+  }
   if (g.crewed) return CREWED.missionRoomFor(id);
   if (g.beat.startsWith('probe')) return id === 'office' ? g.beat : 'watch';
   if (id === 'hangar')
@@ -1971,7 +2084,10 @@ function jumpTo(i) {
       'The workshop went up on the last Saturn V, and sixty-three seconds into the climb the range saw something tear away from her. On the television from orbit her micrometeoroid shield is gone and one solar wing is jammed against the hull. She is hot inside, and the crew going up tomorrow is the repair party.',
     );
   g.away = { from: dateText(from), to: dateText(roundStartOf(i)), lines };
-  startRound(i);
+  startRound(i, from);
+  // The jump ends on the flow's first test, if the round has one.
+  g.away.to = dateText(g.day);
+  if (g.saved?.away) g.saved.away.to = g.away.to;
   if (!next.crewed && !next.probe) {
     const w = g.round.wind;
     lines.push(
@@ -2071,6 +2187,7 @@ function nextMorning() {
   }
   // Jump to the next day with work for you, past any days that need nobody in your seat.
   g.day += 1;
+  if (g.beat === 'flow') return afterFlowDay(lines, left);
   while (g.offDays[g.day]) {
     lines.push(`${dateText(g.day)}: ${g.offDays[g.day]} Nothing needed you on site.`);
     note(`${dateText(g.day)}: ${g.offDays[g.day]}`);

@@ -20,10 +20,10 @@ test('the menu lists the shared years on both routes, and each route its own rou
 });
 
 for (const [route, id, stop, beat] of [
-  ['nasa', 'viking-7', 'morning', 'brief'],
+  ['nasa', 'viking-7', 'morning', 'flow'],
   ['nasa', 'viking-7', 'launch', 'countReady'],
   ['nasa', 'ma-6', 'launch', 'mLaunch'],
-  ['nasa', 'apollo-11', 'morning', 'mBrief'],
+  ['nasa', 'apollo-11', 'morning', 'flow'],
   ['jpl', 'ranger-7', 'launch', 'countReady'],
   ['jpl', 'voyager', 'morning', 'probeHandover'],
 ])
