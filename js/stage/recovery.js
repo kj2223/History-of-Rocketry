@@ -5,7 +5,7 @@
 // on the runway with the convoy coming up; Dragon is lifted on to the deck of her recovery ship. If the crew was lost,
 // the sea is empty and the ship's flag is at half mast. Calm, slow motion only: nothing flashes, the rotor is a steady
 // blur. Reads only what Recovery could see, through game.js.
-import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
+import { BlurFilter, Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game } from '../game.js';
 import { yearOf } from '../site/draw.js';
 import { sceneLight } from './fx/hd.js';
@@ -395,7 +395,11 @@ export function recoveryScene({ leave }) {
   const cable = new Graphics();
   heli.addChildAt(cable, 0);
   heli.position.set(660, 230);
-  world.addChild(dye, raft, craft, heli);
+  // The helicopter's shadow on the water and the dark of the sea under the capsule and the raft (2D-HD rework, Aaron
+  // 20 November 2026): seen from above, the shadow below the helicopter tells how high it holds.
+  const seaShade = new Graphics();
+  seaShade.filters = [new BlurFilter({ strength: 3, quality: 2 })];
+  world.addChild(seaShade, dye, raft, craft, heli);
   // Who sits in the raft: the swimmers in black, and the crew once out of the hatch (in their isolation garments on
   // the first three landings, July 1969 to April 1970).
   const crewColour = kind === 'apollo' && year >= 1969 && year <= 1970 ? 0x7c8a6a : 0x3a5a8a;
@@ -540,6 +544,19 @@ export function recoveryScene({ leave }) {
       const toX = kind === 'mercury' ? craft.x - heli.x : rx - heli.x - 30,
         toY = kind === 'mercury' ? craft.y - 100 - heli.y : ry - 40 - heli.y;
       cable.clear().moveTo(hx, hy).lineTo(toX, toY).stroke({ width: 2, color: 0x222222, alpha: 0.75 });
+      // Its shadow, thrown down the water toward us from where it hovers, and the dark under what floats.
+      const sx = heli.x + 70,
+        sy = 735 + Math.sin(t * 0.5) * 2;
+      seaShade
+        .clear()
+        .ellipse(sx, sy, 78, 9)
+        .fill({ color: 0x041018, alpha: heli.visible ? 0.55 : 0 })
+        .ellipse(sx + 10, sy - 3, 104, 7)
+        .fill({ color: 0x041018, alpha: heli.visible ? 0.22 : 0 })
+        .ellipse(craft.x + 6, craft.y + 14, 46, 9)
+        .fill({ color: 0x06121c, alpha: 0.3 });
+      if (kind !== 'mercury' && kind !== 'orion' && !lost)
+        seaShade.ellipse(rx + 8, ry + 14, 92, 12).fill({ color: 0x06121c, alpha: 0.25 });
       if (kind !== 'mercury') cable.roundRect(toX - 9, toY, 18, 22, 4).stroke({ width: 2, color: 0x2a2a2a }); // the rescue net
     }
     for (const v of world.convoy || []) v.x = Math.max(980 + (v.x - 1150) * 0.1, v.x - v.speed * dt);
