@@ -39,6 +39,17 @@ import {
   buildCover,
 } from './build.js';
 import { drawWorks } from './construction.js';
+import {
+  INCIDENTS,
+  CREWS,
+  ORDER,
+  emergencyToday,
+  startEmergency,
+  orderCrew,
+  tickEmergency,
+  endEmergency,
+  onPad,
+} from './emergency.js';
 import { manageSound } from '../stage/fx/sound.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -154,6 +165,7 @@ export function startBaseView(el, game, { save, back }) {
     cam = null,
     selected = null,
     showing = null, // the panel: null (the manifest), 'reports', 'budget', 'people', 'programmes' or 'build'
+    pick = null, // the crew picked on the map in a pad emergency: click it, then click the pad
     drag = null,
     running = true,
     log = [],
@@ -328,8 +340,53 @@ export function startBaseView(el, game, { save, back }) {
       .join('')}`;
   }
 
+  // A pad emergency: its clock, the pad, the three crews and what each is doing. It holds the panel until it is over.
+  function emergencyPanel() {
+    const e = game.emergency,
+      pad = base.find(b => b.id === e.pad),
+      f = sched.flights.find(x => x.id === e.flight);
+    // The clock and the gauge are filled in by info() each frame, so the buttons are not redrawn under the pointer.
+    const heat =
+      e.stage === 'fire'
+        ? `<span class="mg-warn">FIRE${e.lost ? ', the rocket is gone' : ''}</span> <meter data-em="heat" min="0" max="1.5" title="How big the fire is"></meter>`
+        : `Spill building <meter data-em="heat" min="0" max="1" title="How near the spill is to lighting"></meter>`;
+    const crewRow = id => {
+      const c = e.crews[id],
+        k = CREWS[id],
+        there = onPad(e, base, id);
+      const doing = !c.to
+        ? 'waiting for your order'
+        : c.to === 'home'
+          ? 'going back'
+          : !there
+            ? 'on the way'
+            : k.job === 'clear'
+              ? e.cleared
+                ? 'pad clear'
+                : 'clearing the tower'
+              : k.job === 'valves'
+                ? e.valves === 'closed'
+                  ? 'valves closed'
+                  : e.stage === 'fire' && e.heat >= 0.6
+                    ? 'waiting: too hot to reach the valves'
+                    : 'closing the valves'
+                : e.stage === 'fire'
+                  ? 'on the fire'
+                  : 'standing by';
+      return `<div class="mg-post mg-crew${pick === id ? ' on' : ''}"><i style="background:${k.colour}"></i><b>${esc(k.name)}</b> <span class="muted">${esc(doing)}</span>
+        <p>${c.to === 'pad' ? `<button data-act="crew" data-crew="${id}" data-to="home">Call back</button>` : `<button data-act="crew" data-crew="${id}" data-to="pad">Send to ${esc(pad.name.replace('Launch Complex ', 'LC-'))}</button>`}</p></div>`;
+    };
+    return `<h3 class="mg-warn">${esc(INCIDENTS[e.kind].name)}: ${esc(pad.name)}</h3>
+      <p><b data-em="clock"></b> ${heat}</p>
+      <p class="muted">${esc(INCIDENTS[e.kind].text)}${f ? ` ${esc(f.name)} is on the stand.` : ''}</p>
+      <p>Tower: ${e.cleared ? 'clear' : `<span class="mg-warn">people on it</span>`} · Valves: ${e.valves === 'closed' ? 'closed' : '<span class="mg-warn">open</span>'}</p>
+      ${ORDER.map(crewRow).join('')}
+      <p class="muted">Click a crew on the map, then the pad. The base clock waits; this one does not.</p>`;
+  }
+
   function panel() {
     const b = selected;
+    if (game.emergency) return emergencyPanel();
     if (showing === 'budget') return budgetPanel();
     if (showing === 'people') return peoplePanel();
     if (showing === 'programmes') return programmesPanel();
@@ -342,9 +399,11 @@ export function startBaseView(el, game, { save, back }) {
           ? `<p>${esc(recordLine(game.flown))}</p><ul class="mg-reports">${flown
               .map(r => {
                 const f = all.find(x => x.id === r.id);
-                return f
-                  ? `<li><span class="muted">${esc(dateLabel(r.day))}</span><br>${esc(report(f, flightOutcome(game.seed, f)))}</li>`
-                  : '';
+                const text =
+                  r.cause === 'pad'
+                    ? `${f?.name}: lost on the pad in a fire, before it could fly.`
+                    : f && report(f, flightOutcome(game.seed, f));
+                return f ? `<li><span class="muted">${esc(dateLabel(r.day))}</span><br>${esc(text)}</li>` : '';
               })
               .join('')}</ul>`
           : '<p class="muted">No flights yet. Each flight’s report comes in the day after it flies.</p>'
@@ -405,8 +464,19 @@ export function startBaseView(el, game, { save, back }) {
     ).length;
     $('.mg-bar [data-act=people]').textContent = empty ? `People (${empty} to choose)` : 'People';
     // Not while a slider in the panel is held, so moving money is never cut off by the clock.
-    if (!$('[data-live=panel]').contains(document.activeElement) || document.activeElement.type !== 'range')
-      $('[data-live=panel]').innerHTML = panel();
+    const box = $('[data-live=panel]');
+    if (game.emergency) {
+      const html = panel();
+      if (box.dataset.em !== html) {
+        box.innerHTML = html;
+        box.dataset.em = html;
+      }
+      box.querySelector('[data-em=clock]').textContent = `T+${Math.floor(game.emergency.t)} min`;
+      box.querySelector('[data-em=heat]').value = game.emergency.heat;
+    } else if (!box.contains(document.activeElement) || document.activeElement.type !== 'range') {
+      box.innerHTML = panel();
+      delete box.dataset.em;
+    }
     $('[data-live=log]').innerHTML = log
       .slice(-3)
       .map(l => `<div>${esc(l)}</div>`)
@@ -432,6 +502,13 @@ export function startBaseView(el, game, { save, back }) {
     }
     sched = programmeSchedule(game, START_DAY);
     commitOpen(game, sched);
+    // Now and then something goes wrong on a pad with a rocket on it (emergency.js).
+    const incident = emergencyToday(game, standsOn(sched, base, game.day));
+    if (incident) {
+      log.push(startEmergency(game, base, incident));
+      speed = 1;
+      pick = null;
+    }
     // A launch day plays at normal speed, so the liftoff is never skipped past.
     const launch = sched.flights.find(f => f.launch === game.day);
     if (launch && speed > 1) {
@@ -444,6 +521,47 @@ export function startBaseView(el, game, { save, back }) {
       );
     save(game);
     info();
+  }
+
+  // The emergency on the map, in art pixels: the spill or the fire at the foot of the stand, and the crews' trucks.
+  function drawEmergency(t) {
+    const e = game.emergency,
+      pad = base.find(b => b.id === e.pad),
+      foot = at(pad.tx + 2.5, pad.ty + 2.5);
+    const px = (x, y, w, h, c) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(Math.round(x), Math.round(y), w, h);
+    };
+    if (e.stage === 'leak') {
+      const r = 3 + e.heat * 9;
+      ctx.fillStyle = 'rgba(40,34,26,0.75)';
+      ctx.beginPath();
+      ctx.ellipse(Math.round(foot.x), Math.round(foot.y), Math.round(r), Math.round(r / 2), 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const n = Math.round(6 + e.heat * 18);
+      for (let i = 0; i < n; i++) {
+        const a = Math.sin(i * 12.9898 + Math.floor(t * 8) * 0.37) * 43758.5453,
+          u = a - Math.floor(a),
+          h = (u * 10 + 4) * (0.6 + e.heat);
+        px(foot.x - n / 2 + i, foot.y - h, 1, h, i % 3 ? '#ffb648' : '#d8442b');
+      }
+      ctx.fillStyle = 'rgba(60,60,60,0.45)';
+      for (let i = 0; i < 4; i++)
+        ctx.fillRect(
+          Math.round(foot.x - 4 + i * 3 + ((t * 6) % 6)),
+          Math.round(foot.y - 30 - i * 8 - e.heat * 10),
+          6,
+          5,
+        );
+    }
+    for (const id of ORDER) {
+      const c = e.crews[id],
+        q = at(c.x, c.y);
+      px(q.x - 3, q.y - 4, 7, 4, CREWS[id].colour);
+      px(q.x - 3, q.y, 7, 1, '#1a1a1a');
+      if (pick === id) px(q.x - 4, q.y - 6, 9, 1, '#ffb648');
+    }
   }
 
   function drawLight(w, h) {
@@ -505,6 +623,19 @@ export function startBaseView(el, game, { save, back }) {
     }
     tctx.font = `${big ? 13 : 11}px "Segoe UI", system-ui, sans-serif`;
     tctx.textAlign = 'center';
+    if (game.emergency)
+      for (const id of ORDER) {
+        const c = game.emergency.crews[id],
+          q = at(c.x, c.y),
+          s = toScreen(q.x, q.y);
+        tag(
+          CREWS[id].name,
+          s.x,
+          s.y - 26,
+          pick === id ? '#2b1a00' : '#e9ece4',
+          pick === id ? '#ffb648' : 'rgba(17,20,18,.78)',
+        );
+      }
     const next = sched.flights[0];
     for (const b of base.filter(b => b.kind === 'pad')) {
       const q = at(b.tx + 2.5, b.ty + 5),
@@ -555,6 +686,7 @@ export function startBaseView(el, game, { save, back }) {
     }
     ctx.drawImage(live.cv, 0, 0);
     life.art(ctx);
+    if (game.emergency) drawEmergency(performance.now() / 1000);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     life.light(ctx, w, h, () => [
       s,
@@ -568,12 +700,29 @@ export function startBaseView(el, game, { save, back }) {
     drawType();
   }
 
+  // Let minutes of a pad emergency pass; when it is over, the record and the manifest take what it cost.
+  function runEmergency(minutes) {
+    if (!game.emergency) return;
+    const before = game.emergency.t;
+    log.push(...tickEmergency(game, base, minutes));
+    if (game.emergency.done) {
+      log.push(...endEmergency(game, base, sched.flights));
+      sched = programmeSchedule(game, START_DAY);
+      lastDrawnDay = null;
+      pick = null;
+      save(game);
+    } else if (Math.floor(game.emergency.t / 5) > Math.floor(before / 5)) save(game);
+    info();
+  }
+
   let last = performance.now();
   function frame(now) {
     if (!running) return;
     const dt = Math.min(0.25, (now - last) / 1000);
     last = now;
-    if (!paused) {
+    if (!paused && game.emergency)
+      runEmergency(dt); // a minute of the emergency a second; the days wait
+    else if (!paused) {
       part += (dt * speed) / SECONDS_PER_DAY;
       while (part >= 1) {
         part -= 1;
@@ -611,6 +760,10 @@ export function startBaseView(el, game, { save, back }) {
         selected = null;
       }
     if (b.dataset.act === 'deselect') selected = null;
+    if (b.dataset.act === 'crew') {
+      orderCrew(game, base, b.dataset.crew, b.dataset.to);
+      pick = null;
+    }
     if (b.dataset.act === 'build-on' || b.dataset.act === 'fit') {
       const line =
         b.dataset.act === 'fit'
@@ -680,6 +833,24 @@ export function startBaseView(el, game, { save, back }) {
     }
   });
   canvas.addEventListener('pointerup', e => {
+    if (drag && !drag.moved && game.emergency) {
+      // In an emergency the map is for the crews: pick one up, then put it on the pad (or anywhere else, to call it back).
+      const a = toArt(e),
+        t = tileAt(a.x, a.y),
+        near = ORDER.find(id => {
+          const c = game.emergency.crews[id];
+          return Math.hypot(c.x - (t.tx + 0.5), c.y - (t.ty + 0.5)) < 1.6;
+        });
+      if (near && near !== pick) pick = near;
+      else if (pick) {
+        const hit = buildingAt(base, t.tx, t.ty);
+        orderCrew(game, base, pick, hit?.id === game.emergency.pad ? 'pad' : 'home');
+        pick = null;
+      }
+      info();
+      drag = null;
+      return;
+    }
     if (drag && !drag.moved) {
       const a = toArt(e),
         t = tileAt(a.x, a.y);
@@ -754,10 +925,43 @@ export function startBaseView(el, game, { save, back }) {
     },
     // For tests and screenshots.
     get state() {
-      return { day: game.day, part, speed, paused, cam, where: managementWhere(game), flown: game.flown ?? [] };
+      return {
+        day: game.day,
+        part,
+        speed,
+        paused,
+        cam,
+        where: managementWhere(game),
+        flown: game.flown ?? [],
+        emergency: game.emergency ? { ...game.emergency } : null,
+        emergencies: game.emergencies ?? [],
+      };
     },
+    // A day at a time. A pad emergency in the way is left to the head of launch operations (no orders from you).
     jump(n) {
-      for (let i = 0; i < n; i++) newDay();
+      for (let i = 0; i < n; i++) {
+        let guard = 0;
+        while (game.emergency && guard++ < 600) runEmergency(1);
+        newDay();
+      }
+    },
+    // Pad emergencies, for tests and the automated playtest: start one on the first pad with a rocket standing on it,
+    // send a crew, and let minutes pass.
+    emergency(kind = 'leak') {
+      const s = standsOn(sched, base, game.day).find(x => x.flight.launch !== game.day);
+      if (!s || game.emergency) return false;
+      log.push(startEmergency(game, base, { kind, pad: s.pad.id, flight: s.flight.id }));
+      speed = 1;
+      info();
+      return true;
+    },
+    order(crew, to = 'pad') {
+      const ok = orderCrew(game, base, crew, to);
+      info();
+      return ok;
+    },
+    runEmergency(minutes) {
+      runEmergency(minutes);
     },
     set part(v) {
       part = v;

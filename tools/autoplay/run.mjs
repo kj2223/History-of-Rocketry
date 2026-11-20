@@ -354,6 +354,18 @@ async function playManagement() {
     // A week, a day at a time, stopping to watch any day a rocket flies.
     for (let d = 0; d < 7; d++) {
       await page.evaluate(() => globalThis.__manage.jump(1));
+      // A pad emergency: send all three crews at once, as a director should, and watch it to the end.
+      if ((await m()).emergency) {
+        stepName = `emergency-${w}`;
+        await page.evaluate(() => ['safety', 'pad', 'fire'].forEach(c => globalThis.__manage.order(c, 'pad')));
+        await look('emergency', { hold: false });
+        await page.evaluate(() => globalThis.__manage.runEmergency(120));
+        const done = (await m()).emergencies.at(-1);
+        run.emergencies = [...(run.emergencies ?? []), done];
+        if ((await m()).emergency)
+          note(finding('emergency-stuck', 'bug', where, 'A pad emergency was still running after 120 minutes.'));
+        stepName = `week-${w}`;
+      }
       const s = await m();
       where = { mode: 'management', day: s.day, where: s.where };
       quietDays++;

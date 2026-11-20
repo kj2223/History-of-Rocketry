@@ -343,3 +343,103 @@ test('desk read-up: Flight hears the numbers off the log and checks them', () =>
   assert.ok(!none.verdict.clean);
   assert.match(none.verdict.lines.join(' '), /log sheet never went in/);
 });
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 7. Run the pad emergency (Management): a leak or a fire on a pad, crews directed on the map against its own clock.
+import {
+  CHANCE,
+  QUIET_DAYS,
+  AUTO_AFTER,
+  emergencyToday,
+  startEmergency,
+  orderCrew,
+  tickEmergency,
+  endEmergency,
+  emergencyCost,
+} from '../js/manage/emergency.js';
+import { CAPE_1958_BASE } from '../js/manage/base.js';
+
+const PAD = CAPE_1958_BASE.find(b => b.id === 'lc-14');
+const standing = day => [{ pad: PAD, flight: { id: 'atlas-x', name: 'Atlas X', launch: day + 10 } }];
+const run = (game, minutes) => {
+  const lines = [];
+  for (let m = 0; m < minutes && game.emergency && !game.emergency.done; m++)
+    lines.push(...tickEmergency(game, CAPE_1958_BASE, 1));
+  return lines;
+};
+const freshGame = () => ({ seed: 3, day: 1000, flown: [{ id: 'explorer-6' }], committed: { 'atlas-x': 1010 } });
+
+test('pad emergency: rare, never before the first flight, never twice close together, never on launch day', () => {
+  let hits = 0;
+  for (let day = 0; day < 20000; day++)
+    if (emergencyToday({ seed: 11, day, flown: [{ id: 'x' }] }, standing(day))) hits++;
+  assert.ok(Math.abs(hits / 20000 - CHANCE) < 0.004, `rate ${hits / 20000}`);
+  const day = [...Array(5000).keys()].find(d =>
+    emergencyToday({ seed: 11, day: d, flown: [{ id: 'x' }] }, standing(d)),
+  );
+  assert.equal(emergencyToday({ seed: 11, day, flown: [] }, standing(day)), null);
+  assert.equal(
+    emergencyToday(
+      { seed: 11, day, flown: [{ id: 'x' }], emergencies: [{ day: day - QUIET_DAYS + 1 }] },
+      standing(day),
+    ),
+    null,
+  );
+  assert.equal(
+    emergencyToday({ seed: 11, day, flown: [{ id: 'x' }] }, [{ ...standing(day)[0], flight: { launch: day } }]),
+    null,
+  );
+});
+
+test('pad emergency: a leak met at once is closed off before it lights, and nobody is hurt', () => {
+  const game = freshGame();
+  startEmergency(game, CAPE_1958_BASE, { kind: 'leak', pad: 'lc-14', flight: 'atlas-x' });
+  for (const crew of ['safety', 'pad', 'fire']) orderCrew(game, CAPE_1958_BASE, crew, 'pad');
+  run(game, 60);
+  assert.ok(game.emergency.done);
+  assert.equal(game.emergency.stage, 'leak', 'it never lit');
+  assert.ok(game.emergency.cleared);
+  const lines = endEmergency(game, CAPE_1958_BASE, [{ id: 'atlas-x', name: 'Atlas X', launch: 1010 }]);
+  assert.equal(game.emergency, null);
+  assert.equal(game.committed['atlas-x'], 1012);
+  assert.match(lines.join(' '), /slips 2 days.*Nobody was hurt/);
+  assert.equal(game.emergencies.length, 1);
+});
+
+test('pad emergency: with no orders the head of launch operations sends the crews, and it always ends', () => {
+  for (const kind of ['leak', 'fire']) {
+    const game = freshGame();
+    startEmergency(game, CAPE_1958_BASE, { kind, pad: 'lc-14', flight: 'atlas-x' });
+    tickEmergency(game, CAPE_1958_BASE, AUTO_AFTER - 0.5);
+    assert.ok(!game.emergency.auto);
+    const lines = run(game, 300);
+    assert.ok(game.emergency.done, kind);
+    assert.ok(game.emergency.auto);
+    assert.match(lines.join(' '), /No orders from you/);
+  }
+});
+
+test('pad emergency: a fire let grow takes the rocket, and the record keeps it as lost on the pad', () => {
+  const game = freshGame();
+  startEmergency(game, CAPE_1958_BASE, { kind: 'fire', pad: 'lc-14', flight: 'atlas-x' });
+  orderCrew(game, CAPE_1958_BASE, 'safety', 'pad');
+  game.emergency.heat = 1.45;
+  const lines = run(game, 2);
+  assert.ok(game.emergency.lost);
+  assert.match(lines.join(' '), /gone up in the fire/);
+  run(game, 400);
+  assert.ok(game.emergency.done);
+  assert.deepEqual(emergencyCost(game.emergency), { slip: 0, lost: true, hurt: game.emergency.hurt });
+  endEmergency(game, CAPE_1958_BASE, [{ id: 'atlas-x', name: 'Atlas X', launch: 1010 }]);
+  assert.deepEqual(game.flown.at(-1), { id: 'atlas-x', day: 1000, pad: 'lc-14', result: 'lost', cause: 'pad' });
+});
+
+test('pad emergency: anyone still on the tower when the spill lights is hurt', () => {
+  const game = freshGame();
+  startEmergency(game, CAPE_1958_BASE, { kind: 'leak', pad: 'lc-14', flight: 'atlas-x' });
+  orderCrew(game, CAPE_1958_BASE, 'fire', 'pad'); // the fire crew first, nobody to clear the tower
+  game.emergency.heat = 0.95;
+  run(game, 1);
+  assert.equal(game.emergency.stage, 'fire');
+  assert.equal(game.emergency.hurt, 3);
+});
