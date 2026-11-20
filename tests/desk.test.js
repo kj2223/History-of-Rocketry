@@ -13,8 +13,10 @@ import {
   wall,
   slip,
   deskWhere,
+  logDue,
+  writeLog,
 } from '../js/desk/model.js';
-import { SCRIPT, START_T, MAX_UP, TASKS } from '../js/desk/data.js';
+import { SCRIPT, START_T, MAX_UP, TASKS, LOG_FIELDS } from '../js/desk/data.js';
 import { exportSave, parseSave, DESK, MANAGEMENT, FLIGHT } from '../js/core/save.js';
 
 // Run the count to a count time, then do what's asked.
@@ -35,6 +37,7 @@ const playWell = d => {
   let guard = 0;
   while (!d.done && guard++ < 50000) {
     tickDesk(d, 1);
+    if (logDue(d) >= 0) writeLog(d, copied(d)); // copies the screen onto the log sheet
     for (const o of callOptions(d)) {
       const [k, w] = o.id.split(':');
       if (k === 'task' && d.t >= TASKS[w].from) act(d, o.id);
@@ -43,12 +46,24 @@ const playWell = d => {
     for (const o of open) {
       const [k, w] = o.id.split(':');
       const want =
-        k === 'leak' ? (d.fault === 'leak' ? 'hold' : 'good') : k === 'poll' ? 'go' : k === 'o2' ? 'probe' : 'good';
+        k === 'leak'
+          ? d.fault === 'leak'
+            ? 'hold'
+            : 'good'
+          : k === 'poll'
+            ? 'go'
+            : k === 'o2'
+              ? 'probe'
+              : k === 'readup'
+                ? 'log'
+                : 'good';
       if (w === want) act(d, o.id);
     }
   }
   return d;
 };
+// What a careful EECOM writes on the log sheet: the screen as it reads now.
+const copied = d => Object.fromEntries(LOG_FIELDS.map(f => [f.id, String(f.read(readings(d)))]));
 
 test('the count runs from T-2:40:00 to liftoff and the script is in time order', () => {
   assert.equal(count(START_T), 'T-2:40:00');

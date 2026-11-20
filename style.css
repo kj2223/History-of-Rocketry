@@ -503,9 +503,15 @@ header button.muted {
 #desk .dk-headset { background: rgba(20,22,24,.86); color: #e7ebee; padding: .7rem .9rem; border-radius: 3px; overflow: auto; min-height: 0; font-size: .92em; }
 #desk .dk-headset p { margin: 0 0 .45rem; } #desk .dk-headset b { color: #9fb8c9; font: bold .78em Consolas, var(--mono); letter-spacing: .06em; margin-right: .3em; }
 #desk .dk-headset p.me { color: #ffd27a; }
-#desk .dk-stacks { display: grid; grid-template-rows: auto 1fr; gap: .9rem; min-height: 0; }
+#desk .dk-stacks { display: grid; grid-template-rows: auto auto 1fr; gap: .9rem; min-height: 0; }
 #desk .dk-procs { cursor: pointer; transform: rotate(-1deg); } #desk .dk-procs p { margin: .1rem 0; }
 #desk .dk-comms { transform: rotate(.6deg); }
+#desk .dk-log { transform: rotate(-.4deg); } #desk .dk-log table { border-collapse: collapse; width: 100%; font: .78rem Consolas, var(--mono); }
+#desk .dk-log th, #desk .dk-log td { border: 1px solid #c9bfa6; padding: .1rem .25rem; white-space: nowrap; text-align: center; font-weight: normal; }
+#desk .dk-log tr:first-child th { font-size: .62rem; letter-spacing: .06em; color: #7a6a4a; }
+#desk .dk-log tr.written td { font: italic 1rem "Segoe Print", "Bradley Hand", cursive; color: #1d3a8a; }
+#desk .dk-log tr.due { background: #fff1c9; } #desk .dk-log input { width: 100%; min-width: 3.2em; box-sizing: border-box; font: 1rem "Segoe Print", "Bradley Hand", cursive; color: #1d3a8a; background: transparent; border: 0; border-bottom: 1px dashed #a86a10; padding: 0; text-align: center; }
+#desk .dk-log button { margin-top: .35rem; }
 #desk .dk-comms button { display: block; width: 100%; margin: 0 0 .4rem; text-align: left; font-weight: normal; letter-spacing: 0; color: #1f1d1a; background: #fffaf0; border: 1px solid #b9ae95; box-shadow: none; }
 #desk .dk-comms button:hover { background: #fff1c9; } #desk .dk-comms button.answer { border-left: 4px solid #a86a10; }
 #desk .dk-comms small { display: block; font: bold .75em Consolas, var(--mono); letter-spacing: .12em; color: #7a6a4a; }

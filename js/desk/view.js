@@ -2,9 +2,20 @@
 // for information"). The console along the top holds the desk's own displays, the event lights and the loop keys;
 // on the desk below are the teletype's paper, the headset (what you heard), the procedures stack and the comms stack.
 // The count runs on its own clock; pause stops it. Flight asking EECOM something drops the speed to 1x.
-import { LOOPS, PEOPLE, PROCEDURES, TASKS, MAX_UP } from './data.js';
+import { LOOPS, PEOPLE, PROCEDURES, TASKS, MAX_UP, LOG_ROWS, LOG_FIELDS } from './data.js';
 import { deskSound } from '../stage/fx/sound.js';
-import { tickDesk, act, callOptions, toggleLoop, readings, eventLights, count, wall } from './model.js';
+import {
+  tickDesk,
+  act,
+  callOptions,
+  toggleLoop,
+  readings,
+  eventLights,
+  count,
+  wall,
+  logDue,
+  writeLog,
+} from './model.js';
 
 // 240x crosses the count's long quiet stretches in seconds (the automated playtest found a minute of nothing at 60x).
 export const SPEEDS = [1, 10, 60, 240];
@@ -20,7 +31,7 @@ export function startDeskView(el, d, { back, save }) {
     papers = false,
     last = performance.now(),
     lastSave = last,
-    open = openAsks(d),
+    open = openThings(d),
     stopped = false;
   const cache = {};
   el.innerHTML = `<div class="dk">
@@ -40,6 +51,7 @@ export function startDeskView(el, d, { back, save }) {
       <div class="dk-headset"><h3>On your headset</h3><div data-part="heard"></div></div>
       <div class="dk-stacks">
         <div class="dk-paper dk-procs" data-act="papers" title="Pick up the procedures"><h3>Procedures</h3><div data-part="next"></div><p class="dk-hint">Pick them up (P)</p></div>
+        <div class="dk-paper dk-log"><h3>EECOM log sheet</h3><div data-part="log"></div></div>
         <div class="dk-paper dk-comms"><h3>What you can say</h3><div data-part="comms"></div></div>
       </div>
     </section>
@@ -125,6 +137,20 @@ export function startDeskView(el, d, { back, save }) {
         ? due.map(([, t]) => `<p><b>${t.title}</b> ${d.t >= t.from ? '(now)' : '(soon)'}</p>`).join('')
         : '<p class="dk-hint">Nothing scheduled for the next fifteen minutes.</p>',
     );
+    // The log sheet: what you wrote, in your hand. Nothing on it says whether it was right.
+    const logRow = logDue(d);
+    put(
+      'log',
+      `<table><tr><th></th>${LOG_FIELDS.map(f => `<th>${f.label}</th>`).join('')}</tr>${LOG_ROWS.map((at, i) => {
+        const row = d.logbook?.[i],
+          time = `<th>${count(at).replace(/:00$/, '')}</th>`;
+        if (row)
+          return `<tr class="written">${time}${LOG_FIELDS.map(f => `<td>${esc(row.values[f.id] || '—')}</td>`).join('')}</tr>`;
+        if (i === logRow)
+          return `<tr class="due">${time}${LOG_FIELDS.map(f => `<td><input data-log="${f.id}" inputmode="decimal" autocomplete="off" aria-label="${f.label} ${f.unit}"></td>`).join('')}</tr>`;
+        return `<tr>${time}${LOG_FIELDS.map(() => `<td>${d.t > at ? '—' : ''}</td>`).join('')}</tr>`;
+      }).join('')}</table>${logRow >= 0 ? '<button data-act="log">Write it in (Enter)</button>' : ''}`,
+    );
     const opts = callOptions(d);
     put(
       'comms',
@@ -173,9 +199,9 @@ export function startDeskView(el, d, { back, save }) {
     last = now;
     if (!paused && !papers && !d.done) {
       tickDesk(d, dt * speed);
-      const nowOpen = openAsks(d);
+      const nowOpen = openThings(d);
       if (nowOpen > open || (d.t > LAST_MINUTE && speed > 1))
-        speed = 1; // Flight asked you something; the last minute
+        speed = 1; // Flight asked you something, or a log line came due; the last minute
       else if (d.t > TERMINAL && speed > 10) speed = 10; // the terminal count
       open = nowOpen;
       if (d.done) doSave();
@@ -201,11 +227,26 @@ export function startDeskView(el, d, { back, save }) {
     else if (a === 'papers') papers = !papers;
     else if (a === 'say') {
       act(d, b.dataset.id);
-      open = openAsks(d);
-    }
+      open = openThings(d);
+    } else if (a === 'log') writeIn();
     render();
   };
+  // Copy what the player typed on the sheet into the desk.
+  function writeIn() {
+    const values = {};
+    for (const input of part('log').querySelectorAll('[data-log]')) values[input.dataset.log] = input.value;
+    writeLog(d, values);
+    open = openThings(d);
+  }
   const onKey = e => {
+    if (e.target?.closest?.('#desk input')) {
+      // Typing on the log sheet: the desk's own keys stay off, Enter writes the line in.
+      if (e.key === 'Enter') {
+        writeIn();
+        render();
+      }
+      return;
+    }
     if (e.key === ' ') {
       paused = !paused;
       e.preventDefault();
@@ -235,6 +276,12 @@ export function startDeskView(el, d, { back, save }) {
       render();
       return ok;
     },
+    write(values) {
+      const row = writeLog(d, values);
+      open = openThings(d);
+      render();
+      return row;
+    },
     get speed() {
       return speed;
     },
@@ -242,7 +289,7 @@ export function startDeskView(el, d, { back, save }) {
   };
 }
 
-const openAsks = d => Object.values(d.asks).filter(a => !a.result).length;
+const openThings = d => Object.values(d.asks).filter(a => !a.result).length + (logDue(d) >= 0 ? 1 : 0);
 
 export function stopDeskView(el, view) {
   view?.stop();
