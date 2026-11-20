@@ -13,7 +13,11 @@ import {
   standDecide,
   countAnswer,
   POLL_WINDOW,
+  trackStick,
+  trackShare,
+  TRACK,
 } from '../js/game.js';
+import { estimate } from '../js/world/programme.js';
 import { tickConsole, INSERT_WINDOW } from '../js/mercury.js';
 import { redlineRows } from '../js/scenes/redlines.js';
 import { playRound, until } from './play.js';
@@ -119,4 +123,36 @@ test('the go / no-go for orbit has a window too: when it closes the team goes wi
   assert.equal(c.calls.insertion.expired, true);
   assert.equal(c.calls.insertion.go, true);
   assert.ok(g.notes.some(n => /window closed without a call from (Flight|Retro)/.test(n.text)));
+});
+
+// ---- Idea 3: the tracking camera on your hands ----
+const flyTracking = steer => {
+  newGame(7);
+  playRound(undefined, undefined, 'poll');
+  while (g.count && g.count.poll) {
+    countAnswer(true);
+    until(() => !g.count || g.count.poll || g.flight);
+  }
+  g.speed = 1;
+  for (let n = 0; n < 6000 && g.flight.view !== 'done'; n++) {
+    const tr = g.flight.track;
+    if (tr && steer) trackStick(Math.max(-1, Math.min(1, tr.x * 3)), Math.max(-1, Math.min(1, tr.y * 3)));
+    tick(1 / 30);
+  }
+  return trackShare(g.flight);
+};
+
+test('left alone, the tracking camera loses her; kept on her, the film counts double for the drawing office', () => {
+  assert.ok(flyTracking(false) < 0.1, 'an untouched mount loses her');
+  const share = flyTracking(true);
+  assert.ok(share >= TRACK.good, `a careful tracker keeps her ${share}`);
+  assert.equal(g.decided.trackShare, share);
+  const before = estimate(g.programme, 'wac').flights;
+  playRound();
+  const flown = g.programme.flights.at(-1);
+  if (flown.apogee != null) {
+    assert.equal(flown.tracked, true);
+    assert.equal(estimate(g.programme, 'wac').flights, before + 2, 'a tracked flight counts twice');
+  }
+  assert.ok(g.notes.some(n => /Your tracking film/.test(n.text)));
 });

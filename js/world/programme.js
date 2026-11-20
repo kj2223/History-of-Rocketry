@@ -310,7 +310,7 @@ export const LOT_ROUNDS = 2;
 // path: the flight's track ([{ t, x, h }], km), kept thinned so the range plot can show the earlier rounds faintly.
 export function recordFlight(
   programme,
-  { vehicle = 'wac', load, apogee, failure, hidden = false, path = null, failAt = null, name = null },
+  { vehicle = 'wac', load, apogee, failure, hidden = false, path = null, failAt = null, name = null, tracked = false },
 ) {
   const step = path ? Math.max(1, Math.ceil(path.length / 60)) : 1;
   const trace = path
@@ -324,6 +324,7 @@ export function recordFlight(
     apogee: failure ? null : apogee,
     failure: failure || null,
     ...(trace ? { trace, failAt, name } : {}),
+    ...(tracked ? { tracked: true } : {}),
   });
   // A lot is one vehicle's: a new vehicle starts clean.
   if (programme.lotVehicle !== vehicle) programme.batch = {};
@@ -369,7 +370,8 @@ export function estimate(programme, vehicle = 'wac', load = 1) {
   } // estimate(programme, load) means a WAC
   const paper = PAPER[vehicle];
   const good = programme.flights.filter(f => (f.vehicle || 'wac') === vehicle && f.apogee != null);
-  const seen = good.map(f => f.apogee / loadFactor(f.load));
+  // A flight the tracking film followed well (game.js, hands-on idea 3) is measured twice over: it counts double.
+  const seen = good.flatMap(f => Array(f.tracked ? 2 : 1).fill(f.apogee / loadFactor(f.load)));
   const full = (paper.apogee + seen.reduce((a, b) => a + b, 0)) / (1 + seen.length);
   const spread = paper.spread / (1 + 0.8 * seen.length);
   const mid = full * loadFactor(load);
