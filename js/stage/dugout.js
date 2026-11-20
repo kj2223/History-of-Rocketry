@@ -9,9 +9,12 @@ import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
 import { g as game, kit, standChannels, stageChannels } from '../game.js';
 import { standStructure, roundShape, skyFor, uiEra, PLACES, GROUND } from '../site/draw.js';
 import { atPlace } from '../data/white-sands.js';
-import { sceneLight } from './fx/hd.js';
+import { sceneLight, hdWanted } from './fx/hd.js';
 import { PX, pixelLayer } from './pixel.js';
 import { paintDugout } from './dugout-art.js';
+import { dugoutRoom } from './dugout-room.js';
+import { roomAndDesk } from './fx/zoom-view.js';
+import { lightAt } from './fx/daylight.js';
 import { pixelSize } from './pixelate.js';
 
 // Hand-painted in pixel art (dugout-art.js) unless the dev menu's No pixel art is on; then the smooth drawing.
@@ -408,19 +411,34 @@ export function dugoutScene({ leave }) {
   const out = outButton(leave);
   root.addChild(out);
 
+  // ---- the stand and the dugout from above, and the zoom in to the panel (2D-HD rework, Aaron 20 November 2026) ----
+  // The scene opens on the test site in three-quarters (dugout-room.js); with a firing on, it moves in to the panel
+  // (this cutaway, every reading full size) after a moment. The button and a click on the dugout move between the two.
+  const room = dugoutRoom({ cape, sky });
+  root.addChildAt(room.root, 0);
+  const zoom = roomAndDesk({
+    room: room.root,
+    desk: world,
+    focus: room.focus,
+    W,
+    H,
+    auto: () => !!g.stand && !!g.room?.startsWith('static'),
+    words: ['▾ The panel', '▴ The site'],
+  });
+  root.addChild(zoom.toggle);
+  room.deskHit.on('pointertap', zoom.goIn);
+
   // ---- each frame ----
   let base = { x: 0, y: 0 },
     wasFiring = false;
   function update(dt, screen, reserve) {
     const roomW = Math.max(screen.width * 0.55, screen.width - reserve);
-    let k = Math.min(roomW / W, screen.height / H);
-    // Painted, each art pixel is a whole number of screen pixels, the pixel pass's own size where it fits, and the
-    // room sits on the pass's grid.
+    // The site and the panel fit the screen left of the room panel (fx/zoom-view.js); painted, on the pixel pass's grid.
     const ps = pixelSize(screen.height);
-    if (painted) k = Math.max(1, Math.min(ps, Math.floor(k * PX))) / PX;
-    world.scale.set(k);
-    base = { x: (roomW - W * k) / 2, y: (screen.height - H * k) / 2 };
-    if (painted) base = { x: Math.round(base.x / ps) * ps, y: Math.round(base.y / ps) * ps };
+    const zv = zoom.update(dt, 0, 0, roomW, screen.height, painted ? ps : 0);
+    const k = zv.ds;
+    base = { x: world.position.x, y: world.position.y };
+    zoom.toggle.position.set(10, screen.height - 40 - 46 - 48);
     out.position.set(10, screen.height - 40 - 46);
     const t = g.time,
       s = g.stand,
@@ -596,8 +614,19 @@ export function dugoutScene({ leave }) {
       const p = order[i];
       c.update(p || null, t);
       talk[i].position.set(c.x, CON.y - 6);
-      talk[i].update(p ? p.bubble : null);
+      talk[i].update(p && zv.e >= 0.5 ? p.bubble : null);
     });
+    if (zv.e < 1)
+      room.update({
+        L: lightAt(g.clock % 1440),
+        power,
+        firing: firing && !tape,
+        people: here.map(p => ({ ...p, bubble: zv.e < 0.5 ? p.bubble : null })),
+        hdOn: hdWanted(),
+        t,
+        k: zv.rs,
+        dt,
+      });
   }
 
   const key = `${era}|${g.site}|${g.vehicle}`;
