@@ -256,6 +256,8 @@ function watchBeats() {
 }
 
 const BOT_PLAN = { inspector: 'you', burn: 'short', leak: false };
+// What the run has done with the hands-on controls (HANDS-ON-GAMEPLAY.md), for the report.
+export const handsOn = {};
 // The rounds that are scenes, not flights, decided the way the room really decided them.
 function* scene() {
   const x = g();
@@ -291,6 +293,12 @@ function* round() {
     if (g().plan.inspector !== 'you') until(() => g().beat === 'board');
   }
   if (g().beat === 'brief') {
+    // Hands-on idea 5, once a run: put the first part on its test kit and read the meter.
+    if (!handsOn.meter) {
+      const first = Object.keys(game.kit().spots ?? {})[0];
+      if (first) game.meterSpot(first);
+      handsOn.meter = !!g().decided?.meter;
+    }
     game.finishInspection({});
     yield 'inspection';
   }
@@ -299,9 +307,23 @@ function* round() {
   nextDay();
   until(() => g().beat === 'static');
   yield 'static-morning';
+  // Hands-on idea 4: sit down at the firing panel and throw its switches in order before the key (a tape round has none).
+  game.standPanelOpen();
+  if (g().stand.switches) {
+    for (const [id] of game.STAND_SWITCHES) game.standSwitch(id);
+    handsOn.switches = (handsOn.switches ?? 0) + 1;
+  }
   game.standStart();
   until(() => g().stand.phase === 'read');
   yield 'static-fire';
+  // Hands-on idea 1: a grease-pencil ring on the trace (the last second, both pens), wiped again: the call stays ours.
+  const trace = g().stand.trace ?? [];
+  if (trace.length) {
+    const end = trace.at(-1).t ?? trace.length;
+    game.standMark({ t0: end - 1, t1: end, lo: 0, hi: 1, tank: true, chamber: true });
+    handsOn.marks = (handsOn.marks ?? 0) + (g().stand.marks?.length ? 1 : 0);
+    game.standWipe();
+  }
   game.standDecide({ rework: false, leak: false });
   nextDay();
   until(() => g().beat === 'countReady');
@@ -518,6 +540,7 @@ export function deskStep(seconds) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 globalThis.__autoplay = {
+  handsOn,
   beginWindow,
   endWindow,
   layoutProblems,
