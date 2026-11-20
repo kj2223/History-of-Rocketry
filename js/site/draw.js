@@ -2516,6 +2516,7 @@ export function consolePanelModel(c, g) {
         ...(c.goddard.need ? [`Orbit needs about ${c.goddard.need} km/s, level`] : []),
         `Goddard: ${c.goddard.go ? 'GO' : 'NO-GO'}`,
       );
+    if (!auto && c.insertLeft != null) P.lines.push(`Window: ${Math.max(0, Math.ceil(c.insertLeft))} s to call it`);
     if (!auto) {
       btn('m-insert', 'go', c.shift ? 'COMMIT WORKING PLAN' : 'GO FOR ORBIT', 'go');
       if (c.kind === 'flight' && c.flightId === 'gem-6') {

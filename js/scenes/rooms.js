@@ -210,6 +210,11 @@ export function live() {
       c.checking ? 'HOLD: pad crew checking' : c.poll ? 'Waiting for your call' : c.held ? 'HOLDING' : 'Counting',
     );
     gauge('ctank', countTank(), 0, 30, NORMAL_TANK);
+    // The poll's window, running down (hands-on idea 2): when it runs out, someone else makes the call.
+    set(
+      '[data-live=pollwindow]',
+      c.poll && c.pollLeft != null ? `${Math.max(0, Math.ceil(c.pollLeft))} s to call it` : '',
+    );
     readings(countChannels());
   }
 }
@@ -578,7 +583,7 @@ export const ROOMS = {
         : '';
     const pollButtons = c.poll
       ? `<div class="poll">${ask(`${c.poll === 'final' ? 'Final poll' : 'Poll'}: ${conductor ? 'your stations have reported. Are we go?' : `${g.people[countLead()].name.split(' ').at(-1)} wants your ${countPanel() === 'WAC' ? 'tank pressure and igniter circuit' : 'tank pressure'}. Go or no-go?`}`, true)}<p><strong>${c.poll === 'final' ? 'Final poll.' : 'Poll.'}</strong> ${conductor ? 'Your stations have reported. Check them against your own gauge, then make the call.' : `${esc(g.people[countLead()].name.split(' ').at(-1))} wants your ${countPanel() === 'WAC' ? "WAC stage's tank pressure and igniter circuit" : 'tank pressure'}. Read the gauge, then make your call.`}</p>
-      ${reports}<button class="go" data-act="go">GO</button><button class="danger" data-act="nogo">NO-GO: hold</button></div>`
+      ${reports}<button class="go" data-act="go">GO</button><button class="danger" data-act="nogo">NO-GO: hold</button><span class="window" data-live="pollwindow"></span></div>`
       : '';
     const holdButtons = c.checking
       ? '<p class="muted">The pad crew is out at the tower. The count recycles when they are back inside.</p>'

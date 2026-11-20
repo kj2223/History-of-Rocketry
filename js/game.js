@@ -1712,9 +1712,58 @@ export function countAnswer(go) {
     );
   }
   count.poll = null;
+  count.pollLeft = null;
   if (!go) count.held = true;
   roomChanged();
 }
+// How long a poll waits on your call, in real seconds, before someone else makes it (hands-on idea 2).
+export const POLL_WINDOW = 15;
+// The poll's window ran out without your call. On another's count the lead reads your gauge and calls it on what
+// it shows; as test conductor, PRESS calls the hold, because nobody may count on without the conductor's GO. Either way
+// it goes in the notebook, and the person who had to cover for you remembers it (world/memory.js).
+function missedPoll(count) {
+  const reading = countTank(),
+    at = Math.ceil(count.clock);
+  count.reports = null;
+  count.poll = null;
+  count.pollLeft = null;
+  if (conducting()) {
+    count.held = true;
+    say('delgado', 'Conductor, we have no call from you. PRESS is calling a hold.', 'warn');
+    note(`T-${at} s: the poll waited on your call and the window ran out. Delgado called the hold.`);
+    remember(
+      g.record,
+      g.people,
+      'delgado',
+      `At the T-${at} s poll we waited on your call, and I had to hold the count.`,
+      { tone: 'warn' },
+      g.day,
+    );
+  } else {
+    const lead = countLead(),
+      go = reading >= NORMAL_TANK[0] && reading <= NORMAL_TANK[1];
+    count.readings.push({ at: count.clock, value: reading, go, missed: true });
+    if (!go) count.held = true;
+    say(
+      lead,
+      `${countPanel()}? No answer. I'll read it myself: ${reading.toFixed(1)}. ${go ? 'Continue the count.' : 'Hold the count.'}`,
+      go ? 'warn' : 'bad',
+    );
+    note(
+      `T-${at} s: you missed the poll. ${g.people[lead].name} read your tank gauge for you (${reading.toFixed(1)} bar) and called ${go ? 'GO' : 'HOLD'}.`,
+    );
+    remember(
+      g.record,
+      g.people,
+      lead,
+      `At the T-${at} s poll I had to read your gauge for you. Be on your panel.`,
+      { tone: 'warn' },
+      g.day,
+    );
+  }
+  roomChanged();
+}
+
 export function countHold() {
   const count = g.count;
   if (count && !count.held) {
@@ -1775,7 +1824,13 @@ function tickCount(dt) {
     say(conducting() ? 'you' : 'ellis', 'Recycling to T minus seven and a half minutes.', 'warn');
     roomChanged();
   }
-  if (count.held || count.poll || count.checking) return;
+  // The clock keeps running (hands-on idea 2, Aaron 20 November 2026): a poll waits only so long for your call.
+  if (count.poll) {
+    count.pollLeft = (count.pollLeft ?? POLL_WINDOW) - dt;
+    if (count.pollLeft <= 0) missedPoll(count);
+    return;
+  }
+  if (count.held || count.checking) return;
   const rate = count.clock > 60 ? 12 : count.clock > 10 ? 3 : 1;
   count.clock = Math.max(0, count.clock - rate * dt);
   count.since += rate * dt;
@@ -1788,6 +1843,7 @@ function tickCount(dt) {
     step.act?.();
     if (step.poll) {
       count.poll = step.poll;
+      count.pollLeft = POLL_WINDOW;
       count.clock = step.at;
       if (conducting()) stationReports(count);
       roomChanged();
