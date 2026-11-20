@@ -5,8 +5,8 @@
 // oxygen's temperature and the firing bus, and the pen recorder tracing the firing. The flame, the smoke out of the
 // trench and the dust shaken off the dugout roof follow the chamber pressure. The room panel keeps only the decision.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
-import { Container, Graphics, Sprite } from '../vendor/pixi.min.mjs';
-import { g as game, kit, standChannels, stageChannels } from '../game.js';
+import { Container, Graphics, Rectangle, Sprite } from '../vendor/pixi.min.mjs';
+import { g as game, kit, standChannels, stageChannels, standMark } from '../game.js';
 import { standStructure, roundShape, skyFor, uiEra, PLACES, GROUND } from '../site/draw.js';
 import { atPlace } from '../data/white-sands.js';
 import { sceneLight, hdWanted } from './fx/hd.js';
@@ -347,15 +347,62 @@ export function dugoutScene({ leave }) {
   const recY = v => REC.y + REC.h - (Math.max(0, Math.min(30, v)) / 30) * REC.h;
   for (let v = 5; v < 30; v += 5)
     recBox.rect(REC.x, recY(v), REC.w, 1).fill({ color: 0x9fb8a8, alpha: v % 10 ? 0.5 : 0.9 });
-  if (pcBand)
-    recBox
-      .rect(REC.x, recY(pcBand[1]), REC.w, recY(pcBand[0]) - recY(pcBand[1]))
-      .fill({ color: 0x7fbf6a, alpha: 0.18 });
   const ink = new Graphics();
   const pen = new Graphics();
   const recKey = label('', 13, pal.label, { bold: true });
   recKey.position.set(REC.x + REC.w / 2, REC.y + REC.h + 22);
-  world.addChild(recBox, ink, pen, recKey);
+  // The grease pencil (hands-on idea 1, Aaron 20 November 2026): once she has shut down, drag across the paper to ring
+  // what worries you. The ring is kept as seconds and bar (game.js standMark), so it survives the scene being rebuilt.
+  const pencil = new Graphics();
+  world.addChild(recBox, ink, pen, pencil, recKey);
+  const PENCIL = 0x2d5fb0;
+  let stroke = null;
+  const local = e => e.getLocalPosition(world);
+  // An empty hit box over the paper: a drawn shape is not hit-tested while the pixel pass has it (pixelate.js).
+  const recHit = new Container();
+  recHit.eventMode = 'static';
+  recHit.hitArea = new Rectangle(REC.x, REC.y, REC.w, REC.h);
+  world.addChild(recHit);
+  recHit.on('pointerdown', e => {
+    if (g.stand?.phase !== 'read') return;
+    const p = local(e);
+    stroke = [p];
+  });
+  recHit.on('pointermove', e => {
+    if (stroke) stroke.push(local(e));
+  });
+  const finish = () => {
+    if (!stroke) return;
+    const pts = stroke;
+    stroke = null;
+    const s = g.stand,
+      trace = s?.trace;
+    if (!trace || s.phase !== 'read') return;
+    const span = trace[trace.length - 1].t;
+    let x0 = Math.min(...pts.map(p => p.x)),
+      x1 = Math.max(...pts.map(p => p.x)),
+      y0 = Math.min(...pts.map(p => p.y)),
+      y1 = Math.max(...pts.map(p => p.y));
+    // A tap rings a little round the point.
+    if (x1 - x0 < 8) ((x0 -= 8), (x1 += 8));
+    if (y1 - y0 < 8) ((y0 -= 8), (y1 += 8));
+    const T = x => Math.max(0, Math.min(span, ((x - REC.x - 4) / (REC.w - 8)) * span));
+    const V = y => ((REC.y + REC.h - y) / REC.h) * 30;
+    const t0 = T(x0),
+      t1 = T(x1);
+    const within = y => y >= y0 - 3 && y <= y1 + 3;
+    const under = trace.filter(p => p.t >= t0 && p.t <= t1);
+    standMark({
+      t0,
+      t1,
+      lo: V(y1),
+      hi: V(y0),
+      tank: under.some(p => within(recY(p.tank))),
+      chamber: under.some(p => within(recY(p.pc)) || (p.wall != null && within(recY(p.wall * 0.03)))),
+    });
+  };
+  recHit.on('pointerup', finish);
+  recHit.on('pointerupoutside', finish);
 
   // The dials: each tank, the pressurant, the chamber, the thrust, and the pump or the chamber wall.
   const short = {
@@ -517,11 +564,6 @@ export function dugoutScene({ leave }) {
         for (const p of pts) ink.lineTo(X(p.t), map(p[key]));
         ink.stroke({ width: 1.8, color });
       }
-      if (wallOn && kit().stand.wall) {
-        const y = wallY(kit().stand.wall[1]);
-        for (let x = REC.x; x < REC.x + REC.w; x += 10) ink.moveTo(x, y).lineTo(x + 5, y);
-        ink.stroke({ width: 1.4, color: 0xc98a1c });
-      }
     }
     pen.clear();
     const last = trace && shown > 0 ? trace[shown - 1] : null;
@@ -530,7 +572,23 @@ export function dugoutScene({ leave }) {
     const tank = last ? last.tank : v('tank.ox');
     if (tank != null) pen.circle(penX, recY(tank), 3.5).fill(0xb0281c);
     pen.circle(penX, recY(last ? last.pc : 0), 3.5).fill(0x1d1b17);
-    setText(recKey, `RECORDER · CHAMBER black · TANK red${wallOn ? ' · WALL amber, limit dashed' : ''}`);
+    // The pencil: the rings already made, and the one being drawn.
+    recHit.cursor = phase === 'read' ? 'crosshair' : 'default';
+    pencil.clear();
+    for (const m of (phase === 'read' || phase === 'decided') && trace ? s.marks || [] : []) {
+      const cx = (X(m.t0) + X(m.t1)) / 2,
+        cy = (recY(m.lo) + recY(m.hi)) / 2,
+        rx = Math.max(10, (X(m.t1) - X(m.t0)) / 2 + 6),
+        ry = Math.max(8, (recY(m.lo) - recY(m.hi)) / 2 + 5);
+      pencil.ellipse(cx, cy, rx, ry).stroke({ width: 3, color: PENCIL, alpha: 0.85 });
+      pencil.ellipse(cx + 2, cy - 1, rx + 2, ry - 1).stroke({ width: 1.5, color: PENCIL, alpha: 0.5 });
+    }
+    if (stroke && stroke.length > 1) {
+      pencil.moveTo(stroke[0].x, stroke[0].y);
+      for (const p of stroke) pencil.lineTo(p.x, p.y);
+      pencil.stroke({ width: 3, color: PENCIL, alpha: 0.85 });
+    }
+    setText(recKey, `RECORDER · CHAMBER black · TANK red${wallOn ? ' · WALL amber' : ''}`);
 
     // The flame: its length and brightness follow the chamber pressure, so a rough start shows as a stuttering flame.
     plume.clear();

@@ -205,12 +205,6 @@ export function blockhouseScene({ leave }) {
     const x = CX + i * (SW + 2);
     B.rect(x, RY, SW, RH, 0xf6f1e2);
     for (let gy = 1; gy < 4; gy++) B.rect(x, RY + Math.round((gy * RH) / 4), SW, 1, 0xdcd3bb);
-    if (ch.band) {
-      const y = v => RY + RH - ((v - ch.range[0]) / (ch.range[1] - ch.range[0])) * RH;
-      const top = Math.round(y(ch.band[1])),
-        bot = Math.round(y(ch.band[0]));
-      B.dith(x, top, SW, Math.max(1, bot - top), 0xf6f1e2, 0xd5ead0);
-    }
     say(ch.label.toUpperCase(), 12, pal.label, x + SW / 2, RY + RH + 3.6);
   });
   const hist = traced.map(() => []);
