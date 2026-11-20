@@ -4,8 +4,8 @@
 // temperature), the firing panel (continuity, arming, the firing bus), the range scope, and pen recorders tracing the
 // tanks. The numbers and labels are full-resolution type over the pixels; the room panel keeps only the call.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
-import { Container } from '../vendor/pixi.min.mjs';
-import { g as game, countChannels, stageChannels, conducting } from '../game.js';
+import { Container, Rectangle } from '../vendor/pixi.min.mjs';
+import { g as game, countChannels, stageChannels, conducting, pressValve, pressByHand } from '../game.js';
 import { uiEra } from '../site/draw.js';
 import { paintPad } from './pixel-pad.js';
 import { hdLayer, hdWanted } from './fx/hd.js';
@@ -319,6 +319,14 @@ export function blockhouseScene({ leave }) {
   back.commit();
 
   // ---- the way out ----
+  // The press valve (hands-on idea 4): in the terminal count, press and hold on the PRESS panel to top the tanks up.
+  // An empty hit box over the panel, since drawn shapes are not hit-tested while the pixel pass has them (pixelate.js).
+  const valveHit = new Container();
+  valveHit.eventMode = 'static';
+  valveHit.hitArea = new Rectangle(stX(1) * PX, FACE_Y * PX, ST_W * PX, FACE_H * PX);
+  valveHit.on('pointerdown', () => pressValve(true));
+  for (const ev of ['pointerup', 'pointerupoutside', 'pointerleave']) valveHit.on(ev, () => pressValve(false));
+  world.addChild(valveHit);
   const out = outButton(leave);
   root.addChild(out);
 
@@ -359,6 +367,7 @@ export function blockhouseScene({ leave }) {
 
     const c = g.count,
       t = g.time;
+    valveHit.cursor = pressByHand() ? 'pointer' : 'default';
     const read = c ? countChannels() : null;
     const v = id => (read ? read[id] : null);
     setText(

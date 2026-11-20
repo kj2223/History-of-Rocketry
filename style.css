@@ -530,3 +530,12 @@ body.title-scene > :not(#stage):not(#title):not(#dev):not(#bug-note) { visibilit
 body.title-scene #title { background: radial-gradient(ellipse at 50% 55%, rgba(11,15,20,.28) 0%, rgba(11,15,20,.45) 55%, rgba(11,15,20,.7) 100%); }
 body.title-scene .title-mode { background: rgba(20,24,30,.9); box-shadow: 0 6px 24px rgba(0,0,0,.5); }
 body.title-scene .title-sheet h1 { text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+/* The firing panel's switches in the dugout (hands-on idea 4): toggles that light when thrown, then the key. */
+#room .switches { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin-bottom: .3rem; }
+#room .switch { font-family: var(--mono); background: #2a2c2e; color: #c9c2b0; border: 2px solid #55534a; border-radius: 3px; }
+#room .switch::before { content: ''; display: inline-block; width: .55em; height: .55em; margin-right: .45em; border-radius: 50%; background: #3a3226; }
+#room .switch.on { color: #f3e7c4; border-color: #e8a63c; }
+#room .switch.on::before { background: #e8a63c; box-shadow: 0 0 5px rgba(232,166,60,.7); }
+#room .key[disabled] { opacity: .45; cursor: not-allowed; }
+#room .valve { font-family: var(--mono); background: #2c3a30; border: 2px solid #6fc88a; color: #d9f0de; user-select: none; touch-action: none; }
+#room .valve:active { background: #4a7a58; }

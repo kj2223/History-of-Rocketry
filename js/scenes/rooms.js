@@ -13,6 +13,12 @@ import {
   standChannels,
   standDecide,
   standWipe,
+  pressValve,
+  pressByHand,
+  standSwitch,
+  standPanelOpen,
+  standArmed,
+  STAND_SWITCHES,
   standMarked,
   countStart,
   countTank,
@@ -521,11 +527,14 @@ export const ROOMS = {
       walled = s.burn === 'long' && !!kit().stand.wall,
       tape = kit().stand.tape,
       marked = standMarked();
+    standPanelOpen(); // sitting down at the panel puts its switches in your hands (hands-on idea 4)
     const leakWhere = tape ? ' the stage in the hangar' : '';
     const asks = {
       ready: tape
         ? 'The tapes are on the recorder. Run them, or leak-check first?'
-        : 'The stage is on the stand. Start the count, or leak-check first?',
+        : s.switches
+          ? 'Throw the panel switches in order, then turn the firing key. Or leak-check first.'
+          : 'The stage is on the stand. Start the count, or leak-check first?',
       count: tape
         ? 'Watch the needles against the red-line card. Stop the tape if you need to.'
         : 'Watch the needles against the red-line card. The hold is yours.',
@@ -534,7 +543,11 @@ export const ROOMS = {
         : 'Holding. Resume, or send the crew to leak-check?',
     };
     const buttons = {
-      ready: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape' : 'Start the firing count'}</button><button data-act="stand-leak">Send the crew to leak-check${leakWhere} first (2 h)</button>`,
+      ready: `${
+        s.switches
+          ? `<div class="switches">${STAND_SWITCHES.map(([k, name]) => `<button class="switch${s.switches[k] ? ' on' : ''}" data-act="stand-switch" data-id="${k}" aria-pressed="${s.switches[k]}">${esc(name)}</button>`).join('')}<button class="primary key" data-act="stand-start"${standArmed() ? '' : ' disabled'}>Firing key: start the count</button></div>`
+          : `<button class="primary" data-act="stand-start">${tape ? 'Run the tape' : 'Start the firing count'}</button>`
+      }<button data-act="stand-leak">Send the crew to leak-check${leakWhere} first (2 h)</button>`,
       count: `<button class="danger" data-act="stand-hold">${tape ? 'Stop the tape' : 'HOLD'}</button>`,
       held: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape on' : 'Resume the count'}</button><button data-act="stand-leak">Send the crew to leak-check${leakWhere} (2 h)</button>`,
       leakcheck:
@@ -589,9 +602,11 @@ export const ROOMS = {
       ? '<p class="muted">The pad crew is out at the tower. The count recycles when they are back inside.</p>'
       : c.held && !c.poll
         ? `${ask('Holding. Resume the count, or send the pad crew to look for a leak?')}<button class="primary" data-act="resume">Resume the count</button><button data-act="count-leak">Send the pad crew to look for a leak</button>`
-        : !c.poll
-          ? `${ask('Counting. You can call a hold at any time.')}<button class="danger" data-act="hold">HOLD</button>`
-          : '';
+        : !c.poll && pressByHand()
+          ? `${ask('Terminal count. Keep your tank inside its red lines: hold the press valve open to top it up.')}<button class="valve" data-hold="press">Press valve (hold)</button><button class="danger" data-act="hold">HOLD</button>`
+          : !c.poll
+            ? `${ask('Counting. You can call a hold at any time.')}<button class="danger" data-act="hold">HOLD</button>`
+            : '';
     return `<h2>Blockhouse: the count</h2>
       <p>${
         conductor
@@ -820,6 +835,12 @@ function recordLine(r, inline = false) {
 export function bindRoom(handlers) {
   hooks = handlers;
   const el = panel();
+  // The press valve is held open, not clicked (hands-on idea 4): open while the pointer is down on it.
+  el.addEventListener('pointerdown', e => {
+    if (e.target.closest('[data-hold=press]')) pressValve(true);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel'])
+    el.addEventListener(ev, () => g.count?.valve && pressValve(false));
   el.addEventListener('click', e => {
     const b = e.target.closest('[data-act]');
     if (!b) return;
@@ -841,6 +862,7 @@ export function bindRoom(handlers) {
       'stand-hold': standHold,
       'stand-leak': standLeakCheck,
       'stand-wipe': standWipe,
+      'stand-switch': () => standSwitch(id),
       'stand-decide': () => {
         const c = {};
         el.querySelectorAll('[data-choice]').forEach(n => {

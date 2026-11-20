@@ -529,7 +529,7 @@ export function dugoutScene({ leave }) {
       !s
         ? ''
         : {
-            ready: 'STAGE PRESSURISED',
+            ready: s.switches && !s.switches.press ? 'PANEL SAFE' : 'STAGE PRESSURISED',
             count: 'FIRING COUNT',
             held: 'COUNT HELD',
             leakcheck: 'CREW ON THE STAND',
@@ -538,8 +538,18 @@ export function dugoutScene({ leave }) {
             decided: 'SHUT DOWN',
           }[phase] || '',
     );
-    lamps.press.update(!!s && ['ready', 'held', 'count', 'leakcheck', 'firing'].includes(phase));
-    lamps.igniter.update(!!read && !!read.igniter && ['ready', 'held', 'count', 'firing'].includes(phase));
+    const sw = s?.switches; // the panel's switches, once you are at it (hands-on idea 4)
+    lamps.press.update(
+      !!s &&
+        ['ready', 'held', 'count', 'leakcheck', 'firing'].includes(phase) &&
+        (!sw || phase !== 'ready' || sw.press),
+    );
+    lamps.igniter.update(
+      !!read &&
+        !!read.igniter &&
+        ['ready', 'held', 'count', 'firing'].includes(phase) &&
+        (!sw || phase !== 'ready' || sw.arm),
+    );
     lamps.fire.update(firing);
     lamps.hold.update(phase === 'held' && Math.sin(t * 6) > -0.3);
     for (const [id, d] of dials) d.update(v(id), dt);

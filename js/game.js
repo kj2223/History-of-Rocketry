@@ -1388,8 +1388,54 @@ export function finishBoard() {
 }
 
 // ---- The static fire, run by the player from the dugout ----
+// The firing panel's switches (hands-on idea 4, Aaron 20 November 2026): master power, pressurise, igniter arm, in that
+// order, then the firing key starts the count. They come into play when you sit down at the panel (standPanelOpen); a
+// count started any other way (the bot, a tape) throws them all at once. A switch out of order safes the panel: every
+// switch back off, and ten minutes lost while the crew checks the stage, as any wrong sequence on a live stage did.
+export const STAND_SWITCHES = [
+  ['power', 'Master power'],
+  ['press', 'Pressurise'],
+  ['arm', 'Igniter arm'],
+];
+export function standPanelOpen() {
+  const s = g.stand;
+  if (s && s.phase === 'ready' && !s.switches && !kit().stand.tape)
+    s.switches = { power: false, press: false, arm: false };
+}
+// Who answers your switches at the panel: the one with the final say, or PRESS when that is you.
+const panelVoice = () => (conducting() ? 'delgado' : countLead());
+export function standSwitch(id) {
+  const s = g.stand,
+    sw = s?.switches;
+  if (!sw || s.phase !== 'ready' || !(id in sw)) return;
+  const i = STAND_SWITCHES.findIndex(([k]) => k === id);
+  if (sw[id]) {
+    // Back off, from the top of the order down only: you cannot drop power under a pressurised, armed stage.
+    if (STAND_SWITCHES.slice(i + 1).some(([k]) => sw[k])) return;
+    sw[id] = false;
+  } else if (STAND_SWITCHES.slice(0, i).every(([k]) => sw[k])) {
+    sw[id] = true;
+    say(
+      panelVoice(),
+      { power: 'Master power on.', press: 'Pressurising.', arm: 'Igniter armed. Key is yours.' }[id],
+      id === 'arm' ? 'go' : '',
+    );
+  } else {
+    for (const k of Object.keys(sw)) sw[k] = false;
+    s.pressurised = 0;
+    g.clock += 10;
+    say(panelVoice(), 'Wrong order! Safe the panel. Everything off.', 'bad');
+    note(
+      `At the firing panel you threw ${STAND_SWITCHES[i][1].toLowerCase()} out of order. The panel was safed and the stage checked: ten minutes lost.`,
+    );
+  }
+  roomChanged();
+}
+export const standArmed = () => !g.stand?.switches || Object.values(g.stand.switches).every(Boolean);
+
 export function standStart() {
   const s = g.stand;
+  if (s.switches && s.phase === 'ready' && !standArmed()) return; // the key does nothing on an unarmed panel
   if (s.phase === 'ready' || s.phase === 'held') {
     s.phase = 'count';
     roomChanged();
@@ -1601,9 +1647,44 @@ export function countStart() {
           : 'Take part in the count. Answer your polls from the PRESS panel, and call a hold if anything looks wrong.',
   );
 }
-export const countTank = () => tankGauge(g.round, g.count.since);
+export const countTank = () => tankGauge(g.round, g.count.since) + (g.count.trim || 0);
 // Every channel the blockhouse could read during the count (js/truth/channels.js); its leaking tank reads as countTank.
-export const countChannels = () => countReadings(g.round, g.count.since);
+export const countChannels = () => {
+  const r = countReadings(g.round, g.count.since),
+    trim = g.count.trim || 0;
+  if (trim) for (const id of ['tank.ox', 'tank.fuel']) if (typeof r[id] === 'number') r[id] += trim;
+  return r;
+};
+
+// The press valve in the terminal count (hands-on idea 4, Aaron 20 November 2026). From the final poll to the firing,
+// the tanks are topped up by hand from PRESS: the pressure bleeds away and you hold the valve open to bring it back.
+// Only when you are at PRESS in the blockhouse; otherwise the regulator holds it, as before. Out of limits for four
+// seconds running and the count is held, the way a test conductor holds for a PRESS reading out of limits.
+export const PRESS = { bleed: 0.12, fill: 0.6, out: 4 };
+export const pressByHand = () =>
+  !!g.count && g.room === 'count' && !conducting() && g.count.clock <= 120 && !g.count.poll;
+export function pressValve(open) {
+  if (g.count) g.count.valve = !!open && pressByHand();
+}
+function tickPress(count, dt) {
+  if (!pressByHand() || count.held || count.checking) return;
+  count.trim = (count.trim || 0) + ((count.valve ? PRESS.fill : 0) - PRESS.bleed) * dt;
+  const reading = countTank(),
+    inBand = reading >= NORMAL_TANK[0] && reading <= NORMAL_TANK[1];
+  if (!inBand && !count.outFor) say(countLead(), `PRESS, watch your tank: ${reading.toFixed(1)}.`, 'warn');
+  count.outFor = inBand ? 0 : (count.outFor || 0) + dt;
+  if (count.outFor >= PRESS.out) {
+    count.held = true;
+    count.valve = false;
+    count.outFor = 0;
+    count.trim = 0; // the crew bring her back to pressure in the hold
+    say(countLead(), `PRESS, your tank is at ${reading.toFixed(1)}. Out of limits. Hold the count!`, 'bad');
+    note(
+      `T-${Math.ceil(count.clock)} s: the tank you were topping up read ${reading.toFixed(1)} bar, out of limits; the count was held.`,
+    );
+    roomChanged();
+  }
+}
 // The channels the stage carries (labels, units, green bands), and how a value sits against its band.
 export const stageChannels = () => channelsFor(g.round);
 export { bandOf };
@@ -1830,6 +1911,7 @@ function tickCount(dt) {
     if (count.pollLeft <= 0) missedPoll(count);
     return;
   }
+  tickPress(count, dt);
   if (count.held || count.checking) return;
   const rate = count.clock > 60 ? 12 : count.clock > 10 ? 3 : 1;
   count.clock = Math.max(0, count.clock - rate * dt);
@@ -2559,7 +2641,9 @@ export function tick(dt) {
 
 function tickStand(dt) {
   const s = g.stand;
-  if (s.phase === 'ready' || s.phase === 'held' || s.phase === 'count') s.pressurised = (s.pressurised || 0) + dt * 6;
+  const pressing = !s.switches || s.switches.press; // with the panel in play, only the pressurise switch pressurises
+  if ((s.phase === 'ready' || s.phase === 'held' || s.phase === 'count') && pressing)
+    s.pressurised = (s.pressurised || 0) + dt * 6;
   if (s.phase === 'count') {
     s.clock -= dt;
     if (s.clock <= 0) {
