@@ -66,8 +66,8 @@ export const setText = (t, s) => {
   if (t.text !== s) t.text = s;
 };
 
-// A round dial: cream face, the channel's green band, ticks, the needle, the reading under it. ch: a channel from
-// js/truth/channels.js (via game.js): label, unit, band, range.
+// A round dial: cream face, ticks, the needle, the reading under it. ch: a channel from js/truth/channels.js (via
+// game.js): label, unit, range. No green band: the limits are on the red-line card (js/scenes/redlines.js).
 export function dial(ch, r, pal, short = ch.label) {
   const c = new Container();
   const [min, max] = ch.range;
@@ -75,11 +75,6 @@ export function dial(ch, r, pal, short = ch.label) {
   const face = new Graphics();
   face.circle(0, 0, r + 5).fill(0x2a2a24);
   face.circle(0, 0, r).fill(pal.dial);
-  if (ch.band)
-    face
-      .moveTo(Math.cos(ang(ch.band[0])) * (r - 7), Math.sin(ang(ch.band[0])) * (r - 7))
-      .arc(0, 0, r - 7, ang(ch.band[0]), ang(ch.band[1]))
-      .stroke({ width: Math.max(4, r * 0.13), color: pal.band });
   for (let i = 0; i <= 10; i++) {
     const a = Math.PI * 0.75 + (i / 10) * Math.PI * 1.5,
       big = i % 5 === 0;

@@ -12,6 +12,8 @@ import {
   standTank,
   standChannels,
   standDecide,
+  standWipe,
+  standMarked,
   countStart,
   countTank,
   countChannels,
@@ -71,6 +73,7 @@ import { textOf as ledgerTextOf } from '../world/ledger.js';
 import { dayOf as flowDayOf, rehearsalSteps } from '../world/flow.js';
 import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control.js';
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
+import { updateRedlines } from './redlines.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
 import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
@@ -159,6 +162,7 @@ export function render() {
 
 // Gauges and traces that move every frame.
 export function live() {
+  updateRedlines();
   if (!g.room) return;
   controlLive();
   lunarLive();
@@ -510,15 +514,16 @@ export const ROOMS = {
     const s = g.stand,
       p = s.phase,
       walled = s.burn === 'long' && !!kit().stand.wall,
-      tape = kit().stand.tape;
+      tape = kit().stand.tape,
+      marked = standMarked();
     const leakWhere = tape ? ' the stage in the hangar' : '';
     const asks = {
       ready: tape
         ? 'The tapes are on the recorder. Run them, or leak-check first?'
         : 'The stage is on the stand. Start the count, or leak-check first?',
       count: tape
-        ? 'Watch the tank pressure. Stop the tape if it looks wrong.'
-        : 'Watch the tank pressure. Hold if it looks wrong.',
+        ? 'Watch the needles against the red-line card. Stop the tape if you need to.'
+        : 'Watch the needles against the red-line card. The hold is yours.',
       held: tape
         ? 'The tape is stopped. Run it on, or leak-check?'
         : 'Holding. Resume, or send the crew to leak-check?',
@@ -530,9 +535,10 @@ export const ROOMS = {
       leakcheck:
         '<p class="muted">The crew is on the stand checking every line. Watch them through the slit, or wait.</p>',
       firing: '<p class="muted">Firing…</p>',
-      read: `${ask('Read the trace. What do you want done before this stage flies?', true, true)}
-        <label><input type="checkbox" data-choice="rework"> ${esc(kit().stand.rework)} (8 hours: the launch slips a day)</label>
-        <label><input type="checkbox" data-choice="leak"> Leak-check the feed system (2 hours)</label>
+      read: `${ask('Read the trace against the red-line card. Ring anything wrong on the recorder with the grease pencil (drag across it).', true, true)}
+        <label><input type="checkbox" data-choice="rework"${marked.rework ? ' checked' : ''}> ${esc(kit().stand.rework)} (8 hours: the launch slips a day)</label>
+        <label><input type="checkbox" data-choice="leak"${marked.leak ? ' checked' : ''}> Leak-check the feed system (2 hours)</label>
+        ${s.marks?.length ? '<button data-act="stand-wipe">Wipe the pencil off</button>' : ''}
         <button class="primary" data-act="stand-decide">${conducting() ? 'Make it so' : `Give your recommendation to ${esc(g.people[countLead()].name.split(' ').at(-1))}`}</button>`,
       decided: '<p class="muted">Done. The crew is taking the stage back to the hangar.</p>',
       loose: '<p class="danger-text">She broke loose from the stand.</p>',
@@ -829,6 +835,7 @@ export function bindRoom(handlers) {
       'stand-start': standStart,
       'stand-hold': standHold,
       'stand-leak': standLeakCheck,
+      'stand-wipe': standWipe,
       'stand-decide': () => {
         const c = {};
         el.querySelectorAll('[data-choice]').forEach(n => {

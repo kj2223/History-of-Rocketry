@@ -1446,8 +1446,35 @@ export function standChannels() {
   return countReadings(g.round, s.pressurised || 0);
 }
 
+// The grease pencil on the dugout's recorder (hands-on idea 1, Aaron 20 November 2026): after the firing the player
+// rings what worries them on the trace. mark: { t0, t1, lo, hi } in seconds and bar, and which lines the ring took in,
+// tank and chamber, worked out by the scene from what it drew. A ring round the tank line asks for a leak check, a ring
+// round the chamber (or its wall) for the rework: the strip's boxes follow the pencil, and the player can still untick.
+export function standMark(mark) {
+  const s = g.stand;
+  if (!s || s.phase !== 'read' || (!mark.tank && !mark.chamber)) return;
+  (s.marks ||= []).push(mark);
+  roomChanged();
+}
+export function standWipe() {
+  const s = g.stand;
+  if (s && s.phase === 'read' && s.marks?.length) {
+    s.marks = [];
+    roomChanged();
+  }
+}
+// What the pencil asks for, as the strip's boxes: { rework, leak }.
+export const standMarked = () => ({
+  rework: !!g.stand?.marks?.some(m => m.chamber),
+  leak: !!g.stand?.marks?.some(m => m.tank),
+});
+
 export function standDecide(choices) {
   const s = g.stand;
+  for (const m of s.marks || [])
+    note(
+      `You ringed the ${[m.chamber && 'chamber', m.tank && 'tank'].filter(Boolean).join(' and ')} trace in grease pencil, from ${m.t0.toFixed(1)} to ${m.t1.toFixed(1)} s.`,
+    );
   g.decided = { ...g.decided, ...choices };
   let hours = 0;
   const st = kit().stand;
@@ -2426,6 +2453,7 @@ function tickStand(dt) {
     if (s.clock <= 0) {
       s.phase = 'firing';
       s.shown = 0;
+      s.marks = [];
       const r = staticFire(g.round, s.burn);
       s.trace = r.trace;
       s.steady = r.steady;

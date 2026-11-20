@@ -191,7 +191,9 @@ function inside(pts, x, y) {
 
 // ---- pieces every pixel scene draws with ----
 
-// A dial face: dark rim, cream face, the channel's green band, ticks. The needle is drawn live with dialNeedle().
+// A dial face: dark rim, cream face, ticks. No green band: the limits are on the red-line card (js/scenes/redlines.js),
+// and reading the needle against them is the player's job (hands-on idea 1, Aaron 20 November 2026). The needle is
+// drawn live with dialNeedle().
 // ang(v) maps a reading to an angle over 270 degrees, as the full-resolution dials did.
 export function dialAngle(ch) {
   const [min, max] = ch.range;
@@ -200,13 +202,6 @@ export function dialAngle(ch) {
 export function dialFace(P, cx, cy, r, ch, face = 0xefe6cf, ink = 0x4a4236) {
   P.circ(cx, cy, r + 1, 0x151412);
   P.circ(cx, cy, r, face);
-  const ang = dialAngle(ch);
-  if (ch.band) {
-    const a0 = ang(ch.band[0]),
-      a1 = ang(ch.band[1]);
-    for (let a = a0; a <= a1; a += 0.04)
-      P.px(cx + Math.round((r - 1.5) * Math.cos(a)), cy + Math.round((r - 1.5) * Math.sin(a)), 0x58b46a);
-  }
   for (let i = 0; i <= 10; i += r >= 9 ? 1 : 2) {
     const a = Math.PI * 0.75 + (i / 10) * Math.PI * 1.5;
     P.px(cx + Math.round((r - 0.5) * Math.cos(a)), cy + Math.round((r - 0.5) * Math.sin(a)), ink);
