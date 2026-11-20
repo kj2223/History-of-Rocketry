@@ -11,6 +11,11 @@ import { PAD_KINDS, VEHICLE_NAMES } from './manifest.js';
 const PREP = 2; // a round opens two days before its launch, as in the campaign (js/data/campaign.js)
 
 export const padFits = (pad, vehicle) => PAD_KINDS[pad.kind]?.vehicles.includes(vehicle) ?? false;
+// A pad's turnaround: its kind's, or its own when upgrades have changed it (build.js).
+export const turnaround = pad => ({
+  before: pad.before ?? PAD_KINDS[pad.kind].before,
+  after: pad.after ?? PAD_KINDS[pad.kind].after,
+});
 const vehicleName = v => VEHICLE_NAMES[v] ?? v;
 
 // The first launch day on or after `day` whose booking fits around the pad's other bookings.
@@ -53,7 +58,7 @@ export function schedule(plan, { from = -Infinity, site = 'cape' } = {}) {
   const bookings = Object.fromEntries(plan.pads.map(p => [p.id, []])),
     flights = [],
     unplaced = [];
-  const earliest = f => p => Math.max(f.planned, from, (f.ready ?? -Infinity) + PAD_KINDS[p.kind].before);
+  const earliest = f => p => Math.max(f.planned, from, (f.ready ?? -Infinity) + turnaround(p).before);
   // Flights that can go soonest are booked first.
   const soonest = f => Math.max(f.planned, from, f.ready ?? -Infinity);
   const order = [...plan.flights].sort(
@@ -74,12 +79,21 @@ export function schedule(plan, { from = -Infinity, site = 'cape' } = {}) {
       unplaced.push({ ...f, why: `there is no pad for a ${vehicleName(f.vehicle)}` });
       continue;
     }
-    const when = p => fit(bookings[p.id], earliest(f)(p), PAD_KINDS[p.kind], f.window);
+    const when = p => fit(bookings[p.id], earliest(f)(p), turnaround(p), f.window);
     const pad = pads.reduce((best, p) => (when(p) < when(best) ? p : best));
     const launch = when(pad),
-      kind = PAD_KINDS[pad.kind];
+      kind = turnaround(pad);
     bookings[pad.id].push({ from: launch - kind.before, to: launch + kind.after - 1 }); // busy days, inclusive
-    flights.push({ ...f, site, pad: pad.id, launch, start: launch - PREP, slip: launch - f.planned });
+    // onPad: the first day the vehicle stands on its pad.
+    flights.push({
+      ...f,
+      site,
+      pad: pad.id,
+      launch,
+      start: launch - PREP,
+      onPad: launch - kind.before,
+      slip: launch - f.planned,
+    });
   }
   flights.sort((a, b) => a.launch - b.launch || a.id.localeCompare(b.id));
   return { flights, unplaced };

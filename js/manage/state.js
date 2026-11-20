@@ -5,6 +5,7 @@
 import { dayOf, dateLabel } from '../core/calendar.js';
 import { checkPressure } from './pressure.js';
 import { checkProgrammes } from './programmes.js';
+import { checkBuilding } from './build.js';
 
 export const START_DAY = dayOf(1958, 10, 1); // NASA opens its doors
 // How long one game day lasts at normal speed, in real seconds (Aaron, 19 Nov 2026: about 10, to be tuned later).
@@ -32,6 +33,7 @@ export function checkManagement(c) {
     throw new Error('bad flight record');
   checkPressure(c.pressure); // optional: games saved before promises load without it
   checkProgrammes(c.programmes); // optional, likewise
+  checkBuilding(c);
   if (
     c.committed !== undefined &&
     !(c.committed && typeof c.committed === 'object' && Object.values(c.committed).every(Number.isInteger))

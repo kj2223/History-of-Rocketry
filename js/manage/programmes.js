@@ -13,6 +13,7 @@
 // Pure functions over the saved game: game.programmes = { id: { status, lag, started?, squeeze?: { fy, days } } }.
 import { CAPE_1958, VEHICLE_NAMES } from './manifest.js';
 import { gameSchedule } from './schedule.js';
+import { padsOf } from './build.js';
 import { lines } from './budget.js';
 import { STANDING_LIMIT } from './pressure.js';
 
@@ -118,7 +119,7 @@ export function planFor(game) {
       });
     }
   }
-  return { pads: CAPE_1958.pads, flights };
+  return { pads: padsOf(game), flights };
 }
 
 // The game's schedule on its current day.

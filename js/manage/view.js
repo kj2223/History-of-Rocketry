@@ -4,7 +4,7 @@
 // pads in the weeks before they fly and lift off at noon on the day; the clock drops to normal speed for a launch day
 // so it is never missed. The day after, the flight's report comes in and goes on the record.
 import { paintBase, paintRockets, tileAt, ART } from './paint.js';
-import { CAPE_1958_BASE, CAPE_1958_ROADS, PREFABS, buildingAt } from './base.js';
+import { CAPE_1958_ROADS, PREFABS, buildingAt } from './base.js';
 import { CAPE_1958, PAD_KINDS, VEHICLE_NAMES } from './manifest.js';
 import {
   PROGRAMMES,
@@ -27,6 +27,17 @@ import { appropriation, lines, resplit, money, DEFAULT_SPLIT } from './budget.js
 import { announce, settle, news, standingText, watched } from './pressure.js';
 import { staffing, candidate } from './people.js';
 import { baseLife } from './life.js';
+import {
+  baseOf,
+  openPlots,
+  BUILDS,
+  UPGRADES,
+  startBuilding,
+  startFitting,
+  advanceBuilding,
+  buildNeed,
+  buildCover,
+} from './build.js';
 import { drawWorks } from './construction.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -69,8 +80,8 @@ const days = n => (n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`);
 export function standsOn(sched, base, day, part = 0) {
   return sched.flights
     .filter(f => {
-      const kind = PAD_KINDS[base.find(b => b.id === f.pad)?.padKind];
-      return kind && day >= f.launch - kind.before && day <= f.launch;
+      const pad = base.find(b => b.id === f.pad);
+      return pad && day >= (f.onPad ?? f.launch - PAD_KINDS[pad.padKind].before) && day <= f.launch;
     })
     .map(f => ({
       pad: base.find(b => b.id === f.pad),
@@ -104,12 +115,12 @@ export const recordLine = flown => {
 };
 
 export function startBaseView(el, game, { save, back }) {
-  const base = CAPE_1958_BASE,
-    still = art(),
+  const still = art(),
     live = art();
-  let sched = programmeSchedule(game, START_DAY);
+  let base = baseOf(game), // the 1958 Cape and everything finished since (build.js)
+    sched = programmeSchedule(game, START_DAY);
   paintBase(still.ctx, base, CAPE_1958_ROADS);
-  const life = baseLife(base, CAPE_1958_ROADS); // the day turning, people and trucks, smoke (life.js)
+  let life = baseLife(base, CAPE_1958_ROADS); // the day turning, people and trucks, smoke (life.js)
   el.innerHTML = `<div class="mg-bar">
       <strong class="mg-date" data-live="date"></strong>
       <span class="mg-speed">
@@ -118,6 +129,7 @@ export function startBaseView(el, game, { save, back }) {
       </span>
       <span data-live="next" class="mg-next"></span>
       <button data-act="programmes" title="Start, slow or stop programmes (G)">Programmes</button>
+      <button data-act="build" title="New pads, buildings and upgrades (C)">Build</button>
       <button data-act="budget" title="The year's money (B)">Budget</button>
       <button data-act="people" title="Your heads (P)">People</button>
       <button data-act="reports" title="Every flight's report (R)">Reports</button>
@@ -140,7 +152,7 @@ export function startBaseView(el, game, { save, back }) {
     zoom = 0,
     cam = null,
     selected = null,
-    showing = null, // the panel: null (the manifest), 'reports', 'budget', 'people' or 'programmes'
+    showing = null, // the panel: null (the manifest), 'reports', 'budget', 'people', 'programmes' or 'build'
     drag = null,
     running = true,
     log = [],
@@ -246,6 +258,61 @@ export function startBaseView(el, game, { save, back }) {
       .join('')}<p><button data-act="programmes">Close</button></p>`;
   }
 
+  // What the works under way need from the Building line this year, and whether it covers them.
+  function buildNeedText() {
+    const need = buildNeed(game, game.budget, START_DAY),
+      cover = buildCover(game, game.budget, START_DAY);
+    if (!need) return '<p class="muted">Nothing is being built.</p>';
+    return `<p>The works under way need ${esc(money(need))} this year.${
+      cover < 1
+        ? ` <span class="mg-warn">The Building line covers ${Math.floor(cover * 100)}% of it, so the work goes slower.</span>`
+        : ' The Building line covers it.'
+    }</p>`;
+  }
+  const pct = p => `${Math.floor(p * 100)}%`;
+  const months = d => `about ${Math.round(d / 30)} months`;
+  const cap = t => t[0].toUpperCase() + t.slice(1);
+
+  // A pad's upgrades: fitted, being fitted, or a button to fit.
+  function upgradesOf(pad) {
+    const fitted = game.fitted?.[pad.id] ?? [],
+      fitting = (game.fitting ?? []).filter(f => f.pad === pad.id);
+    return `<p class="muted">Turnaround: ${pad.before} days on the pad before a launch, ${pad.after} after.</p><ul class="mg-upgrades">${Object.entries(
+      UPGRADES,
+    )
+      .map(([slot, u]) => {
+        const doing = fitting.find(f => f.slot === slot);
+        return `<li>${esc(cap(u.name))}: ${
+          fitted.includes(slot)
+            ? 'fitted'
+            : doing
+              ? `being fitted, ${pct(doing.progress)}`
+              : `${esc(u.text)}. <button data-act="fit" data-pad="${esc(pad.id)}" data-slot="${slot}" title="${esc(money(u.cost))}, ${months(u.days)}">Fit, ${esc(money(u.cost))}</button>`
+        }</li>`;
+      })
+      .join('')}</ul>`;
+  }
+
+  function buildPanel() {
+    const going = (game.works ?? [])
+      .map(w => `<li>${esc(w.name)}: ${esc(BUILDS[w.padKind ?? w.kind].name)}, ${pct(w.progress)} done</li>`)
+      .join('');
+    const plots = openPlots(game)
+      .map(
+        p =>
+          `<div class="mg-post"><b>${esc(p.name)}</b> <span class="muted">open ground</span><p>${p.kinds
+            .map(k => {
+              const b = BUILDS[k];
+              return `<button data-act="build-on" data-plot="${p.id}" data-what="${k}" title="${esc(b.text ?? `${months(b.days)} with the money there`)}">${esc(cap(b.name))}, ${esc(money(b.cost))}</button>`;
+            })
+            .join(' ')}</p></div>`,
+      )
+      .join('');
+    return `<h3>Build</h3>${buildNeedText()}${going ? `<p><b>Going up</b></p><ul>${going}</ul>` : ''}${
+      plots || '<p class="muted">Every plot is taken.</p>'
+    }<p class="muted">Click a pad on the map to fit it with upgrades.</p><p><button data-act="build">Close</button></p>`;
+  }
+
   function peoplePanel() {
     return `<h3>People</h3>${staffing(game.heads, game.day, [...sched.flown, ...sched.flights])
       .map(p => {
@@ -265,6 +332,7 @@ export function startBaseView(el, game, { save, back }) {
     if (showing === 'budget') return budgetPanel();
     if (showing === 'people') return peoplePanel();
     if (showing === 'programmes') return programmesPanel();
+    if (showing === 'build') return buildPanel();
     if (showing === 'reports') {
       const flown = [...(game.flown ?? [])].reverse(),
         all = allFlights(game);
@@ -289,7 +357,11 @@ export function startBaseView(el, game, { save, back }) {
             ? `<p>${flights.map(f => `${esc(f.name)}: ${esc(dateLabel(f.launch))}`).join('<br>') || 'Nothing on the manifest for this pad.'}</p>`
             : ''
         }
-        <p class="muted">Later it can be fitted with ${esc(list(PREFABS[b.kind].slots.map(s => SLOT_NAMES[s] ?? s)))}.</p>
+        ${
+          b.kind === 'pad'
+            ? upgradesOf(b)
+            : `<p class="muted">Later it can be fitted with ${esc(list(PREFABS[b.kind].slots.map(s => SLOT_NAMES[s] ?? s)))}.</p>`
+        }
         <p><button data-act="deselect">Back to the manifest</button></p>`;
     }
     return `<h3>The manifest</h3><ol>${sched.flights
@@ -323,7 +395,7 @@ export function startBaseView(el, game, { save, back }) {
     $('[data-act=pause]').classList.toggle('on', paused);
     const n = game.flown?.length ?? 0;
     $('.mg-bar [data-act=reports]').textContent = n ? `Reports (${n})` : 'Reports';
-    for (const k of ['reports', 'budget', 'people', 'programmes'])
+    for (const k of ['reports', 'budget', 'people', 'programmes', 'build'])
       $(`.mg-bar [data-act=${k}]`).classList.toggle('on', showing === k);
     const empty = staffing(game.heads, game.day, [...sched.flown, ...sched.flights]).filter(
       p => p.open && !p.head,
@@ -345,6 +417,16 @@ export function startBaseView(el, game, { save, back }) {
     const year = ensureBudget();
     // The programmes' day: slowed, stopped or short of money, their dates fall back. Then the dates are worked out again.
     log.push(...advanceProgrammes(game, game.budget, START_DAY));
+    // The day's building. Anything finished joins the base, is painted in and can be scheduled from today.
+    const finished = advanceBuilding(game, game.budget, START_DAY);
+    if (finished.length) {
+      log.push(...finished);
+      base = baseOf(game);
+      paintBase(still.ctx, base, CAPE_1958_ROADS);
+      life = baseLife(base, CAPE_1958_ROADS);
+      lastDrawnDay = null;
+      if (selected) selected = base.find(b => b.id === selected.id) ?? null;
+    }
     sched = programmeSchedule(game, START_DAY);
     commitOpen(game, sched);
     // A launch day plays at normal speed, so the liftoff is never skipped past.
@@ -513,12 +595,22 @@ export function startBaseView(el, game, { save, back }) {
     if (!b) return;
     if (b.dataset.act === 'title') return back();
     if (b.dataset.act === 'pause') paused = !paused;
-    for (const k of ['reports', 'budget', 'people', 'programmes'])
+    for (const k of ['reports', 'budget', 'people', 'programmes', 'build'])
       if (b.dataset.act === k) {
         showing = showing === k ? null : k;
         selected = null;
       }
     if (b.dataset.act === 'deselect') selected = null;
+    if (b.dataset.act === 'build-on' || b.dataset.act === 'fit') {
+      const line =
+        b.dataset.act === 'fit'
+          ? startFitting(game, b.dataset.pad, b.dataset.slot)
+          : startBuilding(game, b.dataset.plot, b.dataset.what);
+      if (line) {
+        log.push(line);
+        save(game);
+      }
+    }
     if (b.dataset.act === 'programme') {
       const line = setProgramme(game, b.dataset.id, b.dataset.to);
       if (line) {
@@ -604,8 +696,8 @@ export function startBaseView(el, game, { save, back }) {
     } else if (['1', '2', '3'].includes(e.key)) {
       speed = SPEEDS[Number(e.key) - 1];
       paused = false;
-    } else if ('rbpg'.includes(e.key.toLowerCase()) && e.key.length === 1) {
-      const k = { r: 'reports', b: 'budget', p: 'people', g: 'programmes' }[e.key.toLowerCase()];
+    } else if ('rbpgc'.includes(e.key.toLowerCase()) && e.key.length === 1) {
+      const k = { r: 'reports', b: 'budget', p: 'people', g: 'programmes', c: 'build' }[e.key.toLowerCase()];
       showing = showing === k ? null : k;
     } else if (e.key === 'ArrowLeft' || e.key === 'a') cam.x -= step;
     else if (e.key === 'ArrowRight' || e.key === 'd') cam.x += step;
