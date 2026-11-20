@@ -33,7 +33,7 @@ const ROUND_TEXT = {
   injector: 'the first stage lost thrust soon after liftoff',
   leak: 'a propellant leak starved the engine and it cut off early',
   separation: 'the upper stage did not separate cleanly',
-  depletion: 'the upper stage burned out early, short of the speed it needed for the Moon',
+  depletion: 'the upper stage burned out early, short of the speed it needed',
 };
 export const FLOWN_BY_ROUND = new Set(['juno', 'vanguard']);
 
