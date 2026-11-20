@@ -47,3 +47,7 @@ work/wac-slice/
 
 # Written by desktop/stamp-build.mjs before each Windows build.
 /desktop/build-info.json
+
+# The automated playtest (tools/autoplay): each run's report and screenshots, and the approved screenshots it compares with.
+/playtest-runs/
+/playtest-baselines/

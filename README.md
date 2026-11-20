@@ -106,6 +106,31 @@ npm run playtest-report -- "%APPDATA%\Ad Astra\playtest"
 It prints the builds and sessions, errors with where they happened, each F8 mark with the 25 entries that led up to it,
 the rounds and outcomes, any mismatch between a cruise's clock and the game's, and the last 60 entries.
 
+### The automated playtest
+
+```sh
+npm run autoplay           # the whole game, unattended: about an hour
+npm run autoplay:quick     # the first rounds, a year of Management and the Desk count: a few minutes
+```
+
+It opens the desktop app from this folder, with its own saves in a temporary folder (your games and log are not
+touched), and plays all three modes: the Flight Director's game from 1945 to the end with the tests' bot, a few years of
+Management through its panels, and the Desk count, twice. At every point where a player would act it holds the game
+still, watches and listens for a moment, takes a screenshot and checks:
+
+- **bugs**: console errors, crashes, a game that gets stuck (marked with F8 as a player would), and saves that do not
+  come back after a restart;
+- **waiting**: how long a player sits with nothing to do at the fastest speed, how long loading takes, and how fast each
+  scene draws;
+- **looks**: blank screens, text cut off or off the window, pictures that fail to load, and changes from the approved
+  screenshots;
+- **sound**: silence, clipping, sounds that pile up and never stop, and sound carried over to the title screen.
+
+The report is `playtest-runs\<date and time>\report.html` (and `report.json` for Claude). `--approve` keeps a run's
+screenshots as the look later runs are compared with (`playtest-baselines\`); `--file-issues` files each bug on GitHub
+with the `gh` command; `--modes desk`, `--to ma-6` and `--seed` narrow a run. Whether a sound or a picture is *right*
+still needs a person: this finds what is broken, slow or changed.
+
 ## The long view
 
 From the first uncertain firings at White Sands to the decisions made in Mission Control, *Ad Astra* is about earning progress one test at a time.
