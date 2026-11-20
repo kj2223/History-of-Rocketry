@@ -329,7 +329,31 @@ function* round() {
   until(() => g().beat === 'countReady');
   yield 'launch-morning';
   game.countStart();
-  const flown = () => g().beat === 'recovery' || g().beat === 'lCruise' || (g().count && g().count.poll);
+  // Hands-on idea 4: when the count room is open (the app opens it when you stand at the blockhouse door), PRESS tops
+  // the tank up by hand through the terminal count. Work the valve as a player would, keeping the needle mid-band, or
+  // the lead holds the count for a tank out of limits and the bot waits for ever.
+  let pressed = false;
+  const keepPress = () => {
+    if (!game.pressByHand()) return;
+    game.pressValve(game.countTank() < (game.NORMAL_TANK[0] + game.NORMAL_TANK[1]) / 2);
+    if (!pressed) handsOn.press = (handsOn.press ?? 0) + 1; // rounds where PRESS worked the valve by hand
+    pressed = true;
+  };
+  // A tank that will not come into band (a leaking round reads low from the start) gets the count held by the lead. The
+  // bot then does what the old count did: leaves the panel to the regulator and picks the count up, so its calls stay
+  // the bot's (GO) and the run goes on. The hold is counted for the report.
+  const pressHeld = () => {
+    const c = g().count;
+    if (!c?.held || c.poll || c.checking || g().room !== 'count' || c.clock > 120) return;
+    handsOn.pressHolds = (handsOn.pressHolds ?? 0) + 1;
+    g().room = null;
+    game.countResume();
+  };
+  const flown = () => {
+    keepPress();
+    pressHeld();
+    return g().beat === 'recovery' || g().beat === 'lCruise' || (g().count && g().count.poll);
+  };
   // The count runs to the next poll or the end of the flight, stopping once at the moment she lifts off, so the runner
   // can watch and listen to the liftoff as it happens.
   let lifted = false;
