@@ -5,6 +5,10 @@
 //  - the count: a soft tick for each of the last ten seconds;
 //  - the loop: a short burst of radio hiss as each line comes in, in the rooms where people talk over the net;
 //  - the room itself: the hum and fans of the control rooms, the blockhouse and JPL, the wind out on the site and at sea.
+// Each vehicle has its own voice, from what really burned in it (VOICES below): the WAC's thin acid hiss, the V-2's rough
+// alcohol roar, the Atlas's broad kerosene roar thinning when the boosters drop, the Titan II's clean storable burn, the
+// Saturn V's deep crackle, the Shuttle's solids. Before she lights, the cryogenic ones vent liquid oxygen on the pad, and
+// the Juno's upper-stage tub spins up with a low whirr in the last minute.
 // Nothing is sharp or loud: no high tones, every sound eases in and out, and the master level is modest. The Sound
 // button (or M) goes full, low, off; the choice is kept.
 //
@@ -14,6 +18,7 @@ import { flightTrouble } from '../../game.js';
 import { yearOf } from '../../site/draw.js';
 import { breakupAge } from '../../site/tv-shots.js';
 import { might } from './launch.js';
+import { ORBITAL_STACKS, SOUNDING_STACKS } from '../../data/stacks.js';
 
 export const SOUND_KEY = 'pa-sound';
 export const LEVELS = { full: 0.55, low: 0.22, off: 0 };
@@ -30,15 +35,110 @@ const ROOM = {
   'interior:hangar': { hum: 0.15 },
   'interior:sim': { hum: 0.35 },
 };
+// THE VOICES. What an engine sounds like comes from what it burns and how hard:
+//   roar   where the low roar is cut off (Hz): lower is deeper
+//   body   the band that gives it its colour (Hz), and how narrow (q)
+//   crackle  the popping of shock waves in the plume (0..1): the big kerosene engines and the solids crackle
+//   sub    the deep shake under it all (0..1), by size
+//   hiss   the clean high rush of a pressure-fed or hydrogen engine (0..1), and where it sits (hissAt, Hz)
+//   rough  a flutter in the burn (0..1): the V-2's alcohol engine ran rough
+export const VOICES = {
+  // Tiny Tim, the Aerobee's booster: a short hard crack off the tower.
+  kick: { roar: 900, body: 520, q: 0.8, crackle: 0.8, sub: 0.1, hiss: 0.35, hissAt: 1300, rough: 0 },
+  // Aniline and red fuming nitric acid, pressure-fed and small (the WAC Corporal, the Aerobee): thin, hissing, little body.
+  acid: { roar: 720, body: 440, q: 1, crackle: 0.05, sub: 0, hiss: 0.6, hissAt: 1500, rough: 0.05 },
+  // Alcohol and liquid oxygen, steam-driven pumps (the V-2): a rough, ragged roar.
+  'alcohol-rough': { roar: 460, body: 250, q: 0.6, crackle: 0.4, sub: 0.3, hiss: 0.15, hissAt: 1200, rough: 0.6 },
+  // The same, smoother and steadier (Viking, Redstone).
+  alcohol: { roar: 480, body: 280, q: 0.7, crackle: 0.25, sub: 0.3, hiss: 0.15, hissAt: 1200, rough: 0.15 },
+  // Kerosene and liquid oxygen (Vanguard, Jupiter, Atlas's boosters, the Merlins): a broad crackling roar.
+  kerosene: { roar: 380, body: 210, q: 0.6, crackle: 0.55, sub: 0.55, hiss: 0.1, hissAt: 1100, rough: 0.1 },
+  // The Atlas's sustainer alone, after the boosters drop: thinner, higher.
+  sustainer: { roar: 540, body: 320, q: 0.8, crackle: 0.2, sub: 0.15, hiss: 0.3, hissAt: 1300, rough: 0.05 },
+  // Storable hypergolics, big (Titan II): a clean, smooth, almost quiet burn with little crackle.
+  storable: { roar: 430, body: 300, q: 0.5, crackle: 0.08, sub: 0.45, hiss: 0.45, hissAt: 1250, rough: 0 },
+  // Eight H-1s (Saturn IB): deep and heavy.
+  h1: { roar: 320, body: 180, q: 0.6, crackle: 0.65, sub: 0.8, hiss: 0.05, hissAt: 1100, rough: 0.1 },
+  // Five F-1s (Saturn V): the deepest of all, a long tearing crackle you feel more than hear.
+  f1: { roar: 250, body: 130, q: 0.5, crackle: 0.95, sub: 1, hiss: 0.05, hissAt: 1000, rough: 0.12 },
+  // Hydrogen and oxygen alone (J-2s, the Shuttle's and SLS's main engines after the solids): a clean high rush.
+  hydrogen: { roar: 620, body: 360, q: 0.7, crackle: 0.03, sub: 0.1, hiss: 0.65, hissAt: 1150, rough: 0 },
+  // Big solids with hydrogen engines under them (Shuttle, SLS): harsh, broad, crackling hard.
+  solids: { roar: 300, body: 170, q: 0.45, crackle: 1, sub: 0.9, hiss: 0.35, hissAt: 1200, rough: 0.15 },
+};
+// Each vehicle's voice, stage by stage (the stages of data/stacks.js; a vehicle not there flies its first voice throughout).
+const VEHICLE_VOICES = {
+  wac: ['kick', 'acid'],
+  v2: ['alcohol-rough'],
+  bumper: ['alcohol-rough', 'acid'],
+  aerobee: ['kick', 'acid'],
+  viking: ['alcohol'],
+  redstone: ['alcohol'],
+  vanguard: ['kerosene', 'acid'],
+  juno: ['kerosene', 'kick'],
+  atlas: ['kerosene', 'sustainer'],
+  ranger: ['kerosene', 'sustainer', 'acid'],
+  titan: ['storable', 'storable'],
+  saturnib: ['h1', 'hydrogen'],
+  saturn5: ['f1', 'hydrogen', 'hydrogen'],
+  shuttle: ['solids', 'hydrogen'],
+  sls: ['solids', 'hydrogen'],
+  dragon: ['kerosene', 'kerosene'],
+};
+// Vehicles that fuel with liquid oxygen on the pad, so they vent it as a white hiss through the count.
+const CRYOGENIC = new Set([
+  'v2',
+  'bumper',
+  'viking',
+  'redstone',
+  'vanguard',
+  'juno',
+  'atlas',
+  'ranger',
+  'saturnib',
+  'saturn5',
+  'shuttle',
+  'sls',
+  'dragon',
+]);
+// Which stage is burning t seconds after liftoff.
+function stageAt(vehicle, t) {
+  const stages = (ORBITAL_STACKS[vehicle] || SOUNDING_STACKS[vehicle])?.stages;
+  if (!stages) return 0;
+  let end = 0;
+  for (let i = 0; i < stages.length; i++) {
+    end += stages[i].burn + (stages[i].coast || 0);
+    if (t < end) return i;
+  }
+  return stages.length - 1;
+}
+// The voice of a vehicle t seconds after liftoff (t = 0 for a static firing or on the pad).
+export function voiceOf(vehicle, t = 0) {
+  const names = VEHICLE_VOICES[vehicle] || ['alcohol'];
+  const name = names[Math.min(names.length - 1, stageAt(vehicle, t))];
+  return { name, ...VOICES[name] };
+}
+
 // Rooms where the lines come over a net or an intercom, so each one opens with a burst of hiss.
 const NETTED = /^(control-room|tracking|flight:deep|interior:(blockhouse|sim))/;
 
 export function soundPlan(g, where = 'site') {
   const room = ROOM[where] || (where.startsWith('site') ? { wind: 0.4 } : {});
-  const plan = { engine: 0, muffle: 0, hum: room.hum || 0, wind: room.wind || 0, booms: [], tick: null };
+  const plan = {
+    engine: 0,
+    muffle: 0,
+    hum: room.hum || 0,
+    wind: room.wind || 0,
+    booms: [],
+    tick: null,
+    voice: voiceOf(null),
+    vent: 0,
+    spin: 0,
+  };
   if (!g) return plan;
   const v = g.vehicle,
     big = might(v);
+  plan.voice = voiceOf(v, g.flight?.result?.path ? g.flight.t || 0 : 0);
   // The static firing: heard through the dugout's concrete, or across the site.
   // The dugout sits a stone's throw from the stand, so even a small round is loud there: nearly as loud as a launch,
   // a little dulled by the concrete, with the thump as she lights (Aaron, 13 Nov: it was too faint to hear at all).
@@ -77,6 +177,13 @@ export function soundPlan(g, where = 'site') {
   // The last ten seconds of a count.
   const k = g.count;
   if (k && !k.held && k.clock > 0 && k.clock <= 10) plan.tick = Math.ceil(k.clock);
+  // On the pad through the count: liquid oxygen boiling off through the vents, heard from out on the site (faintly in
+  // the blockhouse), and the Juno's upper-stage tub spinning up in the last minute.
+  if (k && k.clock > 0 && !g.flight) {
+    const out = where.startsWith('site') ? 1 : where === 'interior:blockhouse' ? 0.25 : 0;
+    if (CRYOGENIC.has(v)) plan.vent = 0.5 * out;
+    if (v === 'juno' && k.clock <= 60) plan.spin = 0.6 * out;
+  }
   plan.netted = NETTED.test(where);
   plan.year = g.day == null ? 1945 : yearOf(g);
   return plan;
@@ -87,6 +194,7 @@ let ac = null,
   out = null,
   layers = null,
   noise = null,
+  white = null,
   lastLine, // undefined until the first frame, so the lines already on the loop make no sound
   lastTick = null,
   lastHiss = 0,
@@ -122,7 +230,12 @@ function start() {
   const limit = ac.createDynamicsCompressor();
   limit.threshold.value = -10;
   limit.ratio.value = 8;
-  out.connect(limit).connect(ac.destination);
+  // And a soft ceiling after it, so the crackle's sharpest pops round off instead of clipping.
+  const soft = ac.createWaveShaper(),
+    curve = new Float32Array(1025);
+  for (let i = 0; i < curve.length; i++) curve[i] = 0.9 * Math.tanh((i / 512 - 1) / 0.9);
+  soft.curve = curve;
+  out.connect(limit).connect(soft).connect(ac.destination);
   // Two seconds of brown noise: the roar, the wind, the fans and the hiss are all filtered from it.
   const n = ac.sampleRate * 2;
   noise = ac.createBuffer(1, n, ac.sampleRate);
@@ -132,9 +245,13 @@ function start() {
     b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02;
     d[i] = b * 3.5;
   }
-  const loop = () => {
+  // And two of white noise, for the high rushes and hisses the brown noise is too dark to give.
+  white = ac.createBuffer(1, n, ac.sampleRate);
+  const w = white.getChannelData(0);
+  for (let i = 0; i < n; i++) w[i] = (Math.random() * 2 - 1) * 0.5;
+  const loop = (buf = noise) => {
     const s = ac.createBufferSource();
-    s.buffer = noise;
+    s.buffer = buf;
     s.loop = true;
     s.loopStart = Math.random();
     s.start(0, Math.random() * 2);
@@ -157,9 +274,58 @@ function start() {
     roar = filter('lowpass', 400),
     body = filter('bandpass', 260, 0.6),
     bodyGain = gain(0.6);
-  loop().connect(roar).connect(engine);
-  loop().connect(body).connect(bodyGain).connect(engine);
-  engine.connect(out);
+  // The voice's layers all feed `shape`, whose level the roughness flutters, and then the engine's level.
+  const shape = gain(1),
+    flutter = ac.createOscillator(),
+    flutterDepth = gain(0);
+  flutter.frequency.value = 7.3;
+  flutter.connect(flutterDepth).connect(shape.gain);
+  flutter.start();
+  loop().connect(roar).connect(shape);
+  loop().connect(body).connect(bodyGain).connect(shape);
+  // The crackle: a loop of sparse pops, banded so it tears rather than clicks.
+  const pops = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate),
+    pd = pops.getChannelData(0);
+  for (let i = 0; i < pd.length; i++)
+    if (Math.random() < 0.003) {
+      const a = (Math.random() < 0.15 ? 1 : 0.35) * (Math.random() < 0.5 ? -1 : 1),
+        len = 80 + Math.floor(Math.random() * 220);
+      for (let j = 0; j < len && i + j < pd.length; j++) pd[i + j] += a * Math.exp(-j / (len / 4));
+    }
+  const crackleSrc = ac.createBufferSource();
+  crackleSrc.buffer = pops;
+  crackleSrc.loop = true;
+  crackleSrc.start(0, Math.random() * 2);
+  const crackleBand = filter('bandpass', 900, 0.5),
+    crackleTop = filter('lowpass', 2400),
+    crackleGain = gain(0);
+  crackleSrc.connect(crackleBand).connect(crackleTop).connect(crackleGain).connect(shape);
+  // The deep shake under it, and the clean high rush.
+  const subBand = filter('lowpass', 70),
+    subGain = gain(0),
+    hissBand = filter('bandpass', 1200, 0.8),
+    hissGain = gain(0);
+  loop().connect(subBand).connect(subGain).connect(shape);
+  loop(white).connect(hissBand).connect(hissGain).connect(shape);
+  shape.connect(engine).connect(out);
+  // On the pad: liquid oxygen venting (a soft white hiss that puffs), and the Juno's tub spinning (a low whirr).
+  const vent = gain(),
+    ventBand = filter('bandpass', 1900, 0.6),
+    ventTop = filter('lowpass', 3200),
+    puff = ac.createOscillator(),
+    puffDepth = gain(0.3),
+    ventLevel = gain(0.7);
+  puff.frequency.value = 0.07;
+  puff.connect(puffDepth).connect(ventLevel.gain);
+  puff.start();
+  loop(white).connect(ventBand).connect(ventTop).connect(ventLevel).connect(vent).connect(out);
+  const spin = gain(),
+    whirr = ac.createOscillator(),
+    whirrTop = filter('lowpass', 420);
+  whirr.type = 'sawtooth';
+  whirr.frequency.value = 92;
+  whirr.connect(whirrTop).connect(spin).connect(out);
+  whirr.start();
   // The wind: a broad band that breathes slowly.
   const wind = gain(),
     windBand = filter('bandpass', 450, 0.4),
@@ -181,7 +347,22 @@ function start() {
   mains.start();
   loop().connect(fans).connect(fansGain).connect(hum);
   hum.connect(out);
-  layers = { engine, roar, bodyGain, wind, hum };
+  layers = {
+    engine,
+    roar,
+    body,
+    bodyGain,
+    crackleGain,
+    subGain,
+    hissBand,
+    hissGain,
+    flutterDepth,
+    wind,
+    hum,
+    vent,
+    spin,
+    whirr,
+  };
   // If it was still held back, the next click or key lets it go.
   const wake = () => ac.state === 'suspended' && ac.resume();
   addEventListener('pointerdown', wake);
@@ -231,9 +412,22 @@ export function soundFrame(g, where) {
   const p = soundPlan(g, where),
     t = ac.currentTime;
   const L = layers;
-  L.engine.gain.setTargetAtTime(p.engine * 0.9, t, p.engine > L.engine.gain.value ? 0.12 : 0.5);
-  L.roar.frequency.setTargetAtTime(90 + 520 * (1 - p.muffle), t, 0.3);
-  L.bodyGain.gain.setTargetAtTime(0.6 * (1 - p.muffle), t, 0.3);
+  L.engine.gain.setTargetAtTime(p.engine * 0.55, t, p.engine > L.engine.gain.value ? 0.12 : 0.5);
+  // The voice, muffled by distance or concrete: the muffle takes the top off first, then the colour, then the crackle.
+  const v = p.voice,
+    open = 1 - p.muffle;
+  L.roar.frequency.setTargetAtTime(90 + (v.roar - 90) * (0.2 + 0.8 * open), t, 0.3);
+  L.body.frequency.setTargetAtTime(v.body, t, 0.3);
+  L.body.Q.setTargetAtTime(v.q, t, 0.3);
+  L.bodyGain.gain.setTargetAtTime(0.6 * open, t, 0.3);
+  L.crackleGain.gain.setTargetAtTime(3.5 * v.crackle * open * open, t, 0.3);
+  L.subGain.gain.setTargetAtTime(1.6 * v.sub, t, 0.3);
+  L.hissBand.frequency.setTargetAtTime(v.hissAt, t, 0.3);
+  L.hissGain.gain.setTargetAtTime(2.5 * v.hiss * open * open, t, 0.3);
+  L.flutterDepth.gain.setTargetAtTime(0.35 * v.rough * open, t, 0.3);
+  L.vent.gain.setTargetAtTime(p.vent * 0.6, t, 1.2);
+  L.spin.gain.setTargetAtTime(p.spin * 0.05, t, 1.5);
+  L.whirr.frequency.setTargetAtTime(p.spin ? 120 : 70, t, 8);
   L.wind.gain.setTargetAtTime(p.wind * 0.35, t, 0.8);
   L.hum.gain.setTargetAtTime(p.hum * 0.18, t, 0.8);
   // She lights: one low thump as the roar comes up.

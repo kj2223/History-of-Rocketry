@@ -92,6 +92,45 @@ test('the sound follows the game: the roar while she burns, a boom when she brea
   assert.ok(soundPlan({ day: 0 }, 'site, panel board').wind > 0);
 });
 
+test('each vehicle has its own voice, which changes as she stages, and the cryogenic ones vent on the pad', async () => {
+  const { soundPlan, voiceOf, VOICES } = await import('../js/stage/fx/sound.js');
+  const vehicles = [
+    'wac',
+    'v2',
+    'aerobee',
+    'viking',
+    'vanguard',
+    'juno',
+    'atlas',
+    'titan',
+    'saturnib',
+    'saturn5',
+    'shuttle',
+    'sls',
+    'dragon',
+  ];
+  for (const v of vehicles) assert.ok(VOICES[voiceOf(v).name], v);
+  // The families sound apart off the pad: acid, alcohol, kerosene, storables, the F-1s and the solids.
+  const first = new Set(['wac', 'v2', 'vanguard', 'titan', 'saturn5', 'shuttle'].map(v => voiceOf(v, 5).name));
+  assert.equal(first.size, 6);
+  // The Saturn V is the deepest and crackles hardest; the Titan II barely crackles.
+  assert.ok(voiceOf('saturn5', 5).roar < voiceOf('atlas', 5).roar && voiceOf('saturn5', 5).crackle > 0.9);
+  assert.ok(voiceOf('titan', 5).crackle < 0.1);
+  // Staging changes the voice: the Atlas's boosters drop at 130 s, the Shuttle's solids at 124 s.
+  assert.equal(voiceOf('atlas', 120).name, 'kerosene');
+  assert.equal(voiceOf('atlas', 140).name, 'sustainer');
+  assert.equal(voiceOf('shuttle', 130).name, 'hydrogen');
+  assert.equal(voiceOf('wac', 0.2).name, 'kick');
+  assert.equal(voiceOf('wac', 5).name, 'acid');
+  // Through the count: liquid oxygen vents from a V-2 but not from the WAC or the Titan II; the Juno's tub spins up last.
+  const pad = (vehicle, clock) => soundPlan({ vehicle, day: 0, loop: [], count: { clock, held: false } }, 'site');
+  assert.ok(pad('v2', 300).vent > 0);
+  assert.equal(pad('wac', 300).vent, 0);
+  assert.equal(pad('titan', 300).vent, 0);
+  assert.equal(pad('juno', 300).spin, 0);
+  assert.ok(pad('juno', 40).spin > 0);
+});
+
 test('each period runs its flights from its own room: Mercury Control, the MOCR, the new flight control room', async () => {
   const { roomOf, stationsFor } = await import('../js/stage/control.js');
   assert.equal(roomOf({ day: dayOf(1962, 2, 20) }), 'cape');
