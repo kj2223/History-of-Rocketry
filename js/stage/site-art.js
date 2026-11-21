@@ -18,7 +18,7 @@ import {
 import { blockhouseState, SITES } from '../data/campaign.js';
 import { eraOf } from '../site/draw.js';
 import { dayOf } from '../core/calendar.js';
-import { label, puffTexture, gradientTexture } from './kit.js';
+import { label, puffTexture, gradientTexture, ownedTextureSprite } from './kit.js';
 
 export const SIGN_X = 2930;
 const W = WORLD_W + 800;
@@ -138,11 +138,10 @@ function worksSite(gr, layer, w) {
 const shade = (gr, x, y, w, h, k = 0.1, a = 0.18) =>
   gr.rect(x + w - Math.max(2, w * k), y, Math.max(2, w * k), h).fill({ color: 0x281e14, alpha: a });
 function vgrad(stops, x, y, w, h) {
-  const s = new Sprite(gradientTexture(stops));
+  const s = ownedTextureSprite(gradientTexture(stops));
   s.position.set(x, y);
   s.width = w;
   s.height = h;
-  s.ownTex = true;
   return s;
 }
 function glowAt(x, y, w, h, tint, alpha) {
@@ -1217,15 +1216,4 @@ export function buildSite(g, { above = false } = {}) {
   nearPlants(front, g);
   root.addChild(front, texts);
   return root;
-}
-// The site's own textures go with it when it is rebuilt.
-export function dropSite(root) {
-  const walk = c => {
-    for (const ch of c.children) {
-      if (ch.children?.length) walk(ch);
-      if (ch.ownTex) ch.texture?.destroy(true);
-    }
-  };
-  walk(root);
-  root.destroy({ children: true });
 }

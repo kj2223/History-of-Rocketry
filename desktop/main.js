@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { trimMarks } from './mark-retention.js';
 
 const GAME_FOLDER = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORIGIN = 'app://game';
@@ -169,17 +170,7 @@ ipcMain.handle('playtest:mark', async (event, n, save) => {
     fs.writeFileSync(path.join(marks, `${base}-save.json`), save);
     files.push(`marks/${base}-save.json`);
   }
-  // Keep the newest marks only.
-  const all = [
-    ...new Set(
-      fs
-        .readdirSync(marks)
-        .map(f => f.match(/^mark-(\d+)/)?.[1])
-        .filter(Boolean),
-    ),
-  ].sort();
-  for (const old of all.slice(0, Math.max(0, all.length - MAX_MARKS)))
-    for (const f of fs.readdirSync(marks)) if (f.startsWith(`mark-${old}`)) fs.rmSync(path.join(marks, f));
+  trimMarks(marks, MAX_MARKS);
   return files;
 });
 // Filing a mark: only the repository's new-issue page may open, in the player's own browser. The marks folder opens

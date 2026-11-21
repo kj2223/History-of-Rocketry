@@ -8,7 +8,7 @@
 // Nothing here flashes: there is no lightning (photosensitivity, fx/calm.js).
 import { Container, Graphics, Sprite } from '../../vendor/pixi.min.mjs';
 import { GROUND } from '../../data/white-sands.js';
-import { puffTexture, gradientTexture } from '../kit.js';
+import { puffTexture, gradientTexture, ownedTextureSprite } from '../kit.js';
 
 export { WEATHER_KEY, WEATHER_KINDS, forcedWeather, weatherFor, weatherNow } from './weather-day.js';
 
@@ -18,10 +18,10 @@ export function weatherLayers() {
   const far = new Container();
   const heads = new Graphics();
   const shafts = new Graphics();
-  const overcast = new Sprite();
+  const overcast = ownedTextureSprite();
   far.addChild(overcast, shafts, heads);
   // Between the hills and the ground: fog and haze.
-  const mist = new Sprite();
+  const mist = ownedTextureSprite();
   // On the ground: blowing dust and dust devils (world units).
   const ground = new Container();
   const blowing = new Graphics();

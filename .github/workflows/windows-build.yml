@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-build-${{ github.ref }}
@@ -26,10 +26,12 @@ concurrency:
 jobs:
   build:
     runs-on: windows-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
+    outputs:
+      version: ${{ steps.release-version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -39,25 +41,50 @@ jobs:
       # The next number in the series: one more than the highest vX.Y.N release so far, or vX.Y.0 for the first.
       # Only a push to main publishes: a manual run or a pull request builds and checks, nothing more.
       - name: Pick the release number
+        id: release-version
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           SERIES=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
           LAST=$(gh release list --limit 1000 --json tagName -q '.[].tagName' | { grep -E "^v${SERIES//./\\.}\.[0-9]+$" || true; } | sed "s/^v$SERIES\.//" | sort -n | tail -1)
           VERSION="$SERIES.$([ -z "$LAST" ] && echo 0 || echo $(( LAST + 1 )))"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - run: npm run dist
       - uses: actions/upload-artifact@v4
         with:
           name: project-vanguard-windows
+          if-no-files-found: error
+          overwrite: true
           path: |
             dist/ProjectVanguard-Setup.exe
             dist/ProjectVanguard-Portable.exe
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: project-vanguard-windows
+          path: dist
       - name: Publish the release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
         shell: bash
         run: |
+          MAIN=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
+          if [ "$MAIN" != "$GITHUB_SHA" ]; then
+            echo "Skipping release because this commit is no longer the head of main."
+            exit 0
+          fi
           gh release create "v$VERSION" dist/ProjectVanguard-Setup.exe dist/ProjectVanguard-Portable.exe \
             --target "$GITHUB_SHA" --title "Ad Astra v$VERSION" --generate-notes --latest
           # The rolling "dev-build" release from before numbered releases; the latest links replace it.

@@ -223,7 +223,9 @@ window.addEventListener('pointerup', () => {
 
 window.addEventListener('keydown', e => {
   if (screen !== 'flight') return; // the title screen and the management game take no Flight Director keys
-  if (e.target.tagName === 'INPUT') return;
+  if (e.defaultPrevented || e.target.isContentEditable || e.target.closest?.('input, textarea, select')) return;
+  // Space presses a focused button, except the top bar's: a clicked bar button keeps focus, and Space still pauses.
+  if (e.key === ' ' && e.target.closest?.('button, summary, [role=button]') && !e.target.closest('header')) return;
   if (consoleKey(e)) return;
   keys[e.key] = true;
   if (e.key === 'Escape') {
@@ -548,26 +550,32 @@ function frame(now) {
     for (const step of steps) tick(step);
     openWhenReady(!!locked());
     updateCamera(view.w / scale(), dt);
-    if (g.flight && g.flight.view === 'board') {
-      staged = stageFrame('tracking', dt, 0);
-      if (!staged) drawTracking(ctx, g, view);
-    } else if (g.room === 'console' && g.console) {
-      staged = stageFrame('control', dt, 0);
-      if (staged) snap('control');
-      else drawControlRoom(ctx, g, view);
-    } else if (flightViewOf(g)) {
-      // The deep-space flights, followed from JPL's tracking (js/stage/deep.js), and the recovery (recovery.js); the old
-      // drawing shows the site.
-      staged = stageFrame(flightViewOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
-      if (!staged) drawSite(ctx, g, view);
-    } else if (interiorOf(g)) {
-      // A room rebuilt in PixiJS draws on the scene layer; the rest still draw on this canvas.
-      staged = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
-      if (!staged) drawInterior(ctx, g, view, panelReserve());
-    } else {
-      staged = stageFrame('site', dt, 0);
-      if (staged) snap('site');
-      else drawSite(ctx, g, view);
+    try {
+      if (g.flight && g.flight.view === 'board') {
+        staged = stageFrame('tracking', dt, 0);
+        if (!staged) drawTracking(ctx, g, view);
+      } else if (g.room === 'console' && g.console) {
+        staged = stageFrame('control', dt, 0);
+        if (staged) snap('control');
+        else drawControlRoom(ctx, g, view);
+      } else if (flightViewOf(g)) {
+        // The deep-space flights, followed from JPL's tracking (js/stage/deep.js), and the recovery (recovery.js); the old
+        // drawing shows the site.
+        staged = stageFrame(flightViewOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
+        if (!staged) drawSite(ctx, g, view);
+      } else if (interiorOf(g)) {
+        // A room rebuilt in PixiJS draws on the scene layer; the rest still draw on this canvas.
+        staged = stageFrame(interiorOf(g), dt, panelReserve() / (window.devicePixelRatio || 1));
+        if (!staged) drawInterior(ctx, g, view, panelReserve());
+      } else {
+        staged = stageFrame('site', dt, 0);
+        if (staged) snap('site');
+        else drawSite(ctx, g, view);
+      }
+    } catch (e) {
+      staged = false;
+      console.error('Could not draw the game frame.', e);
+      traceError('draw-failed', e);
     }
     // in-scene: a walk-in room is drawn on the scene layer, so its panel keeps only the decision.
     inScene = staged && (!!interiorOf(g) || !!flightViewOf(g));

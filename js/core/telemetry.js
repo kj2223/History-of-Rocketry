@@ -39,7 +39,16 @@ export function parseLog(text) {
   try {
     const log = JSON.parse(text);
     if (log?.format !== LOG_FORMAT || log.version !== LOG_VERSION) return createLog();
-    for (const k of ['sessions', 'events', 'calls', 'errors', 'marks']) if (!Array.isArray(log[k])) log[k] = [];
+    for (const k of ['sessions', 'events', 'calls', 'errors', 'marks'])
+      log[k] = Array.isArray(log[k]) ? log[k].filter(e => e && typeof e === 'object' && !Array.isArray(e)) : [];
+    log.errors = log.errors.filter(
+      e =>
+        typeof e.key === 'string' &&
+        Number.isSafeInteger(e.count) &&
+        e.count > 0 &&
+        Number.isFinite(e.last?.t) &&
+        typeof e.stack === 'string',
+    );
     return log;
   } catch {
     return createLog();

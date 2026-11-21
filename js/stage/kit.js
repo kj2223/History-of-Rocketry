@@ -288,6 +288,12 @@ export function speech(maxW = 320) {
   return c;
 }
 
+export function ownedTextureSprite(texture = Texture.EMPTY) {
+  const sprite = new Sprite(texture);
+  sprite.once('destroyed', () => sprite.texture.destroy(true));
+  return sprite;
+}
+
 // A picture drawn by the old canvas code (the pad through a periscope, a television), as a texture in the scene: the
 // bridge while a picture has not been rebuilt in Pixi yet. paint(ctx, w, h) is called on every update.
 export function canvasPicture(w, h, paint, every = 100) {
@@ -296,7 +302,7 @@ export function canvasPicture(w, h, paint, every = 100) {
   cv.height = h;
   const ctx = cv.getContext('2d');
   const tex = Texture.from(cv);
-  const s = new Sprite(tex);
+  const s = ownedTextureSprite(tex);
   // Repainting a picture means uploading it to the graphics card again, so it is done at most ten times a second.
   let at = -1;
   s.update = (now = performance.now()) => {

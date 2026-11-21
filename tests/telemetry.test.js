@@ -92,6 +92,17 @@ test('a bad or foreign log starts afresh instead of failing', () => {
   assert.equal(back.sessions[0].n, 1);
 });
 
+test('malformed log entries are discarded while valid errors can still be recorded and grouped', () => {
+  const log = createLog();
+  const first = recordError(log, null, 'error', 'original');
+  log.errors.unshift(null, { key: first.key, count: 1 });
+  log.events.push(null);
+  const back = parseLog(serializeLog(log));
+  assert.deepEqual(back.events, []);
+  assert.equal(recordError(back, null, 'error', 'original').count, 2);
+  assert.equal(back.errors.length, 1);
+});
+
 test('big or odd fields are cut down, and marks carry both clocks', () => {
   assert.equal(clamp('x'.repeat(1000)).length, LIMITS.text);
   assert.equal(clamp({ a: 'y'.repeat(1000) }).a.length, LIMITS.text);

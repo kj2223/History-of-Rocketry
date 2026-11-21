@@ -16,6 +16,7 @@ import { deepScene } from './deep.js';
 import { recoveryScene } from './recovery.js';
 import { g } from '../game.js';
 import { yearOf } from '../site/draw.js';
+import { traceError } from '../site/playtest.js';
 import { filmLayer } from './fx/film.js';
 import { transitionLayer, transitionKind } from './fx/transition.js';
 import { pixelPass, setHairline, artFrame } from './pixelate.js';
@@ -49,10 +50,11 @@ let app = null,
   current = null,
   currentId = null,
   builtFor = null,
-  failed = false,
+  failed = false, // the layer never started
   film = null,
   cut = null,
   pixels = null;
+const broken = new Set(); // scenes that threw: drawn with the old canvas for the rest of the session
 
 // The desktop app forbids eval (its Content-Security-Policy, desktop/main.js), and PixiJS builds its shader code with
 // it unless its 'unsafe-eval' add-on is loaded. The add-on ships as a classic script that patches the classes on a
@@ -121,10 +123,30 @@ export const hasScene = id => takes(id);
 // Draws scene `id` this frame if it has been rebuilt in Pixi and the layer is on. Returns true when it drew, false
 // when the old canvas should draw instead (and then the layer is hidden).
 export function stageFrame(id, dt, reserve) {
-  const use = !!app && !failed && takes(id) && pixiWanted();
+  try {
+    return drawStageFrame(id, dt, reserve);
+  } catch (e) {
+    // Only this scene goes back to the old canvas; the others keep the layer.
+    broken.add(id);
+    if (host) host.hidden = true;
+    try {
+      drop();
+    } catch (cleanupError) {
+      console.error('Could not clean up the scene layer.', cleanupError);
+      current = null; // a half-dropped scene must not make the next scene's drop throw too
+      currentId = null;
+    }
+    console.error(`The ${id} scene could not draw; drawing it with the old canvas.`, e);
+    traceError('stage-failed', e);
+    return false;
+  }
+}
+
+function drawStageFrame(id, dt, reserve) {
+  const use = !!app && !failed && !broken.has(id) && takes(id) && pixiWanted();
   if (!use) {
     if (host && !host.hidden) host.hidden = true;
-    if (current) drop();
+    if (current && !failed) drop();
     return false;
   }
   // A scene holds the game it was built for, so a load, a new game or a jump builds it again.
@@ -151,8 +173,11 @@ export function stageFrame(id, dt, reserve) {
   setHairline(hairlineFor(id));
   const frame = artFrame(app.screen.width, app.screen.height);
   frameBox.y = frame.y;
-  current.update(dt, frame, reserve);
-  setHairline(0);
+  try {
+    current.update(dt, frame, reserve);
+  } finally {
+    setHairline(0);
+  }
   // A scene still drawn with ordinary shapes is turned into pixel art here; the blockhouse paints its own pixels.
   if (SCENES[id].hairline && pixelWanted()) pixels.draw(current.root, frame);
   else pixels?.release();

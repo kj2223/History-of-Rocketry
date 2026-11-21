@@ -10,8 +10,8 @@ import { BlurFilter, Container, Graphics, Sprite, Texture } from '../vendor/pixi
 import { g as game } from '../game.js';
 import { dateOf } from '../core/calendar.js';
 import { drawSiteMachinery, siteLabelsShown, flyingRise, yearOf, VIEW_H, GROUND } from '../site/draw.js';
-import { colorOf, speech, puffTexture, gradientTexture } from './kit.js';
-import { buildSite, dropSite, siteKey } from './site-art.js';
+import { colorOf, speech, puffTexture, gradientTexture, ownedTextureSprite } from './kit.js';
+import { buildSite, siteKey } from './site-art.js';
 import { siteLive } from './site-live.js';
 import { paintedRange, paintedSand, paintedSea, paintedScrub, U } from './site-backdrop.js';
 import { paintedFar, paintedPlane, nearFringe, HORIZON } from './site-plane.js';
@@ -91,7 +91,7 @@ export function siteScene() {
   root.pixelSlot = pixelSlot;
   const farBlur = new BlurFilter({ strength: 2, quality: 3 }),
     cloudBlur = new BlurFilter({ strength: 3, quality: 3 });
-  const sky = new Sprite();
+  const sky = ownedTextureSprite();
   const sun = new Graphics();
   const sunGlow = new Sprite(puffTexture());
   sunGlow.anchor.set(0.5);
@@ -115,7 +115,7 @@ export function siteScene() {
   ];
   for (const [r] of ranges) backMid.addChild(r);
   // The Cape's horizon: the Atlantic, flat as a table, with glints that drift, and a green band with palmettos.
-  const sea = new Sprite();
+  const sea = ownedTextureSprite();
   const glints = new Graphics();
   const scrub = new Graphics();
   const palms = new Graphics();
@@ -126,15 +126,15 @@ export function siteScene() {
   horizonHaze.blendMode = 'add';
   backMid.addChild(horizonHaze);
   const PALM_SPAN = 140;
-  const haze = new Sprite();
-  const sand = new Sprite();
+  const haze = ownedTextureSprite();
+  const sand = ownedTextureSprite();
   const sandEdge = new Graphics();
   backNear.addChild(haze, sand, sandEdge);
 
   // ---- the site itself, in world units, moved by the camera ----
   const world = new Container();
   root.addChild(world);
-  const fore = new Sprite();
+  const fore = ownedTextureSprite();
   // A rocket lost on the pad (fx/blast.js): the scorch under everything, the fire and smoke over it.
   const blast = blastFx();
   world.addChild(fore, day.shadows, flame.shadows, flame.wet, blast.scorch, blast.smoke);
@@ -162,14 +162,14 @@ export function siteScene() {
   const twilight = twilightPlume();
   nightLayer.addChild(twilight.root, day.beamLayer);
   root.addChild(nightLayer, weather.rain);
-  const overlay = new Sprite();
+  const overlay = ownedTextureSprite();
   root.addChild(overlay);
   // The job bars, the walking marker and the hover name, on a canvas of their own that the pixel art pass keeps sharp.
   const labelCanvas = document.createElement('canvas');
   const labelCtx = labelCanvas.getContext('2d');
   let labelTex = null,
     labelsWere = true;
-  const labels = new Sprite();
+  const labels = ownedTextureSprite();
   labels.crisp = true;
   // In front of the rocket (the canvas overlay): the vapour off her when she is fuelled.
   const frontWorld = new Container();
@@ -524,7 +524,7 @@ export function siteScene() {
     const sk = siteKey(g);
     if (sk !== siteAt) {
       siteAt = sk;
-      if (site) dropSite(site);
+      site?.destroy({ children: true });
       site = buildSite(g, { above: plane });
       world.addChildAt(site, 0);
       for (const l of lightLayer.removeChildren()) l.destroy();

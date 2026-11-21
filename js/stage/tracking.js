@@ -11,7 +11,7 @@ import { rangeCamera } from './fx/range-camera.js';
 import { SITES } from '../data/campaign.js';
 import { KITS } from '../data/kits.js';
 import { earlierTracks } from '../world/programme.js';
-import { label, setText, speech, puffTexture } from './kit.js';
+import { label, setText, speech, puffTexture, ownedTextureSprite } from './kit.js';
 import { paintPlot, paintTrack } from './tracking-art.js';
 import { artLayer } from './control-art.js';
 import { pixelSize } from './pixelate.js';
@@ -57,7 +57,7 @@ function phosphorTexture(w, h) {
 export function trackingScene() {
   const g = game;
   const root = new Container();
-  const screenBg = new Sprite();
+  const screenBg = ownedTextureSprite();
   const bezel = new Graphics();
   const grid = new Container(); // rebuilt when the scale or the screen changes
   const past = new Graphics();
@@ -344,7 +344,7 @@ export function trackingScene() {
       // The radar paints the pieces: dotted tracks falling away from the break, on simple ballistic arcs.
       if (bad.kind === 'break') {
         const since = f.t - bad.at,
-          vx0 = path[Math.min(path.length - 1, Math.round(bad.at) + 1)].x - q.x || 0.3;
+          vx0 = q.x - path[Math.max(0, Math.round(bad.at) - 1)].x || 0.3;
         for (let i = 0; i < 5; i++) {
           const vx = vx0 * (0.4 + i * 0.25),
             vh = 0.25 - i * 0.12;
@@ -370,7 +370,7 @@ export function trackingScene() {
     const p = path[upto];
     pen.position.set(px(p.x), py(p.h));
     penDot.position.set(px(p.x), py(p.h));
-    pen.scale.set(0.9 + Math.sin(g.time * 8) * 0.1);
+    pen.scale.set(0.9);
     pen.alpha = 0.7;
 
     // The loop: the latest calls, stacked in the readings column under the figures, newest at the bottom.
@@ -409,7 +409,7 @@ export function trackingScene() {
       live.ring(A(px(q.x)), A(py(q.h)), 2, AMBER);
       if (bad.kind === 'break') {
         const since = f.t - bad.at,
-          vx0 = path[Math.min(path.length - 1, Math.round(bad.at) + 1)].x - q.x || 0.3;
+          vx0 = q.x - path[Math.max(0, Math.round(bad.at) - 1)].x || 0.3;
         const ret = mix(0x08120e, GREEN, 0.6);
         for (let i = 0; i < 5; i++) {
           const vx = vx0 * (0.4 + i * 0.25),

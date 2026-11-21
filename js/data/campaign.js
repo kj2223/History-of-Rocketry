@@ -1195,9 +1195,24 @@ export const LAST_WORD = {
     "Ranger 7's pictures showed the Moon's surface down to a metre across: craters on craters, and ground firm enough to land on. Ranger 8 and 9 followed in 1965, and then the Surveyors set down softly. That is as far as the uncrewed years go in this build.",
   perseverance:
     'Perseverance is still at work in Jezero, filling sealed tubes with rock cores for some later mission to fetch home. The Voyagers still call in from beyond the planets on a few watts. That is as far as the uncrewed years go in this build.',
-  'artemis-4':
-    'Artemis IV came home in the autumn of 2028, and the crew walked where nobody has walked since 1972: the south pole of the Moon, where the ice is. The base at the pole is planned for the years after, and the flights keep coming. This is where the build ends.',
+  'artemis-4': 'This is where the build ends.',
 };
+
+export function lastWord(round, mission, losses) {
+  if (round.id !== 'artemis-4') return LAST_WORD[round.id] || '';
+  // The traverse call only happens once the crew is out on the surface.
+  const decisions = mission?.decisions;
+  const walked = Array.isArray(decisions) && decisions.some(d => d?.id === 'traverse');
+  const walk = walked ? 'Artemis IV’s crew walked near the south pole of the Moon. ' : '';
+  const end = LAST_WORD[round.id];
+  if (mission?.fate === 'killed') return `${walk}The crew was lost. ${end}`;
+  if (losses?.some(loss => loss.round === round.id)) return `${walk}Members of the crew were lost. ${end}`;
+  if (mission?.fate === 'hurt')
+    return `${walk}The crew returned with injuries${walked ? '' : ' without landing on the Moon'}. ${end}`;
+  if (mission?.fate === 'safe')
+    return `${walk}The crew came home safely${walked ? '' : ' without landing on the Moon'}. ${end}`;
+  return `${walk}${end}`;
+}
 // Where a round is flown, and what the site is called on the range plot and in the rooms.
 export const SITES = {
   'white-sands': {
