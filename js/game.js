@@ -1666,7 +1666,7 @@ export function countStart() {
     spacecraftCount()
       ? `${launchTeam()} runs the rocket's count. You run JPL's part of it: poll the spacecraft and tracking, check the launch team's tank reading, and call a hold into their count if anything looks wrong.`
       : conducting()
-        ? 'Run the count. Poll your stations when the count reaches each poll, read your own gauges, and call a hold if anything looks wrong.'
+        ? 'Run the count: poll your stations, read your own gauges, and hold if anything looks wrong.'
         : countLead() === 'hoyt'
           ? `Hoyt runs GE's count. Answer his polls from the ${countPanel() === 'WAC' ? 'WAC panel' : 'PRESS panel'}; hold if anything looks wrong.`
           : 'Answer your polls in the count from the PRESS panel; hold if anything looks wrong.',
