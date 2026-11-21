@@ -78,7 +78,9 @@ export function writeReport(run, file) {
     ...Object.entries(run.handsOn ?? {}).map(([k, v]) => [esc(k), esc(v)]),
     ...(run.emergencies ?? []).map(e => [
       'pad emergency',
-      esc(`${e.kind} at ${e.pad}, ${e.minutes} min, ${e.lost ? 'rocket lost' : `slip ${e.slip} d`}, ${e.hurt} hurt`),
+      esc(
+        `${e.kind} at ${e.pad}, ${e.minutes} min, ${e.lost ? 'rocket lost' : `slip ${e.slip} d`}, ${e.hurt} hurt${e.sent ? `; sent ${e.sent.join(', ') || 'nobody'}${e.auto ? ', the rest sent by the head of launch ops' : ''}` : ''}`,
+      ),
     ]),
   ];
 
@@ -94,6 +96,7 @@ a{color:#8cc4ff}
 </style></head><body>
 <h1>Ad Astra automated playtest</h1>
 <p class="muted">Run ${esc(run.id)} on ${esc(run.build)}, ${esc(run.started)} to ${esc(run.finished)}. Modes: ${esc(run.options.modes.join(', '))}${run.options.to ? `, Flight Director to ${esc(run.options.to)}` : ''}, seed ${esc(run.options.seed)}.</p>
+${run.profile ? `<p>Bot: <b>${esc(run.profile.name)}</b>. ${esc(run.profile.about)}</p>` : ''}
 <div class="tiles">
 <div class="tile"><b>${count('bug')}</b>bugs</div><div class="tile"><b>${count('warn')}</b>warnings</div><div class="tile"><b>${count('info')}</b>notes</div>
 <div class="tile"><b>${looks.length}</b>stops looked at</div><div class="tile"><b>${(run.steps ?? []).length}</b>Flight Director steps</div>

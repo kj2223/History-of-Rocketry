@@ -111,7 +111,14 @@ the rounds and outcomes, any mismatch between a cruise's clock and the game's, a
 ```sh
 npm run autoplay           # the whole game, unattended: about an hour
 npm run autoplay:quick     # the first rounds, a year of Management and the Desk count: a few minutes
+npm run autoplay -- --profile scrubby   # the same, with a bot that chooses differently
 ```
+
+The bot's profile decides what it chooses wherever a player has a choice: `steady` (the tests' bot, the default),
+`cautious` (every inspection and leak check, holds a poll with the tank out of limits, turns the offers down), `bold`
+(go at all costs: no checks, GO at every poll, never aborts), `scrubby` (holds and leak-checks every count, reworks
+every stage, holds the first board of every crewed launch) and `random` (a seeded random choice everywhere). Run one
+profile a run; each report says which bot played it.
 
 It opens the desktop app from this folder, with its own saves in a temporary folder (your games and log are not
 touched), and plays all three modes: the Flight Director's game from 1945 to the end with the tests' bot, a few years of

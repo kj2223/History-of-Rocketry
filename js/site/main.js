@@ -441,6 +441,13 @@ function hud() {
         `<div class="${l.tone}" title="${clean(`${l.who}: ${l.text}`).replace(/"/g, '&quot;')}"><span>${l.at}</span> <b>${l.who}:</b> ${clean(l.text)}</div>`,
     )
     .join('');
+  // On the board the newest line may take two lines (style.css), pushing the oldest partly off the top: hide that one
+  // rather than show half of it.
+  if (box.classList.contains('in-room')) {
+    const top = box.getBoundingClientRect().top;
+    for (const d of box.querySelectorAll('.lines div'))
+      d.style.visibility = d.getBoundingClientRect().top < top - 1 ? 'hidden' : '';
+  }
   const last = loop.at(-1),
     face = box.querySelector('.speaker');
   const want = last ? portraitURL(last.who, dateOf(g.day ?? 0).year) : '';

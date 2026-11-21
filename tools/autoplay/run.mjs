@@ -7,6 +7,8 @@
 //   npm run autoplay -- --to ma-6        the Flight Director's game up to and including this round
 //   npm run autoplay -- --approve         keep this run's screenshots as the approved look for the next runs
 //   npm run autoplay -- --file-issues     file each bug it finds as a GitHub issue (needs the gh command, signed in)
+//   npm run autoplay -- --profile bold    how the bot chooses: steady (the tests' bot, the default), cautious, bold,
+//                                         scrubby or random (tools/autoplay/driver.js PROFILES); one profile a run
 //   other options: --seed 1945  --look 1200 (milliseconds watched at each stop)  --headless (no window on screen)
 //
 // It runs the game from this folder (as npm start does) in its own Electron window, with its own saves in a temporary
@@ -48,11 +50,12 @@ const opts = {
   fileIssues: flag('file-issues'),
   headless: flag('headless'),
   saveEvery: Number(option('save-every', 8)),
+  profile: option('profile', 'steady'),
 };
 
 // ---- Where things go ----
 const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
-const runDir = path.join(ROOT, 'playtest-runs', stamp);
+const runDir = path.join(ROOT, 'playtest-runs', opts.profile === 'steady' ? stamp : `${stamp}-${opts.profile}`);
 const shotDir = path.join(runDir, 'shots');
 const baseDir = path.join(ROOT, 'playtest-baselines');
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'ad-astra-autoplay-'));
@@ -358,14 +361,16 @@ async function playManagement() {
     // A week, a day at a time, stopping to watch any day a rocket flies.
     for (let d = 0; d < 7; d++) {
       await page.evaluate(() => globalThis.__manage.jump(1));
-      // A pad emergency: send all three crews at once, as a director should, and watch it to the end.
+      // A pad emergency: send the crews this bot sends (the steady bot all three at once, as a director should; a bot
+      // that sends fewer leaves the rest to the head of launch operations), and watch it to the end.
       if ((await m()).emergency) {
         stepName = `emergency-${w}`;
-        await page.evaluate(() => ['safety', 'pad', 'fire'].forEach(c => globalThis.__manage.order(c, 'pad')));
+        const crews = await ap('emergencyCrews');
+        await page.evaluate(cs => cs.forEach(c => globalThis.__manage.order(c, 'pad')), crews);
         await look('emergency', { hold: false });
         await page.evaluate(() => globalThis.__manage.runEmergency(120));
         const done = (await m()).emergencies.at(-1);
-        run.emergencies = [...(run.emergencies ?? []), done];
+        run.emergencies = [...(run.emergencies ?? []), { ...done, sent: crews }];
         if ((await m()).emergency)
           note(finding('emergency-stuck', 'bug', where, 'A pad emergency was still running after 120 minutes.'));
         stepName = `week-${w}`;
@@ -523,6 +528,8 @@ async function main() {
   } catch {
     /* no git folder */
   }
+  run.profile = await ap('setProfile', opts.profile, opts.seed);
+  log(`  bot profile: ${run.profile.name}. ${run.profile.about}`);
   where = { mode: 'title' };
   stepName = 'title';
   // A real click first: sound waits for one, as it does for a player.

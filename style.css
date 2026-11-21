@@ -34,7 +34,9 @@ button.primary { background: #2f4a3a; border-color: #6fae84; }
 button.danger { background: #5a1f1a; border-color: var(--bad); font-weight: bold; letter-spacing: .05em; }
 button.go { background: #23502f; border-color: var(--go); font-weight: bold; }
 #endday { background: #3a3220; border-color: var(--accent); }
-#waiting { white-space: nowrap; background: #3a3220; border-color: var(--accent); color: var(--cream); }
+/* Two short lines at most, so the objective beside it keeps the room to read whole (the automated playtest found the
+   count's objective cut short while a call waited). */
+#waiting { max-width: 12em; line-height: 1.1; padding: .15rem .6rem; background: #3a3220; border-color: var(--accent); color: var(--cream); }
 #waiting.call { background: var(--accent); color: #111; font-weight: bold; }
 #site { position: fixed; inset: var(--bar) 0 0 0; width: 100%; height: calc(100% - var(--bar)); display: block; }
 #room, #notebook { position: fixed; top: calc(var(--bar) + 12px); right: 12px; width: 31.3em; max-height: calc(100% - 120px); overflow: auto; padding: 1rem 1.2rem; background: rgba(20,24,30,.96); border: 1px solid var(--line); border-radius: 6px; z-index: 4; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
@@ -98,6 +100,11 @@ canvas[width="400"] { display: block; width: 100%; border-radius: 3px; margin-to
 #loop.in-room { left: 8.5vw; width: 77vw; top: calc(var(--bar) + (100vh - var(--bar)) * 0.4536); height: calc((100vh - var(--bar)) * 0.0952); overflow: hidden;
   font-size: clamp(9px, calc((100vh - var(--bar)) * 0.0952 / 4 / 1.75), 30px); }
 #loop.in-room div { margin-top: 1px; padding: 0 .5rem; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The newest line, which is often the question just put to the room, may take two lines of the board so it reads whole;
+   the board keeps its newest lines at the bottom and lets the oldest go off the top. */
+#loop.in-room .lines { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+#loop.in-room .lines div { flex: none; }
+#loop.in-room .lines div:last-child { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 /* The face of whoever spoke last on the loop (js/site/portraits.js): pixel art, scaled up with hard edges, beside the
    lines. The lines take the rest of the width. */
 #loop .speaker { float: left; width: 3.6em; height: 3.6em; margin: 2px .4em 0 0; image-rendering: pixelated;
