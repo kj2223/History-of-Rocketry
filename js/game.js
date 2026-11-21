@@ -1668,8 +1668,8 @@ export function countStart() {
       : conducting()
         ? 'Run the count. Poll your stations when the count reaches each poll, read your own gauges, and call a hold if anything looks wrong.'
         : countLead() === 'hoyt'
-          ? `GE's count, and Hoyt runs it. Answer his polls from the ${countPanel() === 'WAC' ? "WAC stage's panel" : 'PRESS panel'}, and call a hold if anything looks wrong.`
-          : 'Take part in the count. Answer your polls from the PRESS panel, and call a hold if anything looks wrong.',
+          ? `Hoyt runs GE's count. Answer his polls from the ${countPanel() === 'WAC' ? 'WAC panel' : 'PRESS panel'}; hold if anything looks wrong.`
+          : 'Answer your polls in the count from the PRESS panel; hold if anything looks wrong.',
   );
 }
 export const countTank = () => tankGauge(g.round, g.count.since) + (g.count.trim || 0);
