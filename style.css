@@ -503,8 +503,11 @@ header button.muted {
 #desk .dk-top { display: grid; grid-template-columns: 1.1fr 1.2fr 1fr; gap: 1rem; padding: 1rem; min-height: 0; background: repeating-linear-gradient(90deg, #6b5f53 0 3px, #675b50 3px 7px); }
 #desk h3 { margin: 0 0 .4rem; font: bold .75em/1.4 Consolas, var(--mono); letter-spacing: .16em; text-transform: uppercase; }
 #desk .dk-paper { background: #f1ead8; padding: .7rem .9rem; box-shadow: 2px 3px 0 #cfc6b0, 4px 6px 10px rgba(0,0,0,.35); overflow: auto; min-height: 0; }
-#desk .dk-tty { background: repeating-linear-gradient(#f3eedf 0 1.4em, #e5eddc 1.4em 2.8em); font: .8em/1.4 "Courier New", var(--mono); text-transform: uppercase; color: #262420; }
+/* Green-bar paper: the bands are drawn on the printout itself, one band per printed row and the same pitch as its
+   line height, so they scroll with the text and every row (wrapped ones too) sits in its own band at any size. */
+#desk .dk-tty { display: flex; flex-direction: column; background: #f3eedf; font: .8em "Courier New", var(--mono); text-transform: uppercase; color: #262420; }
 #desk .dk-tty div { white-space: pre-wrap; }
+#desk .dk-tty > [data-part="tty"] { --pitch: 1.4em; flex: 1 0 auto; margin: 0 -.9rem -.7rem; padding: 0 .9rem .7rem; line-height: var(--pitch); background: repeating-linear-gradient(#f3eedf 0 var(--pitch), #e5eddc 0 calc(2 * var(--pitch))); }
 #desk .dk-headset { background: rgba(20,22,24,.86); color: #e7ebee; padding: .7rem .9rem; border-radius: 3px; overflow: auto; min-height: 0; font-size: .92em; }
 #desk .dk-headset p { margin: 0 0 .45rem; } #desk .dk-headset b { color: #9fb8c9; font: bold .78em Consolas, var(--mono); letter-spacing: .06em; margin-right: .3em; }
 #desk .dk-headset p.me { color: #ffd27a; }
