@@ -5,7 +5,8 @@
 // A scene's world is 1600 x 900 units, so one art pixel is PX = 5 world units. A layer is a small canvas shown as a
 // Sprite; the scene paints its still parts once into one layer, and its moving parts (needles, lamps, people) into a
 // second layer that it clears and repaints every frame.
-import { Sprite, Texture } from '../vendor/pixi.min.mjs';
+import { Texture } from '../vendor/pixi.min.mjs';
+import { ownedTextureSprite } from './kit.js';
 
 export const PX = 5,
   PW = 320,
@@ -47,7 +48,7 @@ export function pixelLayer(w = PW, h = PH, { mx = 0, my = 0 } = {}) {
   ctx.translate(mx, my);
   const tex = Texture.from(cv);
   tex.source.scaleMode = 'nearest';
-  const sprite = new Sprite(tex);
+  const sprite = ownedTextureSprite(tex);
   sprite.scale.set(PX);
   sprite.position.set(-mx * PX, -my * PX);
   const fill = c => {

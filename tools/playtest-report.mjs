@@ -7,6 +7,7 @@
 // marks\ (a screenshot and the save at each F8). See README "Playtest log".
 import fs from 'node:fs';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -41,28 +42,31 @@ const rest = e => {
 const line = e => `  ${when(e)}  ${e.k ?? 'call'}  ${e.k ? rest(e) : `${e.who}: ${e.text}`}`;
 
 if (args.includes('--json')) {
-  console.log(JSON.stringify({ sessions: log.sessions, errors: log.errors, marks: log.marks }, null, 2));
+  const json = JSON.stringify({ sessions: log.sessions, errors: log.errors, marks: log.marks }, null, 2);
+  console.log(json.replace(/[\x7F-\x9F]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`));
   process.exit(0);
 }
 
-console.log(`# Playtest log ${file}`);
-console.log(
+const print = text => console.log(stripVTControlCharacters(text).replace(/[\x00-\x09\x0B-\x1F\x7F-\x9F]/g, ''));
+
+print(`# Playtest log ${file}`);
+print(
   `${log.events.length} events, ${log.calls.length} loop calls, ${log.errors.length} distinct errors, ${log.marks.length} marks\n`,
 );
 
-console.log('## Sessions');
+print('## Sessions');
 for (const s of log.sessions)
-  console.log(
+  print(
     `  s${s.n} ${s.at}  v${s.build?.version ?? '?'} ${s.build?.commit ?? ''} ${s.build?.branch ?? ''}${s.build?.dirty ? ' (uncommitted changes)' : ''}  window ${s.window?.w}x${s.window?.h} dpr ${s.screen?.dpr}  screen ${s.screen?.w}x${s.screen?.h}`,
   );
 
-console.log('\n## Errors (most frequent first)');
-if (!log.errors.length) console.log('  none');
+print('\n## Errors (most frequent first)');
+if (!log.errors.length) print('  none');
 for (const e of [...log.errors].sort((a, b) => b.count - a.count)) {
-  console.log(`  [${e.kind}] x${e.count}  ${e.message}`);
-  console.log(`    first ${when(e.first)}   last ${when(e.last)}`);
+  print(`  [${e.kind}] x${e.count}  ${e.message}`);
+  print(`    first ${when(e.first)}   last ${when(e.last)}`);
   if (e.stack)
-    console.log(
+    print(
       e.stack
         .split('\n')
         .slice(0, 4)
@@ -72,38 +76,38 @@ for (const e of [...log.errors].sort((a, b) => b.count - a.count)) {
 }
 
 const before = opt('before', 25);
-console.log('\n## Marks (F8)');
-if (!log.marks.length) console.log('  none');
+print('\n## Marks (F8)');
+if (!log.marks.length) print('  none');
 for (const m of log.marks) {
-  console.log(`  mark ${m.n}  ${when(m)}  scene ${m.scene}  files ${(m.files ?? []).join(', ') || '—'}`);
-  console.log(`    objective: ${m.objective ?? ''}`);
-  console.log(`    clocks: ${JSON.stringify(m.clocks)}`);
+  print(`  mark ${m.n}  ${when(m)}  scene ${m.scene}  files ${(m.files ?? []).join(', ') || '—'}`);
+  print(`    objective: ${m.objective ?? ''}`);
+  print(`    clocks: ${JSON.stringify(m.clocks)}`);
   const lead = [...log.events.filter(e => e.t <= m.t), ...log.calls.filter(e => e.t <= m.t)].sort((a, b) => a.t - b.t);
-  for (const e of lead.slice(-before)) console.log(`  ${line(e)}`);
+  for (const e of lead.slice(-before)) print(`  ${line(e)}`);
 }
 
-console.log('\n## Rounds and outcomes');
+print('\n## Rounds and outcomes');
 for (const e of log.events.filter(e => ['round', 'outcome', 'fix', 'offer', 'newgame', 'load'].includes(e.k)))
-  console.log(line(e));
+  print(line(e));
 
 // The game's clock and a mission's should move together: a cruise's hours against the hours since injection.
-console.log('\n## Clock checks');
+print('\n## Clock checks');
 let odd = 0;
 for (const e of log.events.filter(e => e.clocks?.lunar)) {
   const L = e.clocks.lunar;
   if (L.h != null && L.sinceInjectionH != null && Math.abs(L.h - L.sinceInjectionH) > 0.5) {
     odd++;
-    console.log(`  ${when(e)}  lunar ${L.phase}: ${L.h} h on the plot, ${L.sinceInjectionH} h on the game clock`);
+    print(`  ${when(e)}  lunar ${L.phase}: ${L.h} h on the plot, ${L.sinceInjectionH} h on the game clock`);
   }
 }
-if (!odd) console.log('  no mismatches found');
+if (!odd) print('  no mismatches found');
 
 const slow = log.events.filter(e => e.k === 'slow');
 if (slow.length) {
-  console.log('\n## Slow frames');
-  for (const e of slow) console.log(line(e));
+  print('\n## Slow frames');
+  for (const e of slow) print(line(e));
 }
 
 const tail = opt('tail', 60);
-console.log(`\n## Last ${tail} entries`);
-for (const e of [...log.events, ...log.calls].sort((a, b) => a.t - b.t).slice(-tail)) console.log(line(e));
+print(`\n## Last ${tail} entries`);
+for (const e of [...log.events, ...log.calls].sort((a, b) => a.t - b.t).slice(-tail)) print(line(e));

@@ -8,7 +8,7 @@
 // The cloud's light is one capped swell (fx/calm.js), never repeated; calm mode keeps the cloud and drops the glow.
 import { Container, Graphics, Sprite } from '../../vendor/pixi.min.mjs';
 import { puffTexture, label, setText } from '../kit.js';
-import { calm, swell } from './calm.js';
+import { calm, FLASH_MAX, swell } from './calm.js';
 import { makeTrail, stepTrail, smokes } from './trail.js';
 import { weatherLook, weatherBelow } from './weather-day.js';
 
@@ -231,7 +231,7 @@ export function rangeCamera() {
       // One soft brightening as she goes, capped; none in calm mode.
       glow.position.set(cx, cy - 20 * k);
       glow.scale.set(3);
-      glow.alpha = calm() ? 0 : swell(real, 0.5, 0.15, 1.2) * 3;
+      glow.alpha = calm() ? 0 : swell(real, FLASH_MAX, 0.15, 1.2);
     }
 
     setText(

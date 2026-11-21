@@ -832,6 +832,8 @@ export function checkCheckpoint(saved) {
   need(Number.isInteger(saved.day) && saved.day >= 0 && Number.isFinite(saved.clock), 'day');
   need(Number.isInteger(saved.seed) && Number.isInteger(saved.roundIndex) && SEASON[saved.roundIndex], 'season');
   if (saved.beat.startsWith('probe')) need(SEASON[roundIndexOf(saved)].probe, 'probe');
+  if (['mBrief', 'mLaunch', 'mPadSafe'].includes(saved.beat))
+    need(saved.mission && typeof saved.mission === 'object' && !Array.isArray(saved.mission), 'mission');
   need(
     saved.programme &&
       typeof saved.programme.weldRisk === 'number' &&
@@ -845,6 +847,13 @@ export function checkCheckpoint(saved) {
       Array.isArray(saved.record.offers) &&
       Number.isFinite(saved.record.trust),
     'record',
+  );
+  const { losses } = saved.record;
+  need(
+    losses == null ||
+      (Array.isArray(losses) &&
+        losses.every(loss => loss && (loss.ids == null ? typeof loss.name === 'string' : Array.isArray(loss.ids)))),
+    'crew losses',
   );
   need(
     saved.round && ['physical', 'observation', 'forecast'].every(k => Number.isInteger(saved.round.rng?.[k]?.state)),
@@ -2469,8 +2478,10 @@ function jumpTo(i) {
   // A fix the round brings with it whatever the reviews said (the redesigned booster joint at STS-26) is news now.
   if (next.adopt?.length) {
     const fresh = newFixes(g.programme);
+    if (g.saved) g.saved.programme.told = g.programme.told;
     if (fresh.length) lines.push(`Going into the build from this flight: ${fresh.join(' ')}`);
   }
+  if (g.saved?.away) g.saved.away.lines = [...lines];
   g.room = 'away';
 }
 

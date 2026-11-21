@@ -709,10 +709,10 @@ function siteLife(ctx, g) {
       ctx.fillRect(fx + 1 + i * 2, fy + wave, 2, 8);
     }
   }
-  // The tower-top beacon, which blinks after dark.
+  // The tower-top beacon stays lit after dark.
   const dusk = skyFor(g.clock % 1440) === SKY.dusk,
     tw = PLACES.tower;
-  if (dusk && Math.sin(t * 3) > 0) {
+  if (dusk) {
     ctx.fillStyle = 'rgba(255,60,40,.35)';
     ctx.beginPath();
     ctx.arc(tw.x + tw.w / 2, GROUND - tw.h - 4, 7, 0, 7);

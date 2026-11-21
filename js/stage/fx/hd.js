@@ -8,7 +8,8 @@
 // Both are small canvases drawn with ordinary 2D gradients and shown with smooth (linear) scaling.
 // Nothing pulses or flashes (photosensitivity, fx/calm.js); the dust only drifts. The dev menu can switch it off
 // (localStorage 'pa-hd' = 'off').
-import { Container, Sprite, Texture } from '../../vendor/pixi.min.mjs';
+import { Container, Texture } from '../../vendor/pixi.min.mjs';
+import { ownedTextureSprite } from '../kit.js';
 import { PX, css } from '../pixel.js';
 
 export const HD_KEY = 'pa-hd';
@@ -33,7 +34,7 @@ function surface(w, h, mx, my, res, blendMode, unit) {
   const ctx = cv.getContext('2d');
   const tex = Texture.from(cv);
   tex.source.scaleMode = 'linear';
-  const sprite = new Sprite(tex);
+  const sprite = ownedTextureSprite(tex);
   sprite.scale.set(unit / res);
   sprite.position.set(-mx * unit, -my * unit);
   sprite.blendMode = blendMode;
@@ -161,7 +162,7 @@ export function hdLayer(w = 320, h = 180, { mx = 0, my = 0, unit = PX, lightRes 
       glow.tex.source.update();
     },
     destroy() {
-      root.destroy({ children: true, texture: true, textureSource: true });
+      root.destroy({ children: true });
     },
   };
   return H;
