@@ -31,6 +31,7 @@ uniform highp vec4 uInputSize;
 uniform highp vec4 uOutputFrame;
 uniform float uPix;
 uniform float uLevels;
+uniform vec2 uShift;
 float bayer2(vec2 a) {
   a = floor(a);
   return fract(dot(a, vec2(0.5, a.y * 0.75)));
@@ -41,7 +42,9 @@ float bayer(vec2 a) {
 void main(void) {
   vec4 c = texture(uTexture, vTextureCoord);
   vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
-  float d = bayer(floor(screen / uPix)) - 0.5;
+  // The pattern is pinned to the world, not the screen (uShift, the scene's camera in art pixels), so ground that
+  // slides by a pixel keeps its own dither instead of crawling under a pattern that stays put.
+  float d = bayer(floor(screen / uPix) + uShift) - 0.5;
   // The colour is stepped before its transparency is applied, so a see-through haze over the smooth backdrop dithers
   // like the rest instead of breaking into a checkerboard.
   vec3 rgb = c.a > 0.0 ? c.rgb / c.a : c.rgb;
@@ -51,7 +54,13 @@ void main(void) {
 function ditherFilter() {
   return new Filter({
     glProgram: GlProgram.from({ vertex: VERTEX, fragment: FRAGMENT, name: 'pixel-dither' }),
-    resources: { ditherUniforms: { uPix: { value: 6, type: 'f32' }, uLevels: { value: LEVELS, type: 'f32' } } },
+    resources: {
+      ditherUniforms: {
+        uPix: { value: 6, type: 'f32' },
+        uLevels: { value: LEVELS, type: 'f32' },
+        uShift: { value: new Float32Array(2), type: 'vec2<f32>' },
+      },
+    },
   });
 }
 const TYPE = new Set(['text', 'bitmapText', 'htmlText']);
@@ -160,7 +169,14 @@ export function pixelPass(renderer) {
     // In the slot the picture moves with the scene (its shake), which the drawing already has in it.
     if (slot) sprite.position.set(-root.x, -root.y - pad * s);
     else sprite.position.set(0, -pad * s);
-    if (dither) dither.resources.ditherUniforms.uniforms.uPix = s * (globalThis.devicePixelRatio || 1);
+    if (dither) {
+      const u = dither.resources.ditherUniforms.uniforms;
+      u.uPix = s * (globalThis.devicePixelRatio || 1);
+      // A scene that pans (the site) says where its camera is, in whole art pixels (root.ditherShift).
+      const sh = root.ditherShift;
+      u.uShift[0] = sh ? ((Math.round(sh.x) % 4) + 4) % 4 : 0;
+      u.uShift[1] = sh ? ((Math.round(sh.y) % 4) + 4) % 4 : 0;
+    }
     sprite.visible = true;
   }
   // Puts everything back as it was, for a scene that is not pixelated.

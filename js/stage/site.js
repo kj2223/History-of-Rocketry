@@ -278,7 +278,9 @@ export function siteScene() {
   function update(dt, screen) {
     const s = screen.height / VIEW_H,
       vw = screen.width / s,
-      camX = g.cam.x,
+      // Painted, the camera moves a whole art pixel at a time, so the buildings, the people and the ground all keep
+      // to the pixel pass's grid together and nothing shimmers as the view slides (Aaron's video, 21 November 2026).
+      camX = painted ? snapU(g.cam.x) : g.cam.x,
       t = g.time;
     // The light of the moment, through the whole day (fx/daylight.js).
     // Ending the day on the site, the night passes as a time-lapse: evening runs on into the small hours as it fades,
@@ -299,13 +301,16 @@ export function siteScene() {
     const W = weatherNow(g, minute); // the same weather the periscopes, TV and tracking camera show
     // The launch's shake and the camera's tilt up after her.
     const lf = fx.state(g, Math.min(0.1, dt), dusk, screen, s, W.wind),
-      tiltPx = lf.tilt * s;
+      tilt = painted ? snapU(lf.tilt) : lf.tilt,
+      tiltPx = tilt * s;
     const bl = blast.state(g, Math.min(0.1, dt), screen, s);
     root.position.set(lf.shakeX + bl.shakeX, lf.shakeY + bl.shakeY);
+    // The pixel pass's dither keeps to the ground as it slides (pixelate.js).
+    root.ditherShift = painted ? { x: camX / U, y: -tilt / U } : null;
     back.scale.set(s);
-    backFar.y = lf.tilt * 0.3;
-    backMid.y = lf.tilt * 0.6;
-    backNear.y = lf.tilt;
+    backFar.y = painted ? snapU(lf.tilt * 0.3) : lf.tilt * 0.3;
+    backMid.y = painted ? snapU(lf.tilt * 0.6) : lf.tilt * 0.6;
+    backNear.y = tilt;
     world.scale.set(s);
     world.position.set(-camX * s, tiltPx);
 
@@ -510,7 +515,8 @@ export function siteScene() {
     const cloudSpots = [];
     for (let [x0, y, w0] of cloudSet) {
       const w = w0 * (0.8 + 0.6 * W.cloud);
-      const x = ((((x0 - drift) % spanC) + spanC) % spanC) - 300;
+      let x = ((((x0 - drift) % spanC) + spanC) % spanC) - 300;
+      if (painted) x = snapU(x);
       if (plane) y = 18 + y * 0.3;
       cloudSpots.push([x, y, w]);
       const col = { color: cloudCol, alpha: 0.55 - 0.3 * L.night + 0.2 * W.overcast };
@@ -599,7 +605,7 @@ export function siteScene() {
     people.clear();
     for (const p of Object.values(g.people)) {
       if (p.hidden) continue;
-      const x = p.x,
+      const x = painted ? snapU(p.x) : p.x,
         y = GROUND,
         walking = Math.abs(p.target - p.x) > 1,
         step = walking ? Math.sin(t * 12 + p.x * 0.05) * 4 : 0;

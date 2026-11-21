@@ -1,11 +1,14 @@
 // THE ROOM AND THE DESK (2D-HD rework, Aaron 20 November 2026): a scene that opens on its room in three-quarters (a lit
-// diorama in pixels) and moves in to the player's own desk or panel for the readings. The room grows about the desk
-// until the desk fills the screen, and the close-up comes up out of it. A button and a click on the desk move between
+// diorama in pixels) and moves in to the player's own desk or panel for the readings. The room moves in a little toward
+// the desk and fades, and the close-up comes up through it at its own size. A button and a click on the desk move between
 // the two; while the player has work on the panel (the count running, a firing) the view moves in by itself after a
 // moment, unless the player has already chosen.
 // Both views are W x H scene units (PX units an art pixel) and fit the same box. Presentation only.
 import { setText, outButton } from '../kit.js';
 import { PX } from '../pixel.js';
+
+// How far the room moves in before the desk has taken over.
+const ZOOM_MAX = 2.2;
 
 const smooth = (a, b, x) => {
   const u = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -51,23 +54,31 @@ export function roomAndDesk({
     const g = grid && (e === 0 || e === 1) ? grid : 1 / dpr;
     const snap = v => Math.round(v / g) * g;
     setText(toggle.children[1], zt > 0.5 ? words[1] : words[0]);
-    const Zr = W / (focus.w * PX);
+    // The room moves in toward the desk, but only so far (ZOOM_MAX): pushed further its pixels turn to big blocks and
+    // the speech is cut off at the edges (Aaron's video, 21 November 2026). It fades as it comes, and the desk comes
+    // up through it where it will stay, at its own size on the pixel grid, rather than growing out of a small picture
+    // in the middle of the room that does not match what is around it.
+    const Zm = Math.min(W / (focus.w * PX), ZOOM_MAX);
     const F = { x: (focus.x + focus.w / 2) * PX, y: (focus.y + focus.h / 2) * PX };
-    const rs = k * (1 + (Zr - 1) * e);
+    const rs = k * (1 + (Zm - 1) * e);
     const S = {
       x: ox + F.x * k + (ox + (W * k) / 2 - (ox + F.x * k)) * e,
       y: oy + F.y * k + (oy + (H * k) / 2 - (oy + F.y * k)) * e,
     };
     room.scale.set(rs);
     room.position.set(snap(S.x - F.x * rs), snap(S.y - F.y * rs));
-    room.alpha = 1 - smooth(0.6, 1, e);
+    room.alpha = 1 - smooth(0.4, 0.8, e);
     room.visible = e < 1;
-    const ds = rs / Zr;
-    desk.scale.set(ds);
-    desk.position.set(snap(S.x - (W / 2) * ds), snap(S.y - (H / 2) * ds));
-    desk.alpha = smooth(0.3, 0.75, e);
+    // While it moves the room is drawn straight at the screen's own pixels (it is painted pixel art already), not
+    // through the pixel pass, which would cut it up afresh onto the coarse grid every frame and make it shimmer.
+    room.crisp = e > 0 && e < 1;
+    const gs = grid || 1 / dpr;
+    const base = { x: Math.round(ox / gs) * gs, y: Math.round(oy / gs) * gs };
+    desk.scale.set(k);
+    desk.position.set(base.x, base.y);
+    desk.alpha = smooth(0.3, 0.7, e);
     desk.visible = e > 0;
-    return { e, k, rs, ds, base: { x: snap(S.x - (W / 2) * ds), y: snap(S.y - (H / 2) * ds) } };
+    return { e, k, rs, ds: k, base };
   }
   return { toggle, goIn, update };
 }
