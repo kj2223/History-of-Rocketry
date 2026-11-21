@@ -6,7 +6,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { campaignTo, playMission, playRound, advance, carefulDecide } from './play.js';
-import { g, newGame, checkpoint, checkCheckpoint, roundIndexOf, advanceProbe, probeStep } from '../js/game.js';
+import {
+  g,
+  newGame,
+  nextRound,
+  checkpoint,
+  checkCheckpoint,
+  roundIndexOf,
+  advanceProbe,
+  probeStep,
+} from '../js/game.js';
+import { exportSave, KEYS, memoryStorage, readSave, swapBackup, writeSave } from '../js/core/save.js';
 import '../js/mercury.js';
 import { SEASON } from '../js/data/campaign.js';
 
@@ -17,6 +27,58 @@ const reload = saved => {
   checkCheckpoint(saved);
   newGame(saved.seed, saved);
 };
+
+test('a damaged launch checkpoint falls back to last-good and cannot replace it as a backup', () => {
+  campaignTo(21, 'gem-6', { sims: 0 });
+  const good = disk();
+  const bad = exportSave({ ...good, beat: 'mLaunch', mission: null });
+  const storage = memoryStorage();
+  writeSave(storage, good);
+  storage.setItem(KEYS.current, bad);
+
+  const saved = readSave(storage, checkCheckpoint);
+  assert.deepEqual(saved, good);
+  reload(saved);
+  assert.equal(g.beat, good.beat);
+
+  storage.setItem(KEYS.backup, bad);
+  assert.equal(swapBackup(storage, checkCheckpoint), false);
+  assert.equal(storage.getItem(KEYS.lastGood), exportSave(good));
+});
+
+test('a bad checkpoint the game writes itself falls back to the morning before it', () => {
+  newGame(31);
+  const good = disk();
+  const storage = memoryStorage();
+  writeSave(storage, good);
+  writeSave(storage, { ...good, beat: 'flight' });
+  assert.deepEqual(readSave(storage, checkCheckpoint), good);
+});
+
+test('a damaged legacy crew-loss history falls back to last-good', () => {
+  newGame(31);
+  const good = disk();
+  const bad = disk();
+  delete bad.crewSwaps;
+  bad.record.losses = {};
+  const storage = memoryStorage();
+  writeSave(storage, good);
+  storage.setItem(KEYS.current, exportSave(bad));
+
+  const saved = readSave(storage, checkCheckpoint);
+  assert.deepEqual(saved, good);
+  reload(saved);
+});
+
+test('the next round forecast survives a checkpoint reload', () => {
+  newGame(4);
+  playRound();
+  nextRound();
+  const lines = [...g.away.lines];
+  assert.ok(lines.some(line => line.includes('forecast for the count')));
+  reload(disk());
+  assert.deepEqual(g.away.lines, lines);
+});
 
 const CREWED = [
   ['gem-6', 21],

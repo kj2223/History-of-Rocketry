@@ -9,7 +9,7 @@ import { BlurFilter, Container, Graphics, Sprite } from '../vendor/pixi.min.mjs'
 import { g as game } from '../game.js';
 import { yearOf } from '../site/draw.js';
 import { sceneLight } from './fx/hd.js';
-import { label, setText, outButton, puffTexture, gradientTexture } from './kit.js';
+import { label, setText, outButton, puffTexture, gradientTexture, ownedTextureSprite } from './kit.js';
 import { PX, pixelLayer } from './pixel.js';
 import { paintRecovery } from './recovery-art.js';
 import { pixelSize } from './pixelate.js';
@@ -222,7 +222,7 @@ export function recoveryScene({ leave }) {
 
   // ---- the sky and the sea (or the desert and the runway) ----
   const year = yearOf(g);
-  const sky = new Sprite(
+  const sky = ownedTextureSprite(
     gradientTexture(
       runway
         ? [
@@ -311,7 +311,7 @@ export function recoveryScene({ leave }) {
     for (let x = -800; x < W + 800; x += 37)
       ground.rect(x, SEA + 150 + ((x * 7) % 90), 30, 1.5).fill({ color: 0x2a2a2a, alpha: 0.25 }); // tyre marks
   } else {
-    sea = new Sprite(
+    sea = ownedTextureSprite(
       gradientTexture([
         [0, '#6c9cb8'],
         [0.12, '#3f7596'],

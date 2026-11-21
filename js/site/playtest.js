@@ -69,10 +69,9 @@ function tell(text, entry = null) {
   if (entry) {
     const b = document.createElement('button');
     b.textContent = 'File it on GitHub';
-    b.title = 'Opens a GitHub issue filled in with this report, for you to read, describe and submit';
+    b.title = 'Review the report locally before opening the GitHub draft';
     b.addEventListener('click', () => {
-      fileIssue(entry);
-      el.hidden = true;
+      if (fileIssue(entry)) el.hidden = true;
     });
     el.append(' ', b);
   }
@@ -92,11 +91,13 @@ function tell(text, entry = null) {
 
 // Opens the filled-in issue page in the browser, and the marks folder so the screenshot can be dragged in.
 function fileIssue(entry) {
-  const { url } = issueReport(log, entry);
+  const { title, body, url } = issueReport(log, entry);
+  if (!window.confirm(`Send this report to GitHub to open an issue draft?\n\n${title}\n\n${body}`)) return false;
   record(log, game(), 'file-issue', { n: entry.n });
   dirty = true;
   if (desktop) desktop.fileIssue(url, entry.n);
   else window.open(url, '_blank', 'noopener');
+  return true;
 }
 
 function load() {

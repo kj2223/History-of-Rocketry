@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { g, newGame } from '../js/game.js';
 import { startFlight, tickFlight, answer } from '../js/houston.js';
 import { resolve } from '../js/truth/flights.js';
-import { SEASON, LAST_WORD } from '../js/data/campaign.js';
+import { SEASON } from '../js/data/campaign.js';
 
 function fly(id, picks = {}, setup = () => {}) {
   newGame(5);
@@ -33,8 +33,6 @@ test('the season runs Artemis III in 2027 and ends with Artemis IV in 2028', () 
   const a3 = SEASON.find(r => r.id === 'artemis-3'),
     a4 = SEASON.find(r => r.id === 'artemis-4');
   assert.ok(a3.start < a4.start);
-  assert.match(LAST_WORD['artemis-4'], /Artemis IV came home/);
-  assert.equal(LAST_WORD['artemis-3'], undefined);
 });
 
 test('Artemis III docks with the lander in Earth orbit and never leaves it', () => {

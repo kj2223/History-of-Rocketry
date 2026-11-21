@@ -10,7 +10,7 @@ import { BlurFilter, Container, Graphics, Sprite } from '../vendor/pixi.min.mjs'
 import { g as game } from '../game.js';
 import { drawWallMap, controlTelevision, controlDesks, deskLines, uiEra, yearOf } from '../site/draw.js';
 import { dayOf } from '../core/calendar.js';
-import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture } from './kit.js';
+import { label, setText, colorOf, canvasPicture, gradientTexture, puffTexture, ownedTextureSprite } from './kit.js';
 import { moonWall } from './moon-wall.js';
 import { sceneLight } from './fx/hd.js';
 import { paintControlRoom, paintDesk } from './control-art.js';
@@ -215,14 +215,13 @@ export function desk(d, look = LOOKS.steel, art = null) {
       .stroke({ width: 2, color: 0xe8c66a });
     c.addChild(mark);
   }
-  c.update = (con, t) => {
+  c.update = con => {
     const [lines, tone] = deskLines(con, d.duty, d.yours);
     texts.forEach((tx, i) => {
       setText(tx, lines[i] ?? '');
       tx.style.fill = inkOf(tone, look);
     });
-    const lit = tone === 'bad' || tone === 'warn';
-    lampG.visible = lit && (tone === 'warn' || Math.sin(t * 7) > -0.3);
+    lampG.visible = tone === 'bad' || tone === 'warn';
     lampG.tint = inkOf(tone, look);
   };
   return c;
@@ -465,14 +464,11 @@ export function controlScene() {
   }
 
   function buildShell(w, h) {
-    // Gradients and pictures are this room's own textures: they go with it.
-    for (const ch of shell.removeChildren())
-      ch.destroy({ children: true, texture: !!ch.ownTex, textureSource: !!ch.ownTex });
+    for (const ch of shell.removeChildren()) ch.destroy({ children: true });
     L = layout(w, h);
     const { wallH, leftW, galleryX, wallL, wallR } = L;
     const grad = (stops, x, y, gw, gh) => {
-      const s = new Sprite(gradientTexture(stops));
-      s.ownTex = true;
+      const s = ownedTextureSprite(gradientTexture(stops));
       s.position.set(x, y);
       s.width = gw;
       s.height = gh;
@@ -486,7 +482,6 @@ export function controlScene() {
     L.painted = pixelOn();
     if (L.painted) {
       const art = paintControlRoom({ w, h, s: pixelSize(h), look, place, era, L });
-      art.sprite.ownTex = true;
       shell.addChild(art.sprite);
     } else {
       shell.addChild(new Graphics().rect(0, 0, w, h).fill(0x14171c));
@@ -599,7 +594,6 @@ export function controlScene() {
         },
         every,
       );
-      s.ownTex = true;
       // The map and the television carry readings (station codes, the ascent numbers), so they stay sharp over the
       // pixel art (pixelate.js).
       s.crisp = true;
@@ -652,13 +646,12 @@ export function controlScene() {
           .fill({ color: 0x000000, alpha: 0.5 });
       // The light strip along the wall's top, and its wash down the wall.
       deco.rect(leftW, 0, galleryX - leftW, Math.max(3, h * 0.004)).fill(look.trim);
-      const wash = new Sprite(
+      const wash = ownedTextureSprite(
         gradientTexture([
           [0, `#${look.trim.toString(16).padStart(6, '0')}`],
           [1, 'rgba(0,0,0,0)'],
         ]),
       );
-      wash.ownTex = true;
       wash.position.set(leftW, 0);
       wash.width = galleryX - leftW;
       wash.height = wallH * 0.05;
@@ -849,19 +842,19 @@ export function controlScene() {
       }
     }
     desks.forEach((d, i) => {
-      d.update(c, g.time);
+      d.update(c);
       d.pose?.(mood, g.time, i, yearOf(g));
     });
-    // The racks' lamps, ticking over.
+    // The racks' steady lamps.
     racks.clear();
     const lw = L.leftW;
     L.units.forEach((uy, i) => {
       for (let l = 0; l < 6; l++) {
-        const on = (i * 13 + l * 7 + Math.floor(g.time * 2)) % 5 < 3;
+        const on = (i * 13 + l * 7) % 5 < 3;
         racks.rect(14 + l * ((lw - 34) / 6), uy + 9, Math.max(3, lw / 26), 4).fill(on ? look.ink : look.rule);
       }
     });
-    // The MOCR's event lights: each lamp comes on or goes off on its own slow beat, never in step with the rest.
+    // The MOCR's event lights.
     if (place === 'mocr') {
       const [lx, ly, lw, lh] = L.lights;
       const cols = 6,
@@ -869,8 +862,7 @@ export function controlScene() {
         cw = lw / cols,
         rh = lh / rows;
       for (let i = 0; i < cols * rows; i++) {
-        const beat = Math.floor(g.time / (5 + (i % 7)) + i * 0.618);
-        const on = (beat * 7 + i * 3) % 5 < 2;
+        const on = (i * 3) % 5 < 2;
         const x = lx + (i % cols) * cw + cw * 0.15,
           y = ly + Math.floor(i / cols) * rh + rh * 0.2;
         racks

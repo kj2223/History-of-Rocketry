@@ -83,7 +83,7 @@ import { CONTROL_ROOMS, CONTROL_ACTS, controlLive, openConsole } from './control
 import { LUNAR_ROOMS, LUNAR_ACTS, lunarLive } from './lunar.js';
 import { updateRedlines } from './redlines.js';
 import { COSTS, planCost, dollars } from '../world/budget.js';
-import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, LAST_WORD } from '../data/campaign.js';
+import { SEASON, offerFor, offerBySeat, blockhouseState, SITES, lastWord } from '../data/campaign.js';
 import { SHORT } from '../data/kits.js';
 import { fixesForCard } from '../world/programme.js';
 import { openItems, signedOff, textOf, deskOf } from '../world/ledger.js';
@@ -735,7 +735,7 @@ export const ROOMS = {
       ${rec.capabilities?.length ? `<p><strong>What your flights showed, as evidence Apollo can cite:</strong></p><ul>${rec.capabilities.map(c => `<li>${esc(c.text)} (${esc(c.flight)})</li>`).join('')}</ul>` : ''}
       ${chronicleBlock()}
       ${offer}
-      <p class="muted">${esc(LAST_WORD[rs[rs.length - 1].id] || '')}</p>
+      <p class="muted">${esc(lastWord(rs.at(-1), g.mission, rec.losses))}</p>
       <button data-act="game-new">Start again from 1945</button>`;
   },
 };
