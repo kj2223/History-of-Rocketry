@@ -26,11 +26,16 @@ import {
   apollo8Done,
   workshopDecide,
   workshopDone,
+  workshopOpen,
+  WORKSHOP_CALLS,
+  APOLLO8_OPTIONS,
+  padChoose,
   consoleStart,
   missionPresent,
   toReview,
 } from '../../js/mercury.js';
 import { SEASON } from '../../js/data/campaign.js';
+import { ROUTE_MODES } from '../../js/data/route.js';
 import { callOptions, logDue, readings } from '../../js/desk/model.js';
 import { TASKS, LOG_FIELDS } from '../../js/desk/data.js';
 
@@ -255,7 +260,177 @@ function watchBeats() {
   });
 }
 
-const BOT_PLAN = { inspector: 'you', burn: 'short', leak: false };
+// ---------------------------------------------------------------------------------------------------------------------
+// THE BOTS' CHOICES (Aaron, 21 November 2026: "a couple of bots testing it set to making different choices, cover all
+// bases"). One profile a run (npm run autoplay -- --profile cautious), so between them the runs walk down every branch
+// a player can take: the checks, the holds and the scrubs, the risks, the other answers in the scenes and the reviews.
+// A profile only chooses among what a player could click; it never changes the game's rules.
+const PROFILE_KEY = 'aa-autoplay-profile';
+let rngState = 1;
+// mulberry32: the random bot's choices repeat for the same seed, so a bug it finds can be played again.
+const rand = () => {
+  let t = (rngState = (rngState + 0x6d2b79f5) | 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const any = list => list[Math.floor(rand() * list.length)];
+const coin = (p = 0.5) => rand() < p;
+const inBand = v => v >= game.NORMAL_TANK[0] && v <= game.NORMAL_TANK[1];
+const CREWS = ['safety', 'pad', 'fire'];
+// The good EECOM's answer to each of Flight's questions in Desk mode (as tests/desk.test.js plays it).
+const goodEecom = (k, d) =>
+  k === 'leak'
+    ? d.fault === 'leak'
+      ? 'hold'
+      : 'good'
+    : k === 'poll'
+      ? 'go' // by the final poll a leak called in time is fixed
+      : k === 'o2'
+        ? 'probe'
+        : k === 'readup'
+          ? 'log'
+          : 'good';
+
+// Each profile answers the same questions. holds: how many times this count has been held already.
+export const PROFILES = {
+  steady: {
+    about: "The tests' bot: clears what looks fine, GO at every poll, the careful answer to each flight question.",
+    plan: () => ({ inspector: 'you', burn: 'short', leak: false }),
+    flags: () => [],
+    stand: () => ({ rework: false, leak: false }),
+    poll: () => true,
+    review: () => 'nominal',
+    crewed: {},
+    route: () => 'lor',
+    workshop: call => ({ attitude: 'pitch', crew: 'wait' })[call],
+    apollo8: () => 'moon',
+    offer: () => true,
+    midcourse: () => 'wait',
+    crews: () => CREWS,
+    log: () => true,
+    desk: goodEecom,
+  },
+  cautious: {
+    about:
+      'Checks everything: the sergeant inspects, a full firing, every leak check; holds any poll with the tank out of limits; a stricter board and a quicker abort on the crewed flights; "we don\'t know yet" at the reviews; turns down the offers.',
+    plan: () => ({ inspector: 'kowalski', burn: 'long', leak: true }),
+    flags: spots => spots,
+    stand: () => ({ rework: false, leak: true }),
+    poll: (count, holds) => holds >= 2 || inBand(game.countTank()),
+    review: () => 'unknown',
+    crewed: {
+      decide: carefulDecide,
+      poll: c => c.cond.seaState <= 3 && !c.cond.late,
+      abort: c => c.trace.length > 0 && Math.abs(c.trace.at(-1).off) > 5,
+      shutdown: 'teardown',
+    },
+    route: () => 'eor',
+    workshop: call => ({ attitude: 'pitch', crew: 'wait' })[call],
+    apollo8: () => 'earth',
+    offer: () => false,
+    midcourse: () => 'now',
+    crews: () => CREWS,
+    log: () => true,
+    desk: (k, d) => (k === 'leak' ? 'hold' : goodEecom(k, d)),
+  },
+  bold: {
+    about:
+      'Go at all costs: the private inspects, a short firing, no checks, GO at every poll whatever the gauge says, never aborts, the first answer to every flight question, takes every offer; in Management sends only the fire crew; at the Desk never keeps the log and calls everything good.',
+    plan: () => ({ inspector: 'delgado', burn: 'short', leak: false }),
+    flags: () => [],
+    stand: () => ({ rework: false, leak: false }),
+    poll: () => true,
+    review: () => 'nominal',
+    crewed: {
+      decide: d => Object.keys(d.options).find(k => k !== 'request-fix'),
+      poll: () => true,
+      abort: () => false,
+      insert: () => true,
+      retro: () => 'auto',
+      shutdown: 'plug',
+    },
+    route: () => 'direct',
+    workshop: call => ({ attitude: 'sun', crew: 'rush' })[call],
+    apollo8: () => 'moon',
+    offer: () => true,
+    midcourse: () => 'wait',
+    crews: () => ['fire'],
+    log: () => false,
+    desk: k => (k === 'poll' ? 'go' : k === 'o2' ? 'probe' : k === 'readup' ? 'log' : 'good'),
+  },
+  scrubby: {
+    about:
+      'Holds and scrubs: holds the first poll of every count and sends the pad crew out to leak-check, reworks the stage and leak-checks after every firing, holds the first board of every crewed launch; at the Desk recommends holds.',
+    plan: () => ({ inspector: 'kowalski', burn: 'long', leak: true }),
+    flags: spots => spots.slice(0, 1),
+    stand: () => ({ rework: true, leak: true }),
+    poll: (count, holds) => holds >= 1,
+    review: () => 'unknown',
+    crewed: { decide: carefulDecide, shutdown: 'teardown' },
+    holdFirstBoard: true,
+    route: () => 'lor',
+    workshop: call => ({ attitude: 'pitch', crew: 'wait' })[call],
+    apollo8: () => 'earth',
+    offer: () => true,
+    midcourse: () => 'now',
+    crews: () => ['safety', 'pad'],
+    log: () => true,
+    desk: (k, d) => (k === 'leak' ? 'hold' : goodEecom(k, d)),
+  },
+  random: {
+    about: 'Picks among the choices a player has at every turn, at random (seeded, so a run can be played again).',
+    plan: () => ({ inspector: any(Object.keys(game.INSPECTORS)), burn: any(['short', 'long']), leak: coin() }),
+    flags: spots => spots.filter(() => coin(0.3)),
+    stand: () => ({ rework: coin(0.3), leak: coin(0.4) }),
+    poll: (count, holds) => holds >= 2 || coin(0.8),
+    review: keys => any(['unknown', 'nominal', ...keys]),
+    crewed: {
+      decide: d => any(Object.keys(d.options).filter(k => k !== 'request-fix')),
+      poll: () => coin(0.85),
+      abort: c => c.trace.length > 0 && Math.abs(c.trace.at(-1).off) > (coin(0.5) ? 5 : 8),
+      aim: () => any(['radar', 'telemetry']),
+      insert: () => coin(0.85),
+      packCall: () => any(['keep', 'jettison']),
+      retro: () => any(['auto', 'manual']),
+      pad: 'wait',
+      shutdown: any(['plug', 'teardown']),
+    },
+    route: () => any(Object.keys(ROUTE_MODES)),
+    workshop: call => any(Object.keys(WORKSHOP_CALLS[call].options)),
+    apollo8: () => any(Object.keys(APOLLO8_OPTIONS)),
+    offer: () => coin(0.6),
+    midcourse: () => any(['now', 'wait']),
+    crews: () => CREWS.filter(() => coin(0.6)),
+    log: () => coin(0.7),
+    desk: (k, d, ids) => any(ids),
+    askShoot: true, // asks the range to shoot the tanks first, as a player might, before the real answer
+  },
+};
+let profileName = 'steady';
+try {
+  profileName = localStorage.getItem(PROFILE_KEY) || 'steady';
+  rngState = Number(localStorage.getItem(`${PROFILE_KEY}-seed`)) || 1;
+} catch {
+  // no storage: the steady bot
+}
+const P = () => PROFILES[profileName] ?? PROFILES.steady;
+// The runner picks the profile once a run. Kept in localStorage, as the hands-on counts are, through the page reloads.
+export function setProfile(name, seed = 1) {
+  if (!PROFILES[name]) throw new Error(`no bot profile "${name}": ${Object.keys(PROFILES).join(', ')}`);
+  profileName = name;
+  rngState = seed | 0 || 1;
+  try {
+    localStorage.setItem(PROFILE_KEY, name);
+    localStorage.setItem(`${PROFILE_KEY}-seed`, String(rngState));
+  } catch {
+    // no storage
+  }
+  return { name, about: PROFILES[name].about };
+}
+export const profile = () => ({ name: profileName, about: P().about });
+// Management's pad emergencies: which crews this bot sends.
+export const emergencyCrews = () => P().crews();
 // What the run has done with the hands-on controls (HANDS-ON-GAMEPLAY.md), for the report.
 // Kept in localStorage (the run's own temporary profile), so the counts survive the restart checks' page reloads.
 const HANDS_KEY = 'aa-autoplay-hands-on';
@@ -281,14 +456,18 @@ export const handsOn = new Proxy(loadHands(), {
 function* scene() {
   const x = g();
   if (x.beat === 'sRoute') {
-    routeArgue('lor');
+    routeArgue(P().route());
     routeDone();
   } else if (x.beat === 'sWorkshop') {
-    workshopDecide('attitude', 'pitch');
-    workshopDecide('crew', 'wait');
+    for (let i = 0; i < 4 && workshopOpen().length; i++) {
+      const call = workshopOpen()[0];
+      const before = workshopOpen().length;
+      workshopDecide(call, P().workshop(call));
+      if (workshopOpen().length === before) workshopDecide(call, Object.keys(WORKSHOP_CALLS[call].options)[0]);
+    }
     workshopDone();
   } else if (x.beat === 'sApollo8') {
-    apollo8Decide('moon');
+    apollo8Decide(P().apollo8());
     apollo8Done();
   }
   yield 'scene-decided';
@@ -307,7 +486,7 @@ function* round() {
     return;
   }
   if (game.conducting()) {
-    game.finishPlan(BOT_PLAN);
+    game.finishPlan(P().plan());
     yield 'test-plan';
     if (g().plan.inspector !== 'you') until(() => g().beat === 'board');
   }
@@ -318,7 +497,14 @@ function* round() {
       if (first) game.meterSpot(first);
       handsOn.meter = !!g().decided?.meter;
     }
-    game.finishInspection({});
+    const spots = Object.keys(game.kit().spots ?? {});
+    game.finishInspection(
+      Object.fromEntries(
+        P()
+          .flags(spots)
+          .map(id => [id, true]),
+      ),
+    );
     yield 'inspection';
   }
   game.finishBoard();
@@ -343,7 +529,9 @@ function* round() {
     handsOn.marks = (handsOn.marks ?? 0) + (g().stand.marks?.length ? 1 : 0);
     game.standWipe();
   }
-  game.standDecide({ rework: false, leak: false });
+  const stood = P().stand();
+  game.standDecide(stood);
+  if (stood.rework) handsOn.reworks = (handsOn.reworks ?? 0) + 1;
   nextDay();
   until(() => g().beat === 'countReady');
   yield 'launch-morning';
@@ -388,13 +576,22 @@ function* round() {
   }
   yield* toNext();
   yield 'count';
+  let holds = 0;
   while (g().count && g().count.poll) {
-    game.countAnswer(true);
+    const go = holds >= 3 || P().poll(g().count, holds);
+    game.countAnswer(go);
+    if (!go) {
+      // A hold of your own: send the pad crew out to check every line, as the count room offers, and recycle.
+      holds++;
+      handsOn.countHolds = (handsOn.countHolds ?? 0) + 1;
+      yield 'count-hold';
+      game.countLeakCheck();
+    }
     yield* toNext();
     yield 'count-poll';
   }
   if (g().beat === 'lCruise') {
-    followProbe({ midcourse: 'wait', lead: 20 });
+    followProbe({ midcourse: P().midcourse(), lead: 20 });
     yield 'lunar-encounter';
   }
   game.rideOut();
@@ -403,13 +600,21 @@ function* round() {
   yield 'recovery';
   game.returnFromRecovery();
   yield 'review';
-  if (game.conducting()) game.chair('nominal');
-  else game.present('nominal');
+  const causes = Object.keys(game.kit().explanations ?? {}).filter(k => k !== 'nominal' && k !== 'unknown');
+  const key = P().review(causes.length ? causes : ['leak']);
+  if (game.conducting()) game.chair(key);
+  else game.present(key);
 }
 
 // A crewed round, worked from the console: the launch day's count, each call the flight asks for, recovery, the review.
 function* mission() {
-  const o = { ...MERCURY_DEFAULTS, decide: carefulDecide };
+  const o = { ...MERCURY_DEFAULTS, decide: carefulDecide, ...P().crewed };
+  // The scrubbing bot holds the first board it is polled on, launch day or not; the rest as its profile says.
+  if (P().holdFirstBoard) {
+    let held = false;
+    const poll = o.poll;
+    o.poll = c => (held ? poll(c) : ((held = true), (handsOn.boardHolds = (handsOn.boardHolds ?? 0) + 1), false));
+  }
   let climbed = false;
   nextDay();
   yield 'launch-day';
@@ -432,6 +637,7 @@ function* mission() {
           yield 'liftoff';
           if (!waiting()) continue; // nothing for the player to call on the climb: on up to the next call
         } else yield `console-${phase}`;
+        if (P().askShoot && g().console.phase === 'pad' && !g().console.shootAsked && coin()) padChoose('shoot');
         work(g().console, o);
       }
     }
@@ -465,7 +671,11 @@ function* campaign(lastRound) {
       o.made = true;
       o.answer = null;
     }
-    if (pendingOffer(g().record)) game.answerFirstOffer(true);
+    if (pendingOffer(g().record)) {
+      const take = P().offer();
+      game.answerFirstOffer(take);
+      if (!take) handsOn.offersDeclined = (handsOn.offersDeclined ?? 0) + 1;
+    }
     if (r.id === lastRound) return yield 'last-round-done';
     game.nextRound();
     g().room = null;
@@ -543,7 +753,7 @@ export function deskStep(seconds) {
   let firstAsk = null;
   for (let s = 0; s < seconds && !d.done; s++) {
     v.run(1);
-    if (logDue(d) >= 0) {
+    if (logDue(d) >= 0 && P().log()) {
       // copy the screen onto the log sheet, as a careful EECOM would
       v.write(Object.fromEntries(LOG_FIELDS.map(f => [f.id, String(f.read(readings(d)))])));
       said.push('log');
@@ -552,22 +762,17 @@ export function deskStep(seconds) {
       const [k, w] = o.id.split(':');
       if (k === 'task' && d.t >= TASKS[w].from) said.push(o.id) && v.say(o.id);
     }
+    const asked = {};
     for (const o of callOptions(d).filter(o => o.answer)) {
-      firstAsk ??= d.t;
       const [k, w] = o.id.split(':');
-      const want =
-        k === 'leak'
-          ? d.fault === 'leak'
-            ? 'hold'
-            : 'good'
-          : k === 'poll'
-            ? 'go'
-            : k === 'o2'
-              ? 'probe'
-              : k === 'readup'
-                ? 'log'
-                : 'good';
-      if (w === want) said.push(o.id) && v.say(o.id);
+      (asked[k] ??= []).push(w);
+    }
+    for (const [k, ids] of Object.entries(asked)) {
+      firstAsk ??= d.t;
+      let want = P().desk(k, d, ids);
+      if (!ids.includes(want)) want = ids.includes(goodEecom(k, d)) ? goodEecom(k, d) : ids[0];
+      said.push(`${k}:${want}`);
+      v.say(`${k}:${want}`);
     }
   }
   return {
@@ -598,4 +803,7 @@ globalThis.__autoplay = {
   savedFlight,
   reseed,
   deskStep,
+  setProfile,
+  profile,
+  emergencyCrews,
 };
