@@ -23,6 +23,10 @@ import {
   standTakePanel,
   slotHours,
   hoursText,
+  aimed,
+  windowLeft,
+  countRelay,
+  LAY_LIMIT,
   standArmed,
   STAND_SWITCHES,
   standMarked,
@@ -108,7 +112,8 @@ let shown = { room: null, version: -1 },
   hooks = {},
   confirmNew = false,
   flags = {},
-  plan = { inspector: 'you', burn: 'short', leak: false };
+  plan = { inspector: 'you', burn: 'short', leak: false },
+  relayTo = null; // the lay on the re-lay slider, until the crew is sent out
 
 // What you have ticked to flag on the inspection list, so the hangar scene can mark it on the round.
 export const inspectFlags = () => flags;
@@ -228,6 +233,7 @@ export function live() {
       c.poll && c.pollLeft != null ? `${Math.max(0, Math.ceil(c.pollLeft))} s to call it` : '',
     );
     readings(countChannels());
+    set('[data-live=window] strong', hoursText((windowLeft() ?? 0) / 60));
   }
 }
 
@@ -453,6 +459,25 @@ const FLOW_ROOMS = {
   },
 };
 
+// The launch-morning call (truth/aim.js): the tower's lay, the last balloon, the range rule of thumb, the window left;
+// in a hold, the lay you can send the pad crew out to set.
+function towerBlock(c) {
+  const side = (v, u) => (Math.abs(v) < 0.05 ? `0${u}` : `${Math.abs(v)}${u} ${v > 0 ? 'east' : 'west'}`);
+  const window = `<p data-live="window">Range window left: <strong>${esc(hoursText(windowLeft() / 60))}</strong>.</p>`;
+  if (!aimed() || c.lay == null) return window;
+  const b = c.balloon;
+  const relay =
+    c.held && !c.poll && !c.checking
+      ? `<label class="slider">Re-lay the tower to <strong data-live="lay">${esc(side(c.lay, '°'))}</strong>
+      <input type="range" min="${-LAY_LIMIT}" max="${LAY_LIMIT}" step="0.5" value="${c.lay}" data-act="lay"></label>
+      <button data-act="relay">Send the pad crew out to re-lay her (30 min, recycles to T-7:30)</button>`
+      : '';
+  return `<div class="tower"><p><strong>Tower laid ${esc(side(c.lay, '°'))}.</strong> Last balloon (${esc(b.at)}): crosswind
+    ${Math.abs(b.cross)} km/h${b.cross ? ` toward the ${b.cross > 0 ? 'east' : 'west'}` : ''}.</p>
+    <p class="muted">Range rule of thumb: she turns into a crosswind off the rail, about 0.45° for every km/h, so lay the tower that much downwind. The wind does not wait for the balloon.</p>
+    ${window}${relay}</div>`;
+}
+
 // The range slot's crew hours left (world/slot.js), as a line at the top of the rooms that spend them.
 function slotLine() {
   const h = slotHours();
@@ -642,6 +667,7 @@ export const ROOMS = {
       <div class="gauges">${gaugeHTML('ctank', 'Tank pressure', 'bar')}<div class="lamp on">IGNITER CIRCUIT<br>CONTINUITY</div></div>
       ${READINGS_HTML}
       <p class="muted">Normal tank pressure: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar.</p>
+      ${towerBlock(c)}
       ${pollButtons}<div class="actions">${holdButtons}</div>`;
   },
   // The test conductor's plan for the round: who inspects, which firing, which checks, against the range slot.
@@ -903,6 +929,10 @@ export function bindRoom(handlers) {
       hold: countHold,
       resume: countResume,
       'count-leak': countLeakCheck,
+      relay: () => {
+        countRelay(relayTo ?? g.count?.lay ?? 0);
+        relayTo = null;
+      },
       back: () => returnFromRecovery(),
       'away-done': () => {
         closeAway();
@@ -958,6 +988,13 @@ export function bindRoom(handlers) {
     }
   });
   el.addEventListener('input', e => {
+    if (e.target.dataset.act === 'lay') {
+      relayTo = Number(e.target.value);
+      const v = relayTo;
+      el.querySelector('[data-live=lay]').textContent =
+        Math.abs(v) < 0.05 ? '0°' : `${Math.abs(v)}° ${v > 0 ? 'east' : 'west'}`;
+      return;
+    }
     if (e.target.dataset.act !== 'load') return;
     setLoad(Number(e.target.value) / 100);
     el.querySelector('[data-live=load]').textContent = `${e.target.value}%`;

@@ -38,6 +38,17 @@ import {
   SLIP_DAYS,
 } from './world/ledger.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
+import {
+  AIMED,
+  crosswindAt,
+  balloonAt,
+  crossImpact,
+  landingOf,
+  wreckFound,
+  sideText,
+  layFor,
+  MAX_LAY,
+} from './truth/aim.js';
 import { newSlot, spendHours, hoursLeft, daysOver, hoursText, REBUILD_HOURS, SLOT_HOURS } from './world/slot.js';
 import {
   newFlow,
@@ -1128,6 +1139,11 @@ const BEATS = {
   countReady() {
     g.objective = 'The round is in the tower. Go into the blockhouse for the count.';
   },
+  scrubbed() {
+    g.objective = 'Scrubbed for today. The round stays in the tower. End the day.';
+    g.room = null;
+    g.dayDone = true;
+  },
   recovery() {
     g.objective = atSea()
       ? 'Go over to the telemetry building with Morgan: take the range car.'
@@ -1686,9 +1702,75 @@ export const slotHours = () =>
 export { hoursText };
 
 // ---- The count, in the blockhouse ----
+// The range's window for a count, in game minutes from when it first picks up. Holds run the range clock on (a game
+// minute every four real seconds at 1x), and a pad crew's trip out costs its whole time. A count still short of the
+// firing when the window closes is scrubbed: the round waits for tomorrow, and goes down as late.
+export const RANGE_WINDOW = 120,
+  HOLD_MINUTES_PER_SECOND = 0.25,
+  RELAY_MINUTES = 30;
+// A round flown unguided off a tower at White Sands: the launch-morning call is the tower's lay against the wind.
+export const aimed = () => AIMED.includes(g.vehicle) && !atSea() && !g.crewed;
+const layOf = layFor;
+export const LAY_LIMIT = MAX_LAY;
+// Range minutes left in the count's window.
+export const windowLeft = () => (g.count ? Math.max(0, Math.round(g.count.windowEnd - g.clock)) : null);
+// The balloon's call on the net: the crosswind it read, now. On a round off a guided launcher the wind is only said.
+function balloonCall(when) {
+  const c = g.count;
+  if (!aimed()) return `Radar has the balloon. Winds about ${g.round.wind.kmh} km/h.`;
+  const cross = balloonAt(g.round.seed, g.clock);
+  c.balloon = { at: when, cross };
+  return `Balloon at ${when}: crosswind ${Math.abs(cross)} km/h${cross ? `, toward the ${cross > 0 ? 'east' : 'west'}` : ''}. Tower is laid ${sideText(c.lay, '°')}.`;
+}
+// Send the pad crew out to re-lay the tower (only in a hold): the count recycles to T-7:30 when they are back in.
+export function countRelay(lay) {
+  const count = g.count;
+  if (!count || !aimed() || !count.held || count.checking || count.poll) return;
+  const to = Math.max(-MAX_LAY, Math.min(MAX_LAY, Math.round(lay * 2) / 2));
+  count.checking = true;
+  count.relays++;
+  say(conducting() ? 'you' : 'ellis', `Pad crew, re-lay the tower to ${sideText(to, '°')}.`, 'warn');
+  note(
+    `T-${Math.ceil(count.clock)} s: held, and sent the pad crew out to re-lay the tower from ${sideText(count.lay, '°')} to ${sideText(to, '°')}.`,
+  );
+  addJob({
+    label: 'Re-laying the tower',
+    at: PLACES.tower.x + 25,
+    who: ['vega', 'kowalski'],
+    minutes: RELAY_MINUTES,
+    then: () => {
+      count.lay = to;
+      g.clock += RELAY_MINUTES;
+      say('vega', `Tower laid ${sideText(to, '°')}. Coming in.`, 'go');
+      walk('vega', PLACES.blockhouse.door + 10);
+      walk('kowalski', PLACES.blockhouse.door + 60);
+      count.awaitCrew = true;
+    },
+  });
+  roomChanged();
+}
+// The window closed on the count: scrub for today. The round stays in the tower; tomorrow's count is a new one.
+function scrub() {
+  const at = Math.ceil(g.count.clock);
+  g.count = null;
+  g.slipDays += 1;
+  g.decided = { ...g.decided, late: (g.decided?.late || 0) + 1, scrubs: (g.decided?.scrubs || 0) + 1 };
+  g.offDays = { ...g.offDays };
+  say('morgan', 'That is the range window gone. We are scrubbed for today.', 'bad', 7);
+  note(`The count was scrubbed at T-${at} s: the range window closed before she could fly. The launch waits a day.`);
+  remember(
+    g.record,
+    g.people,
+    'morgan',
+    'You held my range until the window closed, and we scrubbed. That range time does not come back.',
+    { tone: 'warn' },
+    g.day,
+  );
+  setBeat('scrubbed');
+}
 const COUNT = [
   { at: 600, who: 'vega', text: 'Pad crew at the tower. Final arming under way.' },
-  { at: 540, who: 'morgan', text: 'Radar has the balloon. Winds light, from the west.' },
+  { at: 540, who: 'morgan', text: () => balloonCall('T-9:00'), balloon: true },
   { at: 450, who: 'lead', text: () => `${countPanel()}, report ${panelWords()}.`, poll: 'tank' },
   {
     at: 360,
@@ -1701,6 +1783,7 @@ const COUNT = [
     },
   },
   { at: 240, who: 'lead', text: 'Tower is clear. Doors closing.' },
+  { at: 200, who: 'morgan', text: () => balloonCall('T-3:20'), balloon: true, aimed: true },
   { at: 180, who: 'morgan', text: 'Range is clear. Range is go.', tone: 'go' },
   {
     at: 120,
@@ -1721,6 +1804,15 @@ export const NORMAL_TANK = [22, 24];
 export function countStart() {
   if (g.count) return;
   g.count = { clock: 600, next: 0, poll: null, held: false, readings: [], leakChecks: 0, since: 0 };
+  // The range's window for the count (holds and recycles eat it), and on a tower round, the lay the crew set at rollout
+  // on the dawn balloon (truth/aim.js).
+  g.count.windowEnd = g.clock + RANGE_WINDOW;
+  if (aimed()) {
+    const dawn = g.day * 1440 + 7 * 60;
+    g.count.balloon = { at: 'dawn', cross: balloonAt(g.round.seed, dawn) };
+    g.count.lay = layOf(g.count.balloon.cross);
+    g.count.relays = 0;
+  }
   place('you', PLACES.blockhouse.door - 10);
   setBeat(
     'count',
@@ -1974,11 +2066,22 @@ export function countLeakCheck() {
         r.found ? `Found a leak at the ${r.found.toLowerCase()}. Fixed it.` : 'Every line is tight. No leak.',
         r.found ? 'go' : '',
       );
+      g.clock += r.hours * 60; // the range time the trip took
       note(
         r.found
           ? `Pad leak check during the count: leak at the ${r.found.toLowerCase()}, fixed.`
           : 'Pad leak check during the count: nothing found.',
       );
+      // A hold that found nothing is remembered by the one whose count you held.
+      if (!r.found)
+        remember(
+          g.record,
+          g.people,
+          countLead(),
+          'You held my count and sent the pad crew out for a leak that was not there.',
+          { tone: 'warn' },
+          g.day,
+        );
       walk('vega', PLACES.blockhouse.door + 10);
       walk('kowalski', PLACES.blockhouse.door + 60);
       count.awaitCrew = true;
@@ -1993,6 +2096,7 @@ function tickCount(dt) {
     count.awaitCrew = false;
     count.checking = false;
     count.held = false;
+    if (g.clock >= count.windowEnd) return scrub();
     count.clock = 450;
     count.since = 0;
     count.next = COUNT.findIndex(s => s.at <= 450);
@@ -2006,6 +2110,8 @@ function tickCount(dt) {
     return;
   }
   tickPress(count, dt);
+  if (count.held && !count.checking) g.clock += HOLD_MINUTES_PER_SECOND * g.speed * dt;
+  if ((count.held || count.checking) && g.clock >= count.windowEnd && !count.awaitCrew) return scrub();
   if (count.held || count.checking) return;
   const rate = count.clock > 60 ? 12 : count.clock > 10 ? 3 : 1;
   count.clock = Math.max(0, count.clock - rate * dt);
@@ -2013,10 +2119,12 @@ function tickCount(dt) {
   g.clock += (rate * dt) / 60;
   while (count.next < COUNT.length && COUNT[count.next].at >= count.clock) {
     const step = COUNT[count.next++];
+    if (step.aimed && !aimed()) continue;
     const lead = step.who === 'lead' ? countLead() : step.who;
     const who = lead === 'ellis' && conducting() ? 'you' : lead;
     say(who, typeof step.text === 'function' ? step.text() : step.text, step.tone || '', step.quick ? 1 : 4.5);
     step.act?.();
+    if (step.balloon) roomChanged(); // the count room shows the new balloon
     if (step.poll) {
       count.poll = step.poll;
       count.pollLeft = POLL_WINDOW;
@@ -2035,6 +2143,12 @@ function tickCount(dt) {
 // ---- The flight ----
 function launch() {
   const result = fly(g.round);
+  // Off a tower, the wind at this minute and the tower's lay decide where across the range she comes down (truth/aim.js).
+  if (aimed() && g.count?.lay != null && !result.deep && !result.orbit) {
+    result.cross = crossImpact(result.range, g.count.lay, crosswindAt(g.round.seed, g.clock));
+    result.landing = landingOf(result.cross);
+    result.lay = g.count.lay;
+  }
   g.launchDay = g.day;
   g.count = null;
   g.rocket.where = 'flying';
@@ -2244,6 +2358,31 @@ export function rideOut() {
     g.truck.dust = false;
     g.clock += 60;
     g.recovery = wreckage(g.round, atSea());
+    const fl = g.round.flight;
+    if (fl.landing) {
+      const where = `She came down ${sideText(fl.cross, ' km')} of the range line${fl.landing === 'line' ? ', inside the strip the range cleared' : fl.landing === 'wide' ? ', outside the strip the range cleared' : ': off the range altogether'}.`;
+      g.round.filmed = (g.decided?.trackShare ?? 0) >= TRACK.good;
+      if (wreckFound(g.round.seed, fl.cross)) g.recovery = [where, ...g.recovery];
+      else {
+        g.round.unfound = true;
+        g.clock += 180;
+        g.recovery = [
+          where,
+          `We searched the scrub for three hours on the radar's last fix and never found her. Whatever is left of her stays out there.${g.round.filmed ? ' Your tracking film is all we have of her flight.' : ''}`,
+        ];
+      }
+      if (fl.landing === 'off') {
+        shiftTrust(g.record, -1);
+        remember(
+          g.record,
+          g.people,
+          'morgan',
+          `She came down off my range, ${sideText(fl.cross, ' km')} of the line. The tower was laid ${sideText(fl.lay, '°')}.`,
+          { tone: 'warn' },
+          g.day,
+        );
+      }
+    }
     for (const line of g.recovery)
       note(`${atSea() ? 'From the telemetry and radar records' : 'At the impact point'}: ${line}`);
     g.room = 'recovery';
@@ -2423,6 +2562,7 @@ export function finishReview(entry) {
             ? `In orbit: perigee about ${f.orbit.perigee.toFixed(0)} km, apogee about ${f.orbit.apogee.toFixed(0)} km.`
             : `Radar peak about ${seen.toFixed(0)} km.`,
     load: g.round.propellantLoad,
+    ...(f.landing ? { landing: f.landing, cross: Math.round(f.cross * 10) / 10, found: !g.round.unfound } : {}),
     ...entry,
   });
   g.room = null;
@@ -2660,6 +2800,7 @@ function nextMorning() {
     {
       evening1: 'staticPrep',
       afterStatic: 'rollout',
+      scrubbed: 'countReady',
       mBrief: 'mLaunch',
       mScrub: 'mLaunch',
       mPadNight: 'mPadSafe',

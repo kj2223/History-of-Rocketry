@@ -561,7 +561,9 @@ function* round() {
   const flown = () => {
     keepPress();
     pressHeld();
-    return g().beat === 'recovery' || g().beat === 'lCruise' || (g().count && g().count.poll);
+    return (
+      g().beat === 'recovery' || g().beat === 'lCruise' || g().beat === 'scrubbed' || (g().count && g().count.poll)
+    );
   };
   // The count runs to the next poll or the end of the flight, stopping once at the moment she lifts off, so the runner
   // can watch and listen to the liftoff as it happens.
@@ -579,6 +581,17 @@ function* round() {
   yield* toNext();
   yield 'count';
   let holds = 0;
+  // A count scrubbed when the range window closed (holds and pad trips eat it): the next day, the count again.
+  const afterScrub = function* () {
+    if (g().beat !== 'scrubbed') return;
+    handsOn.scrubs = (handsOn.scrubs ?? 0) + 1;
+    yield 'count-scrubbed';
+    nextDay();
+    until(() => g().beat === 'countReady');
+    game.countStart();
+    yield* toNext();
+  };
+  yield* afterScrub();
   while (g().count && g().count.poll) {
     const go = holds >= 3 || P().poll(g().count, holds);
     game.countAnswer(go);
@@ -590,6 +603,7 @@ function* round() {
       game.countLeakCheck();
     }
     yield* toNext();
+    yield* afterScrub();
     yield 'count-poll';
   }
   if (g().beat === 'lCruise') {
