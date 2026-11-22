@@ -22,6 +22,7 @@ import {
   crewInspect,
   stationCall,
   DEFAULT_PROGRAMME,
+  LEAK_CHECK_HOURS,
 } from './truth/round.js';
 import { TRAITS } from './world/people.js';
 import { remember } from './world/memory.js';
@@ -37,6 +38,7 @@ import {
   SLIP_DAYS,
 } from './world/ledger.js';
 import { COSTS, planCost, lineFor, spend, dollars } from './world/budget.js';
+import { newSlot, spendHours, hoursLeft, daysOver, hoursText, REBUILD_HOURS, SLOT_HOURS } from './world/slot.js';
 import {
   newFlow,
   flowRisk,
@@ -259,6 +261,7 @@ export function newGame(seed = Math.floor(Math.random() * 1e9), from = null) {
       mission: from.mission ?? null,
       crewSwaps: from.crewSwaps ?? {},
       flow: from.flow ?? null,
+      slot: from.slot ?? null,
     }),
   );
   g.roundStart = roundStartOf(at) + (g.flow?.slip || 0) + (g.flow?.late || 0);
@@ -428,6 +431,7 @@ function resetRound() {
     flow: null,
     rehearsal: null,
     reviewNote: null,
+    slot: null,
   });
   for (const [id, p] of Object.entries(PEOPLE))
     Object.assign(g.people[id], { x: p.x, target: p.x, bubble: null, working: false, hidden: false });
@@ -556,6 +560,13 @@ function startRound(i, from = -Infinity) {
   if (SEASON[i].risk?.seg51Risk != null) round.seg51Risk = SEASON[i].risk.seg51Risk;
   round.estimate = estimate(g.programme, g.vehicle, 1);
   g.round = round;
+  // The range slot's crew hours (world/slot.js), short if the last round was lost and its replacement had to be built.
+  g.slot = g.crewed || SEASON[i].probe ? null : newSlot(g.vehicle, g.programme.rebuild || 0);
+  if (g.slot?.short)
+    note(
+      `The crew spent ${hoursText(g.slot.short)} building a replacement for the round we lost. ${hoursText(g.slot.budget)} of crew time before the slot this time.`,
+    );
+  if (g.slot) g.programme.rebuild = 0;
   // The flow starts before the round's first morning: the tests already past when you arrive were run by the team.
   g.flow = newFlow(g.vehicle, g.roundStart, from, !!SEASON[i].probe, SEASON[i].id);
   for (const t of g.flow?.tests || []) if (t.status === 'early') runTest(g.flow, g.round, t, 'team');
@@ -816,6 +827,7 @@ export function morning(beat) {
     mission: g.mission ?? null,
     crewSwaps: g.crewSwaps,
     flow: g.flow ?? null,
+    slot: g.slot ?? null,
   });
   g.savedVersion++;
   setBeat(beat);
@@ -1294,6 +1306,9 @@ export function finishPlan(plan) {
   note(
     `Your plan: ${INSPECTORS[g.plan.inspector].name === 'You' ? 'you look her over yourself' : `${INSPECTORS[g.plan.inspector].name} looks her over`}; ${g.plan.burn === 'long' ? 'a full-duration firing' : 'a short start-up firing'} ${kit().stand.tape ? `on the ${kit().stand.tape.where} tapes` : 'on the stand'}; ${g.plan.leak ? 'a leak check before rollout' : 'no extra leak check'}.`,
   );
+  // The inspection and the leak check come out of the slot's crew hours (world/slot.js); your own look is counted as you go.
+  spendHours(g.slot, INSPECTORS[g.plan.inspector].hours, `${INSPECTORS[g.plan.inspector].name}'s inspection`);
+  if (g.plan.leak) spendHours(g.slot, LEAK_CHECK_HOURS, 'leak check before rollout');
   if (onBudget()) {
     if (COSTS.inspect[g.plan.inspector])
       spend(g.record, g.day, COSTS.inspect[g.plan.inspector], `${INSPECTORS[g.plan.inspector].name}'s inspection`);
@@ -1316,6 +1331,7 @@ export function finishPlan(plan) {
     then: () => {
       const ids = crewInspect(g.round, TRAITS[who]);
       const hours = flagSpots(g.round, ids);
+      spendHours(g.slot, hours, 'working the flags');
       g.flagged = Object.fromEntries(ids.map(id => [id, true]));
       const names = ids.map(id => kit().spots[id].name.toLowerCase());
       say(
@@ -1347,6 +1363,7 @@ export function lookAt(id) {
   if (g.looked[id] != null) return;
   g.looked[id] = g.round.cues[id];
   g.clock += 15;
+  spendHours(g.slot, 0.25, `a close look at the ${kit().spots[id].name.toLowerCase()}`);
   const spot = kit().spots[id];
   note(`${spot.name}: ${g.round.cues[id] ? spot.cue : spot.sound}`);
   roomChanged();
@@ -1360,6 +1377,7 @@ export function meterSpot(id) {
   const r = meterReading(g.round, id);
   g.decided = { ...g.decided, meter: { ...g.decided.meter, [id]: r } };
   g.clock += m.minutes;
+  spendHours(g.slot, m.minutes / 60, `${m.name.toLowerCase()} on the ${spot.name.toLowerCase()}`);
   note(`${spot.name}, ${m.name.toLowerCase()}: ${r.value} ${m.unit} (limit ${m.low ? 'all ' : ''}${m.limit}).`);
   roomChanged();
 }
@@ -1369,6 +1387,7 @@ export function finishInspection(flags) {
   const ids = Object.keys(flags).filter(k => flags[k]);
   g.flagged = { ...flags };
   const hours = flagSpots(g.round, ids);
+  spendHours(g.slot, hours, 'working your flags');
   if (ids.length) {
     note(`You flagged: ${ids.map(id => kit().spots[id].name.toLowerCase()).join(', ')}.`);
     addJob({
@@ -1422,9 +1441,18 @@ export const STAND_SWITCHES = [
   ['press', 'Pressurise'],
   ['arm', 'Igniter arm'],
 ];
+// Since 22 November 2026 (the slot rethink) the crew throws them unless you take the panel yourself: they are there for
+// the player who wants them, never a gate in front of the firing.
+export function standTakePanel() {
+  const s = g.stand;
+  if (!s || s.phase !== 'ready' || kit().stand.tape) return;
+  s.byHand = true;
+  standPanelOpen();
+  roomChanged();
+}
 export function standPanelOpen() {
   const s = g.stand;
-  if (s && s.phase === 'ready' && !s.switches && !kit().stand.tape)
+  if (s && s.byHand && s.phase === 'ready' && !s.switches && !kit().stand.tape)
     s.switches = { power: false, press: false, arm: false };
 }
 // Who answers your switches at the panel: the one with the final say, or PRESS when that is you.
@@ -1479,6 +1507,7 @@ export function standLeakCheck() {
   if (s.phase !== 'held' && s.phase !== 'ready') return;
   s.phase = 'leakcheck';
   const r = leakCheck(g.round);
+  spendHours(g.slot, r.hours, 'leak check before the firing');
   if (r.found) g.decided.leakFixed = r.found;
   note(
     r.found
@@ -1559,6 +1588,7 @@ export function standDecide(choices) {
     const r = leakCheck(g.round);
     if (r.found) g.decided.leakFixed = r.found;
     hours += r.hours;
+    spendHours(g.slot, r.hours, 'leak check after the firing');
     note(
       r.found
         ? `Leak check after the firing: leak at the ${r.found.toLowerCase()}, fixed.`
@@ -1621,8 +1651,39 @@ export function standDecide(choices) {
         : st.reworkDay;
     say(countLead(), st.reworkSay, 'warn', 6);
   } else say(countLead(), "Good. Let's get her ready for the tower.");
+  slotAfterStatic(s.burn === 'long' || hours >= 8 ? 1 : 0);
   setBeat('afterStatic');
 }
+
+// The last of the slot's hours are spent once the stage is cleared: past them, the range gives the slot away and the
+// round waits a day for each working day over (world/slot.js). The days the round slips on your calls (a rework, a
+// full-duration firing, the hours) go on your record as a late round.
+function slotAfterStatic(slipped) {
+  const over = daysOver(g.slot);
+  if (over) {
+    let day = g.day + 1;
+    while (g.offDays[day]) day++;
+    for (let k = 0; k < over; k++)
+      g.offDays[day + k] =
+        'The crew was still working through what you asked for when the slot came round. The range gave it to the next customer, and the round waited for another.';
+    g.slipDays += over;
+    say(
+      countLead(),
+      `That's ${hoursText(g.slot.spent)} of work against ${hoursText(g.slot.budget)} before the slot. We've lost it: the range will fit us in ${over === 1 ? 'a day' : `${over} days`} later.`,
+      'warn',
+      7,
+    );
+    note(
+      `You asked for ${hoursText(g.slot.spent)} of crew work against the ${hoursText(g.slot.budget)} before the slot. The round lost its slot and waits ${over === 1 ? 'a day' : `${over} days`}.`,
+    );
+  } else if (g.slot)
+    note(`Crew hours used before the slot: ${hoursText(g.slot.spent)} of ${hoursText(g.slot.budget)}.`);
+  const late = slipped + over;
+  if (late) g.decided = { ...g.decided, late };
+}
+export const slotHours = () =>
+  g.slot ? { left: hoursLeft(g.slot), budget: g.slot.budget, spent: g.slot.spent } : null;
+export { hoursText };
 
 // ---- The count, in the blockhouse ----
 const COUNT = [
@@ -1686,10 +1747,18 @@ export const countChannels = () => {
 // Only when you are at PRESS in the blockhouse; otherwise the regulator holds it, as before. Out of limits for four
 // seconds running and the count is held, the way a test conductor holds for a PRESS reading out of limits.
 export const PRESS = { bleed: 0.12, fill: 0.6, out: 4 };
-export const pressByHand = () =>
+// Since 22 November 2026 the regulator keeps the tank unless you take the valve: touching it hands it to you.
+export const pressOffered = () =>
   !!g.count && g.room === 'count' && !conducting() && g.count.clock <= 120 && !g.count.poll;
+export const pressByHand = () => pressOffered() && !!g.count.byHand;
 export function pressValve(open) {
-  if (g.count) g.count.valve = !!open && pressByHand();
+  if (!g.count) return;
+  if (open && pressOffered() && !g.count.byHand) {
+    g.count.byHand = true;
+    say(countLead(), `${countPanel()} has the press valve by hand. Keep her in the band.`);
+    roomChanged();
+  }
+  g.count.valve = !!open && pressByHand();
 }
 function tickPress(count, dt) {
   if (!pressByHand() || count.held || count.checking) return;
@@ -2335,6 +2404,10 @@ export function finishReview(entry) {
       `Washington wanted this round on the day. ${g.slipDays === 1 ? 'A day' : `${g.slipDays} days`} lost goes on your record.`,
     );
   }
+  // A round flown late on your calls counts against you when your name could go forward (career/record.js).
+  if (g.decided?.late) entry.late = g.decided.late;
+  // A lost round leaves the next one short of crew hours: they build its replacement (world/slot.js).
+  if (f.failure && SLOT_HOURS[g.vehicle]) g.programme.rebuild = REBUILD_HOURS;
   addRound(g.record, {
     id: SEASON[g.roundIndex].id,
     vehicle: g.vehicle,
