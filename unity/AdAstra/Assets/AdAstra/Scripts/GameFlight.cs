@@ -43,6 +43,13 @@ namespace AdAstra
                 WindNorth = 0,
                 BurnTime = flight.Failure == "ignition" ? 0.8 : flight.Burn,
             }, new FlightTargets { ApogeeKm = flight.Apogee, RangeKm = flight.Range, CrossKm = flight.Cross });
+            // The range plot and the season's old traces show the track she actually flies, a point a second.
+            flight.Path = new List<PathPoint>();
+            for (double t = 0; ; t = System.Math.Min(t + 1, path.ImpactT))
+            {
+                flight.Path.Add(PlotPoint(t));
+                if (t >= path.ImpactT) break;
+            }
             site.RocketFlame.gameObject.SetActive(true);
             site.RocketLight.intensity = 6;
             Say("vega", Wac.Lift, "go");
@@ -51,6 +58,13 @@ namespace AdAstra
         }
 
         static Vector3 V(Vec3 v) => new Vector3((float)v.X, (float)v.Y, (float)v.Z);
+
+        // Where she is at t for the range plot: downrange (north, z) and height, in km.
+        PathPoint PlotPoint(double t)
+        {
+            var s = path.At(t);
+            return new PathPoint { T = (float)t, X = (float)(s.Pos.Z / 1000), H = (float)(s.Pos.Y / 1000) };
+        }
 
         void TickFlight(float dt)
         {

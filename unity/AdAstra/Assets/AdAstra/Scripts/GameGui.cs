@@ -451,11 +451,11 @@ namespace AdAstra
             }
             foreach (var old in prog.Flights.Where(f => f.Trace != null).Skip(Math.Max(0, prog.Flights.Count - 3)))
                 Ui.Lines(old.Trace.Select(p => At(p.X, p.H)).ToList(), new Color(0.5f, 0.6f, 0.45f, 0.45f));
-            float upTo = beat == Beat.Flight ? flightT : 1e9f;
-            var pts = flight.Path.Where(p => p.T <= upTo).Select(p => At(p.X, p.H)).ToList();
+            var now = beat == Beat.Flight ? PlotPoint(Math.Min(flightT, path.ImpactT)) : flight.Path[flight.Path.Count - 1];
+            var pts = flight.Path.Where(p => p.T < now.T).Select(p => At(p.X, p.H)).ToList();
+            pts.Add(At(now.X, now.H));
             Ui.Lines(pts, Ui.Hex("#9cff7a"));
-            var now = flight.Path.LastOrDefault(p => p.T <= upTo);
-            Ui.Label(new Rect(r.x + Px(10), r.y + Px(4), r.width, Px(24)), $"RANGE PLOT · T+{Mathf.Min(upTo, flight.Path[flight.Path.Count - 1].T):0} s · alt {now.H:0.0} km · downrange {now.X:0.0} km", Ui.Small, Ui.Hex("#c8f0a8"));
+            Ui.Label(new Rect(r.x + Px(10), r.y + Px(4), r.width, Px(24)), $"RANGE PLOT · T+{now.T:0} s · alt {now.H:0.0} km · downrange {now.X:0.0} km", Ui.Small, Ui.Hex("#c8f0a8"));
             Ui.Label(new Rect(x1 - Px(120), y0 + Px(4), Px(120), Px(20)), $"{maxX:0} km", Ui.Small, Ui.Hex("#9fc08a"));
         }
     }
