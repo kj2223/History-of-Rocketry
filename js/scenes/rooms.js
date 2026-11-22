@@ -788,7 +788,7 @@ export const ROOMS = {
       next = i != null ? SEASON[i] : null;
     const o = g.record.offers[g.record.offers.length - 1],
       here = o && o.day >= r.day;
-    return `<h2>Written up: ${esc(r.name)}</h2>${paperHTML(g, r, !!SEASON.find(s => s.id === r.id)?.crewed) || roundPrint(g, r, dateText)}${recordLine(r)}${historyLine(r)}${carriesForward()}${ledgerBlock()}
+    return `<h2>Written up: ${esc(r.name)}</h2>${paperHTML(g, r, !!SEASON.find(s => s.id === r.id)?.crewed) || roundPrint(g, r, dateText)}${recordLine(r)}${r.caught?.length ? `<div class="caught"><h3>What the investigation found</h3><ul>${r.caught.map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>` : ''}${historyLine(r)}${carriesForward()}${ledgerBlock()}
       ${here ? offerCard(o) : ''}
       ${next && !pendingOffer(g.record) ? `<p>Next: ${esc(next.name)}, from ${esc(dateText(roundStartOf(i)))}.</p><button class="primary" data-act="next-round">Carry on to the next round</button>` : ''}`;
   },

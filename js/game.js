@@ -2216,6 +2216,7 @@ function tickCount(dt) {
 
 // ---- The flight ----
 function launch() {
+  if (g.count?.readings?.length) g.decided = { ...g.decided, reads: g.count.readings.map(r => ({ ...r })) };
   const result = fly(g.round);
   // Off a tower, the wind at this minute and the tower's lay decide where across the range she comes down (truth/aim.js).
   if (aimed() && g.count?.lay != null && !result.deep && !result.orbit) {
@@ -2546,6 +2547,92 @@ export function chair(key) {
   finishReview({ yourCall: key, chaired: true, readings: r, slipDays: g.slipDays, agreed: true, fix });
 }
 
+// THE INVESTIGATION (Aaron, 22 November 2026: "make every failure traceable"). After a loss, and after your call at
+// the review, the full investigation says where the cause could have been caught: the look you did or did not take,
+// the reading on the test kit, the moment on the stand's trace, the decay test, the poll. Written from the truth, once
+// the round is over, so a loss becomes a lesson. Lines in the order the round went.
+const SPOT_CAUSES = ['weld', 'leak', 'vanes', 'separation', 'fin', 'holddown', 'camera'];
+const STAND_CAUSES = ['ignition', 'turbopump', 'liner', 'cutoff', 'injector', 'depletion', 'agena'];
+export function investigate() {
+  const f = g.round.flight,
+    cause = f?.failure,
+    k = kit();
+  if (!cause || g.crewed || !k) return [];
+  if (g.round.hiddenFailure)
+    return [
+      `The investigation found ${SHORT[cause] || cause} in a part that had passed every test. Nothing on the ground would have caught it.`,
+    ];
+  const lines = [];
+  if (SPOT_CAUSES.includes(cause)) {
+    const id = Object.keys(g.round.faults).find(s => g.round.faults[s] === cause);
+    const spot = id && k.spots[id];
+    if (spot) {
+      const cue = g.round.cues[id];
+      lines.push(
+        g.looked[id] == null
+          ? `In the hangar: the fault was at the ${spot.name.toLowerCase()}, and nobody looked closely at it.${cue ? ` A look would have shown this: "${spot.cue}"` : ' Even a close look would have shown nothing.'}`
+          : cue
+            ? `In the hangar: you looked at the ${spot.name.toLowerCase()} and saw this: "${spot.cue}" That was the fault${g.flagged[id] ? '.' : ', and it was not flagged.'}`
+            : `In the hangar: you looked at the ${spot.name.toLowerCase()} and it looked sound. It was not.`,
+      );
+      const m = meterFor(spot);
+      if (m) {
+        const read = g.decided.meter?.[id] ?? meterReading(g.round, id);
+        lines.push(
+          g.decided.meter?.[id]
+            ? `The test kit read ${read.value} ${m.unit} on it (limit ${m.low ? 'all ' : ''}${m.limit}).`
+            : `The test kit was never put on it. It would have read ${read.value} ${m.unit} (limit ${m.low ? 'all ' : ''}${m.limit}).`,
+        );
+      }
+    }
+  }
+  if (STAND_CAUSES.includes(cause)) {
+    const tr = g.stand?.trace,
+      [lo, hi] = k.stand.pc,
+      wallLimit = k.stand.wall?.[1];
+    const end = (tr?.at(-1)?.t ?? 0) * 0.85; // past the start-up ramp, short of the shutdown
+    const pcAt = tr?.find(p => p.t >= 0.7 && p.t <= end && (p.pc < lo || p.pc > hi));
+    const wallAt = wallLimit && tr?.find(p => p.wall != null && p.wall > wallLimit);
+    if (wallAt)
+      lines.push(
+        `On the stand: the chamber wall read ${Math.round(wallAt.wall)} K at ${wallAt.t.toFixed(1)} s, over the ${wallLimit} K on the red-line card.`,
+      );
+    else if (pcAt)
+      lines.push(
+        `On the stand: the chamber pressure trace read ${pcAt.pc.toFixed(1)} bar at ${pcAt.t.toFixed(1)} s, outside the ${lo} to ${hi} on the red-line card. That was the fault showing itself.`,
+      );
+    else
+      lines.push(
+        g.stand?.burn === 'long'
+          ? 'On the stand: the trace stayed inside its red lines. The firing did not show it.'
+          : 'On the stand: the short firing did not run long enough to show it. A full-duration firing might have.',
+      );
+    lines.push(
+      g.decided.rework
+        ? 'The rework was asked for, but it did not cure this.'
+        : `The rework (${k.stand.rework.toLowerCase()}) was there to be asked for.`,
+    );
+  }
+  if (cause === 'leak') {
+    const tr = g.stand?.trace,
+      lowAt = tr?.find(p => p.tank < NORMAL_TANK[0]);
+    if (lowAt)
+      lines.push(`On the stand: the tank trace was down to ${lowAt.tank.toFixed(1)} bar at ${lowAt.t.toFixed(1)} s.`);
+    for (const d of g.decided.decays || [])
+      lines.push(
+        `The decay test ${d.where === 'count' ? 'in the count' : 'on the stand'}: the needle moved ${d.change >= 0 ? '+' : ''}${d.change.toFixed(2)} bar in ${d.minutes} min, and you called it ${d.tight ? 'tight' : 'a leak'}.`,
+      );
+    const low = (g.decided.reads || []).find(r => r.value < NORMAL_TANK[0]);
+    if (low)
+      lines.push(
+        `In the count: at T-${Math.ceil(low.at)} s the tank read ${low.value.toFixed(1)} bar, under the red line, and the call was ${low.go ? 'GO' : 'HOLD'}.`,
+      );
+  }
+  if (!lines.length)
+    lines.push(`The investigation found ${SHORT[cause] || cause}. Nothing you could see pointed to it.`);
+  return lines;
+}
+
 // What every review ends with: the flight on the programme's books, the round in your record, and a turning point if
 // this round is one.
 export function finishReview(entry) {
@@ -2616,6 +2703,12 @@ export function finishReview(entry) {
     note(
       `Washington wanted this round on the day. ${g.slipDays === 1 ? 'A day' : `${g.slipDays} days`} lost goes on your record.`,
     );
+  }
+  // Where a loss could have been caught, for the write-up (investigate()).
+  const caught = investigate();
+  if (caught.length) {
+    entry.caught = caught;
+    for (const l of caught) note(`The investigation: ${l}`);
   }
   // A round flown late on your calls counts against you when your name could go forward (career/record.js).
   if (g.decided?.late) entry.late = g.decided.late;
