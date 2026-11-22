@@ -886,7 +886,9 @@ export function ellisReading(round) {
   const clear = draw(round.rng.observation),
     pick = draw(round.rng.observation);
   // A round that broke loose on the stand leaves nobody in doubt, and nobody blames the stand for a flight that left it.
-  if (clear < 0.8 || truth === 'holddown') return truth;
+  // A wreck nobody found (truth/aim.js) leaves the radar and, if someone kept her in the crosshairs, the tracking film.
+  const sure = round.unfound ? (round.filmed ? 0.65 : 0.45) : 0.8;
+  if (clear < sure || truth === 'holddown') return truth;
   const others = Object.keys(KITS[round.vehicle || 'wac'].explanations).filter(
     c => c !== truth && c !== 'unknown' && c !== 'holddown',
   );
