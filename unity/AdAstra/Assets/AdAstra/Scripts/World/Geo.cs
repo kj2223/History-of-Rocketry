@@ -7,7 +7,7 @@ namespace AdAstra.World
     public static class Geo
     {
         static Shader standard;
-        public static Shader Standard => standard ? standard : (standard = Shader.Find("Standard"));
+        public static Shader Standard => standard ? standard : (standard = Shader.Find("Universal Render Pipeline/Lit"));
 
         public static void Kill(Object o) { if (!o) return; if (Application.isPlaying) Object.Destroy(o); else Object.DestroyImmediate(o); }
 
@@ -16,7 +16,7 @@ namespace AdAstra.World
         public static Material Mat(string hex, float smooth = 0.08f, float metal = 0f)
         {
             var m = new Material(Standard) { color = Hex(hex) };
-            m.SetFloat("_Glossiness", smooth);
+            m.SetFloat("_Smoothness", smooth);
             m.SetFloat("_Metallic", metal);
             return m;
         }

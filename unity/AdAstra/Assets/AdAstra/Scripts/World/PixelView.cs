@@ -4,7 +4,10 @@
 //      behind walls and consoles but stay crisp, hard-edged pixel art at any size.
 // The camera glides between the views the game asks for; the right mouse button turns it a little and the wheel moves
 // it in and out, so the world can be looked at from the side.
+// In URP the two layers are a camera stack drawing into Final: the world camera (base, world renderer, which runs the
+// HD-2D light pass in HD2DFeature) and the sprite camera (overlay, sprites renderer), which keeps the world's depth.
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace AdAstra.World
 {
@@ -13,7 +16,7 @@ namespace AdAstra.World
         public const int SpriteLayer = 31;
 
         public Camera Cam, SpriteCam;
-        public RenderTexture World, Final;
+        public RenderTexture Final;
         public Material Post;
         public Rect Screen;          // where the picture lands, GUI coordinates
         public float Fade;
@@ -43,24 +46,36 @@ namespace AdAstra.World
             SpriteCam.cullingMask = 1 << SpriteLayer;
             SpriteCam.nearClipPlane = 0.5f; SpriteCam.farClipPlane = 9000;
             SpriteCam.allowMSAA = false; SpriteCam.allowHDR = false;
-            SpriteCam.enabled = false;
+            // Renderer 0 is the world renderer, 1 the sprites renderer (WacSetup builds the URP asset).
+            var world = Cam.GetUniversalAdditionalCameraData();
+            world.SetRenderer(0);
+            world.requiresDepthTexture = true; // for the soft edges of the smoke
+            var sprites = SpriteCam.GetUniversalAdditionalCameraData();
+            sprites.renderType = CameraRenderType.Overlay;
+            sprites.SetRenderer(1);
+            // shortcut: URP has no public setter for an overlay's Clear Depth (the inspector's toggle); set its field.
+            typeof(UniversalAdditionalCameraData).GetField("m_ClearDepth", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .SetValue(sprites, false);
+            world.cameraStack.Add(SpriteCam);
             // An empty camera that is always on, so the Game view has a camera rendering to the display (the picture
             // itself comes from the two cameras above, rendered by hand, and is drawn by the GUI).
             var screenCam = new GameObject("Screen camera").AddComponent<Camera>();
             screenCam.cullingMask = 0; screenCam.clearFlags = CameraClearFlags.SolidColor; screenCam.backgroundColor = Color.black;
             screenCam.depth = -100; screenCam.allowMSAA = false; screenCam.allowHDR = false;
             Post = new Material(Shader.Find("Hidden/AdAstra/HD2DPost"));
+            HD2DFeature.Material = Post;
         }
 
         void EnsureTargets()
         {
             int sw = UnityEngine.Screen.width, sh = UnityEngine.Screen.height;
-            if (World != null && sw == w && sh == h) return;
-            if (World != null) { World.Release(); Final.Release(); Object.Destroy(World); Object.Destroy(Final); }
+            if (Final != null && sw == w && sh == h) return;
+            if (Final != null) { Cam.targetTexture = null; Final.Release(); Object.Destroy(Final); }
             w = sw; h = sh;
-            World = new RenderTexture(w, h, 32, RenderTextureFormat.ARGB32) { name = "World", filterMode = FilterMode.Bilinear };
-            Final = new RenderTexture(w, h, 0, RenderTextureFormat.ARGB32) { name = "Final", filterMode = FilterMode.Point };
-            World.Create(); Final.Create();
+            Final = new RenderTexture(w, h, 32, RenderTextureFormat.ARGB32) { name = "Final", filterMode = FilterMode.Point };
+            Final.Create();
+            Cam.targetTexture = Final;
+            Cam.enabled = true;
             Screen = new Rect(0, 0, w, h);
         }
 
@@ -123,12 +138,11 @@ namespace AdAstra.World
             if (sky) sky.position = Cam.transform.position;
         }
 
-        // Render both layers. blur: tilt-shift strength in 1080p pixels.
+        // Set the light pass for this frame; URP renders the stack after LateUpdate. blur: tilt-shift strength in 1080p
+        // pixels.
         public void Render(int frameNo, float film, float bloom, float blur)
         {
             EnsureTargets();
-            Cam.targetTexture = World;
-            Cam.Render();
             Post.SetFloat("_Focus", Focus);
             Post.SetFloat("_Band", 0.16f);
             Post.SetFloat("_Blur", blur);
@@ -136,10 +150,6 @@ namespace AdAstra.World
             Post.SetFloat("_Film", film);
             Post.SetFloat("_Fade", Fade);
             Post.SetFloat("_FrameNo", frameNo);
-            Graphics.Blit(World, Final, Post);
-            SpriteCam.SetTargetBuffers(Final.colorBuffer, World.depthBuffer);
-            SpriteCam.Render();
-            Cam.targetTexture = null;
         }
 
         public void Draw()

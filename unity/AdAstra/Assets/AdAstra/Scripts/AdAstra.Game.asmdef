@@ -1,6 +1,6 @@
 {
   "name": "AdAstra.Game",
   "rootNamespace": "AdAstra",
-  "references": ["AdAstra.Rules"],
+  "references": ["AdAstra.Rules", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
   "autoReferenced": true
 }

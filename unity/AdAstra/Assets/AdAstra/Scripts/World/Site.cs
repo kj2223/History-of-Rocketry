@@ -42,6 +42,8 @@ namespace AdAstra.World
         static Material SpriteMat(Shader sh, Texture2D t)
         {
             var m = new Material(sh) { mainTexture = t };
+            m.SetFloat("_AlphaClip", 1); m.EnableKeyword("_ALPHATEST_ON");
+            m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
             if (m.HasProperty("_Cutoff")) m.SetFloat("_Cutoff", 0.5f);
             if (m.HasProperty("_Color")) m.color = new Color(1.05f, 1.02f, 0.98f);
             return m;
@@ -126,8 +128,7 @@ namespace AdAstra.World
             Smoke = Geo.Mat("#efe9dc");
             Debris = Geo.Mat("#3a3a3a");
             Flash = new Material(Shader.Find("AdAstra/Additive")) { color = new Color(1f, 0.85f, 0.6f, 1f) };
-            spriteShader = Shader.Find("Legacy Shaders/Transparent/Cutout/Diffuse");
-            if (!spriteShader) spriteShader = Shader.Find("Unlit/Transparent Cutout");
+            spriteShader = Shader.Find("Universal Render Pipeline/Simple Lit"); // lit, no highlights, like the old Diffuse
             blob = new Material(Shader.Find("AdAstra/UnlitAlpha")) { mainTexture = PixelArt.Blob(), color = new Color(0.12f, 0.08f, 0.04f, 0.45f) };
         }
 
@@ -446,7 +447,9 @@ namespace AdAstra.World
                 Geo.Ball(h, bulb, new Vector3(x, 4.2f, 0), Vector3.one * 0.22f);
                 var l = new GameObject("Lamp").AddComponent<Light>(); l.transform.SetParent(h, false);
                 l.type = LightType.Spot; l.transform.localPosition = new Vector3(x, 4.1f, 0); l.transform.localRotation = Quaternion.Euler(90, 0, 0);
-                l.spotAngle = 95; l.range = 12; l.intensity = 2.2f; l.color = Geo.Hex("#ffe3b4"); l.shadows = LightShadows.Soft;
+                // URP lights fall off as 1/d² (built-in was far gentler), so the lamps are set about 0.034·range² times their old
+                // intensity, which matches the old pool of light at half the range.
+                l.spotAngle = 95; l.range = 12; l.intensity = 9.5f; l.color = Geo.Hex("#ffe3b4"); l.shadows = LightShadows.Soft;
             }
             Geo.Shadows(h.gameObject);
         }
@@ -493,10 +496,10 @@ namespace AdAstra.World
                 Geo.Ball(b, bulb, new Vector3(x, 3.7f, 0.8f), Vector3.one * 0.2f);
                 var l = new GameObject("Lamp").AddComponent<Light>(); l.transform.SetParent(b, false);
                 l.type = LightType.Spot; l.transform.localPosition = new Vector3(x, 3.6f, 0.8f); l.transform.localRotation = Quaternion.Euler(80, 0, 0);
-                l.spotAngle = 100; l.range = 9; l.intensity = 1.8f; l.color = Geo.Hex("#ffe0b0"); l.shadows = LightShadows.Soft;
+                l.spotAngle = 100; l.range = 9; l.intensity = 4.4f; /* 1.8 before URP, see the hangar lamps */ l.color = Geo.Hex("#ffe0b0"); l.shadows = LightShadows.Soft;
             }
             var green = new GameObject("Panel glow").AddComponent<Light>(); green.transform.SetParent(b, false);
-            green.type = LightType.Point; green.transform.localPosition = new Vector3(0, 1.4f, 3.0f); green.range = 4; green.intensity = 0.7f; green.color = Geo.Hex("#9affc0");
+            green.type = LightType.Point; green.transform.localPosition = new Vector3(0, 1.4f, 3.0f); green.range = 4; green.intensity = 0.4f; /* 0.7 before URP */ green.color = Geo.Hex("#9affc0");
             Geo.Shadows(b.gameObject);
         }
 

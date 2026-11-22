@@ -19,7 +19,6 @@ namespace AdAstra
         void OnGUI()
         {
             Ui.Build();
-            Ui.MarkOrigin();
             view.Draw();
             if (beat == Beat.Title) { TitleScreen(); return; }
             TopBar();

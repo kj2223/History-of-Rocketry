@@ -71,42 +71,28 @@ namespace AdAstra.UI
         public static Color ToneColor(string tone) => tone == "go" ? Hex("#8fe08a") : tone == "bad" ? Hex("#ff8a6a") : tone == "warn" ? Accent : Hex("#e8e2cc");
 
         // ---- Lines, for traces, needles and the range plot (GUI coordinates).
-        static Material line;
-        public static Vector2 Origin;
-        public static void MarkOrigin() => Origin = GUIUtility.GUIToScreenPoint(Vector2.zero);
+        // Lines are drawn as thin GUI quads, not GL: GL inside OnGUI depends on the pipeline's pixel matrix (under URP it
+        // came out mirrored at the top of the screen), while GUI drawing is the same in every pipeline and stays local
+        // to GUILayout areas and scroll views.
         public static void Lines(IList<Vector2> pts, Color c, bool strip = true)
         {
             if (Event.current.type != EventType.Repaint || pts.Count < 2) return;
-            // GUI points inside a GUILayout area or scroll view are local to it; GL draws in the window's pixels.
-            // GUIToScreenPoint also counts where the window is on the desktop (the Game view in the editor), so take
-            // off where the top-level GUI origin lands (Origin, set at the start of each OnGUI).
-            var sp = new Vector2[pts.Count];
-            for (int i = 0; i < pts.Count; i++) sp[i] = GUIUtility.GUIToScreenPoint(pts[i]) - Origin;
-            pts = sp;
-            if (!line)
-            {
-                line = new Material(Shader.Find("Hidden/Internal-Colored")) { hideFlags = HideFlags.HideAndDontSave };
-                line.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.Always);
-                line.SetInt("_Cull", 0);
-            }
-            line.SetPass(0);
-            GL.PushMatrix();
-            GL.LoadPixelMatrix();
-            GL.Begin(GL.LINES);
-            GL.Color(c);
-            float h = Screen.height;
+            var tex = Fill(Color.white);
+            float w = Mathf.Max(1.5f, 1.5f * U); // reads at 4K
+            var oldColor = GUI.color; var oldMatrix = GUI.matrix;
+            GUI.color = c;
             int step = strip ? 1 : 2;
             for (int i = 0; i + 1 < pts.Count; i += step)
             {
-                // Two passes a pixel apart make a line that reads at 4K.
-                for (int k = 0; k < 2; k++)
-                {
-                    GL.Vertex3(pts[i].x + k * 0.6f, h - pts[i].y, 0);
-                    GL.Vertex3(pts[i + 1].x + k * 0.6f, h - pts[i + 1].y, 0);
-                }
+                Vector2 a = pts[i], b = pts[i + 1], d = b - a;
+                float len = d.magnitude;
+                if (len < 0.01f) continue;
+                float ang = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+                GUI.matrix = oldMatrix;
+                GUIUtility.RotateAroundPivot(ang, a);
+                GUI.DrawTexture(new Rect(a.x, a.y - w * 0.5f, len + w * 0.5f, w), tex);
             }
-            GL.End();
-            GL.PopMatrix();
+            GUI.matrix = oldMatrix; GUI.color = oldColor;
         }
 
         public static void Line(Vector2 a, Vector2 b, Color c) => Lines(new[] { a, b }, c, false);
