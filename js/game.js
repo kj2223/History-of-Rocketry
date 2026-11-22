@@ -642,6 +642,24 @@ export function flowRun(by = 'team') {
   roomChanged();
   return r;
 }
+// Hand every remaining test in the flow to the team at once: one jump, told on the away card, stopping short of a
+// readiness review that has an item waiting on your call.
+export function flowTeamAll() {
+  if (g.beat !== 'flow') return;
+  const left = g.day,
+    lines = [];
+  for (let n = 0; n < 40 && g.beat === 'flow' && !flowMomentItem(); n++) {
+    if (!g.dayDone) {
+      if (!flowRun('team')) break;
+      if (g.flowResult?.line) lines.push(`${dateText()}: ${g.flowResult.line}`);
+    }
+    nextMorning();
+    if (g.away?.lines) lines.push(...g.away.lines.filter(l => !lines.includes(l)));
+  }
+  g.away = { from: dateText(left), to: dateText(g.day), skipped: 0, lines };
+  g.room = 'away';
+  roomChanged();
+}
 // ---- The Flight Readiness Review, the last day of a crewed flow ----
 export const flowReviewToday = () => !!(todays() && flowDef(todays()).review && !g.dayDone);
 // The history's item for the review (data/flow.js MOMENTS: Apollo 13's oxygen tank), while it waits on a call.
@@ -953,9 +971,17 @@ export function clockText(minute = g.clock) {
 }
 
 // ---- The beats ----
+// Fewer, bigger moments (Aaron, 22 November 2026): a day with nothing left for you ends on its own, a few seconds after
+// your last job (never while a room is open in front of you); the crew's walking and carrying on the days between the
+// calls (to the stand, out to the tower) runs at HURRY times the speed; and the launch flow can be handed to the team
+// in one go.
+export const AUTO_END_SECONDS = 3,
+  HURRY = 6;
+const HURRY_BEATS = ['staticPrep', 'rollout'];
 export function setBeat(name, objective) {
   g.beat = name;
   g.dayDone = false;
+  g.autoEnd = null;
   if (g.crewed && !crewedLoaded)
     throw new Error(
       `beat ${name} needs the crewed modules, which did not register: load js/mercury.js (see registerCrewed)`,
@@ -1019,8 +1045,9 @@ const BEATS = {
     walk('ellis', 240);
   },
   evening1() {
-    g.objective = 'Your work for today is done. Watch the crew, or end the day.';
+    g.objective = 'Your work for today is done. The day ends on its own in a moment.';
     g.dayDone = true;
+    g.autoEnd = g.time + AUTO_END_SECONDS;
   },
   staticPrep() {
     const tape = kit().stand.tape;
@@ -1074,8 +1101,9 @@ const BEATS = {
     g.stand = { phase: 'ready', clock: 10, trace: null, shown: 0, held: false, burn };
   },
   afterStatic() {
-    g.objective = 'The firing is done. Watch the crew, or end the day.';
+    g.objective = 'The firing is done. The day ends on its own in a moment.';
     g.dayDone = true;
+    g.autoEnd = g.time + AUTO_END_SECONDS;
   },
   rollout() {
     g.objective =
@@ -2992,7 +3020,12 @@ export function tick(dt) {
     return;
   }
   if (g.paused) return;
-  const k = g.speed;
+  if (g.autoEnd != null && g.time >= g.autoEnd && g.dayDone && !g.room && !g.fading) {
+    g.autoEnd = null;
+    endDay();
+    return;
+  }
+  const k = g.speed * (HURRY_BEATS.includes(g.beat) && !g.room ? HURRY : 1);
   // Firings, counts and flights run in real seconds; otherwise the day runs fast, and stops at evening until the day is ended.
   const realTime = g.stand && ['count', 'firing'].includes(g.stand.phase);
   // A lunar shot's cruise and encounter keep the mission's own clock (js/lunar.js), and the day's clock never runs back.
