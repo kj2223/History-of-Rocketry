@@ -1,0 +1,6 @@
+{
+  "name": "AdAstra.Game",
+  "rootNamespace": "AdAstra",
+  "references": ["AdAstra.Rules"],
+  "autoReferenced": true
+}
