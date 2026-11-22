@@ -73,6 +73,7 @@ import {
   flowTest,
   flowDef,
   flowRun,
+  flowTeamAll,
   flowCut,
   flowCanCut,
   flowRehearsal,
@@ -414,7 +415,7 @@ function flowChoices(here) {
         : `<button class="primary" data-act="flow-you">Sit in on it</button>`
       : `<p class="muted">To sit in on it, go to the ${esc(placeName(d.where))}.</p>`;
   const cut = flowCanCut() ? `<button data-act="flow-cut">Cut it to win back a day</button>` : '';
-  return `${attend} <button data-act="flow-team">Hand it to the team</button> ${cut}`;
+  return `${attend} <button data-act="flow-team">Hand it to the team</button> <button data-act="flow-team-all">Hand the rest of the flow to the team</button> ${cut}`;
 }
 // A rehearsal of the count, mark by mark: what has gone by with your calls, and the mark in front of you.
 function rehearsalRoom(d) {
@@ -978,6 +979,7 @@ export function bindRoom(handlers) {
       'next-round': () => nextRound(),
       'flow-you': () => flowRun('you'),
       'flow-team': () => flowRun('team'),
+      'flow-team-all': () => flowTeamAll(),
       'flow-cut': () => flowCut(),
       'flow-rehearse': () => flowRehearse(),
       'reh-go': () => flowRehearsalCall(false),
