@@ -1,0 +1,73 @@
+{
+ "SIM_CARDS": {
+  "control": {
+   "phase": "ascent",
+   "text": "Off the line and still walking away: abort before she passes the limit. She will not come back on her own."
+  },
+  "guidance": {
+   "$ref": "sim-cards.SIM_CARDS.control"
+  },
+  "titanctl": {
+   "$ref": "sim-cards.SIM_CARDS.control"
+  },
+  "saturnctl": {
+   "$ref": "sim-cards.SIM_CARDS.control"
+  },
+  "lox": {
+   "phase": "ip",
+   "text": "Engine out early, she falls short: a solid radar track is your best point."
+  },
+  "thrust": {
+   "phase": "ip",
+   "text": "Hot and fast and dry early, she goes long: a solid radar track is your best point."
+  },
+  "radar": {
+   "phase": "ip",
+   "text": "Dropouts on the radar plot: give Recovery the computer's point, not the radar's."
+  },
+  "shortburn": {
+   "phase": "insertion",
+   "text": "Short cutoff: check her speed against what orbit needs, less the angle. If it will not hold, NO-GO while the ships can still reach her."
+  },
+  "stage2": {
+   "$ref": "sim-cards.SIM_CARDS.shortburn"
+  },
+  "s2cutoff": {
+   "$ref": "sim-cards.SIM_CARDS.shortburn"
+  },
+  "seastate": {
+   "phase": "poll",
+   "text": "Sea above state 4: NO-GO, however good the rest of the board looks."
+  },
+  "offstation": {
+   "phase": "poll",
+   "text": "A ship off station under a landing point: NO-GO until it is back."
+  },
+  "seg51loose": {
+   "phase": "pack",
+   "text": "Segment 51 lit: you cannot tell a loose shield from a bad switch. Keep the pack on: it costs little, a shield costs everything."
+  },
+  "seg51false": {
+   "phase": "pack",
+   "text": "Segment 51 lit: you cannot tell a loose shield from a bad switch. Keep the pack on: it costs little, a shield costs everything."
+  },
+  "plug": {
+   "phase": "pad",
+   "text": "Shut down on the pad with the escape tower gone: nobody goes near her until the batteries are flat and the oxygen has boiled off."
+  },
+  "shutdown": {
+   "phase": "shutdown",
+   "text": "Lit and shut down on the pad: no fire, no motion, the crew sits tight. Ejection seats are for a vehicle that is coming apart."
+  },
+  "scanner": {
+   "phase": "retro",
+   "text": "Attitude wandering and fuel burning on automatic: have him fire by hand, lined up on the horizon."
+  }
+ },
+ "cardsFor": {
+  "$function": "sim-cards.cardsFor"
+ },
+ "earnCard": {
+  "$function": "sim-cards.earnCard"
+ }
+}

@@ -1,0 +1,8 @@
+<Project>
+  <!-- Build output goes to unity/.build, outside the source folders: AdAstra.Rules is also a Unity package, and Unity
+       would otherwise pick up the generated .cs files in obj/ and compile them twice. -->
+  <PropertyGroup>
+    <BaseOutputPath>$(MSBuildThisFileDirectory).build/$(MSBuildProjectName)/bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).build/$(MSBuildProjectName)/obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

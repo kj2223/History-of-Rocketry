@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- THE RULES OF AD ASTRA IN C#: everything that decides what happens, with no drawing and no UnityEngine.
+       Builds as netstandard2.1 so the Unity project can use the same source (through an assembly definition with
+       no engine references) and so `dotnet test` runs it anywhere, without the Unity editor or a licence. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>AdAstra.Rules</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Unity ships the same library as the package com.unity.nuget.newtonsoft-json. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,5 @@
+{
+ "talk": {
+  "$function": "talk.talk"
+ }
+}

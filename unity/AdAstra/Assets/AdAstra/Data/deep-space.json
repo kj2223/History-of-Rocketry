@@ -1,0 +1,310 @@
+{
+ "PLANETS": {
+  "venus": {
+   "name": "Venus",
+   "au": 0.723,
+   "L0": 181.98,
+   "P": 224.701,
+   "color": 15259304,
+   "r": 7
+  },
+  "earth": {
+   "name": "Earth",
+   "au": 1,
+   "L0": 100.46,
+   "P": 365.256,
+   "color": 6001608,
+   "r": 7
+  },
+  "mars": {
+   "name": "Mars",
+   "au": 1.524,
+   "L0": 355.45,
+   "P": 686.98,
+   "color": 13132860,
+   "r": 6
+  },
+  "jupiter": {
+   "name": "Jupiter",
+   "au": 5.203,
+   "L0": 34.4,
+   "P": 4332.59,
+   "color": 14201994,
+   "r": 12
+  },
+  "saturn": {
+   "name": "Saturn",
+   "au": 9.537,
+   "L0": 49.94,
+   "P": 10759.2,
+   "color": 14864274,
+   "r": 11,
+   "ring": true
+  },
+  "uranus": {
+   "name": "Uranus",
+   "au": 19.19,
+   "L0": 313.23,
+   "P": 30688.5,
+   "color": 10475228,
+   "r": 9
+  },
+  "neptune": {
+   "name": "Neptune",
+   "au": 30.07,
+   "L0": 304.88,
+   "P": 60182,
+   "color": 6127574,
+   "r": 9
+  }
+ },
+ "ROUTES": {
+  "mariner-2": [
+   {
+    "name": "Mariner 2",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 6447,
+      "what": "launch"
+     },
+     {
+      "planet": "venus",
+      "day": 6556,
+      "what": "flyby"
+     }
+    ]
+   }
+  ],
+  "mariner-4": [
+   {
+    "name": "Mariner 4",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 7271,
+      "what": "launch"
+     },
+     {
+      "planet": "mars",
+      "day": 7500,
+      "what": "flyby"
+     }
+    ]
+   }
+  ],
+  "mariner-9": [
+   {
+    "name": "Mariner 9",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 9645,
+      "what": "launch"
+     },
+     {
+      "planet": "mars",
+      "day": 9813,
+      "what": "orbit"
+     }
+    ]
+   }
+  ],
+  "viking-mars": [
+   {
+    "name": "Viking 1",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 11188,
+      "what": "launch"
+     },
+     {
+      "planet": "mars",
+      "day": 11492,
+      "what": "orbit"
+     }
+    ]
+   },
+   {
+    "name": "Viking 2",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 11208,
+      "what": "launch"
+     },
+     {
+      "planet": "mars",
+      "day": 11541,
+      "what": "orbit"
+     }
+    ]
+   }
+  ],
+  "voyager": [
+   {
+    "name": "Voyager 2",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 11919,
+      "what": "launch"
+     },
+     {
+      "planet": "jupiter",
+      "day": 12607,
+      "what": "flyby"
+     },
+     {
+      "planet": "saturn",
+      "day": 13386,
+      "what": "flyby"
+     },
+     {
+      "planet": "uranus",
+      "day": 14998,
+      "what": "flyby"
+     },
+     {
+      "planet": "neptune",
+      "day": 16307,
+      "what": "flyby"
+     }
+    ]
+   },
+   {
+    "name": "Voyager 1",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 11935,
+      "what": "launch"
+     },
+     {
+      "planet": "jupiter",
+      "day": 12481,
+      "what": "flyby"
+     },
+     {
+      "planet": "saturn",
+      "day": 13099,
+      "what": "flyby"
+     }
+    ]
+   }
+  ],
+  "galileo": [
+   {
+    "name": "Galileo",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 16361,
+      "what": "launch"
+     },
+     {
+      "planet": "venus",
+      "day": 16476,
+      "what": "flyby"
+     },
+     {
+      "planet": "earth",
+      "day": 16777,
+      "what": "flyby"
+     },
+     {
+      "planet": "earth",
+      "day": 17508,
+      "what": "flyby"
+     },
+     {
+      "planet": "jupiter",
+      "day": 18602,
+      "what": "orbit"
+     }
+    ]
+   }
+  ],
+  "pathfinder": [
+   {
+    "name": "Pathfinder",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 18965,
+      "what": "launch"
+     },
+     {
+      "planet": "mars",
+      "day": 19177,
+      "what": "landing"
+     }
+    ]
+   }
+  ],
+  "cassini": [
+   {
+    "name": "Cassini",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 19280,
+      "what": "launch"
+     },
+     {
+      "planet": "venus",
+      "day": 19473,
+      "what": "flyby"
+     },
+     {
+      "planet": "venus",
+      "day": 19897,
+      "what": "flyby"
+     },
+     {
+      "planet": "earth",
+      "day": 19952,
+      "what": "flyby"
+     },
+     {
+      "planet": "jupiter",
+      "day": 20452,
+      "what": "flyby"
+     },
+     {
+      "planet": "saturn",
+      "day": 21731,
+      "what": "orbit"
+     }
+    ]
+   }
+  ],
+  "perseverance": [
+   {
+    "name": "Perseverance",
+    "legs": [
+     {
+      "planet": "earth",
+      "day": 27604,
+      "what": "launch"
+     },
+     {
+      "planet": "mars",
+      "day": 27807,
+      "what": "landing"
+     }
+    ]
+   }
+  ]
+ },
+ "craftAt": {
+  "$function": "deep-space.craftAt"
+ },
+ "planetAt": {
+  "$function": "deep-space.planetAt"
+ },
+ "routeReach": {
+  "$function": "deep-space.routeReach"
+ }
+}
