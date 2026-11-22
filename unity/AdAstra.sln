@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdAstra.Rules", "AdAstra.Rules\AdAstra.Rules.csproj", "{65DBB8EC-E3CE-4182-9AED-8D40CFE34EAA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdAstra.Rules.Tests", "AdAstra.Rules.Tests\AdAstra.Rules.Tests.csproj", "{ECE7B7F3-2081-4DE1-A199-FEF016109136}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{65DBB8EC-E3CE-4182-9AED-8D40CFE34EAA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{65DBB8EC-E3CE-4182-9AED-8D40CFE34EAA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{65DBB8EC-E3CE-4182-9AED-8D40CFE34EAA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{65DBB8EC-E3CE-4182-9AED-8D40CFE34EAA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECE7B7F3-2081-4DE1-A199-FEF016109136}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECE7B7F3-2081-4DE1-A199-FEF016109136}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECE7B7F3-2081-4DE1-A199-FEF016109136}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECE7B7F3-2081-4DE1-A199-FEF016109136}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
