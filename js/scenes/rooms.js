@@ -17,8 +17,12 @@ import {
   meterFor,
   pressValve,
   pressByHand,
+  pressOffered,
   standSwitch,
   standPanelOpen,
+  standTakePanel,
+  slotHours,
+  hoursText,
   standArmed,
   STAND_SWITCHES,
   standMarked,
@@ -449,6 +453,14 @@ const FLOW_ROOMS = {
   },
 };
 
+// The range slot's crew hours left (world/slot.js), as a line at the top of the rooms that spend them.
+function slotLine() {
+  const h = slotHours();
+  if (!h) return '';
+  const over = h.spent > h.budget;
+  return `<p class="slot${over ? ' danger-text' : ''}" data-live="slot"><strong>Crew hours before the slot: ${over ? `none left, ${esc(hoursText(h.spent - h.budget))} over` : `${esc(hoursText(h.left))} of ${esc(hoursText(h.budget))} left`}.</strong> ${over ? 'Past them the range gives the slot away, and the round waits a day.' : 'Every look, test and job you ask for comes out of these.'}</p>`;
+}
+
 export const ROOMS = {
   ...FLOW_ROOMS,
   probeHandover() {
@@ -503,8 +515,8 @@ export const ROOMS = {
         <label><input type="checkbox" data-flag="${id}" ${flags[id] ? 'checked' : ''}> Flag it</label></div></li>`;
       })
       .join('');
-    return `<h2>${esc(k.inspect.title)}</h2>
-      <p>${esc(k.inspect.intro)} Look over whatever you think matters, put the test kit on anything you want measured,
+    return `<h2>${esc(k.inspect.title)}</h2>${slotLine()}
+      <p>${esc(k.inspect.intro)} You can't do everything before the slot: pick what you think matters. Look closely, put the test kit on anything you want measured,
       and flag anything you want the crew to open up. A real fault costs the crew ${2} hours to fix; a false alarm costs ${3} hours
       of taking things apart for nothing. Anything you miss is still there.</p>
       <ul class="spots">${rows}</ul>
@@ -537,7 +549,7 @@ export const ROOMS = {
       walled = s.burn === 'long' && !!kit().stand.wall,
       tape = kit().stand.tape,
       marked = standMarked();
-    standPanelOpen(); // sitting down at the panel puts its switches in your hands (hands-on idea 4)
+    standPanelOpen(); // the switches are yours once you take the panel (hands-on idea 4; the crew throws them otherwise)
     const leakWhere = tape ? ' the stage in the hangar' : '';
     const asks = {
       ready: tape
@@ -556,7 +568,7 @@ export const ROOMS = {
       ready: `${
         s.switches
           ? `<div class="switches">${STAND_SWITCHES.map(([k, name]) => `<button class="switch${s.switches[k] ? ' on' : ''}" data-act="stand-switch" data-id="${k}" aria-pressed="${s.switches[k]}">${esc(name)}</button>`).join('')}<button class="primary key" data-act="stand-start"${standArmed() ? '' : ' disabled'}>Firing key: start the count</button></div>`
-          : `<button class="primary" data-act="stand-start">${tape ? 'Run the tape' : 'Start the firing count'}</button>`
+          : `<button class="primary" data-act="stand-start">${tape ? 'Run the tape' : 'Start the firing count'}</button>${tape ? '' : '<button data-act="stand-panel">Work the firing panel yourself</button>'}`
       }<button data-act="stand-leak">Send the crew to leak-check${leakWhere} first (2 h)</button>`,
       count: `<button class="danger" data-act="stand-hold">${tape ? 'Stop the tape' : 'HOLD'}</button>`,
       held: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape on' : 'Resume the count'}</button><button data-act="stand-leak">Send the crew to leak-check${leakWhere} (2 h)</button>`,
@@ -572,7 +584,7 @@ export const ROOMS = {
       loose: '<p class="danger-text">She broke loose from the stand.</p>',
     }[p];
     if (tape)
-      return `<h2>The ${esc(tape.where)} firing, on tape</h2>
+      return `<h2>The ${esc(tape.where)} firing, on tape</h2>${slotLine()}
       <p>The ${esc(kit().stand.thing)} was fired at ${esc(tape.who)} before she shipped; she never fires at the Cape. You play back the recorder tapes here: watch the tank pressure as she was pressurised, stop the tape if it looks wrong, then run the firing and read the trace.</p>
       <div class="clock" data-live="standclock">—</div>
       <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
@@ -580,7 +592,7 @@ export const ROOMS = {
       <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is the full-duration run.' : ''}</p>
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
       <div class="actions">${asks[p] ? ask(asks[p]) : ''}${buttons}</div>`;
-    return `<h2>Test stand dugout</h2>
+    return `<h2>Test stand dugout</h2>${slotLine()}
       <p>Through the slit you can see the ${esc(kit().stand.thing)} in the stand. ${
         conducting()
           ? "You're running this one."
@@ -614,9 +626,11 @@ export const ROOMS = {
         ? `${ask('Holding. Resume the count, or send the pad crew to look for a leak?')}<button class="primary" data-act="resume">Resume the count</button><button data-act="count-leak">Send the pad crew to look for a leak</button>`
         : !c.poll && pressByHand()
           ? `${ask('Terminal count. Keep your tank inside its red lines: hold the press valve open to top it up.')}<button class="valve" data-hold="press">Press valve (hold)</button><button class="danger" data-act="hold">HOLD</button>`
-          : !c.poll
-            ? `${ask('Counting. You can call a hold at any time.')}<button class="danger" data-act="hold">HOLD</button>`
-            : '';
+          : !c.poll && pressOffered()
+            ? `${ask('Terminal count. The regulator is keeping your tank. You can call a hold at any time.')}<button class="danger" data-act="hold">HOLD</button><button class="valve" data-hold="press">Take the press valve yourself (hold)</button>`
+            : !c.poll
+              ? `${ask('Counting. You can call a hold at any time.')}<button class="danger" data-act="hold">HOLD</button>`
+              : '';
     return `<h2>Blockhouse: the count</h2>
       <p>${
         conductor
@@ -637,14 +651,16 @@ export const ROOMS = {
       `<label><input type="radio" name="${name}" value="${value}" ${plan[name] === value ? 'checked' : ''}> ${label}</label>`;
     return `<h2>Planning the round</h2>
       <p>The range has the round down for <strong>${esc(slot)}</strong>. Brandt wants it flown on that day. What you plan here decides what you can learn
-      about her before then, and what it costs.</p>
+      about her before then, and what it costs.</p>${slotLine()}
       <h3>Who looks her over in the hangar</h3>
       ${Object.entries(INSPECTORS)
         .map(([id, person]) =>
           opt(
             'inspector',
             id,
-            id === 'you' ? 'You, yourself' : `${esc(person.name)} (usually takes about ${person.hours} hours)`,
+            id === 'you'
+              ? 'You, yourself'
+              : `${esc(person.name)} (about ${person.hours} hours of the slot's crew time)`,
           ),
         )
         .join('<br>')}
@@ -658,7 +674,7 @@ export const ROOMS = {
       ${opt('burn', 'long', `A full-duration firing, 30 seconds, ${kit().stand.long} The engine must be pulled and checked afterwards: the launch slips a day.`)}`
       }
       <h3>Before rollout</h3>
-      <label><input type="checkbox" data-plan="leak" ${plan.leak ? 'checked' : ''}> A leak check of the whole feed system (2 hours on rollout day)</label>
+      <label><input type="checkbox" data-plan="leak" ${plan.leak ? 'checked' : ''}> A leak check of the whole feed system (2 hours of the slot's crew time)</label>
       ${onBudget() ? budgetBlock() : ''}
       <p><button class="primary" data-act="plan-done">Put the plan on the board</button></p>`;
   },
@@ -874,6 +890,7 @@ export function bindRoom(handlers) {
       'stand-leak': standLeakCheck,
       'stand-wipe': standWipe,
       'stand-switch': () => standSwitch(id),
+      'stand-panel': standTakePanel,
       'stand-decide': () => {
         const c = {};
         el.querySelectorAll('[data-choice]').forEach(n => {

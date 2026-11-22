@@ -512,8 +512,9 @@ function* round() {
   nextDay();
   until(() => g().beat === 'static');
   yield 'static-morning';
-  // Hands-on idea 4: sit down at the firing panel and throw its switches in order before the key (a tape round has none).
-  game.standPanelOpen();
+  // Hands-on idea 4: take the firing panel from the crew and throw its switches in order before the key (a tape round
+  // has none). Since the slot rethink the crew throws them unless you take the panel; the bot always does, for coverage.
+  game.standTakePanel();
   if (g().stand.switches) {
     for (const [id] of game.STAND_SWITCHES) game.standSwitch(id);
     handsOn.switches = (handsOn.switches ?? 0) + 1;
@@ -541,7 +542,8 @@ function* round() {
   // the lead holds the count for a tank out of limits and the bot waits for ever.
   let pressed = false;
   const keepPress = () => {
-    if (!game.pressByHand()) return;
+    if (!game.pressOffered()) return; // the regulator keeps it until you touch the valve
+    if (!game.pressByHand()) game.pressValve(true); // take it, as a player's first press does
     game.pressValve(game.countTank() < (game.NORMAL_TANK[0] + game.NORMAL_TANK[1]) / 2);
     if (!pressed) handsOn.press = (handsOn.press ?? 0) + 1; // rounds where PRESS worked the valve by hand
     pressed = true;

@@ -4,6 +4,8 @@
 // Your seat: where you sit now. Offers come at turning points; you are never fired, but a poor record moves you to
 // quieter work and slows the next offer, and turning an offer down keeps you where you are.
 
+import { lateMark } from '../world/slot.js';
+
 export const initRecord = () => ({ rounds: [], trust: 0, seat: 'junior', offers: [] });
 export const TRUST = { min: -3, max: 3, defer: 2 };
 export const SEATS = {
@@ -37,8 +39,9 @@ export const shiftTrust = (record, by) => {
 export function standing(record) {
   const recent = record.rounds.slice(-3),
     good = recent.filter(r => !/^Lost/.test(r.flight)).length;
-  // Each fiscal year you ran over your budget line counts against you.
-  return record.trust + (good >= 2 ? 1 : 0) - (record.overspent || 0) + simStanding(record);
+  // Each fiscal year you ran over your budget line counts against you, and so do rounds flown late on your calls
+  // (world/slot.js: two of the last three).
+  return record.trust + (good >= 2 ? 1 : 0) - (record.overspent || 0) - lateMark(record.rounds) + simStanding(record);
 }
 // Training sims count too, once you have run a few: the last three, mostly called right, are worth a point.
 export function simStanding(record) {

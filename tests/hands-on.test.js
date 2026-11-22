@@ -17,6 +17,7 @@ import {
   trackShare,
   TRACK,
   standPanelOpen,
+  standTakePanel,
   standSwitch,
   standArmed,
   pressValve,
@@ -173,6 +174,8 @@ test('the firing panel takes its switches in order; out of order it is safed', (
   playRound(undefined, undefined, 'staticPrep');
   until(() => g.beat === 'static');
   standPanelOpen();
+  assert.equal(g.stand.switches, undefined, 'the crew has the panel until you take it');
+  standTakePanel();
   assert.deepEqual(g.stand.switches, { power: false, press: false, arm: false });
   standStart();
   assert.equal(g.stand.phase, 'ready', 'the key does nothing on an unarmed panel');
@@ -208,11 +211,15 @@ const toTerminal = () => {
 };
 test('in the terminal count at PRESS, the tank bleeds away unless you hold the valve; out of limits holds the count', () => {
   toTerminal();
+  assert.ok(!pressByHand(), 'the regulator keeps the tank until you take the valve');
+  pressValve(true);
+  pressValve(false);
   assert.ok(pressByHand());
   for (let i = 0; i < 30 * 25 && !g.count.held; i++) tick(1 / 30);
   assert.equal(g.count.held, true, 'left alone, the tank drops out of limits and the count holds');
   assert.ok(g.notes.some(n => /out of limits; the count was held/.test(n.text)));
   toTerminal();
+  pressValve(true);
   for (let i = 0; i < 30 * 60 && g.count; i++) {
     pressValve(countTank() < 22.6);
     assert.ok(!g.count.held, 'a careful hand on the valve keeps the count going');

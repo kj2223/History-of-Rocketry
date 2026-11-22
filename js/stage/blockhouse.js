@@ -5,7 +5,7 @@
 // tanks. The numbers and labels are full-resolution type over the pixels; the room panel keeps only the call.
 // Reads only what the player could see, through game.js (the scenes never import js/truth).
 import { Container, Rectangle } from '../vendor/pixi.min.mjs';
-import { g as game, countChannels, stageChannels, conducting, pressValve, pressByHand } from '../game.js';
+import { g as game, countChannels, stageChannels, conducting, pressValve, pressOffered } from '../game.js';
 import { uiEra } from '../site/draw.js';
 import { paintPad } from './pixel-pad.js';
 import { hdLayer, hdWanted } from './fx/hd.js';
@@ -367,7 +367,7 @@ export function blockhouseScene({ leave }) {
 
     const c = g.count,
       t = g.time;
-    valveHit.cursor = pressByHand() ? 'pointer' : 'default';
+    valveHit.cursor = pressOffered() ? 'pointer' : 'default';
     const read = c ? countChannels() : null;
     const v = id => (read ? read[id] : null);
     setText(
