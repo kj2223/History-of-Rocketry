@@ -49,6 +49,7 @@ import {
   layFor,
   MAX_LAY,
 } from './truth/aim.js';
+import { decayRates, decayReading, airTemp, DECAY_MINUTES_PER_SECOND, DECAY_START } from './truth/decay.js';
 import { newSlot, spendHours, hoursLeft, daysOver, hoursText, REBUILD_HOURS, SLOT_HOURS } from './world/slot.js';
 import {
   newFlow,
@@ -443,6 +444,7 @@ function resetRound() {
     rehearsal: null,
     reviewNote: null,
     slot: null,
+    decay: null,
   });
   for (const [id, p] of Object.entries(PEOPLE))
     Object.assign(g.people[id], { x: p.x, target: p.x, bubble: null, working: false, hidden: false });
@@ -1504,6 +1506,7 @@ export const standArmed = () => !g.stand?.switches || Object.values(g.stand.swit
 
 export function standStart() {
   const s = g.stand;
+  if (g.decay) return; // the tank is locked up for the decay test
   if (s.switches && s.phase === 'ready' && !standArmed()) return; // the key does nothing on an unarmed panel
   if (s.phase === 'ready' || s.phase === 'held') {
     s.phase = 'count';
@@ -1551,6 +1554,76 @@ export function standLeakCheck() {
   });
   roomChanged();
 }
+// ---- The decay test (Aaron, 22 November 2026: "make the player do the procedure") ----
+// Isolate the tank and watch the needle (truth/decay.js). On the stand before or after the firing, or in a hold in the
+// count. The minutes you watch come out of the slot's crew hours on the stand, and out of the range window in the count.
+// You end it with your judgement: tight (carry on), or leaking (send the crew to find it, at their usual cost).
+export const decayWhere = () =>
+  g.count && g.count.held && !g.count.poll && !g.count.checking
+    ? 'count'
+    : g.stand && ['ready', 'held', 'read'].includes(g.stand.phase)
+      ? 'stand'
+      : null;
+export function decayStart() {
+  const where = decayWhere();
+  if (!where || g.decay) return;
+  const minute = g.clock % 1440;
+  g.decay = { where, minutes: 0, rates: decayRates(g.round, minute), temp: airTemp(g.round.seed, minute), points: [] };
+  say(conducting() || where === 'stand' ? 'you' : 'ellis', 'Isolate the tank. Valve closed. Watch the needle.');
+  roomChanged();
+}
+export { DECAY_START };
+export const decayNow = () => (g.decay ? decayReading(g.round, g.decay.rates, g.decay.minutes) : null);
+function tickDecay(dt) {
+  const d = g.decay,
+    step = DECAY_MINUTES_PER_SECOND * g.speed * dt;
+  d.minutes += step;
+  if (d.where === 'count') g.clock += step;
+  const at = Math.floor(d.minutes);
+  if (!d.points.length || d.points.at(-1).t < at) d.points.push({ t: at, p: decayNow() });
+}
+// tight: open the regulator and carry on. Otherwise the crew goes to find the leak you think is there.
+export function decayCall(tight) {
+  const d = g.decay;
+  if (!d) return;
+  const change = decayNow() - DECAY_START;
+  const watched = Math.round(d.minutes);
+  if (d.where === 'stand') spendHours(g.slot, d.minutes / 60, 'the decay test');
+  note(
+    `Decay test ${d.where === 'count' ? 'in the hold' : 'on the stand'}: ${watched} min locked up, the needle moved ${change >= 0 ? '+' : ''}${change.toFixed(2)} bar (air ${d.temp}°C). You called it ${tight ? 'tight' : 'a leak'}.`,
+  );
+  g.decay = null;
+  g.decided = {
+    ...g.decided,
+    decays: [...(g.decided?.decays || []), { where: d.where, minutes: watched, change, tight }],
+  };
+  if (tight) {
+    say('you', 'Tight. Open the regulator.');
+    roomChanged();
+    return;
+  }
+  if (d.where === 'count') return countLeakCheck();
+  if (g.stand.phase === 'read') {
+    // After the firing: the crew goes over the feed system with her back in the hangar.
+    const r = leakCheck(g.round);
+    if (r.found) g.decided.leakFixed = r.found;
+    spendHours(g.slot, r.hours, 'finding the leak after the firing');
+    note(
+      r.found
+        ? `The crew found the leak at the ${r.found.toLowerCase()} and fixed it.`
+        : 'The crew went over every line and found nothing.',
+    );
+    say(
+      'kowalski',
+      r.found ? `Found it: the ${r.found.toLowerCase()}. Fixed.` : 'Nothing leaking that we can find.',
+      r.found ? 'go' : '',
+    );
+    roomChanged();
+    return;
+  }
+  standLeakCheck();
+}
+
 // The tank gauge the dugout shows before and during the firing, from the seconds since the stage was pressurised.
 export const standTank = () => tankGauge(g.round, g.stand.pressurised || 0);
 // The stage's full telemetry (js/truth/channels.js) as the dugout reads it: the tanks before the firing, every channel
@@ -1753,6 +1826,7 @@ export function countRelay(lay) {
 function scrub() {
   const at = Math.ceil(g.count.clock);
   g.count = null;
+  g.decay = null;
   g.slipDays += 1;
   g.decided = { ...g.decided, late: (g.decided?.late || 0) + 1, scrubs: (g.decided?.scrubs || 0) + 1 };
   g.offDays = { ...g.offDays };
@@ -2041,7 +2115,7 @@ export function countHold() {
 }
 export function countResume() {
   const count = g.count;
-  if (count && count.held && !count.poll && !count.checking) {
+  if (count && count.held && !count.poll && !count.checking && !g.decay) {
     count.held = false;
     say(conducting() ? 'you' : 'ellis', 'Resuming the count.');
     roomChanged();
@@ -2867,6 +2941,7 @@ export function tick(dt) {
       job.then?.();
     }
   }
+  if (g.decay) tickDecay(dt);
   if (g.stand) tickStand(dt);
   if (g.count) tickCount(dt);
   if (g.flight && (g.flight.view === 'site' || g.flight.view === 'board')) tickFlight(dt);

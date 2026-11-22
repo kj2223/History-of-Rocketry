@@ -27,6 +27,10 @@ import {
   windowLeft,
   countRelay,
   LAY_LIMIT,
+  decayStart,
+  decayCall,
+  decayNow,
+  DECAY_START,
   standArmed,
   STAND_SWITCHES,
   standMarked,
@@ -180,6 +184,12 @@ export function render() {
 export function live() {
   updateRedlines();
   if (!g.room) return;
+  if (g.decay) {
+    gauge('decay', decayNow(), 20, 26);
+    panel().querySelector('[data-live=decaymin]') &&
+      (panel().querySelector('[data-live=decaymin]').textContent = `${Math.floor(g.decay.minutes)} min`);
+    drawDecay(panel().querySelector('canvas.decay-trace'), g.decay.points);
+  }
   controlLive();
   lunarLive();
   const set = (sel, v) => {
@@ -464,6 +474,43 @@ function towerBlock(c) {
     ${window}${relay}</div>`;
 }
 
+// The decay test (Aaron, 22 November 2026: "make the player do the procedure"): lock the tank up and watch the needle,
+// then make your own call. Nothing says what the movement means.
+const DECAY_BUTTON = '<button data-act="decay">Lock the tank up and watch the needle (decay test)</button>';
+function decayBlock() {
+  const d = g.decay;
+  return `<div class="decay"><h3>Decay test</h3>
+    <p>Tank locked up at ${DECAY_START.toFixed(1)} bar, the valve closed. Air temperature by the panel: ${d.temp}°C.
+    Every minute you watch is a minute ${d.where === 'count' ? 'of the range window' : "of the crew's hours"}.</p>
+    <div class="gauges">${gaugeHTML('decay', 'Locked-up tank', 'bar')}<div class="clock" data-live="decaymin">0 min</div></div>
+    <canvas class="decay-trace" width="300" height="90"></canvas>
+    <button data-act="decay-tight">Tight: open the regulator</button>
+    <button class="danger" data-act="decay-leak">Leaking: send the crew to find it</button></div>`;
+}
+function drawDecay(canvas, points) {
+  if (!canvas || !points.length) return;
+  const ctx = canvas.getContext('2d'),
+    w = canvas.width,
+    h = canvas.height,
+    span = Math.max(10, points.at(-1).t),
+    // The scale opens out to fit what the needle has done, never tighter than half a bar each way.
+    dev = Math.max(0.5, ...points.map(p => Math.abs(p.p - DECAY_START) * 1.15)),
+    y = v => h / 2 - (v - DECAY_START) * (h / 2 / dev),
+    x = t => 6 + (t / span) * (w - 12);
+  ctx.fillStyle = '#f6f1e2';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#d6cdb5';
+  ctx.beginPath();
+  ctx.moveTo(6, y(DECAY_START));
+  ctx.lineTo(w - 6, y(DECAY_START));
+  ctx.stroke();
+  ctx.strokeStyle = '#2f5f9a';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  points.forEach((p, i) => (i ? ctx.lineTo(x(p.t), y(p.p)) : ctx.moveTo(x(p.t), y(p.p))));
+  ctx.stroke();
+}
+
 // The range slot's crew hours left (world/slot.js), as a line at the top of the rooms that spend them.
 function slotLine() {
   const h = slotHours();
@@ -561,39 +608,39 @@ export const ROOMS = {
       tape = kit().stand.tape,
       marked = standMarked();
     standPanelOpen(); // the switches are yours once you take the panel (hands-on idea 4; the crew throws them otherwise)
-    const leakWhere = tape ? ' the stage in the hangar' : '';
     const asks = {
       ready: tape
-        ? 'The tapes are on the recorder. Run them, or leak-check first?'
+        ? 'The tapes are on the recorder. Run them, or lock the tank up and watch it first?'
         : s.switches
-          ? 'Throw the panel switches in order, then turn the firing key. Or leak-check first.'
-          : 'The stage is on the stand. Start the count, or leak-check first?',
+          ? 'Throw the panel switches in order, then turn the firing key. Or lock the tank up and watch it first.'
+          : 'The stage is on the stand. Start the count, or lock the tank up and watch it first?',
       count: tape
         ? 'Watch the needles against the red-line card. Stop the tape if you need to.'
         : 'Watch the needles against the red-line card. The hold is yours.',
       held: tape
-        ? 'The tape is stopped. Run it on, or leak-check?'
-        : 'Holding. Resume, or send the crew to leak-check?',
+        ? 'The tape is stopped. Run it on, or lock the tank up and watch it?'
+        : 'Holding. Resume, or lock the tank up and watch it?',
     };
-    const buttons = {
+    const phaseButtons = {
       ready: `${
         s.switches
           ? `<div class="switches">${STAND_SWITCHES.map(([k, name]) => `<button class="switch${s.switches[k] ? ' on' : ''}" data-act="stand-switch" data-id="${k}" aria-pressed="${s.switches[k]}">${esc(name)}</button>`).join('')}<button class="primary key" data-act="stand-start"${standArmed() ? '' : ' disabled'}>Firing key: start the count</button></div>`
           : `<button class="primary" data-act="stand-start">${tape ? 'Run the tape' : 'Start the firing count'}</button>${tape ? '' : '<button data-act="stand-panel">Work the firing panel yourself</button>'}`
-      }<button data-act="stand-leak">Send the crew to leak-check${leakWhere} first (2 h)</button>`,
+      }${DECAY_BUTTON}`,
       count: `<button class="danger" data-act="stand-hold">${tape ? 'Stop the tape' : 'HOLD'}</button>`,
-      held: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape on' : 'Resume the count'}</button><button data-act="stand-leak">Send the crew to leak-check${leakWhere} (2 h)</button>`,
+      held: `<button class="primary" data-act="stand-start">${tape ? 'Run the tape on' : 'Resume the count'}</button>${DECAY_BUTTON}`,
       leakcheck:
         '<p class="muted">The crew is on the stand checking every line. Watch them through the slit, or wait.</p>',
       firing: '<p class="muted">Firing…</p>',
       read: `${ask('Read the trace against the red-line card. Ring anything wrong on the recorder with the grease pencil (drag across it).', true, true)}
         <label><input type="checkbox" data-choice="rework"${marked.rework ? ' checked' : ''}> ${esc(kit().stand.rework)} (8 hours: the launch slips a day)</label>
-        <label><input type="checkbox" data-choice="leak"${marked.leak ? ' checked' : ''}> Leak-check the feed system (2 hours)</label>
+        ${DECAY_BUTTON}
         ${s.marks?.length ? '<button data-act="stand-wipe">Wipe the pencil off</button>' : ''}
         <button class="primary" data-act="stand-decide">${conducting() ? 'Make it so' : `Give your recommendation to ${esc(g.people[countLead()].name.split(' ').at(-1))}`}</button>`,
       decided: '<p class="muted">Done. The crew is taking the stage back to the hangar.</p>',
       loose: '<p class="danger-text">She broke loose from the stand.</p>',
     }[p];
+    const buttons = g.decay ? decayBlock() : phaseButtons;
     if (tape)
       return `<h2>The ${esc(tape.where)} firing, on tape</h2>${slotLine()}
       <p>The ${esc(kit().stand.thing)} was fired at ${esc(tape.who)} before she shipped; she never fires at the Cape. You play back the recorder tapes here: watch the tank pressure as she was pressurised, stop the tape if it looks wrong, then run the firing and read the trace.</p>
@@ -634,7 +681,9 @@ export const ROOMS = {
     const holdButtons = c.checking
       ? '<p class="muted">The pad crew is out at the tower. The count recycles when they are back inside.</p>'
       : c.held && !c.poll
-        ? `${ask('Holding. Resume the count, or send the pad crew to look for a leak?')}<button class="primary" data-act="resume">Resume the count</button><button data-act="count-leak">Send the pad crew to look for a leak</button>`
+        ? g.decay
+          ? decayBlock()
+          : `${ask('Holding. Resume the count, or lock the tank up and watch it?')}<button class="primary" data-act="resume">Resume the count</button>${DECAY_BUTTON}`
         : !c.poll && pressByHand()
           ? `${ask('Terminal count. Keep your tank inside its red lines: hold the press valve open to top it up.')}<button class="valve" data-hold="press">Press valve (hold)</button><button class="danger" data-act="hold">HOLD</button>`
           : !c.poll && pressOffered()
@@ -914,6 +963,9 @@ export function bindRoom(handlers) {
       hold: countHold,
       resume: countResume,
       'count-leak': countLeakCheck,
+      decay: decayStart,
+      'decay-tight': () => decayCall(true),
+      'decay-leak': () => decayCall(false),
       relay: () => {
         countRelay(relayTo ?? g.count?.lay ?? 0);
         relayTo = null;
