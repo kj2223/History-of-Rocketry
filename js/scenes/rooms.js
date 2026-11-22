@@ -34,7 +34,6 @@ import {
   countTank,
   countChannels,
   stageChannels,
-  bandOf,
   countAnswer,
   countHold,
   countResume,
@@ -216,7 +215,7 @@ export function live() {
         1000,
         kit().stand.wall,
       );
-    if (s.trace) drawTrace(panel().querySelector('canvas'), s.trace, Math.floor(s.shown), kit().stand.pc);
+    if (s.trace) drawTrace(panel().querySelector('canvas'), s.trace, Math.floor(s.shown));
     readings(standChannels());
   }
   if (g.room === 'count' && g.count) {
@@ -249,30 +248,25 @@ function readings(values) {
   t.innerHTML = stageChannels()
     .filter(c => c.id in values)
     .map(c => {
-      const b = bandOf(c, values[c.id]);
-      return `<tr class="${b}"><th>${c.label}</th><td>${fmt(c, values[c.id])}</td><td>${b === 'in' ? '' : b.toUpperCase()}</td></tr>`;
+      // The numbers only: no IN, LOW or HIGH beside them (take away the hints).
+      return `<tr><th>${c.label}</th><td>${fmt(c, values[c.id])}</td></tr>`;
     })
     .join('');
 }
 const fmtCount = s => `${Math.floor(Math.ceil(s) / 60)}:${String(Math.ceil(s) % 60).padStart(2, '0')}`;
 
-function gauge(id, value, min, max, normal) {
+function gauge(id, value, min, max) {
   const n = panel().querySelector(`[data-gauge=${id}]`);
   if (!n) return;
   n.querySelector('.needle').style.transform = `rotate(${-120 + (240 * (value - min)) / (max - min)}deg)`;
   n.querySelector('.read').textContent = value.toFixed(1);
-  const band = n.querySelector('.band');
-  if (band && !band.dataset.done) {
-    band.dataset.done = 1;
-    const a = -120 + (240 * (normal[0] - min)) / (max - min),
-      b = -120 + (240 * (normal[1] - min)) / (max - min);
-    band.style.background = `conic-gradient(from ${a}deg, rgba(110,200,120,.55) 0deg ${b - a}deg, transparent ${b - a}deg)`;
-  }
+  // No green band on the dial (Aaron, 22 November 2026: "take away the hints"): the red-line card beside the panel is
+  // the only place the limits are written, and whether a reading matters is your call.
 }
 const gaugeHTML = (id, label, unit) =>
-  `<div class="gauge" data-gauge="${id}"><div class="dial"><div class="band"></div><div class="needle"></div></div><div class="read">0.0</div><div class="lab">${label} (${unit})</div></div>`;
+  `<div class="gauge" data-gauge="${id}"><div class="dial"><div class="needle"></div></div><div class="read">0.0</div><div class="lab">${label} (${unit})</div></div>`;
 
-function drawTrace(canvas, trace, upto, band) {
+function drawTrace(canvas, trace, upto) {
   if (!canvas) return;
   const span = trace[trace.length - 1].t;
   const ctx = canvas.getContext('2d'),
@@ -290,8 +284,6 @@ function drawTrace(canvas, trace, upto, band) {
     ctx.lineTo(w - 8, y(v));
     ctx.stroke();
   }
-  ctx.fillStyle = 'rgba(110,200,120,.18)';
-  ctx.fillRect(8, y(band[1]), w - 16, y(band[0]) - y(band[1]));
   const line = (key, color) => {
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.6;
@@ -314,17 +306,11 @@ function drawTrace(canvas, trace, upto, band) {
         i ? ctx.lineTo(x(point.t), y(point.wall * 0.03)) : ctx.moveTo(x(point.t), y(point.wall * 0.03)),
       );
     ctx.stroke();
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(8, y(700 * 0.03));
-    ctx.lineTo(w - 8, y(700 * 0.03));
-    ctx.stroke();
-    ctx.setLineDash([]);
   }
   ctx.fillStyle = '#5b5345';
   ctx.font = '11px Georgia, serif';
   ctx.fillText(
-    `red: chamber pressure · blue: tank pressure · green band: chamber normal${trace[0].wall != null ? ' · amber: wall temperature (dashed: 700 K limit)' : ''}`,
+    `red: chamber pressure · blue: tank pressure${trace[0].wall != null ? ' · amber: wall temperature' : ''}`,
     10,
     14,
   );
@@ -614,7 +600,7 @@ export const ROOMS = {
       <div class="clock" data-live="standclock">—</div>
       <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
       ${READINGS_HTML}
-      <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is the full-duration run.' : ''}</p>
+      ${s.burn === 'long' ? '<p class="muted">This is the full-duration run.</p>' : ''}
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
       <div class="actions">${asks[p] ? ask(asks[p]) : ''}${buttons}</div>`;
     return `<h2>Test stand dugout</h2>${slotLine()}
@@ -629,7 +615,7 @@ export const ROOMS = {
       <div class="clock" data-live="standclock">—</div>
       <div class="gauges">${gaugeHTML('tank', 'Tank pressure', 'bar')}${gaugeHTML('pc', 'Chamber pressure', 'bar')}${walled ? gaugeHTML('wall', 'Chamber wall', 'K') : ''}</div>
       ${READINGS_HTML}
-      <p class="muted">Tank pressure normal: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar. Chamber pressure normal: ${kit().stand.pc[0]}–${kit().stand.pc[1]} bar.${walled ? ` Chamber wall: below ${kit().stand.wall[1]} K.` : ''}${s.burn === 'long' ? ' This is a full-duration firing: 30 seconds.' : ''}</p>
+      ${s.burn === 'long' ? '<p class="muted">This is a full-duration firing: 30 seconds.</p>' : ''}
       ${s.trace ? '<canvas width="400" height="150"></canvas>' : ''}
       <div class="actions">${asks[p] ? ask(asks[p]) : ''}${buttons}</div>`;
   },
@@ -666,7 +652,6 @@ export const ROOMS = {
       <div class="clock" data-live="countclock">T-10:00</div><p class="center" data-live="countstate"></p>
       <div class="gauges">${gaugeHTML('ctank', 'Tank pressure', 'bar')}<div class="lamp on">IGNITER CIRCUIT<br>CONTINUITY</div></div>
       ${READINGS_HTML}
-      <p class="muted">Normal tank pressure: ${NORMAL_TANK[0]}–${NORMAL_TANK[1]} bar.</p>
       ${towerBlock(c)}
       ${pollButtons}<div class="actions">${holdButtons}</div>`;
   },

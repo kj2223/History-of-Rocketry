@@ -1857,7 +1857,7 @@ function tickPress(count, dt) {
   count.trim = (count.trim || 0) + ((count.valve ? PRESS.fill : 0) - PRESS.bleed) * dt;
   const reading = countTank(),
     inBand = reading >= NORMAL_TANK[0] && reading <= NORMAL_TANK[1];
-  if (!inBand && !count.outFor) say(countLead(), `PRESS, watch your tank: ${reading.toFixed(1)}.`, 'warn');
+  // No warning on the net before the hold (take away the hints): the needle is there to be read.
   count.outFor = inBand ? 0 : (count.outFor || 0) + dt;
   if (count.outFor >= PRESS.out) {
     count.held = true;
