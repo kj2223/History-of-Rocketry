@@ -115,6 +115,7 @@ namespace AdAstra
             sound = new Sounds(view.Cam.gameObject);
             view.Go(site.Views["site"], true);
             gameSeed = Environment.TickCount & 0x7fffffff;
+            BuildHud();
             BotAwake();
         }
 
@@ -680,6 +681,7 @@ namespace AdAstra
 
         void LateUpdate()
         {
+            RefreshHud();
             int frame = Mathf.FloorToInt(Time.time * 18);
             float blur = beat == Beat.Hangar || beat == Beat.Count || beat == Beat.CrewInspect ? 5f : 7f;
             view.Render(frame, 0.85f, beat == Beat.Flight || beat == Beat.Stand ? 1.4f : 0.9f, blur);

@@ -25,6 +25,7 @@ namespace AdAstra.EditorTools
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
             Pipeline();
+            PrepareHud();
             KeepVariants();
             KeepFog();
             if (!File.Exists(ScenePath))
@@ -114,6 +115,29 @@ namespace AdAstra.EditorTools
             }
             QualitySettings.SetQualityLevel(was, false);
             AssetDatabase.SaveAssets();
+        }
+
+        static void PrepareHud()
+        {
+            const string dir = "Assets/AdAstra/Resources/UI";
+            const string themePath = dir + "/FieldTheme.tss";
+            const string panelPath = dir + "/FieldPanel.asset";
+            if (!Directory.Exists(dir)) { Directory.CreateDirectory(dir); AssetDatabase.Refresh(); }
+            if (!File.Exists(themePath))
+            {
+                File.WriteAllText(themePath, "@import url(\"unity-theme://default\");\n");
+                AssetDatabase.ImportAsset(themePath);
+            }
+            var panel = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.PanelSettings>(panelPath);
+            if (!panel)
+            {
+                panel = ScriptableObject.CreateInstance<UnityEngine.UIElements.PanelSettings>();
+                panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(themePath);
+                panel.scaleMode = UnityEngine.UIElements.PanelScaleMode.ConstantPixelSize;
+                panel.sortingOrder = 10;
+                AssetDatabase.CreateAsset(panel, panelPath);
+                AssetDatabase.SaveAssets();
+            }
         }
 
         static void KeepVariants()

@@ -58,7 +58,7 @@ namespace AdAstra.World
                 .SetValue(sprites, false);
             world.cameraStack.Add(SpriteCam);
             // An empty camera that is always on, so the Game view has a camera rendering to the display (the picture
-            // itself comes from the two cameras above, rendered by hand, and is drawn by the GUI).
+            // itself comes from the stack above and is presented by the UI Toolkit world image).
             var screenCam = new GameObject("Screen camera").AddComponent<Camera>();
             screenCam.cullingMask = 0; screenCam.clearFlags = CameraClearFlags.SolidColor; screenCam.backgroundColor = Color.black;
             screenCam.depth = -100; screenCam.allowMSAA = false; screenCam.allowHDR = false;
@@ -150,11 +150,6 @@ namespace AdAstra.World
             Post.SetFloat("_Film", film);
             Post.SetFloat("_Fade", Fade);
             Post.SetFloat("_FrameNo", frameNo);
-        }
-
-        public void Draw()
-        {
-            if (Final != null && Event.current.type == EventType.Repaint) GUI.DrawTexture(Screen, Final, ScaleMode.StretchToFill, false);
         }
 
         // Where a point in the world shows on screen (GUI coordinates), and whether it is in front of the camera.

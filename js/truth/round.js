@@ -439,7 +439,7 @@ export function flagSpots(round, ids) {
   for (const id of ids) {
     if (round.faults[id]) {
       round.events.push(
-        `You flagged the ${spots[id].name.toLowerCase()}: the crew found a real ${FOUND[round.faults[id]]} and fixed it.`,
+        `You flagged the ${spots[id].name.toLowerCase()}: the crew found a real ${FOUND[round.faults[id]] ?? round.faults[id]} and fixed it.`,
       );
       delete round.faults[id];
       hours += FIX_HOURS;

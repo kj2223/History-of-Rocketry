@@ -4,12 +4,13 @@
 // Run after any change to js/data:  node tools/export-data.mjs
 // Writes unity/AdAstra/Assets/AdAstra/Data/*.json (checked in).
 import { readdirSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join, basename } from 'node:path';
+import { dirname, join, basename, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = join(here, '../js/data');
-const out = join(here, '../unity/AdAstra/Assets/AdAstra/Data');
+// The folder can be given on the command line (the Unity repo passes its own Assets/AdAstra/Data).
+const out = process.argv[2] ? resolve(process.argv[2]) : join(here, '../unity/AdAstra/Assets/AdAstra/Data');
 mkdirSync(out, { recursive: true });
 
 const functions = [];
@@ -17,7 +18,7 @@ const nonFinite = [];
 // Walk a value, replacing functions with a marker and remembering where they were.
 const clean = (v, path, seen) => {
   if (typeof v === 'function') {
-    functions.push({ path, source: v.toString().slice(0, 4000) });
+    functions.push({ path, source: v.toString().replace(/\r\n?/g, '\n').slice(0, 4000) });
     return { $function: path };
   }
   if (typeof v === 'number' && !Number.isFinite(v)) {

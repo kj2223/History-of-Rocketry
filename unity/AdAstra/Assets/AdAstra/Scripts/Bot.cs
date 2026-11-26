@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using AdAstra.Truth;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace AdAstra
 {
@@ -49,7 +50,37 @@ namespace AdAstra
         IEnumerator BotPlay()
         {
             yield return Shot("title", 3);
-            NewSeason(1945);
+            gameSeed = 1945;
+            // Exercise the real Toolkit actions, rather than bypassing them with NewSeason/speed assignments.
+            var begin = hudRoot.Q<Button>("begin-season");
+            BotSay($"Toolkit begin bounds: {begin.worldBound}");
+            begin.Focus();
+            using (var submit = NavigationSubmitEvent.GetPooled()) { submit.target = begin; begin.SendEvent(submit); }
+            yield return new WaitForSeconds(0.2f);
+            if (beat != Beat.Arrive) { BotSay("[Error] Toolkit Begin did not start the season"); Application.Quit(1); yield break; }
+            for (int i = 0; i < speedButtons.Length; i++)
+            {
+                float expected = i == 0 ? 1 : i == 1 ? 4 : 16;
+                speedButtons[i].Focus();
+                using (var submit = NavigationSubmitEvent.GetPooled()) { submit.target = speedButtons[i]; speedButtons[i].SendEvent(submit); }
+                yield return new WaitForSeconds(0.2f);
+                if (!Mathf.Approximately(speed, expected)) { BotSay("[Error] Toolkit speed action failed"); Application.Quit(1); yield break; }
+            }
+            speed = 1;
+            BotSay("Toolkit Begin and 1×/4×/16× actions passed");
+            var document = GetComponent<UIDocument>();
+            document.enabled = false;
+            yield return null;
+            document.enabled = true;
+            yield return new WaitForSeconds(0.2f);
+            if (hudRoot.Q<Button>("speed-1") == null) { BotSay("[Error] Toolkit did not recover after re-enable"); Application.Quit(1); yield break; }
+            BotSay("Toolkit document re-enable passed");
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-uismoke") >= 0)
+            {
+                SetBeat(Beat.Brief);
+                yield return Shot("brief-ui");
+                BotSay("UI smoke done."); botLog.Close(); Application.Quit(); yield break;
+            }
             for (int r = 0; r < Campaign.Season.Length; r++)
             {
                 bool full = r == 0;   // screenshots of every beat in the first round, the key beats after
