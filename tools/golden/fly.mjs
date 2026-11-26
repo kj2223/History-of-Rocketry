@@ -1,7 +1,7 @@
 // Golden traces for the port's flight (ad-astra: AdAstra.Rules/Truth/RoundFly.cs, Stages.cs, Physical.cs). Writes fly.json:
-//   fly       newRound then fly() for the sounding-era fleet, every ROUND_SEEDS seed, then Ellis's two readings. A round that
-//             leaves the sounding path (a good Vanguard to orbit, a lunar shot on its way or stranded: orbit(), launchProbe(),
-//             deep()) is not ported yet: it records only which branch it took, and the C# must refuse it there.
+//   fly       newRound then fly() for the sounding-era fleet, every ROUND_SEEDS seed, then Ellis's two readings, including
+//             the rounds that leave the sounding path (a good Vanguard to orbit, a lunar shot on its way or stranded:
+//             orbit(), launchProbe(), deep()) with what they hand the tracking stations (orbit, deep).
 //   loose     flyLoose() on a fresh round.
 //   staff     flyStaffRound().
 //   stacks    truth/stages.js directly: liftoffMass, stackBurn, burnStack, speedGained, fitStack, flySounding.
@@ -32,14 +32,11 @@ function recordFly(seed, vehicle, programmeName, programme, load = 1) {
   r.propellantLoad = load;
   const base = { vehicle, seed, programme: programmeName, load };
   const f = fly(r);
-  if (f.orbit || f.deep) {
-    // Not ported: which branch, so the C# can show it stops at the same place.
-    const branch = branchOf(f);
-    return { ...base, branch, failure: f.failure, hidden: !!r.hiddenFailure };
-  }
   const out = {
     ...base,
-    branch: 'sounding',
+    branch: branchOf(f),
+    orbit: f.orbit ?? null,
+    deep: f.deep ?? null,
     culprit: r.physical.culprit,
     apogee: f.apogee,
     range: f.range,
