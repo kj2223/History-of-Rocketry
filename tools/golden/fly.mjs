@@ -32,20 +32,25 @@ function recordFly(seed, vehicle, programmeName, programme, load = 1) {
   r.propellantLoad = load;
   const base = { vehicle, seed, programme: programmeName, load };
   const f = fly(r);
+  // The flights that leave the range plot go through `Math.sin(..) ** 0.8` and `f ** 1.6`, and V8's pow on a fraction
+  // can differ between Windows and Linux in the last bit. Written to 12 significant figures their numbers come out the
+  // same on every machine; the C# compares them within 1e-10.
+  const n = f.orbit || f.deep ? x => (x == null ? x : Number(x.toPrecision(12))) : x => x;
+  const last = f.path[f.path.length - 1];
   const out = {
     ...base,
     branch: branchOf(f),
-    orbit: f.orbit ?? null,
+    orbit: f.orbit ? { perigee: n(f.orbit.perigee), apogee: n(f.orbit.apogee) } : null,
     deep: f.deep ?? null,
     culprit: r.physical.culprit,
-    apogee: f.apogee,
-    range: f.range,
+    apogee: n(f.apogee),
+    range: n(f.range),
     failure: f.failure,
     failAt: f.failAt,
     burn: f.burn,
-    landing: f.path[f.path.length - 1],
-    path: columns(f.path),
-    radar: f.radar,
+    landing: { t: last.t, x: n(last.x), h: n(last.h) },
+    path: { t: f.path.map(p => p.t), x: f.path.map(p => n(p.x)), h: f.path.map(p => n(p.h)) },
+    radar: n(f.radar),
     hidden: !!r.hiddenFailure,
     events: [...r.events],
     streamEnd: streams(r),
@@ -245,8 +250,11 @@ export function record(write) {
       ROUND_SEEDS.slice(0, 5).map(seed => {
         try {
           const r = newRound(seed, undefined, vehicle);
-        const branch = r && vehicle !== 'redstone' ? branchOf(fly(r)) : null;
-        return { vehicle, seed, branch, out: flyStaffRound(vehicle, seed) };
+          const branch = r && vehicle !== 'redstone' ? branchOf(fly(r)) : null;
+          const out = flyStaffRound(vehicle, seed);
+          // Off the range plot, the apogee goes through pow: 12 significant figures, as in recordFly.
+          if (out && branch && branch !== 'sounding') out.apogee = Number(out.apogee.toPrecision(12));
+          return { vehicle, seed, branch, out };
         } catch (e) {
           return { vehicle, seed, error: String(e) };
         }
