@@ -1,7 +1,7 @@
-// GOLDEN TRACES: what the JS game does, written down so the C# port (unity/AdAstra.Rules) can be checked against it.
-// Each part the port has reached adds a recorder here; the C# tests in unity/AdAstra.Rules.Tests replay the same seeds
+// GOLDEN TRACES: what the JS game does, written down so the C# port (kj2223/ad-astra: AdAstra.Rules) can be checked against it.
+// Each part the port has reached adds a recorder here; the C# tests in ad-astra's AdAstra.Rules.Tests replay the same seeds
 // and compare. Run after any rules change on the JS side:  node tools/golden/record.mjs
-// Writes unity/AdAstra.Rules.Tests/Golden/*.json (checked in).
+// Writes <ad-astra>/AdAstra.Rules.Tests/Golden/*.json, checked in to the Unity repo.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,8 +11,12 @@ import { newRound, meterReading, crewInspect, flagSpots, leakCheck, tankGauge, s
 import { KITS } from '../../js/data/kits.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-// The folder can be given on the command line (the Unity repo passes its own AdAstra.Rules.Tests/Golden).
-const out = process.argv[2] ? resolve(process.argv[2]) : join(here, '../../unity/AdAstra.Rules.Tests/Golden');
+// The output folder is given on the command line: the Unity repo (kj2223/ad-astra) passes its own AdAstra.Rules.Tests/Golden.
+if (!process.argv[2]) {
+  console.error('Usage: node tools/golden/record.mjs <Unity repo>/AdAstra.Rules.Tests/Golden');
+  process.exit(2);
+}
+const out = resolve(process.argv[2]);
 mkdirSync(out, { recursive: true });
 const write = (name, data) => writeFileSync(join(out, name), JSON.stringify(data, null, 1) + '\n');
 
@@ -40,7 +44,7 @@ write('saves.json', {
 });
 
 // Round creation and inspection, for every vehicle: faults, cues, latent mechanisms, the streams' end states, and the
-// meter/crew/flag/leak actions after. The C# tests replay these in the same order (unity/AdAstra.Rules/Truth/Round.cs).
+// meter/crew/flag/leak actions after. The C# tests replay these in the same order (ad-astra: AdAstra.Rules/Truth/Round.cs).
 const ROUND_SEEDS = [0, 1, 2, 7, 42, 1945, 123456789, 0x7fffffff, 0xffffffff, 314159];
 const VEHICLES = Object.keys(KITS);
 const PROGRAMMES = {
