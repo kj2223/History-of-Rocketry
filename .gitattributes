@@ -1,17 +1,2 @@
 # Auto detect text files and perform LF normalization
 * text=auto
-
-# Unity source art/audio/models only. Keep scenes, prefabs, materials and .meta as diffable text.
-# No history rewrite: these rules apply when binary source assets are next added.
-unity/AdAstra/Assets/**/*.png filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.jpg filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.psd filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.tga filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.exr filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.wav filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.ogg filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.mp3 filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.fbx filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.blend filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.ttf filter=lfs diff=lfs merge=lfs -text
-unity/AdAstra/Assets/**/*.otf filter=lfs diff=lfs merge=lfs -text

@@ -2,15 +2,19 @@
 // numbers reach the C# port by copying, never retyping. Functions cannot be JSON: each one is listed in
 // _functions.json with its source, so the port translates those few by hand and none are missed.
 // Run after any change to js/data:  node tools/export-data.mjs
-// Writes unity/AdAstra/Assets/AdAstra/Data/*.json (checked in).
+// Writes <ad-astra>/AdAstra/Assets/AdAstra/Data/*.json, checked in to the Unity repo (kj2223/ad-astra).
 import { readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, basename, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = join(here, '../js/data');
-// The folder can be given on the command line (the Unity repo passes its own Assets/AdAstra/Data).
-const out = process.argv[2] ? resolve(process.argv[2]) : join(here, '../unity/AdAstra/Assets/AdAstra/Data');
+// The output folder is given on the command line: the Unity repo (kj2223/ad-astra) passes its own Assets/AdAstra/Data.
+if (!process.argv[2]) {
+  console.error('Usage: node tools/export-data.mjs <Unity repo>/AdAstra/Assets/AdAstra/Data');
+  process.exit(2);
+}
+const out = resolve(process.argv[2]);
 mkdirSync(out, { recursive: true });
 
 const functions = [];
