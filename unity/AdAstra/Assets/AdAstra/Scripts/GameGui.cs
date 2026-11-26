@@ -1,4 +1,4 @@
-// What the player sees on top of the picture, at full resolution: the top bar, the talk on the net, speech over people,
+// The remaining IMGUI layer at full resolution: the talk on the net, speech over people,
 // markers on the stage, the clipboard for the current step, the strip chart, the decay needle, the count clock and the
 // range plot. Readings are plain: no bands or automatic warnings (Aaron, 22 November 2026); the red-line card is the
 // reference.
@@ -19,9 +19,7 @@ namespace AdAstra
         void OnGUI()
         {
             Ui.Build();
-            view.Draw();
-            if (beat == Beat.Title) { TitleScreen(); return; }
-            TopBar();
+            if (beat == Beat.Title) return;
             Markers();
             Bubbles();
             LogBox();
@@ -30,38 +28,6 @@ namespace AdAstra
         }
 
         // ---------------- Frame ----------------
-        void TitleScreen()
-        {
-            float w = Screen.width, h = Screen.height;
-            Ui.Box(new Rect(0, h * 0.30f, w, Px(300)), new Color(0.07f, 0.07f, 0.05f, 0.72f));
-            GUI.Label(new Rect(0, h * 0.30f + Px(20), w, Px(80)), "AD ASTRA", Ui.Title);
-            Ui.Label(new Rect(0, h * 0.30f + Px(100), w, Px(40)), "The WAC Corporal programme · White Sands Proving Ground, 1945–1946", Ui.Head, Ui.Cream);
-            Ui.Label(new Rect(0, h * 0.30f + Px(142), w, Px(40)), "An HD-2D prototype: a 3D world, pixel people, light and film over it", Ui.Note, Ui.Accent);
-            var b = new Rect(w / 2 - Px(200), h * 0.30f + Px(205), Px(400), Px(56));
-            if (GUI.Button(b, "Begin the season", Ui.Button)) Later(() => { NewSeason(gameSeed); });
-            Ui.Label(new Rect(0, h - Px(60), w, Px(30)), "Right-drag turns the camera a little; the wheel moves it in and out.", Ui.Note, Ui.Cream);
-        }
-
-        void TopBar()
-        {
-            float h = Px(54);
-            GUI.Box(new Rect(0, 0, Screen.width, h), GUIContent.none, Ui.Bar);
-            GUI.Label(new Rect(Px(14), Px(8), Px(430), h - Px(16)), $"{DateText()} · {ClockText()}", Ui.Date);
-            Ui.Label(new Rect(Px(460), Px(6), Screen.width - Px(1240), h - Px(12)), objective, Ui.Small, Ui.Cream);
-            float x = Screen.width - Px(770);
-            if (slot != null && beat != Beat.RoundEnd && beat != Beat.SeasonEnd)
-            {
-                var col = slot.Left <= 0 ? Ui.Hex("#ff8a6a") : Ui.Accent;
-                Ui.Label(new Rect(x, Px(14), Px(460), Px(30)), $"Crew hours left: {Slot.HoursText(slot.Left)} of {Slot.HoursText(slot.Budget)}", Ui.Small, col);
-            }
-            x = Screen.width - Px(290);
-            foreach (var s in new[] { 1f, 4f, 16f })
-            {
-                if (GUI.Button(new Rect(x, Px(9), Px(84), Px(36)), $"{s}×", Mathf.Approximately(speed, s) ? Ui.ButtonOn : Ui.Button)) Later(() => { speed = s; });
-                x += Px(92);
-            }
-        }
-
         void LogBox()
         {
             var lines = Log.Skip(Math.Max(0, Log.Count - 5)).ToList();
