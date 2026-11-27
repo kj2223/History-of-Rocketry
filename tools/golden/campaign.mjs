@@ -10,6 +10,26 @@ import * as bot from '../../js/dev/bot.js';
 import * as game from '../../js/game.js';
 import { SEASON } from '../../js/data/campaign.js';
 
+// The text hashed is canonical, so that only what the game knows counts:
+//  - numbers that went through Math.pow/sin/exp differ between V8 on Windows and on Linux (and from .NET) in the last
+//    bit, so every non-integer is written to 10 significant figures;
+//  - object keys are sorted, because the order a JS object gained its keys is not part of the game (saves are not
+//    carried across, decision 5 of 22 Nov 2026), and the C# keeps some of the state in typed fields.
+// A real divergence still shows: a different draw, choice, value or key. ad-astra's JsMath.CanonicalJson writes the same.
+export function canonical(value) {
+  const norm = x => {
+    if (typeof x === 'number') return Number.isFinite(x) && !Number.isInteger(x) ? Number(x.toPrecision(10)) : x;
+    if (Array.isArray(x)) return x.map(v => (v === undefined || typeof v === 'function' ? null : norm(v)));
+    if (x && typeof x === 'object') {
+      const o = {};
+      for (const k of Object.keys(x).sort()) if (x[k] !== undefined && typeof x[k] !== 'function') o[k] = norm(x[k]);
+      return o;
+    }
+    return x;
+  };
+  return JSON.stringify(norm(JSON.parse(JSON.stringify(value))));
+}
+
 export const CAMPAIGN_SEEDS = [1945, 7, 314159];
 
 function playCampaign(seed) {
@@ -20,12 +40,7 @@ function playCampaign(seed) {
     const out = clone(v);
     if (v && typeof v === 'object' && 'roundId' in v && 'beat' in v && 'programme' in v)
     {
-      // Numbers that went through Math.pow/sin/exp differ between V8 on Windows and on Linux (and from .NET) in the last
-      // bit, so the text hashed is canonical: every non-integer written to 10 significant figures. A real divergence
-      // still shows (a different draw, choice or value); last-bit noise does not.
-      const text = JSON.stringify(out, (k, x) =>
-        typeof x === 'number' && Number.isFinite(x) && !Number.isInteger(x) ? Number(x.toPrecision(10)) : x,
-      );
+      const text = canonical(out);
       taken.push({
         i: taken.length,
         roundId: v.roundId,
