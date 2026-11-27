@@ -128,7 +128,7 @@ function recordStand(seed, vehicle, burn, programme) {
 
 // The parts of the port recorded in their own modules (tools/golden/<part>.mjs), each exporting record(write).
 // One of them alone: node tools/golden/run-one.mjs <part> <folder>.
-export const PARTS = ['count', 'fly', 'programme', 'rework', 'jsmath', 'calendar', 'campaign', 'datafns'];
+export const PARTS = ['count', 'fly', 'programme', 'rework', 'jsmath', 'calendar', 'campaign', 'datafns', 'desk'];
 for (const part of PARTS) (await import(`./${part}.mjs`)).record(write);
 
 console.log(`Golden traces written to ${out}`);
