@@ -200,6 +200,9 @@ export const CONTROL_ROOMS = {
       <p>McDonnell's crew has her opened up for you. Each look takes about forty minutes. Flag what you don't like: Hangar S reworks it overnight,
       and any flag slips the launch a day.</p>
       <ul class="reports">${capsuleSpots()
+        // A programme's spots on a booster whose kit lacks some (Skylab's Apollo crews on the Saturn IB): only the kit's,
+        // as the hangar scene shows them (site/interiors.js).
+        .filter(id => k.spots?.[id])
         .map(id => {
           const seen = m.checkout?.[id],
             flagged = m.flags?.[id];
